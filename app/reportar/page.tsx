@@ -103,8 +103,7 @@ const nuevoHallazgo = {
 
     localStorage.setItem("hallazgos", JSON.stringify(actualizados));
 
-    alert("Hallazgo guardado correctamente");
-   router.push("/evaluar/paso1");
+   router.push("/evaluar/paso1"); 
 
    setHallazgo({
   ...hallazgo,

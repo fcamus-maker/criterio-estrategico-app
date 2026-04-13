@@ -64,22 +64,24 @@ export const preguntasEvaluacion: PreguntaEvaluacion[] = [
     paso: 1,
     bloque: "critica",
     texto: "¿El área estaba segregada o controlada?",
-    opciones: [
-      { label: "Sí", value: "si", score: 0 },
-      { label: "Parcial", value: "parcial", score: 5 },
-      { label: "No", value: "no", score: 10 },
-    ],
+   opciones: [
+  { label: "Sí", value: "si", score: 0 },
+  { label: "Parcial", value: "parcial", score: 5 },
+  { label: "No", value: "no", score: 10 },
+  { label: "No aplica", value: "no_aplica", score: 0 },
+],
   },
   {
     id: "p6",
     paso: 1,
     bloque: "critica",
     texto: "¿Había medidas de control visibles y operativas?",
-    opciones: [
-      { label: "Sí", value: "si", score: 0 },
-      { label: "Parcial", value: "parcial", score: 6 },
-      { label: "No", value: "no", score: 12 },
-    ],
+   opciones: [
+  { label: "Sí", value: "si", score: 0 },
+  { label: "Parcial", value: "parcial", score: 5 },
+  { label: "No", value: "no", score: 10 },
+  { label: "No aplica", value: "no_aplica", score: 0 },
+],
   },
   {
     id: "p7",
@@ -108,10 +110,10 @@ export const preguntasEvaluacion: PreguntaEvaluacion[] = [
     bloque: "operacional",
     texto: "¿El trabajo fue detenido al detectar la condición?",
     opciones: [
-      { label: "Sí", value: "si", score: 0 },
-      { label: "No", value: "no", score: 10 },
-      { label: "No aplica", value: "no_aplica", score: 0 },
-    ],
+  { label: "Sí", value: "si", score: 0 },
+  { label: "No", value: "no", score: 10 },
+  { label: "No aplica", value: "no_aplica", score: 0 },
+],
   },
   {
     id: "p10",

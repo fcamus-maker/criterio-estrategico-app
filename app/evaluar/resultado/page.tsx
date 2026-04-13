@@ -97,22 +97,21 @@ export default function ResultadoPage() {
           </div>
         )}
 
-        <button
-          onClick={() => window.location.href = "/"}
-          style={{
-            width: "100%",
-            padding: "14px",
-            borderRadius: "12px",
-            background: "#1890ff",
-            color: "white",
-            border: "none",
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
-        >
-          Finalizar
-        </button>
-
+       <button
+  onClick={() => (window.location.href = "/evaluar/informe-final")}
+  style={{
+    width: "100%",
+    padding: "14px",
+    borderRadius: "12px",
+    background: "#1890ff",
+    color: "white",
+    border: "none",
+    fontWeight: 600,
+    cursor: "pointer",
+  }}
+>
+  Finalizar
+</button>
       </div>
     </div>
   );

@@ -421,22 +421,47 @@ export default function Paso3() {
         </div>
 
         <button
-          onClick={() => (window.location.href = "/")}
-          style={{
-            width: "100%",
-            padding: "16px",
-            borderRadius: "14px",
-            background: resultado.colorBoton,
-            color: "white",
-            border: "none",
-            fontWeight: 700,
-            fontSize: "18px",
-            cursor: "pointer",
-            boxShadow: "0 10px 24px rgba(0,0,0,0.25)",
-          }}
-        >
-          Finalizar
-        </button>
+  onClick={() => {
+    const data = JSON.parse(localStorage.getItem("hallazgos") || "[]");
+
+    if (Array.isArray(data) && data.length > 0) {
+      const ultimo = data[data.length - 1];
+      const nivelCalculado = String(
+        resultado?.nivel || resultado?.criticidad || "ALTO"
+      ).toUpperCase();
+
+      data[data.length - 1] = {
+        ...ultimo,
+        criticidad: nivelCalculado,
+        nivelCriticidad: nivelCalculado,
+        nivel: nivelCalculado,
+        resultadoFinal: {
+          ...resultado,
+          criticidad: nivelCalculado,
+          nivel: nivelCalculado,
+        },
+      };
+
+      localStorage.setItem("hallazgos", JSON.stringify(data));
+    }
+
+    window.location.href = "/evaluar/informe-final";
+  }}
+  style={{
+    width: "100%",
+    padding: "16px",
+    borderRadius: "14px",
+    background: resultado.colorBoton,
+    color: "white",
+    border: "none",
+    fontWeight: 700,
+    fontSize: "18px",
+    cursor: "pointer",
+    boxShadow: "0 10px 24px rgba(0,0,0,0.25)",
+  }}
+>
+  Finalizar
+</button>
       </div>
     </div>
   );

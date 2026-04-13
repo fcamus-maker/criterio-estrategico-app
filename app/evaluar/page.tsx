@@ -194,23 +194,27 @@ export default function EvaluarPage() {
               </div>
 
               <button
-                onClick={() => (window.location.href = "/")}
-                style={{
-                  marginTop: "20px",
-                  width: "100%",
-                  padding: "14px",
-                  borderRadius: "14px",
-                  background: "linear-gradient(90deg, #52c41a, #95de64)",
-                  color: "#083019",
-                  border: "none",
-                  fontWeight: 700,
-                  fontSize: "16px",
-                  cursor: "pointer",
-                  boxShadow: "0 10px 25px rgba(82, 196, 26, 0.4)",
-                }}
-              >
-                Volver al Panel
-              </button>
+  onClick={async () => {
+    const { error } = await supabase.from("hallazgos").insert([
+      {
+        area: "Prueba",
+        responsable: "Freddy",
+        descripcion: "Prueba desde app",
+        fecha: new Date().toISOString(),
+      },
+    ]);
+
+    if (error) {
+      console.error(error);
+      alert("Error al guardar");
+    } else {
+      alert("Guardado correctamente");
+      window.location.href = "/";
+    }
+  }}
+>
+  Guardar prueba
+</button>
             </div>
           </>
         )}

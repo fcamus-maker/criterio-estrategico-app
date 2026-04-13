@@ -18,6 +18,10 @@ export interface Hallazgo {
     fotos: string[];
   };
 
+    evaluacion: {
+    respuestas: Record<string, string>;
+  };
+
   bloque1: {
     tipoPeligro: string;
     tipoDesviacion: string;
