@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Hallazgo } from "../types/hallazgo";
+import { supabase } from "../../lib/supabaseClient";
 
 export default function EvaluarPage() {
   const [hallazgo, setHallazgo] = useState<Hallazgo | null>(null);

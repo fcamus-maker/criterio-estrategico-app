@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import preguntasEvaluacion, {
   type RespuestasEvaluacion,
 } from "../../types/evaluacion";
-
+import { supabase } from "../../../lib/supabaseClient";
 type Hallazgo = Record<string, any>;
 
 type AnalisisInforme = {
@@ -1484,28 +1484,89 @@ export default function InformeFinalPage() {
         </div>
 
         <button
-          onClick={() => {
-            alert(
-              "Aquí conectaremos el guardado definitivo y el envío por correo."
-            );
-          }}
-          style={{
-            marginTop: "14px",
-            width: "100%",
-            padding: "16px",
-            borderRadius: "20px",
-            border: "none",
-            background: "linear-gradient(135deg, #67ef48 0%, #d7ff39 100%)",
-            color: "#103a18",
-            fontSize: "22px",
-            fontWeight: 900,
-            cursor: "pointer",
-            boxShadow:
-              "0 16px 30px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.35)",
-          }}
-        >
-          GUARDAR Y ENVIAR
-        </button>
+  onClick={async () => {
+    try {
+      const data = JSON.parse(localStorage.getItem("hallazgos") || "[]");
+
+      if (!Array.isArray(data) || data.length === 0) {
+        alert("No se encontró un hallazgo para guardar.");
+        return;
+      }
+
+      const ultimoIndex = data.length - 1;
+      const actual = data[ultimoIndex] || {};
+      const fechaGuardado = new Date().toISOString();
+
+      const informeFinal = {
+        codigoInforme,
+        criticidad,
+        fecha,
+        area,
+        responsable,
+        proyecto,
+        empresa,
+        descripcion,
+        conclusion: fundamento,
+        medidaInmediata: acciones.medidaInmediata,
+        medidaCierre: acciones.medidaCierre,
+        evidenciaCierre: acciones.evidenciaCierre,
+        fechaCierrePropuesta: acciones.fechaCierrePropuesta,
+        fotos,
+        fechaGuardado,
+        estado: "guardado",
+      };
+const { error } = await supabase.from("hallazgos").insert([
+  {
+    area,
+    responsable,
+    "descripción": descripcion,
+    fecha: fechaGuardado,
+  },
+]);
+
+if (error) {
+  console.error(error);
+  alert("Error al guardar en Supabase.");
+  return;
+}
+      data[ultimoIndex] = {
+        ...actual,
+        codigoInforme,
+        criticidad,
+        nivel: criticidad,
+        estado: "informado",
+        fechaInforme: fechaGuardado,
+        informeFinal,
+      };
+
+      localStorage.setItem("hallazgos", JSON.stringify(data));
+      localStorage.setItem(
+        "ultimoInformeFinal",
+        JSON.stringify(informeFinal)
+      );
+
+      alert("Informe final guardado correctamente.");
+    } catch {
+      alert("Ocurrió un error al guardar el informe.");
+    }
+  }}
+  style={{
+    marginTop: "14px",
+    width: "100%",
+    padding: "16px",
+    borderRadius: "20px",
+    border: "none",
+    background: "linear-gradient(135deg, #67ef48 0%, #d7ff39 100%)",
+    color: "#103a18",
+    fontSize: "22px",
+    fontWeight: 900,
+    cursor: "pointer",
+    boxShadow:
+      "0 16px 30px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.35)",
+  }}
+>
+  GUARDAR Y ENVIAR
+</button>
       </div>
     </div>
   );
