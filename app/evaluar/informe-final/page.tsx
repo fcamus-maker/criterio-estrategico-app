@@ -83,9 +83,21 @@ function texto(valor: any, fallback = "-") {
 }
 
 function formatearFecha(valor: any) {
-  if (!valor) return new Date().toLocaleDateString("es-CL");
+  if (!valor) {
+    return new Date().toLocaleDateString("es-CL");
+  }
 
-  const fecha = new Date(valor);
+  if (typeof valor === "string") {
+    const match = valor.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+    if (match) {
+      const [, anio, mes, dia] = match;
+      return `${dia}-${mes}-${anio}`;
+    }
+  }
+
+  const fecha = valor instanceof Date ? valor : new Date(valor);
+
   if (!Number.isNaN(fecha.getTime())) {
     return fecha.toLocaleDateString("es-CL");
   }
@@ -1287,17 +1299,43 @@ export default function InformeFinalPage() {
                 </div>
 
                 <div>
-                  <div style={celdaTitulo()}>Responsable</div>
-                  <div
-                    style={{
-                      fontSize: "14px",
-                      fontWeight: 700,
-                      color: "#1c2f49",
-                    }}
-                  >
-                    {responsable}
-                  </div>
-                </div>
+  <div style={celdaTitulo()}>Responsable</div>
+  <div
+    style={{
+      fontSize: "14px",
+      fontWeight: 700,
+      color: "#1c2f49",
+    }}
+  >
+    {responsable}
+  </div>
+</div>
+
+<div>
+  <div style={celdaTitulo()}>Cargo</div>
+  <div
+    style={{
+      fontSize: "14px",
+      fontWeight: 700,
+      color: "#1c2f49",
+    }}
+  >
+    {hallazgo?.cargo || "Por definir"}
+  </div>
+</div>
+
+<div>
+  <div style={celdaTitulo()}>Hora del reporte</div>
+  <div
+    style={{
+      fontSize: "14px",
+      fontWeight: 700,
+      color: "#1c2f49",
+    }}
+  >
+    {hallazgo?.horaReporte || "-"}
+  </div>
+</div>
 
                 <div>
                   <div style={celdaTitulo()}>Proyecto / Obra</div>

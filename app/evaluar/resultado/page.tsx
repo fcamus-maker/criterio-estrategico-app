@@ -92,8 +92,10 @@ export default function ResultadoPage() {
             marginBottom: "16px"
           }}>
             <p><strong>Área:</strong> {hallazgo.reporte.area}</p>
-            <p><strong>Responsable:</strong> {hallazgo.reporte.responsable}</p>
-            <p><strong>Fecha:</strong> {hallazgo.reporte.fecha}</p>
+<p><strong>Responsable:</strong> {hallazgo.reporte.responsable}</p>
+<p><strong>Cargo:</strong> {hallazgo.cargo || "Por definir"}</p>
+<p><strong>Fecha del Hallazgo:</strong> {hallazgo.reporte.fecha}</p>
+<p><strong>Hora del reporte:</strong> {hallazgo.horaReporte || "-"}</p>
           </div>
         )}
 

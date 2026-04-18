@@ -1,17 +1,18 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Hallazgo } from "@/types/hallazgo";
 import { useRouter } from "next/navigation";
 
 export default function ReportarPage() {
   const router = useRouter();
-  const [hallazgo, setHallazgo] = useState<Hallazgo>({
+
+ const [hallazgo, setHallazgo] = useState<Hallazgo>({
   id: "",
   codigo: "",
   contexto: {
-    empresa: "TN",
-    obra: "PEPM",
-    supervisor: "Freddy Camus",
+    empresa: "",
+    obra: "",
+    supervisor: "",
   },
   reporte: {
     area: "",
@@ -62,6 +63,41 @@ export default function ReportarPage() {
 });
   
 const [tipoRiesgo, setTipoRiesgo] = useState("");
+useEffect(() => {
+  try {
+    const usuarioGuardado = JSON.parse(
+      localStorage.getItem("usuarioActivo") || "null"
+    );
+
+    if (!usuarioGuardado) return;
+
+    const ahora = new Date();
+    const fechaHoy = ahora.toISOString().split("T")[0];
+    const horaHoy = ahora.toLocaleTimeString("es-CL", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    setHallazgo((prev: Hallazgo) =>
+      ({
+        ...prev,
+        contexto: {
+          empresa: usuarioGuardado.empresa || "",
+          obra: usuarioGuardado.obra || "",
+          supervisor: usuarioGuardado.nombre || "",
+        },
+        cargo: usuarioGuardado.cargo || "",
+        reporte: {
+          ...prev.reporte,
+          responsable: usuarioGuardado.nombre || "",
+          fecha: fechaHoy,
+        },
+        horaReporte: horaHoy,
+        timestampReporte: ahora.toISOString(),
+      }) as Hallazgo
+    );
+  } catch {}
+}, []);
 
   const handleImagenes = (e: React.ChangeEvent<HTMLInputElement>) => {
   const files = e.target.files;
@@ -91,6 +127,10 @@ const nuevoHallazgo = {
   ...hallazgo,
   id: Date.now(),
   codigo,
+  empresa: hallazgo.contexto.empresa,
+obra: hallazgo.contexto.obra,
+supervisor: hallazgo.contexto.supervisor,
+cargo: JSON.parse(localStorage.getItem("usuarioActivo") || "null")?.cargo || "",
   estado: "abierto",
   reporte: hallazgo.reporte,
 
@@ -199,40 +239,33 @@ const inputStyle = {
 </label>
 
         <input
-          type="text"
-          placeholder="Responsable"
-          value={hallazgo?.reporte.responsable || ""}
-          onChange={(e) =>
-            setHallazgo({
-              ...hallazgo,
-              reporte: {
-                ...hallazgo.reporte,
-                responsable: e.target.value,
-              },
-            })
-          }
-          required
-          style={inputStyle}
-        />
+  type="text"
+  value={hallazgo?.reporte.responsable || ""}
+  readOnly
+  style={{ ...inputStyle, opacity: 0.9 }}
+/>
+
 <label style={{ fontSize: "13px", opacity: 0.7 }}>
-  Fecha 
+  Fecha
 </label>
 
-        <input
-          type="date"
-          value={hallazgo?.reporte.fecha || ""}
-          onChange={(e) =>
-            setHallazgo({
-              ...hallazgo,
-              reporte: {
-                ...hallazgo.reporte,
-                fecha: e.target.value,
-              },
-            })
-          }
-          required
-          style={inputStyle}
-        />
+<input
+  type="text"
+  value={hallazgo?.reporte.fecha || ""}
+  readOnly
+  style={{ ...inputStyle, opacity: 0.9 }}
+/>
+
+<label style={{ fontSize: "13px", opacity: 0.7 }}>
+  Hora del reporte
+</label>
+
+<input
+  type="text"
+  value={String((hallazgo as any)?.horaReporte || "")}
+  readOnly
+  style={{ ...inputStyle, opacity: 0.9 }}
+/>
 <label style={{ fontSize: "13px", opacity: 0.7 }}>
   Descripción 
 </label>
