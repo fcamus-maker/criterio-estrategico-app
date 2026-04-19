@@ -17,6 +17,7 @@ export default function Paso1() {
   }, []);
 
   const preguntas = preguntasEvaluacion.filter((p) => p.paso === 1);
+  const faltanRespuestas = preguntas.some((p) => !respuestas[p.id]);
 
   const seleccionar = (id: string, value: string) => {
     setRespuestas((prev) => ({
@@ -26,6 +27,10 @@ export default function Paso1() {
   };
 
   const continuar = () => {
+    if (faltanRespuestas) {
+  alert("Debes responder todas las preguntas antes de continuar.");
+  return;
+}
     const data = JSON.parse(localStorage.getItem("hallazgos") || "[]");
 
     const actualizados = data.map((h: any) =>
