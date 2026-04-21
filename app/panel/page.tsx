@@ -48,6 +48,15 @@ export default function PanelEjecutivoPage() {
   const filas = hallazgosMock;
 const [hallazgoActivo, setHallazgoActivo] = useState(filas[0]);
 const [filtroRapido, setFiltroRapido] = useState<"HOY" | "SEMANA" | "MES" | "PERSONALIZADO">("HOY");
+const [filtroEmpresa, setFiltroEmpresa] = useState("TODAS");
+const [filtroObra, setFiltroObra] = useState("TODAS");
+const [filtroEstado, setFiltroEstado] = useState("TODOS");
+const [filtroCriticidad, setFiltroCriticidad] = useState("TODAS");
+const opcionesEmpresa = ["TODAS", ...new Set(filas.map((item) => item.empresa))];
+const opcionesObra = ["TODAS", ...new Set(filas.map((item) => item.obra))];
+const opcionesEstado = ["TODOS", ...new Set(filas.map((item) => item.estado))];
+const opcionesCriticidad = ["TODAS", ...new Set(filas.map((item) => item.criticidad))];
+
 const fechaBase = new Date(
   Math.max(...filas.map((item) => new Date(item.fechaISO).getTime()))
 );
@@ -67,7 +76,28 @@ const inicioMes = new Date(
   1
 );
 
-const filasFiltradas = filas.filter((item) => {
+const filasBase = filas.filter((item) => {
+  const cumpleEmpresa =
+    filtroEmpresa === "TODAS" || item.empresa === filtroEmpresa;
+
+  const cumpleObra =
+    filtroObra === "TODAS" || item.obra === filtroObra;
+
+  const cumpleEstado =
+    filtroEstado === "TODOS" || item.estado === filtroEstado;
+
+  const cumpleCriticidad =
+    filtroCriticidad === "TODAS" || item.criticidad === filtroCriticidad;
+
+  return (
+    cumpleEmpresa &&
+    cumpleObra &&
+    cumpleEstado &&
+    cumpleCriticidad
+  );
+});
+
+const filasFiltradas = filasBase.filter((item) => {
   const fecha = new Date(item.fechaISO);
 
   if (filtroRapido === "HOY") {
@@ -655,33 +685,155 @@ const kpis = [
       "Estado",
       "Criticidad",
       "Tipo de hallazgo",
-    ].map((label) => (
-      <div key={label} style={{ marginBottom: "11px" }}>
-        <div
-          style={{
-            fontSize: "11px",
-            opacity: 0.7,
-            marginBottom: "6px",
-            fontWeight: 700,
-          }}
-        >
-          {label}
-        </div>
+   ].map((label) => (
+  <div key={label}>
+    <div
+      style={{
+        fontSize: "11px",
+        opacity: 0.7,
+        marginBottom: "6px",
+        fontWeight: 700,
+      }}
+    >
+      {label}
+    </div>
 
-        <div
-          style={{
-            padding: "11px 12px",
-            borderRadius: "13px",
-            background: "rgba(255,255,255,0.08)",
-            border: "1px solid rgba(255,255,255,0.10)",
-            fontSize: "13px",
-            color: "rgba(255,255,255,0.76)",
-          }}
-        >
-          Seleccionar
-        </div>
-      </div>
+   {label === "Empresa" ? (
+  <select
+    value={filtroEmpresa}
+    onChange={(e) => setFiltroEmpresa(e.target.value)}
+    style={{
+      width: "100%",
+      padding: "11px 12px",
+      borderRadius: "13px",
+      border: "1px solid rgba(255,255,255,0.10)",
+      background: "rgba(255,255,255,0.08)",
+      color: "white",
+      fontSize: "13px",
+      fontWeight: 700,
+      outline: "none",
+      appearance: "none",
+      WebkitAppearance: "none",
+      MozAppearance: "none",
+      cursor: "pointer",
+    }}
+  >
+    {opcionesEmpresa.map((empresa) => (
+      <option
+        key={empresa}
+        value={empresa}
+        style={{ color: "#0f172a" }}
+      >
+        {empresa}
+      </option>
     ))}
+  </select>
+) : label === "Obra / Proyecto" ? (
+  <select
+    value={filtroObra}
+    onChange={(e) => setFiltroObra(e.target.value)}
+    style={{
+      width: "100%",
+      padding: "11px 12px",
+      borderRadius: "13px",
+      border: "1px solid rgba(255,255,255,0.10)",
+      background: "rgba(255,255,255,0.08)",
+      color: "white",
+      fontSize: "13px",
+      fontWeight: 700,
+      outline: "none",
+      appearance: "none",
+      WebkitAppearance: "none",
+      MozAppearance: "none",
+      cursor: "pointer",
+    }}
+  >
+    {opcionesObra.map((obra) => (
+      <option
+        key={obra}
+        value={obra}
+        style={{ color: "#0f172a" }}
+      >
+        {obra}
+      </option>
+    ))}
+  </select>
+) : label === "Estado" ? (
+  <select
+    value={filtroEstado}
+    onChange={(e) => setFiltroEstado(e.target.value)}
+    style={{
+      width: "100%",
+      padding: "11px 12px",
+      borderRadius: "13px",
+      border: "1px solid rgba(255,255,255,0.10)",
+      background: "rgba(255,255,255,0.08)",
+      color: "white",
+      fontSize: "13px",
+      fontWeight: 700,
+      outline: "none",
+      appearance: "none",
+      WebkitAppearance: "none",
+      MozAppearance: "none",
+      cursor: "pointer",
+    }}
+  >
+    {opcionesEstado.map((estado) => (
+      <option
+        key={estado}
+        value={estado}
+        style={{ color: "#0f172a" }}
+      >
+        {estado}
+      </option>
+    ))}
+  </select>
+) : label === "Criticidad" ? (
+  <select
+    value={filtroCriticidad}
+    onChange={(e) => setFiltroCriticidad(e.target.value)}
+    style={{
+      width: "100%",
+      padding: "11px 12px",
+      borderRadius: "13px",
+      border: "1px solid rgba(255,255,255,0.10)",
+      background: "rgba(255,255,255,0.08)",
+      color: "white",
+      fontSize: "13px",
+      fontWeight: 700,
+      outline: "none",
+      appearance: "none",
+      WebkitAppearance: "none",
+      MozAppearance: "none",
+      cursor: "pointer",
+    }}
+  >
+    {opcionesCriticidad.map((criticidad) => (
+      <option
+        key={criticidad}
+        value={criticidad}
+        style={{ color: "#0f172a" }}
+      >
+        {criticidad}
+      </option>
+    ))}
+  </select>
+) : (
+  <div
+    style={{
+      padding: "11px 12px",
+      borderRadius: "13px",
+      background: "rgba(255,255,255,0.08)",
+      border: "1px solid rgba(255,255,255,0.10)",
+      fontSize: "13px",
+      color: "rgba(255,255,255,0.76)",
+    }}
+  >
+    Seleccionar
+  </div>
+)}
+  </div>
+))}
 
     <button
       style={{
