@@ -55,6 +55,87 @@ const [filtroCriticidad, setFiltroCriticidad] = useState("TODAS");
 const [filtroFechaDesde, setFiltroFechaDesde] = useState("");
 const [filtroFechaHasta, setFiltroFechaHasta] = useState("");
 const [filtroTipoHallazgo, setFiltroTipoHallazgo] = useState("TODOS");
+const limpiarFiltros = () => {
+  setFiltroRapido("PERSONALIZADO");
+  setFiltroEmpresa("TODAS");
+  setFiltroObra("TODAS");
+  setFiltroEstado("TODOS");
+  setFiltroCriticidad("TODAS");
+  setFiltroFechaDesde("");
+  setFiltroFechaHasta("");
+  setFiltroTipoHallazgo("TODOS");
+};
+const quitarFiltro = (filtro: string) => {
+  if (filtro.startsWith("Empresa:")) {
+    setFiltroEmpresa("TODAS");
+    return;
+  }
+
+  if (filtro.startsWith("Obra:")) {
+    setFiltroObra("TODAS");
+    return;
+  }
+
+  if (filtro.startsWith("Estado:")) {
+    setFiltroEstado("TODOS");
+    return;
+  }
+
+  if (filtro.startsWith("Criticidad:")) {
+    setFiltroCriticidad("TODAS");
+    return;
+  }
+
+  if (filtro.startsWith("Tipo:")) {
+    setFiltroTipoHallazgo("TODOS");
+    return;
+  }
+
+  if (filtro.startsWith("Desde:")) {
+    setFiltroRapido("PERSONALIZADO");
+    setFiltroFechaDesde("");
+    return;
+  }
+
+  if (filtro.startsWith("Hasta:")) {
+    setFiltroRapido("PERSONALIZADO");
+    setFiltroFechaHasta("");
+  }
+};
+const formatearFechaInput = (fecha: Date) => {
+  const year = fecha.getFullYear();
+  const month = String(fecha.getMonth() + 1).padStart(2, "0");
+  const day = String(fecha.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+};
+
+const aplicarFiltroRapido = (
+  modo: "HOY" | "SEMANA" | "MES" | "PERSONALIZADO"
+) => {
+  setFiltroRapido(modo);
+
+  if (modo === "PERSONALIZADO") {
+    setFiltroFechaDesde("");
+    setFiltroFechaHasta("");
+    return;
+  }
+
+  const hasta = new Date(fechaBase);
+  const desde = new Date(fechaBase);
+
+  if (modo === "HOY") {
+    desde.setHours(0, 0, 0, 0);
+  } else if (modo === "SEMANA") {
+    desde.setDate(desde.getDate() - 6);
+  } else if (modo === "MES") {
+    desde.setDate(1);
+  }
+
+  setFiltroFechaDesde(formatearFechaInput(desde));
+  setFiltroFechaHasta(formatearFechaInput(hasta));
+};
+
 const opcionesEmpresa = ["TODAS", ...new Set(filas.map((item) => item.empresa))];
 const opcionesObra = ["TODAS", ...new Set(filas.map((item) => item.obra))];
 const opcionesEstado = ["TODOS", ...new Set(filas.map((item) => item.estado))];
@@ -141,6 +222,17 @@ const ultimaActualizacion =
         return new Date(item.fechaISO) > new Date(max.fechaISO) ? item : max;
       }).fechaHora
     : "Sin datos";
+    const filtrosActivos = [
+  filtroEmpresa !== "TODAS" ? `Empresa: ${filtroEmpresa}` : null,
+  filtroObra !== "TODAS" ? `Obra: ${filtroObra}` : null,
+  filtroEstado !== "TODOS" ? `Estado: ${filtroEstado}` : null,
+  filtroCriticidad !== "TODAS" ? `Criticidad: ${filtroCriticidad}` : null,
+  filtroTipoHallazgo !== "TODOS"
+    ? `Tipo: ${filtroTipoHallazgo}`
+    : null,
+  filtroFechaDesde ? `Desde: ${filtroFechaDesde}` : null,
+  filtroFechaHasta ? `Hasta: ${filtroFechaHasta}` : null,
+].filter(Boolean) as string[];
    const reportesPorEmpresaBase = Array.from(
   filasFiltradas.reduce((acc, item) => {
     acc.set(item.empresa, (acc.get(item.empresa) || 0) + 1);
@@ -445,6 +537,68 @@ const kpis = [
    <div>Última actualización: {ultimaActualizacion}</div>
   </div>
 </header>
+{filtrosActivos.length > 0 && (
+  <div
+    style={{
+      ...panelCardStyle,
+      padding: "12px 16px",
+      marginBottom: "18px",
+      display: "flex",
+      flexWrap: "wrap",
+      gap: "8px",
+      alignItems: "center",
+    }}
+  >
+    <div
+      style={{
+        fontSize: "12px",
+        fontWeight: 800,
+        opacity: 0.78,
+        marginRight: "4px",
+      }}
+    >
+      Filtros activos:
+    </div>
+
+   {filtrosActivos.map((filtro) => (
+  <button
+    key={filtro}
+    onClick={() => quitarFiltro(filtro)}
+    style={{
+      display: "inline-flex",
+      alignItems: "center",
+      gap: "8px",
+      padding: "7px 11px",
+      borderRadius: "999px",
+      background: "rgba(59,130,246,0.16)",
+      border: "1px solid rgba(59,130,246,0.28)",
+      color: "#dbeafe",
+      fontSize: "12px",
+      fontWeight: 700,
+      lineHeight: 1,
+      cursor: "pointer",
+    }}
+  >
+    <span>{filtro}</span>
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: "16px",
+        height: "16px",
+        borderRadius: "999px",
+        background: "rgba(255,255,255,0.14)",
+        fontSize: "11px",
+        fontWeight: 900,
+      }}
+    >
+      ×
+    </span>
+  </button>
+))}
+  </div>
+)}
 
         <div
           style={{
@@ -642,7 +796,7 @@ const kpis = [
     return (
       <button
         key={item.value}
-        onClick={() => setFiltroRapido(item.value)}
+       onClick={() => aplicarFiltroRapido(item.value)}
         style={{
           padding: "11px 10px",
           borderRadius: "12px",
@@ -813,7 +967,10 @@ const kpis = [
   <input
     type="date"
     value={filtroFechaDesde}
-    onChange={(e) => setFiltroFechaDesde(e.target.value)}
+   onChange={(e) => {
+  setFiltroRapido("PERSONALIZADO");
+  setFiltroFechaDesde(e.target.value);
+}}
     style={{
       width: "100%",
       padding: "11px 12px",
@@ -831,7 +988,10 @@ const kpis = [
   <input
     type="date"
     value={filtroFechaHasta}
-    onChange={(e) => setFiltroFechaHasta(e.target.value)}
+   onChange={(e) => {
+  setFiltroRapido("PERSONALIZADO");
+  setFiltroFechaHasta(e.target.value);
+}}
     style={{
       width: "100%",
       padding: "11px 12px",
@@ -923,6 +1083,7 @@ const kpis = [
 ))}
 
     <button
+    onClick={limpiarFiltros}
       style={{
         width: "100%",
         marginTop: "8px",
