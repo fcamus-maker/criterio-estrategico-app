@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { hallazgosMock } from "./mockdata";
+import { hallazgosMock, notificacionesMock, usuarioMock } from "./mockdata";
 
 function chipColor(tipo: string) {
   const valor = String(tipo).toUpperCase();
@@ -46,6 +46,36 @@ const panelCardStyle: React.CSSProperties = {
 
 export default function PanelEjecutivoPage() {
   const filas = hallazgosMock;
+const totalHistoricoHallazgos = filas.length;
+const [contadorHistoricoAnimado, setContadorHistoricoAnimado] = useState(0);
+const [notificaciones, setNotificaciones] = useState(notificacionesMock);
+const totalNotificacionesNoLeidas = notificaciones.filter((item) => !item.leida).length;
+
+useEffect(() => {
+  let frame = 0;
+  const duracion = 1200;
+  const pasos = 36;
+  const incremento = totalHistoricoHallazgos / pasos;
+
+  setContadorHistoricoAnimado(0);
+
+  const intervalo = window.setInterval(() => {
+    frame += 1;
+    const valor = Math.round(incremento * frame);
+
+    if (frame >= pasos) {
+      setContadorHistoricoAnimado(totalHistoricoHallazgos);
+      window.clearInterval(intervalo);
+      return;
+    }
+
+    setContadorHistoricoAnimado(
+      valor > totalHistoricoHallazgos ? totalHistoricoHallazgos : valor
+    );
+  }, duracion / pasos);
+
+  return () => window.clearInterval(intervalo);
+}, [totalHistoricoHallazgos]);
 const [hallazgoActivo, setHallazgoActivo] = useState(filas[0]);
 const [filtroRapido, setFiltroRapido] = useState<"HOY" | "SEMANA" | "MES" | "PERSONALIZADO">("HOY");
 const [filtroEmpresa, setFiltroEmpresa] = useState("TODAS");
@@ -55,6 +85,10 @@ const [filtroCriticidad, setFiltroCriticidad] = useState("TODAS");
 const [filtroFechaDesde, setFiltroFechaDesde] = useState("");
 const [filtroFechaHasta, setFiltroFechaHasta] = useState("");
 const [filtroTipoHallazgo, setFiltroTipoHallazgo] = useState("TODOS");
+const [mostrarNotificaciones, setMostrarNotificaciones] = useState(false);
+const [usuario, setUsuario] = useState(usuarioMock);
+const [mostrarEditorPerfil, setMostrarEditorPerfil] = useState(false);
+const inicialUsuario = usuario.nombre.charAt(0).toUpperCase();
 const limpiarFiltros = () => {
   setFiltroRapido("PERSONALIZADO");
   setFiltroEmpresa("TODAS");
@@ -64,6 +98,23 @@ const limpiarFiltros = () => {
   setFiltroFechaDesde("");
   setFiltroFechaHasta("");
   setFiltroTipoHallazgo("TODOS");
+};
+const abrirNotificacion = (hallazgoId: string) => {
+  const hallazgoRelacionado = filas.find((item) => item.id === hallazgoId);
+
+  if (!hallazgoRelacionado) {
+    return;
+  }
+
+  setHallazgoActivo(hallazgoRelacionado);
+
+  setNotificaciones((prev) =>
+    prev.map((item) =>
+      item.hallazgoId === hallazgoId ? { ...item, leida: true } : item
+    )
+  );
+
+  setMostrarNotificaciones(false);
 };
 const quitarFiltro = (filtro: string) => {
   if (filtro.startsWith("Empresa:")) {
@@ -383,6 +434,11 @@ const kpis = [
     valor: String(new Set(filasFiltradas.map((item) => item.empresa)).size),
     color: "#8b5cf6",
   },
+  {
+  titulo: "Histórico total",
+  valor: String(totalHistoricoHallazgos),
+  color: "#ef4444",
+},
 ];
 
   return (
@@ -537,6 +593,7 @@ const kpis = [
    <div>Última actualización: {ultimaActualizacion}</div>
   </div>
 </header>
+
 {filtrosActivos.length > 0 && (
   <div
     style={{
@@ -620,20 +677,21 @@ const kpis = [
 >
   <div
     style={{
-      padding: "14px",
+      padding: "20px",
+      minHeight: "220px",
       borderRadius: "18px",
       background: "rgba(255,255,255,0.06)",
       border: "1px solid rgba(255,255,255,0.10)",
     }}
-  >
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: "10px",
-      }}
     >
+<div
+  style={{
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "stretch",
+    gap: "14px",
+  }}
+>
       <div
         style={{
           display: "flex",
@@ -644,8 +702,8 @@ const kpis = [
       >
         <div
   style={{
-    width: "46px",
-    height: "46px",
+    width: "60px",
+    height: "60px",
     borderRadius: "999px",
     background: "rgba(255,255,255,0.08)",
     border: "1px solid rgba(255,255,255,0.12)",
@@ -656,69 +714,70 @@ const kpis = [
     boxShadow: "0 8px 20px rgba(0,0,0,0.22)",
   }}
 >
-  <svg
-    width="22"
-    height="22"
-    viewBox="0 0 24 24"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
+  {usuario.foto ? (
+  <img
+    src={usuario.foto}
+    alt={usuario.nombre}
+    style={{
+      width: "100%",
+      height: "100%",
+      objectFit: "cover",
+    }}
+  />
+) : (
+  <span
+    style={{
+      fontSize: "22px",
+      fontWeight: 900,
+      color: "#f8fafc",
+      lineHeight: 1,
+    }}
   >
-    <path
-      d="M20 21C20 18.7909 16.4183 17 12 17C7.58172 17 4 18.7909 4 21"
-      stroke="white"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-    />
-    <circle
-      cx="12"
-      cy="8"
-      r="4"
-      stroke="white"
-      strokeWidth="1.8"
-    />
-  </svg>
+    {inicialUsuario}
+  </span>
+)}
 </div>
 
-        <div style={{ minWidth: 0 }}>
-          <div
-            style={{
-              fontSize: "13px",
-              fontWeight: 800,
-              lineHeight: 1.2,
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-            }}
-          >
-            Freddy Camus
-          </div>
-          <div
-            style={{
-              fontSize: "11px",
-              opacity: 0.72,
-              marginTop: "3px",
-              lineHeight: 1.2,
-            }}
-          >
-            Administrador
-          </div>
-        </div>
-      </div>
-
-      <div
-        style={{
-          position: "relative",
-          width: "40px",
-          height: "40px",
-          borderRadius: "12px",
-          background: "rgba(255,255,255,0.08)",
-          border: "1px solid rgba(255,255,255,0.12)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          flexShrink: 0,
-        }}
-      >
+       <div style={{ minWidth: 0 }}>
+  <div
+    style={{
+      fontSize: "13px",
+      fontWeight: 800,
+      lineHeight: 1.2,
+      whiteSpace: "nowrap",
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+    }}
+  >
+    {usuario.nombre}
+  </div>
+  <div
+    style={{
+      fontSize: "11px",
+      opacity: 0.72,
+      marginTop: "3px",
+      lineHeight: 1.2,
+    }}
+  >
+    {usuario.cargo}
+      <button
+  type="button"
+  onClick={() => setMostrarNotificaciones((prev) => !prev)}
+  style={{
+    position: "relative",
+    width: "40px",
+    height: "40px",
+    borderRadius: "12px",
+    background: "rgba(255,255,255,0.08)",
+    border: "1px solid rgba(255,255,255,0.12)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+    cursor: "pointer",
+    padding: 0,
+  }}
+>
         <svg
           width="18"
           height="18"
@@ -754,9 +813,34 @@ const kpis = [
             boxShadow: "0 6px 14px rgba(239,68,68,0.35)",
           }}
         >
-          7
+          {totalNotificacionesNoLeidas}
         </div>
+      </button>
+    <button
+    type="button"
+    onClick={() => setMostrarEditorPerfil((prev) => !prev)}
+   style={{
+  marginTop: "10px",
+  width: "100%",
+  padding: "10px 14px",
+  borderRadius: "12px",
+  border: "1px solid #2f6bff",
+  background: "linear-gradient(180deg, #2f80ff 0%, #1d5eff 100%)",
+  color: "white",
+  fontSize: "12px",
+  fontWeight: 800,
+  cursor: "pointer",
+  boxShadow: "0 8px 18px rgba(29,94,255,0.35)",
+}}
+  >
+    Editar perfil
+  </button>
+  </div>
+
+
+</div>
       </div>
+
     </div>
   </div>
 
@@ -775,6 +859,83 @@ const kpis = [
         marginBottom: "12px",
       }}
     >
+      {mostrarNotificaciones && (
+  <div
+    style={{
+      ...panelCardStyle,
+      padding: "12px",
+      display: "grid",
+      gap: "10px",
+    }}
+  >
+    <div
+      style={{
+        fontSize: "13px",
+        fontWeight: 800,
+        opacity: 0.9,
+      }}
+    >
+      Notificaciones
+    </div>
+
+    {notificaciones.length === 0 ? (
+      <div
+        style={{
+          fontSize: "12px",
+          opacity: 0.72,
+        }}
+      >
+        Sin notificaciones pendientes.
+      </div>
+    ) : (
+      notificaciones.map((item) => (
+  <button
+    key={item.id}
+    type="button"
+    onClick={() => abrirNotificacion(item.hallazgoId)}
+    style={{
+      padding: "10px 12px",
+      borderRadius: "14px",
+      background: item.leida
+        ? "rgba(255,255,255,0.05)"
+        : "rgba(59,130,246,0.14)",
+      border: item.leida
+        ? "1px solid rgba(255,255,255,0.08)"
+        : "1px solid rgba(59,130,246,0.24)",
+      display: "grid",
+      gap: "4px",
+      width: "100%",
+      textAlign: "left",
+      cursor: "pointer",
+      appearance: "none",
+      WebkitAppearance: "none",
+      MozAppearance: "none",
+      color: "white",
+    }}
+  >
+    <div
+      style={{
+        fontSize: "12px",
+        fontWeight: 700,
+        lineHeight: 1.3,
+      }}
+    >
+      {item.mensaje}
+    </div>
+
+    <div
+      style={{
+        fontSize: "11px",
+        opacity: 0.68,
+      }}
+    >
+      {item.fechaHora}
+    </div>
+  </button>
+))
+    )}
+  </div>
+)}
       Reportes rápidos
     </div>
 
@@ -1154,7 +1315,7 @@ const kpis = [
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(6, minmax(0, 1fr))",
+               gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
                 gap: "12px",
               }}
             >
@@ -1162,13 +1323,15 @@ const kpis = [
                 <div
                   key={kpi.titulo}
                   style={{
-                    ...panelCardStyle,
-                    padding: "14px 14px 16px 14px",
-                    minHeight: "94px",
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "space-between",
-                  }}
+  ...panelCardStyle,
+  padding: "14px 14px 16px 14px",
+  minHeight: "94px",
+  display: "flex",
+  flexDirection: "column",
+  justifyContent: "space-between",
+  borderLeft:
+    kpi.titulo === "Histórico total" ? "4px solid #ef4444" : undefined,
+}}
                 >
                   <div
                     style={{
@@ -1191,7 +1354,9 @@ const kpis = [
                       color: kpi.color,
                     }}
                   >
-                    {kpi.valor}
+                   {kpi.titulo === "Histórico total"
+  ? contadorHistoricoAnimado.toLocaleString("es-CL")
+  : kpi.valor}
                   </div>
                 </div>
               ))}
