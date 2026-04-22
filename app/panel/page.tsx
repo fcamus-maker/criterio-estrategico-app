@@ -52,10 +52,14 @@ const [filtroEmpresa, setFiltroEmpresa] = useState("TODAS");
 const [filtroObra, setFiltroObra] = useState("TODAS");
 const [filtroEstado, setFiltroEstado] = useState("TODOS");
 const [filtroCriticidad, setFiltroCriticidad] = useState("TODAS");
+const [filtroFechaDesde, setFiltroFechaDesde] = useState("");
+const [filtroFechaHasta, setFiltroFechaHasta] = useState("");
+const [filtroTipoHallazgo, setFiltroTipoHallazgo] = useState("TODOS");
 const opcionesEmpresa = ["TODAS", ...new Set(filas.map((item) => item.empresa))];
 const opcionesObra = ["TODAS", ...new Set(filas.map((item) => item.obra))];
 const opcionesEstado = ["TODOS", ...new Set(filas.map((item) => item.estado))];
 const opcionesCriticidad = ["TODAS", ...new Set(filas.map((item) => item.criticidad))];
+const opcionesTipoHallazgo = ["TODOS", ...new Set(filas.map((item) => item.tipoHallazgo))];
 
 const fechaBase = new Date(
   Math.max(...filas.map((item) => new Date(item.fechaISO).getTime()))
@@ -77,6 +81,8 @@ const inicioMes = new Date(
 );
 
 const filasBase = filas.filter((item) => {
+  const fechaItem = new Date(item.fechaISO);
+
   const cumpleEmpresa =
     filtroEmpresa === "TODAS" || item.empresa === filtroEmpresa;
 
@@ -89,11 +95,26 @@ const filasBase = filas.filter((item) => {
   const cumpleCriticidad =
     filtroCriticidad === "TODAS" || item.criticidad === filtroCriticidad;
 
+  const cumpleTipoHallazgo =
+    filtroTipoHallazgo === "TODOS" ||
+    item.tipoHallazgo === filtroTipoHallazgo;
+
+  const cumpleFechaDesde =
+    !filtroFechaDesde ||
+    fechaItem >= new Date(`${filtroFechaDesde}T00:00:00`);
+
+  const cumpleFechaHasta =
+    !filtroFechaHasta ||
+    fechaItem <= new Date(`${filtroFechaHasta}T23:59:59`);
+
   return (
     cumpleEmpresa &&
     cumpleObra &&
     cumpleEstado &&
-    cumpleCriticidad
+    cumpleCriticidad &&
+    cumpleTipoHallazgo &&
+    cumpleFechaDesde &&
+    cumpleFechaHasta
   );
 });
 
@@ -788,6 +809,42 @@ const kpis = [
       </option>
     ))}
   </select>
+) : label === "Fecha desde" ? (
+  <input
+    type="date"
+    value={filtroFechaDesde}
+    onChange={(e) => setFiltroFechaDesde(e.target.value)}
+    style={{
+      width: "100%",
+      padding: "11px 12px",
+      borderRadius: "13px",
+      border: "1px solid rgba(255,255,255,0.10)",
+      background: "rgba(255,255,255,0.08)",
+      color: "white",
+      fontSize: "13px",
+      fontWeight: 700,
+      outline: "none",
+      colorScheme: "dark",
+    }}
+  />
+) : label === "Fecha hasta" ? (
+  <input
+    type="date"
+    value={filtroFechaHasta}
+    onChange={(e) => setFiltroFechaHasta(e.target.value)}
+    style={{
+      width: "100%",
+      padding: "11px 12px",
+      borderRadius: "13px",
+      border: "1px solid rgba(255,255,255,0.10)",
+      background: "rgba(255,255,255,0.08)",
+      color: "white",
+      fontSize: "13px",
+      fontWeight: 700,
+      outline: "none",
+      colorScheme: "dark",
+    }}
+  />
 ) : label === "Criticidad" ? (
   <select
     value={filtroCriticidad}
@@ -815,6 +872,36 @@ const kpis = [
         style={{ color: "#0f172a" }}
       >
         {criticidad}
+      </option>
+    ))}
+  </select>
+) : label === "Tipo de hallazgo" ? (
+  <select
+    value={filtroTipoHallazgo}
+    onChange={(e) => setFiltroTipoHallazgo(e.target.value)}
+    style={{
+      width: "100%",
+      padding: "11px 12px",
+      borderRadius: "13px",
+      border: "1px solid rgba(255,255,255,0.10)",
+      background: "rgba(255,255,255,0.08)",
+      color: "white",
+      fontSize: "13px",
+      fontWeight: 700,
+      outline: "none",
+      appearance: "none",
+      WebkitAppearance: "none",
+      MozAppearance: "none",
+      cursor: "pointer",
+    }}
+  >
+    {opcionesTipoHallazgo.map((tipo) => (
+      <option
+        key={tipo}
+        value={tipo}
+        style={{ color: "#0f172a" }}
+      >
+        {tipo}
       </option>
     ))}
   </select>
