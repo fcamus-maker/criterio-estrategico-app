@@ -89,3 +89,31 @@ export const hallazgosMock: HallazgoPanel[] = [
       "Restringir acceso, implementar segregación física y validar control antes de reanudar operación.",
   },
 ];
+export const usuarioMock = {
+  nombre: "Freddy Camus",
+  cargo: "Ingeniero en Prevención de Riesgos",
+  telefono: "+56 9 1234 5678",
+  foto: "",
+};
+export const notificacionesMock = [
+  {
+    mensaje: "Hallazgo crítico pendiente de revisión",
+    fechaHora: "22-04-2026 14:32",
+    leida: false,
+  },
+  {
+    mensaje: "Nuevo reporte ingresado desde terreno",
+    fechaHora: "22-04-2026 13:10",
+    leida: false,
+  },
+  {
+    mensaje: "Informe ejecutivo actualizado",
+    fechaHora: "22-04-2026 11:45",
+    leida: false,
+  },
+  {
+    mensaje: "Seguimiento pendiente en hallazgo abierto",
+    fechaHora: "22-04-2026 09:20",
+    leida: false,
+  },
+];

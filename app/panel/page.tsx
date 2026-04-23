@@ -675,269 +675,270 @@ const kpis = [
     gap: "14px",
   }}
 >
-  <div
-    style={{
-      padding: "20px",
-      minHeight: "220px",
-      borderRadius: "18px",
-      background: "rgba(255,255,255,0.06)",
-      border: "1px solid rgba(255,255,255,0.10)",
-    }}
-    >
 <div
   style={{
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "stretch",
-    gap: "14px",
+    padding: "20px",
+    minHeight: "220px",
+    borderRadius: "18px",
+    background: "rgba(255,255,255,0.06)",
+    border: "1px solid rgba(255,255,255,0.10)",
   }}
 >
+  <div
+    style={{
+      display: "flex",
+      flexDirection: "column",
+      gap: "16px",
+    }}
+  >
+    <div
+      style={{
+        display: "grid",
+        gap: "6px",
+      }}
+    >
       <div
         style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "10px",
-          minWidth: 0,
+          fontSize: "14px",
+          fontWeight: 800,
+          lineHeight: 1.15,
+          whiteSpace: "normal",
         }}
       >
-        <div
-  style={{
-    width: "60px",
-    height: "60px",
-    borderRadius: "999px",
-    background: "rgba(255,255,255,0.08)",
-    border: "1px solid rgba(255,255,255,0.12)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-    boxShadow: "0 8px 20px rgba(0,0,0,0.22)",
-  }}
->
-  {usuario.foto ? (
-  <img
-    src={usuario.foto}
-    alt={usuario.nombre}
-    style={{
-      width: "100%",
-      height: "100%",
-      objectFit: "cover",
-    }}
-  />
-) : (
-  <span
-    style={{
-      fontSize: "22px",
-      fontWeight: 900,
-      color: "#f8fafc",
-      lineHeight: 1,
-    }}
-  >
-    {inicialUsuario}
-  </span>
-)}
-</div>
+        {usuario.nombre}
+      </div>
 
-       <div style={{ minWidth: 0 }}>
-  <div
-    style={{
-      fontSize: "13px",
-      fontWeight: 800,
-      lineHeight: 1.2,
-      whiteSpace: "nowrap",
-      overflow: "hidden",
-      textOverflow: "ellipsis",
-    }}
-  >
-    {usuario.nombre}
-  </div>
-  <div
-    style={{
-      fontSize: "11px",
-      opacity: 0.72,
-      marginTop: "3px",
-      lineHeight: 1.2,
-    }}
-  >
-    {usuario.cargo}
+      <div
+        style={{
+          fontSize: "11px",
+          opacity: 0.78,
+          lineHeight: 1.2,
+          whiteSpace: "normal",
+        }}
+      >
+        {usuario.cargo}
+      </div>
+    </div>
+
+    <div
+      style={{
+  display: "grid",
+  gridTemplateColumns: "76px 76px",
+  justifyContent: "center",
+  gap: "14px",
+  alignItems: "center",
+}}
+    >
+      <div
+        style={{
+          width: "84px",
+          height: "84px",
+          borderRadius: "16px",
+          background: "rgba(255,255,255,0.08)",
+          border: "1px solid rgba(255,255,255,0.12)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          overflow: "hidden",
+          flexShrink: 0,
+          boxShadow: "0 8px 20px rgba(0,0,0,0.22)",
+        }}
+      >
+        {usuario.foto ? (
+          <img
+            src={usuario.foto}
+            alt={usuario.nombre}
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+            }}
+          />
+        ) : (
+          <span
+            style={{
+              fontSize: "30px",
+              fontWeight: 900,
+              color: "#f8fafc",
+              lineHeight: 1,
+            }}
+          >
+            {inicialUsuario}
+          </span>
+        )}
+      </div>
+
       <button
   type="button"
   onClick={() => setMostrarNotificaciones((prev) => !prev)}
   style={{
     position: "relative",
-    width: "40px",
-    height: "40px",
-    borderRadius: "12px",
+    width: "76px",
+    height: "76px",
+    borderRadius: "18px",
     background: "rgba(255,255,255,0.08)",
     border: "1px solid rgba(255,255,255,0.12)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    flexShrink: 0,
     cursor: "pointer",
     padding: 0,
+    flexShrink: 0,
+    boxShadow: "0 8px 20px rgba(0,0,0,0.22)",
   }}
 >
-        <svg
-          width="18"
-          height="18"
-          viewBox="0 0 24 24"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <path
-            d="M15 18H9M17 8C17 6.67392 16.4732 5.40215 15.5355 4.46447C14.5979 3.52678 13.3261 3 12 3C10.6739 3 9.40215 3.52678 8.46447 4.46447C7.52678 5.40215 7 6.67392 7 8V11.7639C7 12.5215 6.78511 13.2636 6.38013 13.9039L5.28986 15.6281C4.6684 16.6108 5.37495 17.8889 6.53814 17.8889H17.4619C18.6251 17.8889 19.3316 16.6108 18.7101 15.6281L17.6199 13.9039C17.2149 13.2636 17 12.5215 17 11.7639V8Z"
-            stroke="white"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-
-        <div
-          style={{
-            position: "absolute",
-            top: "-4px",
-            right: "-4px",
-            minWidth: "18px",
-            height: "18px",
-            padding: "0 5px",
-            borderRadius: "999px",
-            background: "#ef4444",
-            color: "white",
-            fontSize: "10px",
-            fontWeight: 800,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            boxShadow: "0 6px 14px rgba(239,68,68,0.35)",
-          }}
-        >
-          {totalNotificacionesNoLeidas}
-        </div>
-      </button>
-    <button
-    type="button"
-    onClick={() => setMostrarEditorPerfil((prev) => !prev)}
-   style={{
-  marginTop: "10px",
-  width: "100%",
-  padding: "10px 14px",
-  borderRadius: "12px",
-  border: "1px solid #2f6bff",
-  background: "linear-gradient(180deg, #2f80ff 0%, #1d5eff 100%)",
-  color: "white",
-  fontSize: "12px",
-  fontWeight: 800,
-  cursor: "pointer",
-  boxShadow: "0 8px 18px rgba(29,94,255,0.35)",
-}}
+  <svg
+    width="30"
+    height="30"
+    viewBox="0 0 24 24"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
   >
-    Editar perfil
-  </button>
-  </div>
+    <path
+      d="M15 17H9M18 17V11C18 8.23858 15.7614 6 13 6H11C8.23858 6 6 8.23858 6 11V17L4 19V20H20V19L18 17ZM13.73 20C13.5542 20.3031 13.3018 20.5542 12.9978 20.7285C12.6938 20.9028 12.3495 20.9942 12 20.9934C11.6505 20.9942 11.3062 20.9028 11.0022 20.7285C10.6982 20.5542 10.4458 20.3031 10.27 20"
+      stroke="white"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
 
-
-</div>
-      </div>
-
+  {totalNotificacionesNoLeidas > 0 && (
+  <span
+    style={{
+      position: "absolute",
+      top: "-10px",
+      right: "-10px",
+      minWidth: "40px",
+      height: "40px",
+      padding: "0 10px",
+      borderRadius: "999px",
+      background: "#ff4d4f",
+      color: "white",
+      fontSize: "18px",
+      fontWeight: 800,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      border: "2px solid #1a2742",
+      boxShadow: "0 4px 10px rgba(0,0,0,0.25)",
+    }}
+  >
+    {totalNotificacionesNoLeidas}
+  </span>
+)}
+</button>
     </div>
-  </div>
 
-  <div
-    style={{
-      padding: "14px",
-      borderRadius: "18px",
-      background: "rgba(255,255,255,0.06)",
-      border: "1px solid rgba(255,255,255,0.10)",
-    }}
-  >
-    <div
+    <button
+      type="button"
+      onClick={() => setMostrarEditorPerfil((prev) => !prev)}
       style={{
-        fontSize: "15px",
-        fontWeight: 800,
-        marginBottom: "12px",
-      }}
-    >
-      {mostrarNotificaciones && (
-  <div
-    style={{
-      ...panelCardStyle,
-      padding: "12px",
-      display: "grid",
-      gap: "10px",
-    }}
-  >
-    <div
-      style={{
+        width: "100%",
+        padding: "12px 16px",
+        borderRadius: "14px",
+        border: "1px solid #2f6bff",
+        background: "linear-gradient(180deg, #2f80ff 0%, #1d5eff 100%)",
+        color: "white",
         fontSize: "13px",
         fontWeight: 800,
-        opacity: 0.9,
+        cursor: "pointer",
+        boxShadow: "0 8px 18px rgba(29,94,255,0.35)",
       }}
     >
-      Notificaciones
-    </div>
+      Editar perfil
+    </button>
 
-    {notificaciones.length === 0 ? (
+    {mostrarNotificaciones && (
       <div
         style={{
-          fontSize: "12px",
-          opacity: 0.72,
+          padding: "12px",
+          borderRadius: "16px",
+          background: "rgba(255,255,255,0.05)",
+          border: "1px solid rgba(255,255,255,0.10)",
+          display: "grid",
+          gap: "10px",
         }}
       >
-        Sin notificaciones pendientes.
-      </div>
-    ) : (
-      notificaciones.map((item) => (
-  <button
-    key={item.id}
-    type="button"
-    onClick={() => abrirNotificacion(item.hallazgoId)}
-    style={{
-      padding: "10px 12px",
-      borderRadius: "14px",
-      background: item.leida
-        ? "rgba(255,255,255,0.05)"
-        : "rgba(59,130,246,0.14)",
-      border: item.leida
-        ? "1px solid rgba(255,255,255,0.08)"
-        : "1px solid rgba(59,130,246,0.24)",
-      display: "grid",
-      gap: "4px",
-      width: "100%",
-      textAlign: "left",
-      cursor: "pointer",
-      appearance: "none",
-      WebkitAppearance: "none",
-      MozAppearance: "none",
-      color: "white",
-    }}
-  >
-    <div
-      style={{
-        fontSize: "12px",
-        fontWeight: 700,
-        lineHeight: 1.3,
-      }}
-    >
-      {item.mensaje}
-    </div>
+        <div
+          style={{
+            fontSize: "13px",
+            fontWeight: 800,
+          }}
+        >
+          Notificaciones
+        </div>
 
-    <div
-      style={{
-        fontSize: "11px",
-        opacity: 0.68,
-      }}
-    >
-      {item.fechaHora}
-    </div>
-  </button>
-))
+        {notificaciones.length === 0 ? (
+          <div
+            style={{
+              fontSize: "12px",
+              opacity: 0.72,
+            }}
+          >
+            Sin notificaciones por ahora
+          </div>
+        ) : (
+          <div
+            style={{
+              display: "grid",
+              gap: "10px",
+            }}
+          >
+            {notificaciones.map((item: any, index: number) => (
+              <button
+                key={index}
+                type="button"
+                style={{
+                  padding: "12px",
+                  borderRadius: "14px",
+                  background: "rgba(255,255,255,0.08)",
+                  border: "1px solid rgba(255,255,255,0.10)",
+                  display: "grid",
+                  gap: "6px",
+                  cursor: "pointer",
+                  appearance: "none",
+                  WebkitAppearance: "none",
+                  MozAppearance: "none",
+                  color: "white",
+                  textAlign: "left",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: 700,
+                    lineHeight: 1.3,
+                  }}
+                >
+                  {item.mensaje}
+                </div>
+
+                <div
+                  style={{
+                    fontSize: "11px",
+                    opacity: 0.68,
+                  }}
+                >
+                  {item.fechaHora}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     )}
   </div>
-)}
-      Reportes rápidos
-    </div>
+</div>
+     <div
+  style={{
+    fontSize: "15px",
+    fontWeight: 800,
+    marginBottom: "12px",
+  }}
+>
+  Reportes rápidos
+</div>
 
    <div
   style={{
@@ -990,7 +991,6 @@ const kpis = [
 >
   Vista activa: {filtroRapido}
 </div>
-  </div>
 
   <div
     style={{
