@@ -50,7 +50,339 @@ const totalHistoricoHallazgos = filas.length;
 const [contadorHistoricoAnimado, setContadorHistoricoAnimado] = useState(0);
 const [notificaciones, setNotificaciones] = useState(notificacionesMock);
 const totalNotificacionesNoLeidas = notificaciones.filter((item) => !item.leida).length;
+const exportarExcel = () => {
+  const encabezados = [
+    "Código",
+    "Empresa",
+    "Tipo de hallazgo",
+    "Criticidad",
+    "Estado",
+    "Fecha / Hora",
+  ];
 
+  const escapar = (valor: unknown) =>
+    `"${String(valor ?? "").replace(/"/g, '""')}"`;
+
+  const filas = filasFiltradas.map((fila) => [
+    escapar(fila.codigo),
+    escapar(fila.empresa),
+    escapar(fila.tipoHallazgo),
+    escapar(fila.criticidad),
+    escapar(fila.estado),
+    escapar(fila.fechaHora),
+  ]);
+
+  const csv = [
+    encabezados.map(escapar).join(";"),
+    ...filas.map((fila) => fila.join(";")),
+  ].join("\n");
+
+  const blob = new Blob(["\uFEFF" + csv], {
+    type: "text/csv;charset=utf-8;",
+  });
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  const fecha = new Date().toISOString().slice(0, 10);
+
+  link.href = url;
+  link.download = `hallazgos-filtrados-${fecha}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+const generarInformeEmpresaObra = () => {
+  if (filtroEmpresa === "TODAS" && filtroObra === "TODAS") {
+    window.alert("Seleccione una empresa o una obra para generar el informe.");
+    return;
+  }
+
+  const escapeHtml = (valor: unknown) =>
+    String(valor ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+      const formatearFechaFiltro = (valor: string) => {
+  if (!valor) return "";
+  const [anio, mes, dia] = valor.split("-");
+  if (!anio || !mes || !dia) return valor;
+  return `${dia}-${mes}-${anio}`;
+};
+
+  const total = filasFiltradas.length;
+  const abiertos = filasFiltradas.filter((item) => item.estado === "ABIERTO").length;
+const cerrados = filasFiltradas.filter((item) => item.estado === "CERRADO").length;
+const enSeguimiento = filasFiltradas.filter((item) => item.estado === "EN SEGUIMIENTO").length;
+const criticos = filasFiltradas.filter((item) =>
+  String(item.criticidad).toUpperCase().includes("CRIT")
+).length;
+
+const maxEstado = Math.max(abiertos, enSeguimiento, cerrados, 1);
+
+  const fechaEmision = new Date().toLocaleString("es-CL");
+
+  const filasTabla = filasFiltradas
+    .map(
+      (fila) => `
+        <tr>
+          <td>${escapeHtml(fila.codigo)}</td>
+          <td>${escapeHtml(fila.empresa)}</td>
+          <td>${escapeHtml(fila.tipoHallazgo)}</td>
+          <td>${escapeHtml(fila.criticidad)}</td>
+          <td>${escapeHtml(fila.estado)}</td>
+          <td>${escapeHtml(fila.fechaHora)}</td>
+        </tr>
+      `
+    )
+    .join("");
+
+  const html = `
+    <!DOCTYPE html>
+    <html lang="es">
+      <head>
+        <meta charset="UTF-8" />
+        <title>Informe empresa/obra</title>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 28px;
+            color: #111827;
+            background: white;
+          }
+          .wrap {
+            max-width: 1100px;
+            margin: 0 auto;
+          }
+          h1 {
+            margin: 0 0 6px;
+            font-size: 26px;
+          }
+          .sub {
+            color: #4b5563;
+            margin-bottom: 22px;
+          }
+          .meta {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px 20px;
+            margin-bottom: 20px;
+          }
+          .label {
+            font-size: 12px;
+            color: #6b7280;
+            margin-bottom: 4px;
+          }
+          .value {
+            font-size: 14px;
+            font-weight: 700;
+          }
+          .kpis {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin: 22px 0;
+          }
+          .kpi {
+            border: 1px solid #d1d5db;
+            border-radius: 14px;
+            padding: 14px;
+          }
+          .kpi-title {
+            font-size: 12px;
+            color: #6b7280;
+            margin-bottom: 6px;
+          }
+          .kpi-value {
+            font-size: 26px;
+            font-weight: 800;
+          }
+          .card {
+            border: 1px solid #d1d5db;
+            border-radius: 14px;
+            padding: 16px;
+            margin-top: 18px;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 12px;
+          }
+          th, td {
+            border: 1px solid #d1d5db;
+            padding: 8px 10px;
+            text-align: left;
+            vertical-align: top;
+          }
+          th {
+            background: #f3f4f6;
+            font-size: 12px;
+          }
+          .nota {
+            margin-top: 14px;
+            font-size: 12px;
+            color: #6b7280;
+          }
+            .estado-chart {
+  display: grid;
+  gap: 12px;
+  margin-top: 8px;
+}
+.estado-row {
+  display: grid;
+  grid-template-columns: 150px 1fr 56px;
+  gap: 10px;
+  align-items: center;
+}
+.estado-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #374151;
+}
+.estado-track {
+  height: 12px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  overflow: hidden;
+}
+.estado-fill {
+  height: 100%;
+  border-radius: 999px;
+}
+.estado-value {
+  font-size: 13px;
+  font-weight: 800;
+  text-align: right;
+}
+          @media print {
+            body {
+              padding: 16px;
+            }
+            .kpis {
+              page-break-inside: avoid;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="wrap">
+          <h1>Informe Ejecutivo Empresa / Obra</h1>
+          <div class="sub">Criterio Estratégico · Emisión: ${escapeHtml(fechaEmision)}</div>
+
+          <div class="meta">
+            <div>
+              <div class="label">Empresa seleccionada</div>
+              <div class="value">${escapeHtml(filtroEmpresa)}</div>
+            </div>
+            <div>
+              <div class="label">Obra / Proyecto seleccionado</div>
+              <div class="value">${escapeHtml(filtroObra)}</div>
+            </div>
+            <div>
+              <div class="label">Estado</div>
+              <div class="value">${escapeHtml(filtroEstado)}</div>
+            </div>
+            <div>
+              <div class="label">Criticidad</div>
+              <div class="value">${escapeHtml(filtroCriticidad)}</div>
+            </div>
+            <div>
+              <div class="label">Tipo de hallazgo</div>
+              <div class="value">${escapeHtml(filtroTipoHallazgo)}</div>
+            </div>
+            <div>
+              <div class="label">Rango de fechas</div>
+             <div class="value">${escapeHtml(formatearFechaFiltro(filtroFechaDesde) || "Sin inicio")} a ${escapeHtml(formatearFechaFiltro(filtroFechaHasta) || "Sin cierre")}</div>
+            </div>
+          </div>
+
+          <div class="kpis">
+            <div class="kpi">
+              <div class="kpi-title">Total hallazgos</div>
+              <div class="kpi-value">${escapeHtml(total)}</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-title">Abiertos</div>
+              <div class="kpi-value">${escapeHtml(abiertos)}</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-title">Cerrados</div>
+              <div class="kpi-value">${escapeHtml(cerrados)}</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-title">Críticos</div>
+              <div class="kpi-value">${escapeHtml(criticos)}</div>
+            </div>
+          </div>
+<div class="card">
+  <div class="label">Estado de reportes</div>
+  <div class="estado-chart">
+    <div class="estado-row">
+      <div class="estado-label">Abiertos</div>
+      <div class="estado-track">
+        <div class="estado-fill" style="width: ${(abiertos / maxEstado) * 100}%; background:#f59e0b;"></div>
+      </div>
+      <div class="estado-value">${escapeHtml(abiertos)}</div>
+    </div>
+
+    <div class="estado-row">
+      <div class="estado-label">En seguimiento</div>
+      <div class="estado-track">
+        <div class="estado-fill" style="width: ${(enSeguimiento / maxEstado) * 100}%; background:#3b82f6;"></div>
+      </div>
+      <div class="estado-value">${escapeHtml(enSeguimiento)}</div>
+    </div>
+
+    <div class="estado-row">
+      <div class="estado-label">Cerrados</div>
+      <div class="estado-track">
+        <div class="estado-fill" style="width: ${(cerrados / maxEstado) * 100}%; background:#22c55e;"></div>
+      </div>
+      <div class="estado-value">${escapeHtml(cerrados)}</div>
+    </div>
+  </div>
+</div>
+          <div class="card">
+            <div class="label">Detalle de hallazgos filtrados</div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Código</th>
+                  <th>Empresa</th>
+                  <th>Tipo de hallazgo</th>
+                  <th>Criticidad</th>
+                  <th>Estado</th>
+                  <th>Fecha / Hora</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${filasTabla || `<tr><td colspan="6">Sin hallazgos para los filtros seleccionados.</td></tr>`}
+              </tbody>
+            </table>
+            <div class="nota">
+              Informe generado automáticamente desde la plataforma ejecutiva para revisión y envío gerencial.
+            </div>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  const ventana = window.open("", "_blank", "width=1100,height=1200");
+  if (!ventana) return;
+
+  ventana.document.open();
+  ventana.document.write(html);
+  ventana.document.close();
+  ventana.focus();
+
+  setTimeout(() => {
+    ventana.print();
+  }, 300);
+};
 useEffect(() => {
   let frame = 0;
   const duracion = 1200;
@@ -383,6 +715,152 @@ const totalEstadoReportes = estadoReportesResumen.reduce(
   (sum, item) => sum + item.total,
   0
 );
+const descargarPDFHallazgoActivo = () => {
+  const escapeHtml = (valor: unknown) =>
+    String(valor ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+
+  const h = hallazgoActivo;
+
+  const html = `
+    <!DOCTYPE html>
+    <html lang="es">
+      <head>
+        <meta charset="UTF-8" />
+        <title>${escapeHtml(h.codigo)}</title>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 32px;
+            color: #111827;
+            background: white;
+          }
+          .wrap {
+            max-width: 900px;
+            margin: 0 auto;
+          }
+          h1 {
+            font-size: 24px;
+            margin: 0 0 8px;
+          }
+          .sub {
+            color: #4b5563;
+            margin-bottom: 24px;
+          }
+          .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px 20px;
+          }
+          .label {
+            font-size: 12px;
+            color: #6b7280;
+            margin-bottom: 4px;
+          }
+          .value {
+            font-size: 14px;
+            font-weight: 700;
+          }
+          .card {
+            border: 1px solid #d1d5db;
+            border-radius: 12px;
+            padding: 14px;
+            margin-top: 14px;
+          }
+          .text {
+            white-space: pre-wrap;
+            line-height: 1.5;
+            font-size: 14px;
+          }
+          .chip {
+            display: inline-block;
+            padding: 6px 10px;
+            border-radius: 999px;
+            border: 1px solid #d1d5db;
+            font-size: 12px;
+            font-weight: 700;
+          }
+          @media print {
+            body {
+              padding: 18px;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="wrap">
+          <h1>Informe Ejecutivo de Hallazgo</h1>
+          <div class="sub">Criterio Estratégico</div>
+
+          <div class="grid">
+            <div>
+              <div class="label">Código</div>
+              <div class="value">${escapeHtml(h.codigo)}</div>
+            </div>
+            <div>
+              <div class="label">Fecha / Hora</div>
+              <div class="value">${escapeHtml(h.fechaHora)}</div>
+            </div>
+            <div>
+              <div class="label">Empresa</div>
+              <div class="value">${escapeHtml(h.empresa)}</div>
+            </div>
+            <div>
+              <div class="label">Estado</div>
+              <div class="value">${escapeHtml(h.estado)}</div>
+            </div>
+            <div>
+              <div class="label">Reportante</div>
+              <div class="value">${escapeHtml(h.reportante)}</div>
+            </div>
+            <div>
+              <div class="label">Cargo</div>
+              <div class="value">${escapeHtml(h.cargo)}</div>
+            </div>
+            <div>
+              <div class="label">Teléfono</div>
+              <div class="value">${escapeHtml(h.telefono)}</div>
+            </div>
+            <div>
+              <div class="label">Tipo de hallazgo</div>
+              <div class="value">${escapeHtml(h.tipoHallazgo)}</div>
+            </div>
+            <div>
+              <div class="label">Criticidad</div>
+              <div class="chip">${escapeHtml(h.criticidad)}</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="label">Descripción</div>
+            <div class="text">${escapeHtml(h.descripcion)}</div>
+          </div>
+
+          <div class="card">
+            <div class="label">Medida inmediata</div>
+            <div class="text">${escapeHtml(h.medidaInmediata)}</div>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  const ventana = window.open("", "_blank", "width=900,height=1200");
+  if (!ventana) return;
+
+  ventana.document.open();
+  ventana.document.write(html);
+  ventana.document.close();
+  ventana.focus();
+
+  setTimeout(() => {
+    ventana.print();
+  }, 300);
+};
 
 useEffect(() => {
   if (filasFiltradas.length === 0) {
@@ -959,37 +1437,32 @@ const kpis = [
       <button
         key={item.value}
        onClick={() => aplicarFiltroRapido(item.value)}
-        style={{
-          padding: "11px 10px",
-          borderRadius: "12px",
-          border: activo
-            ? "1px solid rgba(103,239,72,0.40)"
-            : "1px solid rgba(255,255,255,0.10)",
-          background: activo
-            ? "linear-gradient(180deg, rgba(103,239,72,0.18) 0%, rgba(215,255,57,0.10) 100%)"
-            : "rgba(255,255,255,0.08)",
-          color: "white",
-          fontSize: "12px",
-          fontWeight: 700,
-          cursor: "pointer",
-          boxShadow: activo ? "0 8px 18px rgba(109,255,72,0.14)" : "none",
-        }}
+       
+style={{
+  minHeight: "72px",
+  padding: "12px 10px",
+  borderRadius: "16px",
+  border: activo
+    ? "1px solid rgba(103,239,72,0.40)"
+    : "1px solid rgba(255,255,255,0.10)",
+  background: activo
+    ? "linear-gradient(180deg, rgba(103,239,72,0.18) 0%, rgba(215,255,57,0.10) 100%)"
+    : "rgba(255,255,255,0.08)",
+  color: "white",
+  fontSize: "12px",
+  fontWeight: 700,
+  cursor: "pointer",
+  boxShadow: activo ? "0 8px 18px rgba(109,255,72,0.14)" : "none",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  textAlign: "center",
+}}
       >
         {item.label}
       </button>
     );
   })}
-</div>
-
-<div
-  style={{
-    marginTop: "10px",
-    fontSize: "11px",
-    opacity: 0.72,
-    fontWeight: 700,
-  }}
->
-  Vista activa: {filtroRapido}
 </div>
 
   <div
@@ -1282,22 +1755,36 @@ const kpis = [
     </div>
 
     <div style={{ display: "grid", gap: "8px" }}>
-      {["Exportar a Excel", "Reporte en PDF", "Configuración"].map((item) => (
-        <button
-          key={item}
-          style={{
-            width: "100%",
-            padding: "11px 12px",
-            borderRadius: "12px",
-            border: "1px solid rgba(255,255,255,0.10)",
-            background: "rgba(255,255,255,0.08)",
-            color: "white",
-            fontSize: "12px",
-            fontWeight: 700,
-            textAlign: "left",
-            cursor: "pointer",
-          }}
-        >
+     {["Exportar a Excel", "Generar informe empresa/obra", "Configuración"].map((item) => (
+       <button
+  key={item}
+  onClick={() => {
+  if (item === "Exportar a Excel") {
+    exportarExcel();
+    return;
+  }
+
+  if (item === "Generar informe empresa/obra") {
+    generarInformeEmpresaObra();
+    return;
+  }
+}}
+  style={{
+    width: "100%",
+    minHeight: "50px",
+    padding: "14px 14px",
+    borderRadius: "14px",
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.08)",
+    color: "white",
+    fontSize: "13px",
+    fontWeight: 700,
+    textAlign: "left",
+   cursor: item === "Configuración" ? "default" : "pointer",
+    display: "flex",
+    alignItems: "center",
+  }}
+>
           {item}
         </button>
       ))}
@@ -2057,6 +2544,7 @@ const kpis = [
     </div>
 
     <button
+    onClick={descargarPDFHallazgoActivo}
       style={{
         width: "100%",
         marginTop: "auto",
