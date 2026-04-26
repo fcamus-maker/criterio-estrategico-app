@@ -134,7 +134,11 @@ const bajos = filasFiltradas.filter((item) =>
 
 const maxCriticidad = Math.max(criticos, altos, medios, bajos, 1);
 const pesoCriticidad = (valor: string) => {
-  const texto = String(valor || "").toUpperCase();
+  const texto = String(valor || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase();
+
   if (texto.includes("CRIT")) return 4;
   if (texto.includes("ALTO")) return 3;
   if (texto.includes("MED")) return 2;
@@ -149,7 +153,28 @@ const textoCriticidad = (peso: number) => {
   if (peso === 1) return "BAJO";
   return "SIN CLASIFICAR";
 };
+function diasEntreSupervisor(fechaISO: string) {
+  const texto = String(fechaISO || "").slice(0, 10);
+  if (!texto) return 0;
 
+  const partes = texto.split("-");
+  if (partes.length !== 3) return 0;
+
+  const [anio, mes, dia] = partes.map(Number);
+  const fecha = new Date(anio, mes - 1, dia);
+
+  if (Number.isNaN(fecha.getTime())) return 0;
+
+  const hoy = new Date();
+  const hoySoloFecha = new Date(
+    hoy.getFullYear(),
+    hoy.getMonth(),
+    hoy.getDate()
+  );
+
+  const diferencia = hoySoloFecha.getTime() - fecha.getTime();
+  return Math.max(0, Math.floor(diferencia / (1000 * 60 * 60 * 24)));
+}
 const supervisoresPendientes = Object.values(
   filasFiltradas
     .filter((item) => item.estado !== "CERRADO")
@@ -163,11 +188,19 @@ const supervisoresPendientes = Object.values(
           seguimiento: number;
           criticidadMax: number;
           codigos: string[];
+          antiguedadMaxima: number;
+          sumaAntiguedad: number;
         }
       >
     >((acc, item) => {
       const nombre = String(item.reportante || "Sin supervisor");
       const clave = nombre.trim().toUpperCase();
+
+      const fechaBase =
+        String(item.fechaISO || "").trim() ||
+        String(item.fechaHora || "").trim().slice(0, 10).split("-").reverse().join("-");
+
+      const diasPendiente = diasEntreSupervisor(fechaBase);
 
       if (!acc[clave]) {
         acc[clave] = {
@@ -177,6 +210,8 @@ const supervisoresPendientes = Object.values(
           seguimiento: 0,
           criticidadMax: 0,
           codigos: [],
+          antiguedadMaxima: 0,
+          sumaAntiguedad: 0,
         };
       }
 
@@ -195,6 +230,13 @@ const supervisoresPendientes = Object.values(
         pesoCriticidad(String(item.criticidad || ""))
       );
 
+      acc[clave].antiguedadMaxima = Math.max(
+        acc[clave].antiguedadMaxima,
+        diasPendiente
+      );
+
+      acc[clave].sumaAntiguedad += diasPendiente;
+
       acc[clave].codigos.push(String(item.codigo || ""));
 
       return acc;
@@ -204,12 +246,17 @@ const supervisoresPendientes = Object.values(
     ...supervisor,
     criticidadMaxTexto: textoCriticidad(supervisor.criticidadMax),
     codigosTexto: supervisor.codigos.join(", "),
+    antiguedadPromedio:
+      supervisor.total > 0
+        ? Math.round(supervisor.sumaAntiguedad / supervisor.total)
+        : 0,
   }))
   .sort((a, b) => {
     if (b.total !== a.total) return b.total - a.total;
     return b.criticidadMax - a.criticidadMax;
   })
   .slice(0, 5);
+
   const fechaEmision = new Date().toLocaleString("es-CL");
   const siglaEmpresaInforme = String(filtroEmpresa || "EMP")
   .trim()
@@ -681,6 +728,70 @@ const rankingEmpresa = (() => {
   line-height: 1.65;
   color: #374151;
 }
+  @page {
+  size: Letter;
+  margin: 16mm;
+}
+
+.page {
+  min-height: 240mm;
+  page-break-after: always;
+  break-after: page;
+}
+
+.page:last-child {
+  page-break-after: auto;
+  break-after: auto;
+}
+
+.page-title {
+  font-size: 22px;
+  font-weight: 800;
+  margin: 0 0 8px;
+  color: #111827;
+}
+
+.page-subtitle {
+  font-size: 13px;
+  color: #4b5563;
+  margin-bottom: 18px;
+}
+
+.page-section {
+  margin-top: 14px;
+}
+
+.compact-card {
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  padding: 14px;
+  background: #ffffff;
+}
+
+.table-report {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.table-report th,
+.table-report td {
+  border: 1px solid #d1d5db;
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.table-report th {
+  background: #f3f4f6;
+  font-weight: 800;
+}
+
+.table-note {
+  margin-top: 10px;
+  font-size: 12px;
+  color: #6b7280;
+}
           @media print {
             body {
               padding: 16px;
@@ -692,6 +803,7 @@ const rankingEmpresa = (() => {
         </style>
       </head>
       <body>
+      <div class="page">
         <div class="wrap">
           <h1>Informe Ejecutivo Empresa / Obra</h1>
          <div class="sub sub-head">
@@ -1391,6 +1503,7 @@ const descargarPDFHallazgoActivo = () => {
         </style>
       </head>
       <body>
+      <div class="page">
         <div class="wrap">
           <h1>Informe Ejecutivo de Hallazgo</h1>
           <div class="sub">Criterio Estratégico</div>
@@ -1443,6 +1556,7 @@ const descargarPDFHallazgoActivo = () => {
             <div class="label">Medida inmediata</div>
             <div class="text">${escapeHtml(h.medidaInmediata)}</div>
           </div>
+        </div>
         </div>
       </body>
     </html>
