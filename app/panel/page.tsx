@@ -104,81 +104,123 @@ const generarInformeEmpresaObra = () => {
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;");
-      const formatearFechaFiltro = (valor: string) => {
-  if (!valor) return "";
-  const [anio, mes, dia] = valor.split("-");
-  if (!anio || !mes || !dia) return valor;
-  return `${dia}-${mes}-${anio}`;
-};
+
+  const normalizarTexto = (valor: unknown) =>
+    String(valor ?? "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toUpperCase()
+      .trim();
+
+  const formatearFechaFiltro = (valor: string) => {
+    if (!valor) return "";
+    const [anio, mes, dia] = valor.split("-");
+    if (!anio || !mes || !dia) return valor;
+    return `${dia}-${mes}-${anio}`;
+  };
+
+  const obtenerFechaBase = (item: (typeof filasFiltradas)[number]) => {
+    const fechaISO = String(item.fechaISO ?? "").trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(fechaISO)) {
+      return fechaISO.slice(0, 10);
+    }
+
+    const fechaHora = String(item.fechaHora ?? "").trim();
+    const match = fechaHora.match(/^(\d{2})[-/](\d{2})[-/](\d{4})/);
+    if (match) {
+      const [, dia, mes, anio] = match;
+      return `${anio}-${mes}-${dia}`;
+    }
+
+    return "";
+  };
+
+  const diasEntre = (fechaBase: string) => {
+    const texto = String(fechaBase || "").slice(0, 10);
+    if (!texto) return 0;
+
+    const [anio, mes, dia] = texto.split("-").map(Number);
+    if (!anio || !mes || !dia) return 0;
+
+    const fecha = new Date(anio, mes - 1, dia);
+    if (Number.isNaN(fecha.getTime())) return 0;
+
+    const hoy = new Date();
+    const hoySoloFecha = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+
+    const diferencia = hoySoloFecha.getTime() - fecha.getTime();
+    return Math.max(0, Math.floor(diferencia / (1000 * 60 * 60 * 24)));
+  };
+
+  function chunkArray<T>(array: T[], size: number) {
+    const resultado: T[][] = [];
+    for (let i = 0; i < array.length; i += size) {
+      resultado.push(array.slice(i, i + size));
+    }
+    return resultado;
+  }
+
+  const esCriticidad = (valor: unknown, clave: string) =>
+    normalizarTexto(valor).includes(clave);
 
   const total = filasFiltradas.length;
   const abiertos = filasFiltradas.filter((item) => item.estado === "ABIERTO").length;
-const cerrados = filasFiltradas.filter((item) => item.estado === "CERRADO").length;
-const enSeguimiento = filasFiltradas.filter((item) => item.estado === "EN SEGUIMIENTO").length;
-const criticos = filasFiltradas.filter((item) =>
-  String(item.criticidad).toUpperCase().includes("CRIT")
-).length;
+  const cerrados = filasFiltradas.filter((item) => item.estado === "CERRADO").length;
+  const enSeguimiento = filasFiltradas.filter((item) => item.estado === "EN SEGUIMIENTO").length;
 
-const maxEstado = Math.max(abiertos, enSeguimiento, cerrados, 1);
-const altos = filasFiltradas.filter((item) =>
-  String(item.criticidad).toUpperCase().includes("ALTO")
-).length;
+  const criticos = filasFiltradas.filter((item) => esCriticidad(item.criticidad, "CRIT")).length;
+  const altos = filasFiltradas.filter((item) => esCriticidad(item.criticidad, "ALTO")).length;
+  const medios = filasFiltradas.filter((item) => esCriticidad(item.criticidad, "MED")).length;
+  const bajos = filasFiltradas.filter((item) => esCriticidad(item.criticidad, "BAJ")).length;
 
-const medios = filasFiltradas.filter((item) =>
-  String(item.criticidad).toUpperCase().includes("MED")
-).length;
+  const hallazgosPendientes = filasFiltradas.filter((item) => item.estado !== "CERRADO");
 
-const bajos = filasFiltradas.filter((item) =>
-  String(item.criticidad).toUpperCase().includes("BAJ")
-).length;
+  const antiguedadMaxima = hallazgosPendientes.length
+    ? Math.max(...hallazgosPendientes.map((item) => diasEntre(obtenerFechaBase(item))))
+    : 0;
 
-const maxCriticidad = Math.max(criticos, altos, medios, bajos, 1);
-const pesoCriticidad = (valor: string) => {
-  const texto = String(valor || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toUpperCase();
+  const tipoDominante =
+    Object.entries(
+      filasFiltradas.reduce<Record<string, number>>((acc, item) => {
+        const tipo = String(item.tipoHallazgo || "Sin clasificar");
+        acc[tipo] = (acc[tipo] || 0) + 1;
+        return acc;
+      }, {})
+    ).sort((a, b) => b[1] - a[1])[0]?.[0] || "Sin clasificar";
 
-  if (texto.includes("CRIT")) return 4;
-  if (texto.includes("ALTO")) return 3;
-  if (texto.includes("MED")) return 2;
-  if (texto.includes("BAJ")) return 1;
-  return 0;
-};
+  const pesoCriticidad = (valor: unknown) => {
+    const texto = normalizarTexto(valor);
+    if (texto.includes("CRIT")) return 4;
+    if (texto.includes("ALTO")) return 3;
+    if (texto.includes("MED")) return 2;
+    if (texto.includes("BAJ")) return 1;
+    return 0;
+  };
 
-const textoCriticidad = (peso: number) => {
-  if (peso >= 4) return "CRÍTICO";
-  if (peso === 3) return "ALTO";
-  if (peso === 2) return "MEDIO";
-  if (peso === 1) return "BAJO";
-  return "SIN CLASIFICAR";
-};
-function diasEntreSupervisor(fechaISO: string) {
-  const texto = String(fechaISO || "").slice(0, 10);
-  if (!texto) return 0;
+  const textoCriticidad = (peso: number) => {
+    if (peso >= 4) return "CRÍTICO";
+    if (peso === 3) return "ALTO";
+    if (peso === 2) return "MEDIO";
+    if (peso === 1) return "BAJO";
+    return "SIN CLASIFICAR";
+  };
 
-  const partes = texto.split("-");
-  if (partes.length !== 3) return 0;
+  type SupervisorResumen = {
+    nombre: string;
+    total: number;
+    abiertos: number;
+    seguimiento: number;
+    criticidadMax: number;
+    codigos: string[];
+    antiguedadMaxima: number;
+    sumaAntiguedad: number;
+    criticidadMaxTexto: string;
+    codigosTexto: string;
+    antiguedadPromedio: number;
+  };
 
-  const [anio, mes, dia] = partes.map(Number);
-  const fecha = new Date(anio, mes - 1, dia);
-
-  if (Number.isNaN(fecha.getTime())) return 0;
-
-  const hoy = new Date();
-  const hoySoloFecha = new Date(
-    hoy.getFullYear(),
-    hoy.getMonth(),
-    hoy.getDate()
-  );
-
-  const diferencia = hoySoloFecha.getTime() - fecha.getTime();
-  return Math.max(0, Math.floor(diferencia / (1000 * 60 * 60 * 24)));
-}
-const supervisoresPendientes = Object.values(
-  filasFiltradas
-    .filter((item) => item.estado !== "CERRADO")
-    .reduce<
+  const supervisoresPendientes: SupervisorResumen[] = Object.values(
+    hallazgosPendientes.reduce<
       Record<
         string,
         {
@@ -193,14 +235,9 @@ const supervisoresPendientes = Object.values(
         }
       >
     >((acc, item) => {
-      const nombre = String(item.reportante || "Sin supervisor");
-      const clave = nombre.trim().toUpperCase();
-
-      const fechaBase =
-        String(item.fechaISO || "").trim() ||
-        String(item.fechaHora || "").trim().slice(0, 10).split("-").reverse().join("-");
-
-      const diasPendiente = diasEntreSupervisor(fechaBase);
+      const nombre = String(item.reportante || "Sin supervisor").trim() || "Sin supervisor";
+      const clave = normalizarTexto(nombre);
+      const diasPendiente = diasEntre(obtenerFechaBase(item));
 
       if (!acc[clave]) {
         acc[clave] = {
@@ -217,663 +254,288 @@ const supervisoresPendientes = Object.values(
 
       acc[clave].total += 1;
 
-      if (item.estado === "ABIERTO") {
-        acc[clave].abiertos += 1;
-      }
-
-      if (item.estado === "EN SEGUIMIENTO") {
-        acc[clave].seguimiento += 1;
-      }
+      if (item.estado === "ABIERTO") acc[clave].abiertos += 1;
+      if (item.estado === "EN SEGUIMIENTO") acc[clave].seguimiento += 1;
 
       acc[clave].criticidadMax = Math.max(
         acc[clave].criticidadMax,
-        pesoCriticidad(String(item.criticidad || ""))
+        pesoCriticidad(item.criticidad)
       );
 
-      acc[clave].antiguedadMaxima = Math.max(
-        acc[clave].antiguedadMaxima,
-        diasPendiente
-      );
-
+      acc[clave].antiguedadMaxima = Math.max(acc[clave].antiguedadMaxima, diasPendiente);
       acc[clave].sumaAntiguedad += diasPendiente;
 
       acc[clave].codigos.push(String(item.codigo || ""));
 
       return acc;
     }, {})
-)
-  .map((supervisor) => ({
-    ...supervisor,
-    criticidadMaxTexto: textoCriticidad(supervisor.criticidadMax),
-    codigosTexto: supervisor.codigos.join(", "),
-    antiguedadPromedio:
-      supervisor.total > 0
-        ? Math.round(supervisor.sumaAntiguedad / supervisor.total)
-        : 0,
-  }))
-  .sort((a, b) => {
-    if (b.total !== a.total) return b.total - a.total;
-    return b.criticidadMax - a.criticidadMax;
-  })
-  .slice(0, 5);
+  )
+    .map((supervisor) => ({
+      ...supervisor,
+      criticidadMaxTexto: textoCriticidad(supervisor.criticidadMax),
+      codigosTexto: supervisor.codigos.join(", "),
+      antiguedadPromedio:
+        supervisor.total > 0
+          ? Math.round(supervisor.sumaAntiguedad / supervisor.total)
+          : 0,
+    }))
+    .sort((a, b) => {
+      if (b.criticidadMax !== a.criticidadMax) return b.criticidadMax - a.criticidadMax;
+      if (b.total !== a.total) return b.total - a.total;
+      return b.antiguedadMaxima - a.antiguedadMaxima;
+    });
+
+  const pendientesCriticos = hallazgosPendientes.filter((item) =>
+    esCriticidad(item.criticidad, "CRIT")
+  ).length;
+  const pendientesAltos = hallazgosPendientes.filter((item) =>
+    esCriticidad(item.criticidad, "ALTO")
+  ).length;
+  const pendientesMedios = hallazgosPendientes.filter((item) =>
+    esCriticidad(item.criticidad, "MED")
+  ).length;
+  const pendientesBajos = hallazgosPendientes.filter((item) =>
+    esCriticidad(item.criticidad, "BAJ")
+  ).length;
+
+  const penalizacionAntiguedad =
+    antiguedadMaxima > 14 ? 15 :
+    antiguedadMaxima > 7 ? 8 :
+    0;
+
+  const puntajeEmpresa = Math.max(
+    0,
+    100 -
+      pendientesCriticos * 40 -
+      pendientesAltos * 25 -
+      pendientesMedios * 12 -
+      pendientesBajos * 5 -
+      enSeguimiento * 4 -
+      penalizacionAntiguedad
+  );
+
+  const rankingEmpresa = (() => {
+    if (puntajeEmpresa >= 90) {
+      return {
+        nombre: "PLATINO",
+        semaforo: "VERDE",
+        color: "#22c55e",
+        descripcion: "Control preventivo sólido dentro del período analizado.",
+      };
+    }
+    if (puntajeEmpresa >= 75) {
+      return {
+        nombre: "ORO",
+        semaforo: "VERDE",
+        color: "#84cc16",
+        descripcion: "Buen nivel de control, con brechas menores bajo seguimiento.",
+      };
+    }
+    if (puntajeEmpresa >= 60) {
+      return {
+        nombre: "PLATA",
+        semaforo: "AMARILLO",
+        color: "#f59e0b",
+        descripcion: "Gestión aceptable, pero con desviaciones que requieren corrección.",
+      };
+    }
+    if (puntajeEmpresa >= 40) {
+      return {
+        nombre: "BRONCE",
+        semaforo: "NARANJO",
+        color: "#f97316",
+        descripcion: "Condición de riesgo operativo con control insuficiente.",
+      };
+    }
+    return {
+      nombre: "ROJO",
+      semaforo: "ROJO",
+      color: "#ef4444",
+      descripcion: "Exposición relevante y necesidad de intervención prioritaria.",
+    };
+  })();
+
+  const diagnosticoEjecutivo = (() => {
+    if (total === 0) {
+      return "En el período evaluado no se registran hallazgos para los filtros seleccionados, lo que refleja una condición de control favorable dentro del alcance analizado.";
+    }
+
+    if (criticos > 0) {
+      return `En el período evaluado se identifican ${criticos} hallazgo(s) de criticidad crítica, con ${abiertos} abierto(s) y una antigüedad máxima de ${antiguedadMaxima} día(s), condición que exige intervención inmediata, trazabilidad de cierre y control formal de la administración responsable.`;
+    }
+
+    if (altos > 0 && hallazgosPendientes.length > 0) {
+      return `En el período evaluado la empresa mantiene ${hallazgosPendientes.length} hallazgo(s) pendiente(s), con predominio de criticidad alta y una antigüedad máxima de ${antiguedadMaxima} día(s), lo que evidencia una brecha de gestión correctiva que debe regularizarse para evitar reincidencia y observaciones en auditoría.`;
+    }
+
+    if (enSeguimiento > 0) {
+      return `El informe muestra ${enSeguimiento} hallazgo(s) en seguimiento, asociados principalmente a ${tipoDominante.toLowerCase()}, lo que indica acciones en curso pero aún sin cierre definitivo, por lo que se recomienda consolidar evidencia y verificar efectividad de control.`;
+    }
+
+    if (cerrados === total) {
+      return "Los hallazgos del período evaluado se encuentran cerrados, lo que refleja una respuesta correctiva ejecutada dentro del alcance analizado y una condición de control más estable para la empresa revisada.";
+    }
+
+    return `En el período evaluado se registran ${total} hallazgo(s), con predominio de ${tipoDominante.toLowerCase()}, por lo que se recomienda mantener seguimiento operativo y reforzar control preventivo sobre las desviaciones detectadas.`;
+  })();
+
+  const cantidadPrioritaria =
+    pendientesCriticos > 0 ? pendientesCriticos :
+    pendientesAltos > 0 ? pendientesAltos :
+    pendientesMedios > 0 ? pendientesMedios :
+    pendientesBajos > 0 ? pendientesBajos :
+    hallazgosPendientes.length;
+
+  const criticidadPrioritaria =
+    pendientesCriticos > 0 ? "crítica" :
+    pendientesAltos > 0 ? "alta" :
+    pendientesMedios > 0 ? "media" :
+    pendientesBajos > 0 ? "baja" :
+    "sin clasificar";
+
+  const condicionPrioritaria =
+    abiertos > 0 ? "abierta" :
+    enSeguimiento > 0 ? "en seguimiento" :
+    "pendiente";
+
+  const plazoHoras =
+    pendientesCriticos > 0 ? 24 :
+    pendientesAltos > 0 ? 72 :
+    pendientesMedios > 0 ? 120 :
+    168;
+
+  const recomendacionPrioritaria =
+    total === 0
+      ? "Sin hallazgos pendientes para el período seleccionado. Se recomienda mantener el estándar de control y trazabilidad documental vigente."
+      : `Prioridad inmediata: regularizar ${cantidadPrioritaria} hallazgo(s) de criticidad ${criticidadPrioritaria} con condición predominante ${condicionPrioritaria}, priorizando evidencia de cierre dentro de ${plazoHoras} horas y verificación formal de la acción correctiva.`;
 
   const fechaEmision = new Date().toLocaleString("es-CL");
-  const siglaEmpresaInforme = String(filtroEmpresa || "EMP")
-  .trim()
-  .split(" ")
-  .filter(Boolean)
-  .map((palabra) => palabra[0])
-  .join("")
-  .toUpperCase() || "EMP";
 
-const ahoraInforme = new Date();
-const dd = String(ahoraInforme.getDate()).padStart(2, "0");
-const mm = String(ahoraInforme.getMonth() + 1).padStart(2, "0");
-const yyyy = String(ahoraInforme.getFullYear());
-const hh = String(ahoraInforme.getHours()).padStart(2, "0");
-const min = String(ahoraInforme.getMinutes()).padStart(2, "0");
-const ss = String(ahoraInforme.getSeconds()).padStart(2, "0");
+  const baseFolio =
+    filtroEmpresa !== "TODAS"
+      ? String(filtroEmpresa)
+      : filtroObra !== "TODAS"
+        ? String(filtroObra)
+        : "EMP";
 
-const folioInforme = `${siglaEmpresaInforme}-IEO-${dd}${mm}${yyyy}-${hh}${min}${ss}`;
+  const siglaEmpresaInforme =
+    baseFolio
+      .trim()
+      .split(" ")
+      .filter(Boolean)
+      .map((palabra) => palabra[0])
+      .join("")
+      .toUpperCase() || "EMP";
+
+  const ahoraInforme = new Date();
+  const dd = String(ahoraInforme.getDate()).padStart(2, "0");
+  const mm = String(ahoraInforme.getMonth() + 1).padStart(2, "0");
+  const yyyy = String(ahoraInforme.getFullYear());
+  const hh = String(ahoraInforme.getHours()).padStart(2, "0");
+  const min = String(ahoraInforme.getMinutes()).padStart(2, "0");
+  const ss = String(ahoraInforme.getSeconds()).padStart(2, "0");
+
+  const folioInforme = `${siglaEmpresaInforme}-IEO-${dd}${mm}${yyyy}-${hh}${min}${ss}`;
+
   const fechasISOOrdenadas = filasFiltradas
-  .map((item) => item.fechaISO)
-  .filter(Boolean)
-  .sort();
+    .map((item) => obtenerFechaBase(item))
+    .filter(Boolean)
+    .sort();
 
-const fechaInicioInforme = filtroFechaDesde
-  ? formatearFechaFiltro(filtroFechaDesde)
-  : fechasISOOrdenadas.length
-    ? new Date(fechasISOOrdenadas[0]).toLocaleDateString("es-CL")
-    : "Sin inicio";
+  const fechaInicioInforme = filtroFechaDesde
+    ? formatearFechaFiltro(filtroFechaDesde)
+    : fechasISOOrdenadas.length
+      ? formatearFechaFiltro(fechasISOOrdenadas[0])
+      : "Sin inicio";
 
-const fechaFinInforme = filtroFechaHasta
-  ? formatearFechaFiltro(filtroFechaHasta)
-  : fechasISOOrdenadas.length
-    ? new Date(fechasISOOrdenadas[fechasISOOrdenadas.length - 1]).toLocaleDateString("es-CL")
-    : "Sin cierre";
-const hallazgosPendientes = filasFiltradas.filter((item) => item.estado !== "CERRADO");
+  const fechaFinInforme = filtroFechaHasta
+    ? formatearFechaFiltro(filtroFechaHasta)
+    : fechasISOOrdenadas.length
+      ? formatearFechaFiltro(fechasISOOrdenadas[fechasISOOrdenadas.length - 1])
+      : "Sin cierre";
 
-const diasEntre = (fechaISO: string) => {
-  const texto = String(fechaISO || "").slice(0, 10);
-  if (!texto) return 0;
+  const maxEstado = Math.max(abiertos, enSeguimiento, cerrados, 1);
+  const maxCriticidad = Math.max(criticos, altos, medios, bajos, 1);
+  const maxCriticidadTexto =
+    criticos > 0 ? "CRÍTICO" :
+    altos > 0 ? "ALTO" :
+    medios > 0 ? "MEDIO" :
+    bajos > 0 ? "BAJO" :
+    "SIN CLASIFICAR";
 
-  const partes = texto.split("-");
-  if (partes.length !== 3) return 0;
+  const supervisorChunks = chunkArray(supervisoresPendientes, 8);
+  const hallazgoChunks = chunkArray(filasFiltradas, 12);
 
-  const [anio, mes, dia] = partes.map(Number);
-  const fecha = new Date(anio, mes - 1, dia);
-
-  if (Number.isNaN(fecha.getTime())) return 0;
-
-  const hoy = new Date();
-  const hoySoloFecha = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
-
-  const diferencia = hoySoloFecha.getTime() - fecha.getTime();
-  return Math.max(0, Math.floor(diferencia / (1000 * 60 * 60 * 24)));
-};
-const antiguedadMaxima = hallazgosPendientes.length
-  ? Math.max(...hallazgosPendientes.map((item) => diasEntre(String(item.fechaISO || ""))))
-  : 0;
-
-const tipoDominante = Object.entries(
-  filasFiltradas.reduce<Record<string, number>>((acc, item) => {
-    const tipo = String(item.tipoHallazgo || "Sin clasificar");
-    acc[tipo] = (acc[tipo] || 0) + 1;
-    return acc;
-  }, {})
-).sort((a, b) => b[1] - a[1])[0]?.[0] || "Sin clasificar";
-
-const diagnosticoEjecutivo = (() => {
-  if (total === 0) {
-    return "En el período evaluado no se registran hallazgos para los filtros seleccionados, lo que refleja una condición de control favorable dentro del alcance analizado.";
-  }
-
-  if (criticos > 0) {
-    return `En el período evaluado se identifican ${criticos} hallazgo(s) de criticidad crítica, lo que representa una exposición relevante que requiere intervención inmediata, trazabilidad de cierre y seguimiento formal por parte de la supervisión responsable.`;
-  }
-
-  if (altos > 0 && hallazgosPendientes.length > 0) {
-    return `En el período evaluado la empresa mantiene ${hallazgosPendientes.length} hallazgo(s) pendiente(s), con predominio de criticidad alta y una antigüedad máxima de ${antiguedadMaxima} día(s), lo que evidencia una brecha de gestión correctiva que debe regularizarse para evitar reincidencia y observaciones en auditoría.`;
-  }
-
-  if (enSeguimiento > 0) {
-    return `El informe muestra ${enSeguimiento} hallazgo(s) en seguimiento, asociados principalmente a ${tipoDominante.toLowerCase()}, lo que indica que existen acciones en curso pero aún sin cierre definitivo, por lo que se recomienda consolidar evidencia y verificar efectividad de control.`;
-  }
-
-  if (cerrados === total) {
-    return `Los hallazgos del período evaluado se encuentran cerrados, lo que refleja una respuesta correctiva ejecutada dentro del alcance analizado y una condición de control más estable para la empresa revisada.`;
-  }
-
-  return `En el período evaluado se registran ${total} hallazgo(s), con predominio de ${tipoDominante.toLowerCase()}, por lo que se recomienda mantener seguimiento operativo y reforzar control preventivo sobre las desviaciones detectadas.`;
-})();
-const pendientesCriticos = hallazgosPendientes.filter((item) =>
-  String(item.criticidad || "").toUpperCase().includes("CRIT")
-).length;
-
-const pendientesAltos = hallazgosPendientes.filter((item) =>
-  String(item.criticidad || "").toUpperCase().includes("ALTO")
-).length;
-
-const pendientesMedios = hallazgosPendientes.filter((item) =>
-  String(item.criticidad || "").toUpperCase().includes("MED")
-).length;
-
-const pendientesBajos = hallazgosPendientes.filter((item) =>
-  String(item.criticidad || "").toUpperCase().includes("BAJ")
-).length;
-
-const penalizacionAntiguedad =
-  antiguedadMaxima > 14 ? 15 :
-  antiguedadMaxima > 7 ? 8 :
-  0;
-
-const puntajeEmpresa = Math.max(
-  0,
-  100 -
-    pendientesCriticos * 40 -
-    pendientesAltos * 25 -
-    pendientesMedios * 12 -
-    pendientesBajos * 5 -
-    enSeguimiento * 4 -
-    penalizacionAntiguedad
-);
-
-const rankingEmpresa = (() => {
-  if (puntajeEmpresa >= 90) {
-    return {
-      nombre: "PLATINO",
-      semaforo: "VERDE",
-      color: "#22c55e",
-      descripcion: "Control preventivo sólido dentro del período analizado.",
-    };
-  }
-
-  if (puntajeEmpresa >= 75) {
-    return {
-      nombre: "ORO",
-      semaforo: "VERDE",
-      color: "#84cc16",
-      descripcion: "Buen nivel de control, con brechas menores bajo seguimiento.",
-    };
-  }
-
-  if (puntajeEmpresa >= 60) {
-    return {
-      nombre: "PLATA",
-      semaforo: "AMARILLO",
-      color: "#f59e0b",
-      descripcion: "Gestión aceptable, pero con desviaciones que requieren corrección.",
-    };
-  }
-
-  if (puntajeEmpresa >= 40) {
-    return {
-      nombre: "BRONCE",
-      semaforo: "NARANJO",
-      color: "#f97316",
-      descripcion: "Condición de riesgo operativo con control insuficiente.",
-    };
-  }
-
-  return {
-    nombre: "ROJO",
-    semaforo: "ROJO",
-    color: "#ef4444",
-    descripcion: "Exposición relevante y necesidad de intervención prioritaria.",
-  };
-})();
-  const filasTabla = filasFiltradas
-    .map(
-      (fila) => `
-        <tr>
-          <td>${escapeHtml(fila.codigo)}</td>
-          <td>${escapeHtml(fila.empresa)}</td>
-          <td>${escapeHtml(fila.tipoHallazgo)}</td>
-          <td>${escapeHtml(fila.criticidad)}</td>
-          <td>${escapeHtml(fila.estado)}</td>
-          <td>${escapeHtml(fila.fechaHora)}</td>
-        </tr>
-      `
-    )
-    .join("");
-
-  const html = `
-    <!DOCTYPE html>
-    <html lang="es">
-      <head>
-        <meta charset="UTF-8" />
-        <title>Informe empresa/obra</title>
-        <style>
-          body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 28px;
-            color: #111827;
-            background: white;
-          }
-          .wrap {
-            max-width: 1100px;
-            margin: 0 auto;
-          }
-          h1 {
-            margin: 0 0 6px;
-            font-size: 26px;
-          }
-          .sub {
-            color: #4b5563;
-            margin-bottom: 22px;
-          }
-            .sub-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.folio-box {
-  background: #163a70;
-  color: #ffffff;
-  border-radius: 12px;
-  padding: 8px 14px;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.3px;
-  white-space: nowrap;
-}
-          .meta {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px 20px;
-            margin-bottom: 20px;
-          }
-          .label {
-            font-size: 12px;
-            color: #6b7280;
-            margin-bottom: 4px;
-          }
-          .value {
-            font-size: 14px;
-            font-weight: 700;
-          }
-          .kpis {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 12px;
-            margin: 22px 0;
-          }
-          .kpi {
-            border: 1px solid #d1d5db;
-            border-radius: 14px;
-            padding: 14px;
-          }
-          .kpi-title {
-            font-size: 12px;
-            color: #6b7280;
-            margin-bottom: 6px;
-          }
-          .kpi-value {
-            font-size: 26px;
-            font-weight: 800;
-          }
-          .card {
-            border: 1px solid #d1d5db;
-            border-radius: 14px;
-            padding: 16px;
-            margin-top: 18px;
-          }
-          table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 10px;
-            font-size: 12px;
-          }
-          th, td {
-            border: 1px solid #d1d5db;
-            padding: 8px 10px;
-            text-align: left;
-            vertical-align: top;
-          }
-          th {
-            background: #f3f4f6;
-            font-size: 12px;
-          }
-          .nota {
-            margin-top: 14px;
-            font-size: 12px;
-            color: #6b7280;
-          }
-            .estado-chart {
-  display: grid;
-  gap: 12px;
-  margin-top: 8px;
-}
-.estado-row {
-  display: grid;
-  grid-template-columns: 150px 1fr 56px;
-  gap: 10px;
-  align-items: center;
-}
-.estado-label {
-  font-size: 13px;
-  font-weight: 700;
-  color: #374151;
-}
-.estado-track {
-  height: 12px;
-  border-radius: 999px;
-  background: #e5e7eb;
-  overflow: hidden;
-}
-.estado-fill {
-  height: 100%;
-  border-radius: 999px;
-}
-.estado-value {
-  font-size: 13px;
-  font-weight: 800;
-  text-align: right;
-}
-  .criticidad-chart {
-  display: grid;
-  gap: 12px;
-  margin-top: 8px;
-}
-.criticidad-row {
-  display: grid;
-  grid-template-columns: 150px 1fr 56px;
-  gap: 10px;
-  align-items: center;
-}
-.criticidad-label {
-  font-size: 13px;
-  font-weight: 700;
-  color: #374151;
-}
-.criticidad-track {
-  height: 12px;
-  border-radius: 999px;
-  background: #e5e7eb;
-  overflow: hidden;
-}
-.criticidad-fill {
-  height: 100%;
-  border-radius: 999px;
-}
-.criticidad-value {
-  font-size: 13px;
-  font-weight: 800;
-  text-align: right;
-}
-  .supervisores-grid {
-  display: grid;
-  gap: 12px;
-  margin-top: 8px;
-}
-.supervisor-card {
-  border: 1px solid #d1d5db;
-  border-radius: 14px;
-  padding: 14px;
-}
-.supervisor-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 8px;
-}
-.supervisor-name {
-  font-size: 14px;
-  font-weight: 800;
-  color: #111827;
-}
-.supervisor-badge {
-  font-size: 11px;
-  font-weight: 800;
-  padding: 4px 8px;
-  border-radius: 999px;
-  border: 1px solid #d1d5db;
-  color: #374151;
-  background: #f9fafb;
-}
-.supervisor-meta {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  margin-top: 10px;
-}
-.supervisor-stat {
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  padding: 10px;
-}
-.supervisor-stat-label {
-  font-size: 11px;
-  color: #6b7280;
-  margin-bottom: 4px;
-}
-.supervisor-stat-value {
-  font-size: 18px;
-  font-weight: 800;
-  color: #111827;
-}
-.supervisor-codes {
-  margin-top: 10px;
-  font-size: 12px;
-  color: #374151;
-  line-height: 1.5;
-}
-.supervisor-empty {
-  font-size: 13px;
-  color: #6b7280;
-}
-  .ranking-card {
-  display: grid;
-  grid-template-columns: 180px 1fr;
-  gap: 16px;
-  align-items: stretch;
-}
-.ranking-badge {
-  border-radius: 16px;
-  padding: 16px;
-  color: white;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  text-align: center;
-  min-height: 120px;
-}
-.ranking-badge-label {
-  font-size: 12px;
-  font-weight: 700;
-  opacity: 0.9;
-  margin-bottom: 6px;
-}
-.ranking-badge-name {
-  font-size: 28px;
-  font-weight: 900;
-  line-height: 1;
-  margin-bottom: 8px;
-}
-.ranking-badge-score {
-  font-size: 14px;
-  font-weight: 700;
-}
-.ranking-info {
-  display: grid;
-  gap: 10px;
-}
-.ranking-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  border-radius: 999px;
-  border: 1px solid #d1d5db;
-  background: #f9fafb;
-  color: #374151;
-  font-size: 12px;
-  font-weight: 800;
-  width: fit-content;
-}
-.ranking-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  display: inline-block;
-}
-.ranking-text {
-  font-size: 13px;
-  line-height: 1.65;
-  color: #374151;
-}
-  @page {
-  size: Letter;
-  margin: 16mm;
-}
-
-.page {
-  min-height: 240mm;
-  page-break-after: always;
-  break-after: page;
-}
-
-.page:last-child {
-  page-break-after: auto;
-  break-after: auto;
-}
-
-.page-title {
-  font-size: 22px;
-  font-weight: 800;
-  margin: 0 0 8px;
-  color: #111827;
-}
-
-.page-subtitle {
-  font-size: 13px;
-  color: #4b5563;
-  margin-bottom: 18px;
-}
-
-.page-section {
-  margin-top: 14px;
-}
-
-.compact-card {
-  border: 1px solid #d1d5db;
-  border-radius: 12px;
-  padding: 14px;
-  background: #ffffff;
-}
-
-.table-report {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12px;
-}
-
-.table-report th,
-.table-report td {
-  border: 1px solid #d1d5db;
-  padding: 8px 10px;
-  text-align: left;
-  vertical-align: top;
-}
-
-.table-report th {
-  background: #f3f4f6;
-  font-weight: 800;
-}
-
-.table-note {
-  margin-top: 10px;
-  font-size: 12px;
-  color: #6b7280;
-}
-          @media print {
-            body {
-              padding: 16px;
-            }
-            .kpis {
-              page-break-inside: avoid;
-            }
-          }
-        </style>
-      </head>
-      <body>
-      <div class="page">
-        <div class="wrap">
+  const pagina1Html = `
+    <section class="sheet">
+      <div class="header">
+        <div>
           <h1>Informe Ejecutivo Empresa / Obra</h1>
-         <div class="sub sub-head">
-  <div>Criterio Estratégico · Emisión: ${escapeHtml(fechaEmision)}</div>
-  <div class="folio-box">Folio: ${escapeHtml(folioInforme)}</div>
-</div>
+          <div class="sub">Criterio Estratégico · Emisión: ${escapeHtml(fechaEmision)}</div>
+        </div>
+        <div class="folio-box">Folio: ${escapeHtml(folioInforme)}</div>
+      </div>
 
-          <div class="meta">
-            <div>
-              <div class="label">Empresa seleccionada</div>
-              <div class="value">${escapeHtml(filtroEmpresa)}</div>
-            </div>
-            <div>
-              <div class="label">Obra / Proyecto seleccionado</div>
-              <div class="value">${escapeHtml(filtroObra)}</div>
-            </div>
-            <div>
-              <div class="label">Estado</div>
-              <div class="value">${escapeHtml(filtroEstado)}</div>
-            </div>
-            <div>
-              <div class="label">Criticidad</div>
-              <div class="value">${escapeHtml(filtroCriticidad)}</div>
-            </div>
-            <div>
-              <div class="label">Tipo de hallazgo</div>
-              <div class="value">${escapeHtml(filtroTipoHallazgo)}</div>
-            </div>
-            <div>
-              <div>
- <div style="display:grid; grid-template-columns:180px 180px; gap:10px; align-items:start;">
-  <div style="border:1px solid #d1d5db; border-radius:10px; padding:8px 10px;">
-    <div class="label">Fecha inicio</div>
-    <div class="value">${escapeHtml(fechaInicioInforme)}</div>
-  </div>
+      <div class="meta-grid">
+        <div class="meta-item">
+          <div class="label">Empresa seleccionada</div>
+          <div class="value">${escapeHtml(filtroEmpresa)}</div>
+        </div>
+        <div class="meta-item">
+          <div class="label">Obra / Proyecto seleccionado</div>
+          <div class="value">${escapeHtml(filtroObra)}</div>
+        </div>
+        <div class="meta-item">
+          <div class="label">Estado</div>
+          <div class="value">${escapeHtml(filtroEstado)}</div>
+        </div>
+        <div class="meta-item">
+          <div class="label">Criticidad</div>
+          <div class="value">${escapeHtml(filtroCriticidad)}</div>
+        </div>
+        <div class="meta-item">
+          <div class="label">Tipo de hallazgo</div>
+          <div class="value">${escapeHtml(filtroTipoHallazgo)}</div>
+        </div>
+        <div class="meta-item">
+          <div class="label">Fecha inicio</div>
+          <div class="value">${escapeHtml(fechaInicioInforme)}</div>
+        </div>
+        <div class="meta-item">
+          <div class="label">Fecha término</div>
+          <div class="value">${escapeHtml(fechaFinInforme)}</div>
+        </div>
+        <div class="meta-item">
+          <div class="label">Máx. criticidad del período</div>
+          <div class="value">${escapeHtml(maxCriticidadTexto)}</div>
+        </div>
+      </div>
 
-  <div style="border:1px solid #d1d5db; border-radius:10px; padding:8px 10px;">
-    <div class="label">Fecha término</div>
-    <div class="value">${escapeHtml(fechaFinInforme)}</div>
-  </div>
-</div>
+      <div class="grid-2">
+        <div class="card avoid-break">
+          <div class="section-title">Ranking de control preventivo</div>
+          <div class="ranking-card">
+            <div class="ranking-badge" style="background:${rankingEmpresa.color};">
+              <div class="ranking-badge-label">Ranking del período</div>
+              <div class="ranking-badge-name">${escapeHtml(rankingEmpresa.nombre)}</div>
+              <div class="ranking-badge-score">Puntaje: ${escapeHtml(puntajeEmpresa)}/100</div>
+            </div>
+            <div class="ranking-info">
+              <div class="ranking-chip">
+                <span class="ranking-dot" style="background:${rankingEmpresa.color};"></span>
+                Semáforo: ${escapeHtml(rankingEmpresa.semaforo)}
+              </div>
+              <div class="ranking-text">${escapeHtml(rankingEmpresa.descripcion)}</div>
+              <div class="ranking-text">
+                Este resultado considera la criticidad, la condición de cierre y la antigüedad de los hallazgos pendientes dentro del alcance evaluado.
+              </div>
             </div>
           </div>
-          <div class="card">
-  <div class="label">Ranking de control preventivo</div>
-  <div class="ranking-card">
-    <div class="ranking-badge" style="background:${rankingEmpresa.color};">
-      <div class="ranking-badge-label">Ranking del período</div>
-      <div class="ranking-badge-name">${escapeHtml(rankingEmpresa.nombre)}</div>
-      <div class="ranking-badge-score">Puntaje: ${escapeHtml(puntajeEmpresa)}/100</div>
-    </div>
+        </div>
 
-    <div class="ranking-info">
-      <div class="ranking-chip">
-        <span class="ranking-dot" style="background:${rankingEmpresa.color};"></span>
-        Semáforo: ${escapeHtml(rankingEmpresa.semaforo)}
-      </div>
-
-      <div class="ranking-text">
-        ${escapeHtml(rankingEmpresa.descripcion)}
-      </div>
-
-      <div class="ranking-text">
-        Este resultado considera los hallazgos del período filtrado, su criticidad, condición de cierre y antigüedad de pendientes dentro del alcance evaluado.
-      </div>
-    </div>
-  </div>
-</div>
-
-          <div class="kpis">
+        <div class="card avoid-break">
+          <div class="section-title">Indicadores ejecutivos</div>
+          <div class="kpi-grid">
             <div class="kpi">
               <div class="kpi-title">Total hallazgos</div>
               <div class="kpi-value">${escapeHtml(total)}</div>
@@ -891,198 +553,590 @@ const rankingEmpresa = (() => {
               <div class="kpi-value">${escapeHtml(criticos)}</div>
             </div>
           </div>
-<div class="card">
-  <div class="label">Estado de reportes</div>
-  <div class="estado-chart">
-    <div class="estado-row">
-      <div class="estado-label">Abiertos</div>
-      <div class="estado-track">
-        <div class="estado-fill" style="width: ${(abiertos / maxEstado) * 100}%; background:#f59e0b;"></div>
-      </div>
-      <div class="estado-value">${escapeHtml(abiertos)}</div>
-    </div>
-
-    <div class="estado-row">
-      <div class="estado-label">En seguimiento</div>
-      <div class="estado-track">
-        <div class="estado-fill" style="width: ${(enSeguimiento / maxEstado) * 100}%; background:#3b82f6;"></div>
-      </div>
-      <div class="estado-value">${escapeHtml(enSeguimiento)}</div>
-    </div>
-
-    <div class="estado-row">
-      <div class="estado-label">Cerrados</div>
-      <div class="estado-track">
-        <div class="estado-fill" style="width: ${(cerrados / maxEstado) * 100}%; background:#22c55e;"></div>
-      </div>
-      <div class="estado-value">${escapeHtml(cerrados)}</div>
-    </div>
-  </div>
-</div>
-<div class="card">
-  <div class="label">Distribución por criticidad</div>
-  <div class="criticidad-chart">
-    <div class="criticidad-row">
-      <div class="criticidad-label">Críticos</div>
-      <div class="criticidad-track">
-        <div class="criticidad-fill" style="width: ${(criticos / maxCriticidad) * 100}%; background:#ef4444;"></div>
-      </div>
-      <div class="criticidad-value">${escapeHtml(criticos)}</div>
-    </div>
-
-    <div class="criticidad-row">
-      <div class="criticidad-label">Altos</div>
-      <div class="criticidad-track">
-        <div class="criticidad-fill" style="width: ${(altos / maxCriticidad) * 100}%; background:#f59e0b;"></div>
-      </div>
-      <div class="criticidad-value">${escapeHtml(altos)}</div>
-    </div>
-
-    <div class="criticidad-row">
-      <div class="criticidad-label">Medios</div>
-      <div class="criticidad-track">
-        <div class="criticidad-fill" style="width: ${(medios / maxCriticidad) * 100}%; background:#3b82f6;"></div>
-      </div>
-      <div class="criticidad-value">${escapeHtml(medios)}</div>
-    </div>
-
-    <div class="criticidad-row">
-      <div class="criticidad-label">Bajos</div>
-      <div class="criticidad-track">
-        <div class="criticidad-fill" style="width: ${(bajos / maxCriticidad) * 100}%; background:#22c55e;"></div>
-      </div>
-      <div class="criticidad-value">${escapeHtml(bajos)}</div>
-    </div>
-  </div>
-</div>
-<div class="card">
-  <div class="label">Diagnóstico ejecutivo automático</div>
-  <div style="font-size:13px; line-height:1.65; color:#374151; margin-top:8px;">
-    ${escapeHtml(diagnosticoEjecutivo)}
-  </div>
-</div>
-<div class="card">
-  <div class="label">Supervisores con hallazgos pendientes</div>
-  ${
-    supervisoresPendientes.length === 0
-      ? `<div class="supervisor-empty">No hay supervisores con hallazgos pendientes en el período seleccionado.</div>`
-      : `
-        <div class="supervisores-grid">
-          ${supervisoresPendientes
-            .map(
-              (supervisor) => `
-                <div class="supervisor-card">
-                  <div class="supervisor-top">
-                    <div class="supervisor-name">${escapeHtml(supervisor.nombre)}</div>
-                    <div class="supervisor-badge">Máx. criticidad: ${escapeHtml(supervisor.criticidadMaxTexto)}</div>
-                  </div>
-
-                  <div class="supervisor-meta">
-  <div class="supervisor-stat">
-    <div class="supervisor-stat-label">Pendientes</div>
-    <div class="supervisor-stat-value">${escapeHtml(supervisor.total)}</div>
-  </div>
-
-  <div class="supervisor-stat">
-    <div class="supervisor-stat-label">Abiertos</div>
-    <div class="supervisor-stat-value">${escapeHtml(supervisor.abiertos)}</div>
-  </div>
-
-  <div class="supervisor-stat">
-    <div class="supervisor-stat-label">En seguimiento</div>
-    <div class="supervisor-stat-value">${escapeHtml(supervisor.seguimiento)}</div>
-  </div>
-
-  <div class="supervisor-stat">
-    <div class="supervisor-stat-label">Más antiguo</div>
-    <div class="supervisor-stat-value">${escapeHtml(supervisor.antiguedadMaxima)} d</div>
-  </div>
-
-  <div class="supervisor-stat">
-    <div class="supervisor-stat-label">Promedio</div>
-    <div class="supervisor-stat-value">${escapeHtml(supervisor.antiguedadPromedio)} d</div>
-  </div>
-</div>
-
-                    <strong>Códigos asociados:</strong> ${escapeHtml(supervisor.codigosTexto)}
-                  </div>
-                </div>
-              `
-            )
-            .join("")}
         </div>
-      `
-  }
-</div>
-          <div class="card">
-            <div class="label">Detalle de hallazgos filtrados</div>
-            <table>
-              <thead>
-                <tr>
-                  <th>Código</th>
-                  <th>Empresa</th>
-                  <th>Tipo de hallazgo</th>
-                  <th>Criticidad</th>
-                  <th>Estado</th>
-                  <th>Fecha / Hora</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${filasTabla || `<tr><td colspan="6">Sin hallazgos para los filtros seleccionados.</td></tr>`}
-              </tbody>
-            </table>
-            <div class="nota">
-              Informe generado automáticamente desde la plataforma ejecutiva para revisión y envío gerencial.
+      </div>
+
+      <div class="grid-2">
+        <div class="card avoid-break">
+          <div class="section-title">Estado de reportes</div>
+          <div class="bar-list">
+            <div class="bar-row">
+              <div class="bar-label">Abiertos</div>
+              <div class="bar-track">
+                <div class="bar-fill" style="width:${(abiertos / maxEstado) * 100}%; background:#f59e0b;"></div>
+              </div>
+              <div class="bar-value">${escapeHtml(abiertos)}</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">En seguimiento</div>
+              <div class="bar-track">
+                <div class="bar-fill" style="width:${(enSeguimiento / maxEstado) * 100}%; background:#3b82f6;"></div>
+              </div>
+              <div class="bar-value">${escapeHtml(enSeguimiento)}</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">Cerrados</div>
+              <div class="bar-track">
+                <div class="bar-fill" style="width:${(cerrados / maxEstado) * 100}%; background:#22c55e;"></div>
+              </div>
+              <div class="bar-value">${escapeHtml(cerrados)}</div>
             </div>
           </div>
-         <div class="card" style="grid-column: 1 / -1; border-left: 5px solid #163a70;">
-  <div class="label">Recomendación prioritaria</div>
-  <div class="text" style="font-weight:700; margin-bottom:14px;">
-    Prioridad inmediata: regularizar el hallazgo de criticidad alta actualmente en seguimiento y verificar evidencia de cierre dentro de 72 horas.
-  </div>
-
-</div>
- <div
-  class="card"
-  style="
-    grid-column: 1 / -1;
-    background: #f3f4f6;
-    border: 1px solid #d7dce2;
-    border-radius: 12px;
-    padding: 14px 16px;
-  "
->
-  <div
-    class="label"
-    style="
-      margin-bottom: 8px;
-      color: #4b5563;
-      font-weight: 700;
-    "
-  >
-    Recordatorio de gestión
-  </div>
-
-  <div
-    class="text"
-    style="
-      text-align: justify;
-      color: #5f6b7a;
-      font-weight: 400;
-      line-height: 1.55;
-      margin: 0;
-    "
-  >
-    El presente informe ejecutivo es remitido para conocimiento y acción de la administración responsable, con el objeto de revisar, gestionar y cerrar los hallazgos pendientes detectados en la empresa evaluada. La permanencia de estas desviaciones sin regularización oportuna afecta la trazabilidad de la gestión preventiva del proyecto y puede incrementar la exposición a incidentes con consecuencias sobre la seguridad de las personas, la continuidad operacional, los activos y el entorno ambiental. Se solicita priorizar las acciones correctivas correspondientes y mantener evidencia verificable de su cierre.
-  </div>
-</div>
-</div>
         </div>
+
+        <div class="card avoid-break">
+          <div class="section-title">Distribución por criticidad</div>
+          <div class="bar-list">
+            <div class="bar-row">
+              <div class="bar-label">Críticos</div>
+              <div class="bar-track">
+                <div class="bar-fill" style="width:${(criticos / maxCriticidad) * 100}%; background:#ef4444;"></div>
+              </div>
+              <div class="bar-value">${escapeHtml(criticos)}</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">Altos</div>
+              <div class="bar-track">
+                <div class="bar-fill" style="width:${(altos / maxCriticidad) * 100}%; background:#f59e0b;"></div>
+              </div>
+              <div class="bar-value">${escapeHtml(altos)}</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">Medios</div>
+              <div class="bar-track">
+                <div class="bar-fill" style="width:${(medios / maxCriticidad) * 100}%; background:#3b82f6;"></div>
+              </div>
+              <div class="bar-value">${escapeHtml(medios)}</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">Bajos</div>
+              <div class="bar-track">
+                <div class="bar-fill" style="width:${(bajos / maxCriticidad) * 100}%; background:#22c55e;"></div>
+              </div>
+              <div class="bar-value">${escapeHtml(bajos)}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card avoid-break">
+          <div class="section-title">Diagnóstico ejecutivo automático</div>
+          <div class="text-block">${escapeHtml(diagnosticoEjecutivo)}</div>
+        </div>
+
+        <div class="card avoid-break">
+          <div class="section-title">Resumen de gestión responsable</div>
+          <div class="summary-grid">
+            <div class="summary-stat">
+  <div class="summary-label">Supervisores con pendientes</div>
+  <div class="summary-value">${escapeHtml(supervisoresPendientes.length)}</div>
+</div>
+
+<div class="summary-stat">
+  <div class="summary-label">Hallazgos pendientes</div>
+  <div class="summary-value">${escapeHtml(hallazgosPendientes.length)}</div>
+</div>
+
+<div class="summary-stat">
+  <div class="summary-label">Antigüedad máxima</div>
+  <div class="summary-value">${escapeHtml(antiguedadMaxima)} d</div>
+</div>
+
+<div class="summary-stat">
+  <div class="summary-label">Tipo dominante</div>
+  <div class="summary-value" style="font-size:14px; line-height:1.2;">
+    ${escapeHtml(tipoDominante)}
+  </div>
+</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card accent-card avoid-break">
+        <div class="section-title">Recomendación prioritaria</div>
+        <div class="text-block strong">${escapeHtml(recomendacionPrioritaria)}</div>
+      </div>
+
+      <div class="card soft-card avoid-break">
+        <div class="section-title">Recordatorio de gestión</div>
+        <div class="text-block">
+          El presente informe ejecutivo es remitido para conocimiento y acción de la administración responsable, con el objeto de revisar, gestionar y cerrar los hallazgos pendientes detectados en la empresa evaluada. La permanencia de estas desviaciones sin regularización oportuna afecta la trazabilidad de la gestión preventiva del proyecto y puede incrementar la exposición a incidentes con consecuencias sobre la seguridad de las personas, la continuidad operacional, los activos y el entorno ambiental. Se solicita priorizar las acciones correctivas correspondientes y mantener evidencia verificable de su cierre.
+        </div>
+      </div>
+    </section>
+  `;
+
+  const supervisorPagesHtml = (supervisorChunks.length ? supervisorChunks : [[]]).map((chunk, index, arr) => {
+    const filasSupervisor =
+      chunk.length === 0
+        ? `<tr><td colspan="8">No hay supervisores con hallazgos pendientes en el período seleccionado.</td></tr>`
+        : chunk
+            .map(
+              (supervisor) => `
+                <tr>
+                  <td>${escapeHtml(supervisor.nombre)}</td>
+                  <td>${escapeHtml(supervisor.total)}</td>
+                  <td>${escapeHtml(supervisor.abiertos)}</td>
+                  <td>${escapeHtml(supervisor.seguimiento)}</td>
+                  <td>${escapeHtml(supervisor.criticidadMaxTexto)}</td>
+                  <td>${escapeHtml(supervisor.antiguedadMaxima)} d</td>
+                  <td>${escapeHtml(supervisor.antiguedadPromedio)} d</td>
+                  <td>${escapeHtml(supervisor.codigosTexto)}</td>
+                </tr>
+              `
+            )
+            .join("");
+
+    return `
+      <section class="sheet">
+        <div class="page-head">
+          <div>
+            <h2 class="page-title">Análisis de supervisores con hallazgos pendientes</h2>
+            <div class="page-subtitle">
+              Resumen de responsables con hallazgos abiertos o en seguimiento dentro del período analizado.
+            </div>
+          </div>
+          <div class="page-counter">Página ${index + 1} de ${arr.length}</div>
+        </div>
+
+        <div class="card">
+          <table class="table-report">
+            <thead>
+              <tr>
+                <th>Supervisor</th>
+                <th>Pendientes</th>
+                <th>Abiertos</th>
+                <th>En seguimiento</th>
+                <th>Máx. criticidad</th>
+                <th>Más antiguo</th>
+                <th>Promedio</th>
+                <th>Códigos asociados</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filasSupervisor}
+            </tbody>
+          </table>
+          <div class="table-note">
+            ${escapeHtml(
+              supervisoresPendientes.length === 0
+                ? "Sin supervisores con hallazgos pendientes dentro del período seleccionado."
+                : `Se presentan ${chunk.length} supervisor(es) en esta hoja, ordenados por criticidad, cantidad de pendientes y antigüedad.`
+            )}
+          </div>
+        </div>
+      </section>
+    `;
+  }).join("");
+
+  const detallePagesHtml = (hallazgoChunks.length ? hallazgoChunks : [[]]).map((chunk, index, arr) => {
+    const filasDetalle =
+      chunk.length === 0
+        ? `<tr><td colspan="6">Sin hallazgos para los filtros seleccionados.</td></tr>`
+        : chunk
+            .map(
+              (fila) => `
+                <tr>
+                  <td>${escapeHtml(fila.codigo)}</td>
+                  <td>${escapeHtml(fila.empresa)}</td>
+                  <td>${escapeHtml(fila.tipoHallazgo)}</td>
+                  <td>${escapeHtml(fila.criticidad)}</td>
+                  <td>${escapeHtml(fila.estado)}</td>
+                  <td>${escapeHtml(fila.fechaHora)}</td>
+                </tr>
+              `
+            )
+            .join("");
+
+    return `
+      <section class="sheet">
+        <div class="page-head">
+          <div>
+            <h2 class="page-title">Detalle completo de hallazgos filtrados</h2>
+            <div class="page-subtitle">
+              Registro detallado de hallazgos contenidos dentro del alcance y filtros aplicados.
+            </div>
+          </div>
+          <div class="page-counter">Página ${index + 1} de ${arr.length}</div>
+        </div>
+
+        <div class="card">
+          <table class="table-report">
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Empresa</th>
+                <th>Tipo de hallazgo</th>
+                <th>Criticidad</th>
+                <th>Estado</th>
+                <th>Fecha / Hora</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filasDetalle}
+            </tbody>
+          </table>
+          <div class="table-note">
+            Informe generado automáticamente desde la plataforma ejecutiva para revisión y envío gerencial.
+          </div>
+        </div>
+      </section>
+    `;
+  }).join("");
+
+  const html = `
+    <!DOCTYPE html>
+    <html lang="es">
+      <head>
+        <meta charset="UTF-8" />
+        <title>Informe empresa/obra</title>
+        <style>
+          @page {
+            size: Letter;
+            margin: 12mm;
+          }
+
+          * {
+            box-sizing: border-box;
+          }
+
+          body {
+            margin: 0;
+            padding: 24px 0 48px;
+            font-family: Arial, sans-serif;
+            color: #111827;
+            background: #e5e7eb;
+          }
+
+          .sheet {
+            width: min(216mm, calc(100vw - 48px));
+            min-height: 279mm;
+            margin: 0 auto 40px;
+            padding: 16mm;
+            background: #ffffff;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
+          }
+
+          .header,
+          .page-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 16px;
+            margin-bottom: 18px;
+          }
+
+          h1 {
+            margin: 0 0 6px;
+            font-size: 28px;
+            line-height: 1.1;
+          }
+
+          .page-title {
+            margin: 0 0 6px;
+            font-size: 24px;
+            line-height: 1.15;
+          }
+
+          .sub,
+          .page-subtitle {
+            font-size: 13px;
+            color: #4b5563;
+          }
+
+          .folio-box,
+          .page-counter {
+            white-space: nowrap;
+            border-radius: 999px;
+            padding: 8px 14px;
+            font-size: 12px;
+            font-weight: 800;
+          }
+
+          .folio-box {
+            background: #163a70;
+            color: #ffffff;
+          }
+
+          .page-counter {
+            background: #f3f4f6;
+            color: #374151;
+            border: 1px solid #d1d5db;
+          }
+
+          .meta-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
+          }
+
+          .meta-item,
+          .card,
+          .kpi,
+          .summary-stat {
+            border: 1px solid #d1d5db;
+            border-radius: 12px;
+            background: #ffffff;
+          }
+
+          .meta-item {
+            padding: 10px 12px;
+          }
+
+          .label,
+          .section-title,
+          .summary-label,
+          .kpi-title {
+            font-size: 12px;
+            color: #6b7280;
+          }
+
+          .value {
+            margin-top: 4px;
+            font-size: 14px;
+            font-weight: 700;
+          }
+
+          .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px;
+            margin-top: 14px;
+          }
+
+          .card {
+            padding: 14px;
+          }
+
+          .section-title {
+            margin-bottom: 10px;
+            font-weight: 800;
+          }
+
+         .ranking-card {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.ranking-badge {
+  min-height: 92px;
+  border-radius: 12px;
+  padding: 12px 10px;
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+.ranking-badge-label {
+  font-size: 10px;
+  font-weight: 700;
+  opacity: 0.92;
+  margin-bottom: 4px;
+}
+
+.ranking-badge-name {
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+
+.ranking-badge-score {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+          .ranking-info {
+            display: grid;
+            gap: 10px;
+          }
+
+          .ranking-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            width: fit-content;
+            border: 1px solid #d1d5db;
+            border-radius: 999px;
+            padding: 6px 10px;
+            background: #f9fafb;
+            font-size: 12px;
+            font-weight: 800;
+            color: #374151;
+          }
+
+          .ranking-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+            display: inline-block;
+          }
+
+          .ranking-text,
+          .text-block {
+            font-size: 13px;
+            color: #374151;
+            line-height: 1.65;
+          }
+
+          .strong {
+            font-weight: 800;
+          }
+
+         .kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.kpi,
+.summary-stat {
+  padding: 12px;
+}
+
+.kpi-value {
+  margin-top: 6px;
+  font-size: 24px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.summary-value {
+  margin-top: 6px;
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.15;
+  word-break: break-word;
+}
+
+          .bar-list {
+            display: grid;
+            gap: 12px;
+          }
+
+          .bar-row {
+            display: grid;
+            grid-template-columns: 140px 1fr 48px;
+            gap: 10px;
+            align-items: center;
+          }
+
+          .bar-label {
+            font-size: 13px;
+            font-weight: 700;
+            color: #374151;
+          }
+
+          .bar-track {
+            height: 12px;
+            border-radius: 999px;
+            background: #e5e7eb;
+            overflow: hidden;
+          }
+
+          .bar-fill {
+            height: 100%;
+            border-radius: 999px;
+          }
+
+          .bar-value {
+            font-size: 13px;
+            font-weight: 800;
+            text-align: right;
+          }
+
+          .accent-card {
+  border-left: 5px solid #163a70;
+  margin-top: 10px;
+}
+
+.soft-card {
+  background: #f3f4f6;
+  border-color: #d7dce2;
+  margin-top: 10px;
+}
+
+          .table-report {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+          }
+
+          .table-report th,
+          .table-report td {
+            border: 1px solid #d1d5db;
+            padding: 8px 10px;
+            text-align: left;
+            vertical-align: top;
+          }
+
+          .table-report th {
+            background: #f3f4f6;
+            font-weight: 800;
+          }
+
+          .table-note {
+            margin-top: 10px;
+            font-size: 12px;
+            color: #6b7280;
+          }
+
+          .avoid-break {
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+
+          @media print {
+            body {
+              margin: 0;
+              padding: 0;
+              background: #ffffff;
+            }
+
+            .sheet {
+              width: auto;
+              min-height: auto;
+              margin: 0;
+              padding: 0;
+              background: #ffffff;
+              border: none;
+              border-radius: 0;
+              box-shadow: none;
+              page-break-after: always;
+              break-after: page;
+            }
+
+            .sheet:last-child {
+              page-break-after: auto;
+              break-after: auto;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        ${pagina1Html}
+        ${supervisorPagesHtml}
+        ${detallePagesHtml}
       </body>
     </html>
   `;
 
-  const ventana = window.open("", "_blank", "width=1100,height=1200");
+  const ventana = window.open("", "_blank", "width=1200,height=1200");
   if (!ventana) return;
 
   ventana.document.open();
@@ -1092,7 +1146,7 @@ const rankingEmpresa = (() => {
 
   setTimeout(() => {
     ventana.print();
-  }, 300);
+  }, 350);
 };
 useEffect(() => {
   let frame = 0;
