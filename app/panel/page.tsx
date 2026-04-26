@@ -866,23 +866,32 @@ const rankingEmpresa = (() => {
                   </div>
 
                   <div class="supervisor-meta">
-                    <div class="supervisor-stat">
-                      <div class="supervisor-stat-label">Pendientes</div>
-                      <div class="supervisor-stat-value">${escapeHtml(supervisor.total)}</div>
-                    </div>
+  <div class="supervisor-stat">
+    <div class="supervisor-stat-label">Pendientes</div>
+    <div class="supervisor-stat-value">${escapeHtml(supervisor.total)}</div>
+  </div>
 
-                    <div class="supervisor-stat">
-                      <div class="supervisor-stat-label">Abiertos</div>
-                      <div class="supervisor-stat-value">${escapeHtml(supervisor.abiertos)}</div>
-                    </div>
+  <div class="supervisor-stat">
+    <div class="supervisor-stat-label">Abiertos</div>
+    <div class="supervisor-stat-value">${escapeHtml(supervisor.abiertos)}</div>
+  </div>
 
-                    <div class="supervisor-stat">
-                      <div class="supervisor-stat-label">En seguimiento</div>
-                      <div class="supervisor-stat-value">${escapeHtml(supervisor.seguimiento)}</div>
-                    </div>
-                  </div>
+  <div class="supervisor-stat">
+    <div class="supervisor-stat-label">En seguimiento</div>
+    <div class="supervisor-stat-value">${escapeHtml(supervisor.seguimiento)}</div>
+  </div>
 
-                  <div class="supervisor-codes">
+  <div class="supervisor-stat">
+    <div class="supervisor-stat-label">Más antiguo</div>
+    <div class="supervisor-stat-value">${escapeHtml(supervisor.antiguedadMaxima)} d</div>
+  </div>
+
+  <div class="supervisor-stat">
+    <div class="supervisor-stat-label">Promedio</div>
+    <div class="supervisor-stat-value">${escapeHtml(supervisor.antiguedadPromedio)} d</div>
+  </div>
+</div>
+
                     <strong>Códigos asociados:</strong> ${escapeHtml(supervisor.codigosTexto)}
                   </div>
                 </div>
