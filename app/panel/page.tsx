@@ -1601,15 +1601,54 @@ const descargarPDFHallazgoActivo = () => {
             </div>
           </div>
 
-          <div class="card">
-            <div class="label">Descripción</div>
-            <div class="text">${escapeHtml(h.descripcion)}</div>
-          </div>
+         <div class="card">
+  <div class="label">Descripción</div>
+  <div class="text">${escapeHtml(h.descripcion)}</div>
+</div>
 
-          <div class="card">
-            <div class="label">Medida inmediata</div>
-            <div class="text">${escapeHtml(h.medidaInmediata)}</div>
+${
+  h.fotos && h.fotos.length > 0
+    ? `
+      <div style="margin-top:16px; display:flex; gap:12px; flex-wrap:wrap; align-items:flex-start;">
+        ${h.fotos.slice(0, 3).map((foto) => `
+          <div
+            style="
+              width:190px;
+              height:190px;
+              border:1px solid #d1d5db;
+              border-radius:10px;
+              padding:6px;
+              background:#f9fafb;
+              box-sizing:border-box;
+              overflow:hidden;
+              flex:0 0 auto;
+            "
+          >
+            <img
+              src="${escapeHtml(foto)}"
+              alt="Evidencia fotográfica"
+              style="
+                width:100%;
+                height:100%;
+                object-fit:cover;
+                border-radius:8px;
+                display:block;
+              "
+            />
           </div>
+        `).join("")}
+      </div>
+    `
+    : `
+      <div class="text" style="color:#6b7280;">Sin evidencia fotográfica adjunta.</div>
+    `
+}
+</div>
+
+<div class="card">
+  <div class="label">Medida inmediata</div>
+  <div class="text">${escapeHtml(h.medidaInmediata)}</div>
+</div>
         </div>
         </div>
       </body>
@@ -3283,7 +3322,54 @@ style={{
         {hallazgoActivo.descripcion}
       </div>
     </div>
+<div style={{ marginBottom: "12px" }}>
+  <div
+    style={{
+      fontSize: "11px",
+      opacity: 0.7,
+      marginBottom: "4px",
+      fontWeight: 700,
+    }}
+  >
+    Evidencia fotográfica
+  </div>
 
+  {hallazgoActivo.fotos && hallazgoActivo.fotos.length > 0 ? (
+    <div
+      style={{
+        display: "flex",
+        gap: "8px",
+        flexWrap: "wrap",
+      }}
+    >
+      {hallazgoActivo.fotos.slice(0, 3).map((foto, index) => (
+        <img
+          key={index}
+          src={foto}
+          alt={`Evidencia ${index + 1}`}
+          style={{
+            width: "78px",
+            height: "78px",
+            objectFit: "cover",
+            borderRadius: "10px",
+            border: "1px solid rgba(255,255,255,0.10)",
+            background: "rgba(255,255,255,0.06)",
+          }}
+        />
+      ))}
+    </div>
+  ) : (
+    <div
+      style={{
+        fontSize: "13px",
+        lineHeight: 1.4,
+        opacity: 0.75,
+      }}
+    >
+      Sin evidencia fotográfica
+    </div>
+  )}
+</div>
     <div style={{ marginBottom: "12px" }}>
       <div
         style={{

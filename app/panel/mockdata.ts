@@ -13,6 +13,7 @@ export type HallazgoPanel = {
   telefono: string;
   descripcion: string;
   medidaInmediata: string;
+  fotos?: string[];
 };
 
 export const hallazgosMock: HallazgoPanel[] = [
@@ -33,6 +34,8 @@ export const hallazgosMock: HallazgoPanel[] = [
       "Caída de materiales desde altura en sector de acopio. Se observa exposición directa de personal y ausencia de control efectivo del área.",
     medidaInmediata:
       "Suspender la intervención del sector y controlar inmediatamente la exposición a caída de materiales antes de reiniciar actividades.",
+      
+fotos: [],
   },
   {
     id: "2",
@@ -51,6 +54,7 @@ export const hallazgosMock: HallazgoPanel[] = [
       "Se detecta ejecución de tarea sin control conductual adecuado y sin verificación previa de condición segura del entorno.",
     medidaInmediata:
       "Detener la tarea, reforzar instrucción operativa y validar cumplimiento antes de reiniciar faena.",
+      fotos: []
   },
   {
     id: "3",
@@ -87,6 +91,7 @@ export const hallazgosMock: HallazgoPanel[] = [
       "Se identifica condición de exposición a evento de alto potencial por falta de segregación efectiva del área crítica.",
     medidaInmediata:
       "Restringir acceso, implementar segregación física y validar control antes de reanudar operación.",
+      fotos: []
   },
 ];
 export const usuarioMock = {
