@@ -1480,7 +1480,7 @@ const totalEstadoReportes = estadoReportesResumen.reduce(
   (sum, item) => sum + item.total,
   0
 );
-const descargarPDFHallazgoActivo = () => {
+const descargarPDFHallazgoActivo = async () => {
   const escapeHtml = (valor: unknown) =>
     String(valor ?? "")
       .replace(/&/g, "&amp;")
@@ -1701,19 +1701,55 @@ ${
     </html>
   `;
 
-  const ventana = window.open("", "_blank", "width=900,height=1200");
-  if (!ventana) return;
+  const nombreArchivo = `${String(h.codigo || "hallazgo").replace(/[^\w-]+/g, "-")}.pdf`;
 
-  ventana.document.open();
-  ventana.document.write(html);
-  ventana.document.close();
-  ventana.focus();
+const parser = new DOMParser();
+const docPdf = parser.parseFromString(html, "text/html");
+const estilos = docPdf.querySelector("style")?.innerHTML || "";
+const contenido = docPdf.body.innerHTML;
 
-  setTimeout(() => {
-    ventana.print();
-  }, 300);
+const contenedor = document.createElement("div");
+contenedor.style.position = "fixed";
+contenedor.style.left = "-99999px";
+contenedor.style.top = "0";
+contenedor.style.zIndex = "-1";
+contenedor.style.background = "#ffffff";
+contenedor.innerHTML = `<style>${estilos}</style>${contenido}`;
+document.body.appendChild(contenedor);
+
+const elementoPdf = contenedor.querySelector(".page") as HTMLElement | null;
+if (!elementoPdf) {
+  document.body.removeChild(contenedor);
+  return;
+}
+
+// @ts-expect-error html2pdf.js no trae tipos en este proyecto
+const html2pdf = (await import("html2pdf.js")).default;
+
+try {
+  await html2pdf()
+    .set({
+      margin: 0,
+      filename: nombreArchivo,
+      image: { type: "jpeg", quality: 0.98 },
+      html2canvas: {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#ffffff",
+      },
+      jsPDF: {
+        unit: "mm",
+        format: "letter",
+        orientation: "portrait",
+      },
+      pagebreak: { mode: ["css", "legacy"] },
+    })
+    .from(elementoPdf)
+    .save();
+} finally {
+  document.body.removeChild(contenedor);
+}
 };
-
 useEffect(() => {
   if (filasFiltradas.length === 0) {
     return;
