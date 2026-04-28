@@ -1542,18 +1542,64 @@ const descargarPDFHallazgoActivo = () => {
             font-size: 14px;
           }
           .chip {
-            display: inline-block;
-            padding: 6px 10px;
-            border-radius: 999px;
-            border: 1px solid #d1d5db;
-            font-size: 12px;
-            font-weight: 700;
-          }
-          @media print {
-            body {
-              padding: 18px;
-            }
-          }
+  display: inline-block;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid #d1d5db;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+@page {
+  size: Letter;
+  margin: 16mm;
+}
+
+.page {
+  width: min(216mm, calc(100vw - 64px));
+  min-height: 279mm;
+  margin: 0 auto;
+  padding: 16mm;
+  background: #ffffff;
+  box-sizing: border-box;
+}
+
+.wrap {
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+@media screen {
+  body {
+    margin: 0;
+    padding: 32px 0 64px;
+    background: #e5e7eb;
+  }
+
+  .page {
+    border: 1px solid #d1d5db;
+    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
+    border-radius: 4px;
+  }
+}
+
+@media print {
+  body {
+    margin: 0;
+    padding: 0;
+    background: #ffffff;
+  }
+
+  .page {
+    width: auto;
+    min-height: auto;
+    margin: 0;
+    padding: 0;
+    border: none;
+    box-shadow: none;
+    border-radius: 0;
+  }
+}
         </style>
       </head>
       <body>
