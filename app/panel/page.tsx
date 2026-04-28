@@ -45,6 +45,8 @@ const panelCardStyle: React.CSSProperties = {
 };
 
 export default function PanelEjecutivoPage() {
+  const [vistaDerecha, setVistaDerecha] = useState<"informe" | "configuracion">("informe");
+  const [vistaPrincipal, setVistaPrincipal] = useState<"panel" | "configuracion">("panel");
   const filas = hallazgosMock;
 const totalHistoricoHallazgos = filas.length;
 const [contadorHistoricoAnimado, setContadorHistoricoAnimado] = useState(0);
@@ -2644,20 +2646,31 @@ style={{
 
     <div style={{ display: "grid", gap: "8px" }}>
      {["Exportar a Excel", "Generar informe empresa/obra", "Configuración"].map((item) => (
-       <button
+     <button
   key={item}
   onClick={() => {
-  if (item === "Exportar a Excel") {
-    exportarExcel();
-    return;
-  }
+   if (item === "Exportar a Excel") {
+  exportarExcel();
+  return;
+}
 
-  if (item === "Generar informe empresa/obra") {
-    generarInformeEmpresaObra();
-    return;
+if (item === "Generar informe empresa/obra") {
+  generarInformeEmpresaObra();
+  return;
+}
+
+if (item === "Configuración") {
+  if (vistaPrincipal === "configuracion") {
+    setVistaPrincipal("panel");
+    setVistaDerecha("informe");
+  } else {
+    setVistaPrincipal("configuracion");
+    setVistaDerecha("configuracion");
   }
+  return;
+}
 }}
-  style={{
+style={{
     width: "100%",
     minHeight: "50px",
     padding: "14px 14px",
@@ -2668,13 +2681,13 @@ style={{
     fontSize: "13px",
     fontWeight: 700,
     textAlign: "left",
-   cursor: item === "Configuración" ? "default" : "pointer",
+    cursor: "pointer",
     display: "flex",
     alignItems: "center",
   }}
 >
-          {item}
-        </button>
+  {item}
+</button>
       ))}
     </div>
   </div>
@@ -2682,7 +2695,7 @@ style={{
           <section
             style={{
               minHeight: "760px",
-              display: "grid",
+              display: vistaPrincipal === "configuracion" ? "none" : "grid",
               gridTemplateRows: "auto auto 1fr",
               gap: "18px",
             }}
@@ -3264,7 +3277,10 @@ style={{
 
         <div>
           <button
-            onClick={() => setHallazgoActivo(fila)}
+            onClick={() => {
+  setHallazgoActivo(fila);
+  setVistaDerecha("informe");
+}}
             style={{
               width: "100%",
               padding: "10px 10px",
@@ -3290,22 +3306,783 @@ style={{
           <aside
             style={{
               ...panelCardStyle,
-              padding: "16px",
+              padding: vistaPrincipal === "configuracion" ? "24px" : "16px",
               minHeight: "760px",
               display: "flex",
               flexDirection: "column",
+              gridColumn: vistaPrincipal === "configuracion" ? "2 / 4" : "auto",
+            }}
+            >
+ {vistaDerecha === "configuracion" ? null : (
+  <div
+    style={{
+      fontSize: "16px",
+      fontWeight: 800,
+      marginBottom: "12px",
+    }}
+  >
+    Informe Ejecutivo
+  </div>
+)}
+
+{vistaDerecha === "configuracion" && (
+  <div
+    style={{
+      display: "grid",
+      gap: "16px",
+      marginBottom: "12px",
+    }}
+  >
+    <div
+      style={{
+        ...panelCardStyle,
+        padding: "20px 22px",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        gap: "16px",
+      }}
+    >
+      <div>
+        <div
+          style={{
+            fontSize: "24px",
+            fontWeight: 900,
+            color: "white",
+            marginBottom: "6px",
+          }}
+        >
+          Configuración del sistema
+        </div>
+
+        <div
+          style={{
+            fontSize: "13px",
+            color: "rgba(255,255,255,0.72)",
+            lineHeight: 1.5,
+          }}
+        >
+          Administra identidad corporativa, apariencia y parámetros generales de la plataforma.
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          gap: "10px",
+          flexWrap: "wrap",
+          justifyContent: "flex-end",
+        }}
+      >
+        <button
+          onClick={() => {
+            setVistaPrincipal("panel");
+            setVistaDerecha("informe");
+          }}
+         style={{
+  padding: "12px 18px",
+  borderRadius: "14px",
+  border: "1px solid rgba(255,255,255,0.16)",
+  background: "linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04))",
+  color: "white",
+  fontSize: "13px",
+  fontWeight: 800,
+  cursor: "pointer",
+  boxShadow: "0 8px 18px rgba(0,0,0,0.14)",
+}}
+        >
+          Volver al panel
+        </button>
+
+        <button
+          style={{
+  padding: "12px 18px",
+  borderRadius: "14px",
+  border: "1px solid rgba(132,204,22,0.24)",
+  background: "linear-gradient(135deg, #84cc16, #22c55e)",
+  color: "#052e16",
+  fontSize: "13px",
+  fontWeight: 900,
+  cursor: "pointer",
+  boxShadow: "0 10px 22px rgba(132,204,22,0.24)",
+}}
+        >
+          Guardar cambios
+        </button>
+      </div>
+    </div>
+
+   <div
+  style={{
+    ...panelCardStyle,
+    padding: "20px",
+  }}
+>
+  <div
+    style={{
+      fontSize: "16px",
+      fontWeight: 800,
+      color: "white",
+      marginBottom: "14px",
+    }}
+  >
+    Identidad de empresa
+  </div>
+
+  <div
+    style={{
+      display: "grid",
+      gridTemplateColumns: "140px 1fr",
+      gap: "18px",
+      alignItems: "stretch",
+    }}
+  >
+    <div
+  style={{
+    minHeight: "140px",
+    borderRadius: "18px",
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03))",
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    textAlign: "center",
+    color: "rgba(255,255,255,0.78)",
+    fontSize: "13px",
+    fontWeight: 700,
+    padding: "14px",
+    gap: "8px",
+  }}
+>
+  <div
+    style={{
+      width: "46px",
+      height: "46px",
+      borderRadius: "14px",
+      border: "1px solid rgba(255,255,255,0.12)",
+      background: "rgba(255,255,255,0.06)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      fontSize: "18px",
+      color: "#dbeafe",
+      boxShadow: "0 6px 14px rgba(0,0,0,0.14)",
+    }}
+  >
+    ⬒
+  </div>
+
+  <div>Logo empresa</div>
+
+  <div
+    style={{
+      fontSize: "11px",
+      fontWeight: 600,
+      opacity: 0.68,
+      lineHeight: 1.4,
+    }}
+  >
+    PNG, SVG o JPG
+  </div>
+</div>
+
+    <div
+      style={{
+        display: "grid",
+        gap: "12px",
+      }}
+    >
+      <div>
+        <div
+          style={{
+            fontSize: "11px",
+            opacity: 0.72,
+            marginBottom: "6px",
+            fontWeight: 700,
+            color: "white",
+          }}
+        >
+          Nombre empresa
+        </div>
+
+        <div
+          style={{
+            minHeight: "46px",
+            padding: "12px 14px",
+            borderRadius: "14px",
+            border: "1px solid rgba(255,255,255,0.10)",
+            background: "rgba(255,255,255,0.05)",
+            color: "white",
+            fontSize: "14px",
+            fontWeight: 800,
+            display: "flex",
+            alignItems: "center",
+          }}
+        >
+          Cliente corporativo
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+          gap: "10px",
+        }}
+      >
+        <div
+          style={{
+            padding: "12px",
+            minHeight: "74px",
+            borderRadius: "14px",
+            border: "1px solid rgba(255,255,255,0.10)",
+            background: "rgba(255,255,255,0.05)",
+            color: "white",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "11px",
+              opacity: 0.72,
+              marginBottom: "6px",
+              fontWeight: 700,
             }}
           >
-            <div
-              style={{
-                fontSize: "16px",
-                fontWeight: 800,
-                marginBottom: "12px",
-              }}
-            >
-              Informe Ejecutivo
-            </div>
-{filasFiltradas.length === 0 ? (
+            Branding PC
+          </div>
+          <div style={{ fontSize: "13px", fontWeight: 800 }}>
+            Activo
+          </div>
+        </div>
+
+        <div
+          style={{
+            padding: "12px",
+            minHeight: "74px",
+            borderRadius: "14px",
+            border: "1px solid rgba(255,255,255,0.10)",
+            background: "rgba(255,255,255,0.05)",
+            color: "white",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "11px",
+              opacity: 0.72,
+              marginBottom: "6px",
+              fontWeight: 700,
+            }}
+          >
+            Branding PDF
+          </div>
+          <div style={{ fontSize: "13px", fontWeight: 800 }}>
+            Activo
+          </div>
+        </div>
+
+        <div
+          style={{
+            padding: "12px",
+            minHeight: "74px",
+            borderRadius: "14px",
+            border: "1px solid rgba(255,255,255,0.10)",
+            background: "rgba(255,255,255,0.05)",
+            color: "white",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "11px",
+              opacity: 0.72,
+              marginBottom: "6px",
+              fontWeight: 700,
+            }}
+          >
+            Exportaciones
+          </div>
+          <div style={{ fontSize: "13px", fontWeight: 800 }}>
+            Incluidas
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    <div
+  style={{
+    ...panelCardStyle,
+    padding: "18px",
+  }}
+>
+  <div
+    style={{
+      fontSize: "15px",
+      fontWeight: 800,
+      color: "white",
+      marginBottom: "14px",
+    }}
+  >
+    Apariencia del sistema
+  </div>
+
+  <div
+    style={{
+      fontSize: "12px",
+      color: "rgba(255,255,255,0.72)",
+      lineHeight: 1.5,
+      marginBottom: "14px",
+    }}
+  >
+    Define la presentación visual de la plataforma para operación diurna, nocturna o automática.
+  </div>
+
+  <div
+    style={{
+      display: "grid",
+      gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+      gap: "12px",
+    }}
+  >
+    <button
+      style={{
+        padding: "14px 12px",
+        borderRadius: "14px",
+        border: "1px solid rgba(255,255,255,0.10)",
+        background: "rgba(255,255,255,0.05)",
+        color: "white",
+        fontSize: "13px",
+        fontWeight: 700,
+        cursor: "pointer",
+      }}
+    >
+      Modo claro
+    </button>
+
+    <button
+      style={{
+        padding: "14px 12px",
+        borderRadius: "14px",
+        border: "1px solid rgba(59,130,246,0.28)",
+        background: "rgba(59,130,246,0.14)",
+        color: "#dbeafe",
+        fontSize: "13px",
+        fontWeight: 800,
+        cursor: "pointer",
+      }}
+    >
+      Modo oscuro
+    </button>
+
+    <button
+      style={{
+  padding: "14px 12px",
+  borderRadius: "14px",
+  border: "1px solid rgba(96,165,250,0.48)",
+  background: "linear-gradient(135deg, rgba(59,130,246,0.22), rgba(37,99,235,0.18))",
+  color: "#eff6ff",
+  fontSize: "13px",
+  fontWeight: 800,
+  cursor: "pointer",
+  boxShadow: "0 0 0 1px rgba(96,165,250,0.18), 0 10px 24px rgba(37,99,235,0.18)",
+}}
+    >
+      Automático
+    </button>
+  </div>
+</div>
+<div
+  style={{
+    ...panelCardStyle,
+    padding: "18px",
+  }}
+>
+  <div
+    style={{
+      fontSize: "15px",
+      fontWeight: 800,
+      color: "white",
+      marginBottom: "14px",
+    }}
+  >
+    Idioma del sistema
+  </div>
+
+  <div
+    style={{
+      fontSize: "12px",
+      color: "rgba(255,255,255,0.72)",
+      lineHeight: 1.5,
+      marginBottom: "14px",
+    }}
+  >
+    Define el idioma general de navegación, textos operativos e informes del sistema.
+  </div>
+
+  <div
+    style={{
+      display: "grid",
+      gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+      gap: "12px",
+    }}
+  >
+    <button
+      style={{
+  padding: "14px 12px",
+  borderRadius: "14px",
+  border: "1px solid rgba(96,165,250,0.48)",
+  background: "linear-gradient(135deg, rgba(59,130,246,0.22), rgba(37,99,235,0.18))",
+  color: "#eff6ff",
+  fontSize: "13px",
+  fontWeight: 800,
+  cursor: "pointer",
+  boxShadow: "0 0 0 1px rgba(96,165,250,0.18), 0 10px 24px rgba(37,99,235,0.18)",
+}}
+    >
+      Español
+    </button>
+
+    <button
+      style={{
+        padding: "14px 12px",
+        borderRadius: "14px",
+        border: "1px solid rgba(255,255,255,0.10)",
+        background: "rgba(255,255,255,0.05)",
+        color: "white",
+        fontSize: "13px",
+        fontWeight: 700,
+        cursor: "pointer",
+      }}
+    >
+      English
+    </button>
+
+    <button
+      style={{
+        padding: "14px 12px",
+        borderRadius: "14px",
+        border: "1px solid rgba(255,255,255,0.10)",
+        background: "rgba(255,255,255,0.05)",
+        color: "white",
+        fontSize: "13px",
+        fontWeight: 700,
+        cursor: "pointer",
+      }}
+    >
+      Automático
+    </button>
+  </div>
+</div>
+<div
+  style={{
+    ...panelCardStyle,
+    padding: "18px",
+  }}
+>
+  <div
+    style={{
+      fontSize: "15px",
+      fontWeight: 800,
+      color: "white",
+      marginBottom: "14px",
+    }}
+  >
+    Informes PDF
+  </div>
+
+  <div
+    style={{
+      fontSize: "12px",
+      color: "rgba(255,255,255,0.72)",
+      lineHeight: 1.5,
+      marginBottom: "14px",
+    }}
+  >
+    Define cómo se presentan los documentos exportados y descargados desde la plataforma.
+  </div>
+
+ <div
+  style={{
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: "12px",
+  }}
+>
+  <div
+    style={{
+      padding: "16px",
+      minHeight: "88px",
+      borderRadius: "14px",
+      border: "1px solid rgba(255,255,255,0.10)",
+      background: "rgba(255,255,255,0.05)",
+      color: "white",
+      display: "flex",
+      flexDirection: "column",
+      justifyContent: "center",
+    }}
+  >
+    <div
+      style={{
+        fontSize: "11px",
+        opacity: 0.72,
+        marginBottom: "6px",
+        fontWeight: 700,
+      }}
+    >
+      Branding PDF
+    </div>
+    <div style={{ fontSize: "13px", fontWeight: 800 }}>
+      Activado
+    </div>
+  </div>
+
+  <div
+    style={{
+      padding: "16px",
+      minHeight: "88px",
+      borderRadius: "14px",
+      border: "1px solid rgba(255,255,255,0.10)",
+      background: "rgba(255,255,255,0.05)",
+      color: "white",
+      display: "flex",
+      flexDirection: "column",
+      justifyContent: "center",
+    }}
+  >
+    <div
+      style={{
+        fontSize: "11px",
+        opacity: 0.72,
+        marginBottom: "6px",
+        fontWeight: 700,
+      }}
+    >
+      Formato de salida
+    </div>
+    <div style={{ fontSize: "13px", fontWeight: 800 }}>
+      Carta vertical
+    </div>
+  </div>
+
+  <div
+    style={{
+      padding: "16px",
+      minHeight: "88px",
+      borderRadius: "14px",
+      border: "1px solid rgba(255,255,255,0.10)",
+      background: "rgba(255,255,255,0.05)",
+      color: "white",
+      display: "flex",
+      flexDirection: "column",
+      justifyContent: "center",
+    }}
+  >
+    <div
+      style={{
+        fontSize: "11px",
+        opacity: 0.72,
+        marginBottom: "6px",
+        fontWeight: 700,
+      }}
+    >
+      Logo de empresa
+    </div>
+    <div style={{ fontSize: "13px", fontWeight: 800 }}>
+      Incluir en portada y encabezado
+    </div>
+  </div>
+
+  <div
+    style={{
+      padding: "16px",
+      minHeight: "88px",
+      borderRadius: "14px",
+      border: "1px solid rgba(255,255,255,0.10)",
+      background: "rgba(255,255,255,0.05)",
+      color: "white",
+      display: "flex",
+      flexDirection: "column",
+      justifyContent: "center",
+    }}
+  >
+    <div
+      style={{
+        fontSize: "11px",
+        opacity: 0.72,
+        marginBottom: "6px",
+        fontWeight: 700,
+      }}
+    >
+      Pie institucional
+    </div>
+    <div style={{ fontSize: "13px", fontWeight: 800 }}>
+      Emitido por Criterio Estratégico
+    </div>
+  </div>
+</div>
+</div>
+<div
+  style={{
+    ...panelCardStyle,
+    padding: "18px",
+  }}
+>
+  <div
+    style={{
+      fontSize: "15px",
+      fontWeight: 800,
+      color: "white",
+      marginBottom: "14px",
+    }}
+  >
+    Usuarios y permisos
+  </div>
+
+  <div
+    style={{
+      fontSize: "12px",
+      color: "rgba(255,255,255,0.72)",
+      lineHeight: 1.5,
+      marginBottom: "14px",
+    }}
+  >
+    Define perfiles de acceso y alcance de visualización para administración, supervisión y clientes corporativos.
+  </div>
+
+  <div
+  style={{
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: "12px",
+  }}
+>
+  <div
+    style={{
+      padding: "16px",
+      minHeight: "88px",
+      borderRadius: "14px",
+      border: "1px solid rgba(255,255,255,0.10)",
+      background: "rgba(255,255,255,0.05)",
+      color: "white",
+      display: "flex",
+      flexDirection: "column",
+      justifyContent: "center",
+    }}
+  >
+    <div
+      style={{
+        fontSize: "11px",
+        opacity: 0.72,
+        marginBottom: "6px",
+        fontWeight: 700,
+      }}
+    >
+      Perfil administrador
+    </div>
+    <div style={{ fontSize: "13px", fontWeight: 800 }}>
+      Acceso total al sistema
+    </div>
+  </div>
+
+  <div
+    style={{
+      padding: "16px",
+      minHeight: "88px",
+      borderRadius: "14px",
+      border: "1px solid rgba(255,255,255,0.10)",
+      background: "rgba(255,255,255,0.05)",
+      color: "white",
+      display: "flex",
+      flexDirection: "column",
+      justifyContent: "center",
+    }}
+  >
+    <div
+      style={{
+        fontSize: "11px",
+        opacity: 0.72,
+        marginBottom: "6px",
+        fontWeight: 700,
+      }}
+    >
+      Perfil supervisor
+    </div>
+    <div style={{ fontSize: "13px", fontWeight: 800 }}>
+      Reporte y seguimiento operativo
+    </div>
+  </div>
+
+  <div
+    style={{
+      padding: "16px",
+      minHeight: "88px",
+      borderRadius: "14px",
+      border: "1px solid rgba(255,255,255,0.10)",
+      background: "rgba(255,255,255,0.05)",
+      color: "white",
+      display: "flex",
+      flexDirection: "column",
+      justifyContent: "center",
+    }}
+  >
+    <div
+      style={{
+        fontSize: "11px",
+        opacity: 0.72,
+        marginBottom: "6px",
+        fontWeight: 700,
+      }}
+    >
+      Cliente mandante
+    </div>
+    <div style={{ fontSize: "13px", fontWeight: 800 }}>
+      Visualización ejecutiva y reportes
+    </div>
+  </div>
+
+  <div
+    style={{
+      padding: "16px",
+      minHeight: "88px",
+      borderRadius: "14px",
+      border: "1px solid rgba(255,255,255,0.10)",
+      background: "rgba(255,255,255,0.05)",
+      color: "white",
+      display: "flex",
+      flexDirection: "column",
+      justifyContent: "center",
+    }}
+  >
+    <div
+      style={{
+        fontSize: "11px",
+        opacity: 0.72,
+        marginBottom: "6px",
+        fontWeight: 700,
+      }}
+    >
+      Alcance multiempresa
+    </div>
+    <div style={{ fontSize: "13px", fontWeight: 800 }}>
+      Por empresa, obra o corporativo
+    </div>
+  </div>
+</div>
+</div>
+  </div>
+)}
+
+{vistaDerecha === "configuracion" ? null : filasFiltradas.length === 0 ? (
   <div
     style={{
       flex: 1,
