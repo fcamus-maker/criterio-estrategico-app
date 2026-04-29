@@ -35,7 +35,61 @@ function chipColor(tipo: string) {
     texto: "#bbf7d0",
   };
 }
+function semaforoVencimiento(fechaCompromiso: string, estado: string) {
+  if (estado === "CERRADO") {
+    return {
+      etiqueta: "CERRADO",
+      fondo: "rgba(34,197,94,0.16)",
+      borde: "1px solid rgba(34,197,94,0.35)",
+      texto: "#bbf7d0",
+    };
+  }
 
+  if (!fechaCompromiso) {
+    return {
+      etiqueta: "SIN FECHA",
+      fondo: "rgba(148,163,184,0.16)",
+      borde: "1px solid rgba(148,163,184,0.35)",
+      texto: "#cbd5e1",
+    };
+  }
+
+  const [anio, mes, dia] = fechaCompromiso.split("-").map(Number);
+  const compromiso = new Date(anio, mes - 1, dia);
+  compromiso.setHours(0, 0, 0, 0);
+
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+
+  const diferenciaDias = Math.round(
+    (compromiso.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24)
+  );
+
+  if (diferenciaDias < 0) {
+    return {
+      etiqueta: "VENCIDO",
+      fondo: "rgba(239,68,68,0.16)",
+      borde: "1px solid rgba(239,68,68,0.35)",
+      texto: "#fecaca",
+    };
+  }
+
+  if (diferenciaDias <= 2) {
+    return {
+      etiqueta: "POR VENCER",
+      fondo: "rgba(245,158,11,0.16)",
+      borde: "1px solid rgba(245,158,11,0.35)",
+      texto: "#fde68a",
+    };
+  }
+
+  return {
+    etiqueta: "EN PLAZO",
+    fondo: "rgba(34,197,94,0.16)",
+    borde: "1px solid rgba(34,197,94,0.35)",
+    texto: "#bbf7d0",
+  };
+}
 const panelCardStyle: React.CSSProperties = {
   borderRadius: "22px",
   background: "rgba(255,255,255,0.06)",
@@ -47,8 +101,16 @@ const panelCardStyle: React.CSSProperties = {
 export default function PanelEjecutivoPage() {
   const [vistaDerecha, setVistaDerecha] = useState<"informe" | "configuracion">("informe");
   const [vistaPrincipal, setVistaPrincipal] = useState<"panel" | "configuracion">("panel");
+  const [modoSistema, setModoSistema] = useState<"claro" | "oscuro" | "automatico">("oscuro");
+const [idiomaSistema, setIdiomaSistema] = useState<"es" | "en" | "auto">("es");
+const [nombreEmpresaConfig, setNombreEmpresaConfig] = useState("Cliente corporativo");
+const [guardadoConfig, setGuardadoConfig] = useState(false);
   const filas = hallazgosMock;
 const totalHistoricoHallazgos = filas.length;
+const totalVencidos = filas.filter(
+  (fila) =>
+    semaforoVencimiento(fila.fechaCompromiso, fila.estado).etiqueta === "VENCIDO"
+).length;
 const [contadorHistoricoAnimado, setContadorHistoricoAnimado] = useState(0);
 const [notificaciones, setNotificaciones] = useState(notificacionesMock);
 const totalNotificacionesNoLeidas = notificaciones.filter((item) => !item.leida).length;
@@ -1794,7 +1856,12 @@ const kpis = [
   },
   {
     titulo: "Vencidos",
-    valor: "0",
+    valor: String(
+  filasFiltradas.filter(
+    (item) =>
+      semaforoVencimiento(item.fechaCompromiso, item.estado).etiqueta === "VENCIDO"
+  ).length
+),
     color: "#b91c1c",
   },
   {
@@ -3272,7 +3339,31 @@ style={{
           </span>
         </div>
 
-        <div style={{ fontWeight: 700 }}>{fila.estado}</div>
+       <div
+  style={{
+    display: "grid",
+    gap: "6px",
+  }}
+>
+  <div style={{ fontWeight: 700 }}>{fila.estado}</div>
+
+  <span
+    style={{
+      display: "inline-block",
+      width: "fit-content",
+      padding: "4px 8px",
+      borderRadius: "999px",
+      background: semaforoVencimiento(fila.fechaCompromiso, fila.estado).fondo,
+      border: semaforoVencimiento(fila.fechaCompromiso, fila.estado).borde,
+      color: semaforoVencimiento(fila.fechaCompromiso, fila.estado).texto,
+      fontSize: "11px",
+      fontWeight: 800,
+      lineHeight: 1,
+    }}
+  >
+    {semaforoVencimiento(fila.fechaCompromiso, fila.estado).etiqueta}
+  </span>
+</div>
         <div>{fila.fechaHora}</div>
 
         <div>
@@ -3670,6 +3761,7 @@ style={{
     </button>
 
     <button
+      onClick={() => setModoSistema("claro")}
       style={{
         padding: "14px 12px",
         borderRadius: "14px",
@@ -3685,6 +3777,7 @@ style={{
     </button>
 
     <button
+      onClick={() => setModoSistema("oscuro")}
       style={{
   padding: "14px 12px",
   borderRadius: "14px",
@@ -3702,6 +3795,7 @@ style={{
   </div>
 </div>
 <div
+  onClick={() => setModoSistema("claro")}
   style={{
     ...panelCardStyle,
     padding: "18px",
@@ -4123,12 +4217,56 @@ style={{
         {hallazgoActivo.codigo}
       </div>
     </div>
+<div style={{ marginBottom: "14px" }}>
+  <div
+    style={{
+      fontSize: "11px",
+      opacity: 0.72,
+      marginBottom: "4px",
+      fontWeight: 700,
+    }}
+  >
+    Estado plazo
+  </div>
 
+  <div
+    style={{
+      display: "inline-block",
+      padding: "6px 10px",
+      borderRadius: "999px",
+      background: semaforoVencimiento(
+        hallazgoActivo.fechaCompromiso,
+        hallazgoActivo.estado
+      ).fondo,
+      border: semaforoVencimiento(
+        hallazgoActivo.fechaCompromiso,
+        hallazgoActivo.estado
+      ).borde,
+      color: semaforoVencimiento(
+        hallazgoActivo.fechaCompromiso,
+        hallazgoActivo.estado
+      ).texto,
+      fontSize: "12px",
+      fontWeight: 800,
+    }}
+  >
+    {
+      semaforoVencimiento(
+        hallazgoActivo.fechaCompromiso,
+        hallazgoActivo.estado
+      ).etiqueta
+    }
+  </div>
+</div>
     {[
       ["Empresa", hallazgoActivo.empresa],
       ["Reportante", hallazgoActivo.reportante],
       ["Cargo", hallazgoActivo.cargo],
       ["Teléfono", hallazgoActivo.telefono],
+      ["Responsable", hallazgoActivo.responsable],
+["Fecha compromiso", hallazgoActivo.fechaCompromiso || "Sin definir"],
+["Fecha cierre", hallazgoActivo.fechaCierre || "Pendiente"],
+["Evidencia cierre", hallazgoActivo.evidenciaCierre || "Sin evidencia de cierre"],
       ["Tipo", hallazgoActivo.tipoHallazgo],
       ["Criticidad", hallazgoActivo.criticidad],
       ["Fecha / Hora", hallazgoActivo.fechaHora],
