@@ -105,6 +105,134 @@ export default function PanelEjecutivoPage() {
 const [idiomaSistema, setIdiomaSistema] = useState<"es" | "en" | "auto">("es");
 const [nombreEmpresaConfig, setNombreEmpresaConfig] = useState("Cliente corporativo");
 const [guardadoConfig, setGuardadoConfig] = useState(false);
+  const idiomaActivo = idiomaSistema === "en" ? "en" : "es";
+  const textosEn: Record<string, string> = {
+    "Plataforma Ejecutiva de Hallazgos": "Executive Findings Platform",
+    "Sistema activo": "System active",
+    "Sistema inteligente de reportes": "Intelligent reporting system",
+    "Vista activa:": "Active view:",
+    Hoy: "Today",
+    "Esta semana": "This week",
+    "Este mes": "This month",
+    Personalizado: "Custom",
+    "Última actualización:": "Last update:",
+    "Filtros activos:": "Active filters:",
+    "Editar perfil": "Edit profile",
+    Notificaciones: "Notifications",
+    "Sin notificaciones por ahora": "No notifications for now",
+    "Reportes rápidos": "Quick reports",
+    Filtros: "Filters",
+    Empresa: "Company",
+    "Obra / Proyecto": "Site / Project",
+    "Fecha desde": "Start date",
+    "Fecha hasta": "End date",
+    Estado: "Status",
+    Criticidad: "Severity",
+    "Tipo de hallazgo": "Finding type",
+    Seleccionar: "Select",
+    "Limpiar filtros": "Clear filters",
+    "Acceso rápido": "Quick access",
+    "Exportar a Excel": "Export to Excel",
+    "Generar informe empresa/obra": "Generate company/site report",
+    Configuración: "Settings",
+    "Total reportes": "Total reports",
+    Abiertos: "Open",
+    Cerrados: "Closed",
+    Críticos: "Critical",
+    Vencidos: "Overdue",
+    "Empresas activas": "Active companies",
+    "Histórico total": "Historical total",
+    "Reportes por empresa": "Reports by company",
+    "Gráfico ejecutivo": "Executive chart",
+    "Sin datos por empresa para el filtro activo.": "No company data for the active filter.",
+    "Sin evolución diaria para el filtro activo.": "No daily trend for the active filter.",
+    "Estado general": "General status",
+    "Distribución de abiertos, cerrados y críticos": "Open, closed and critical distribution",
+    "Sin datos para criticidad en el filtro activo.": "No severity data for the active filter.",
+    Total: "Total",
+    "Estado de reportes": "Report status",
+    "Sin datos de gestión para el filtro activo.": "No management data for the active filter.",
+    Código: "Code",
+    Acción: "Action",
+    "No hay hallazgos para el filtro seleccionado.": "No findings for the selected filter.",
+    "Ver informe": "View report",
+    "Informe Ejecutivo": "Executive Report",
+    "Configuración del sistema": "System settings",
+    "Administra identidad corporativa, apariencia y parámetros generales de la plataforma.": "Manage corporate identity, appearance and general platform parameters.",
+    "Volver al panel": "Back to dashboard",
+    "Guardar cambios": "Save changes",
+    "Configuración guardada correctamente": "Settings saved successfully",
+    "Identidad de empresa": "Company identity",
+    "Logo empresa": "Company logo",
+    "Nombre empresa": "Company name",
+    "Nombre de la empresa": "Company name",
+    "Branding PC": "PC branding",
+    Activo: "Active",
+    "Branding PDF": "PDF branding",
+    Exportaciones: "Exports",
+    Incluidas: "Included",
+    "Apariencia del sistema": "System appearance",
+    "Define la presentación visual de la plataforma para operación diurna, nocturna o automática.": "Set the platform visual presentation for daytime, nighttime or automatic operation.",
+    "Modo claro": "Light mode",
+    "Modo oscuro": "Dark mode",
+    Automático: "Automatic",
+    "Idioma del sistema": "System language",
+    "Define el idioma general de navegación, textos operativos e informes del sistema.": "Set the general language for navigation, operational text and system reports.",
+    Español: "Spanish",
+    "Informes PDF": "PDF reports",
+    "Define cómo se presentan los documentos exportados y descargados desde la plataforma.": "Define how exported and downloaded documents are presented from the platform.",
+    Activado: "Enabled",
+    "Formato de salida": "Output format",
+    "Carta vertical": "Letter portrait",
+    "Logo de empresa": "Company logo",
+    "Incluir en portada y encabezado": "Include on cover and header",
+    "Pie institucional": "Institutional footer",
+    "Emitido por Criterio Estratégico": "Issued by Criterio Estrategico",
+    "Usuarios y permisos": "Users and permissions",
+    "Define perfiles de acceso y alcance de visualización para administración, supervisión y clientes corporativos.": "Define access profiles and viewing scope for administration, supervision and corporate clients.",
+    "Perfil administrador": "Administrator profile",
+    "Acceso total al sistema": "Full system access",
+    "Perfil supervisor": "Supervisor profile",
+    "Reporte y seguimiento operativo": "Operational reporting and tracking",
+    "Cliente mandante": "Client owner",
+    "Visualización ejecutiva y reportes": "Executive viewing and reports",
+    "Alcance multiempresa": "Multi-company scope",
+    "Por empresa, obra o corporativo": "By company, site or corporate",
+    "No hay informe disponible para el filtro seleccionado.": "No report available for the selected filter.",
+    "Estado plazo": "Deadline status",
+    Reportante: "Reporter",
+    Cargo: "Role",
+    Teléfono: "Phone",
+    Responsable: "Responsible",
+    "Fecha compromiso": "Commitment date",
+    "Fecha cierre": "Close date",
+    "Evidencia cierre": "Close evidence",
+    Tipo: "Type",
+    "Fecha / Hora": "Date / Time",
+    Descripción: "Description",
+    "Evidencia fotográfica": "Photo evidence",
+    "Sin evidencia fotográfica": "No photo evidence",
+    "Medida inmediata": "Immediate action",
+    "Descargar PDF": "Download PDF",
+    "Sin datos": "No data",
+    "Sin definir": "Undefined",
+    Pendiente: "Pending",
+    "Sin evidencia de cierre": "No close evidence",
+    Todas: "All",
+    Todos: "All",
+    Otras: "Other",
+    CERRADO: "CLOSED",
+    "SIN FECHA": "NO DATE",
+    VENCIDO: "OVERDUE",
+    "POR VENCER": "DUE SOON",
+    "EN PLAZO": "ON TIME",
+  };
+  const t = (texto: string) => (idiomaActivo === "en" ? textosEn[texto] || texto : texto);
+  const textoOpcion = (texto: string) => {
+    if (texto === "TODAS") return t("Todas");
+    if (texto === "TODOS") return t("Todos");
+    return texto;
+  };
   const filas = hallazgosMock;
 const totalHistoricoHallazgos = filas.length;
 const totalVencidos = filas.filter(
@@ -1468,22 +1596,22 @@ const reportesPorEmpresa =
       ];
       const criticidadResumen = [
   {
-    label: "Críticos",
+    label: t("Críticos"),
     total: filasFiltradas.filter((item) => item.criticidad === "CRÍTICO").length,
     color: "#ef4444",
   },
   {
-    label: "Altos",
+    label: idiomaActivo === "en" ? "High" : "Altos",
     total: filasFiltradas.filter((item) => item.criticidad === "ALTO").length,
     color: "#f59e0b",
   },
   {
-    label: "Medios",
+    label: idiomaActivo === "en" ? "Medium" : "Medios",
     total: filasFiltradas.filter((item) => item.criticidad === "MEDIO").length,
     color: "#3b82f6",
   },
   {
-    label: "Bajos",
+    label: idiomaActivo === "en" ? "Low" : "Bajos",
     total: filasFiltradas.filter((item) => item.criticidad === "BAJO").length,
     color: "#22c55e",
   },
@@ -1514,7 +1642,7 @@ const evolucionDiaria = Array.from({ length: 7 }, (_, index) => {
   }).length;
 
   const etiqueta = fecha
-    .toLocaleDateString("es-CL", { weekday: "short" })
+    .toLocaleDateString(idiomaActivo === "en" ? "en-US" : "es-CL", { weekday: "short" })
     .replace(".", "");
 
   return {
@@ -1524,17 +1652,17 @@ const evolucionDiaria = Array.from({ length: 7 }, (_, index) => {
 });
 const estadoReportesResumen = [
   {
-    label: "Abiertos",
+    label: t("Abiertos"),
     total: filasFiltradas.filter((item) => item.estado === "ABIERTO").length,
     color: "#f59e0b",
   },
   {
-    label: "En seguimiento",
+    label: idiomaActivo === "en" ? "In progress" : "En seguimiento",
     total: filasFiltradas.filter((item) => item.estado === "EN SEGUIMIENTO").length,
     color: "#3b82f6",
   },
   {
-    label: "Cerrados",
+    label: t("Cerrados"),
     total: filasFiltradas.filter((item) => item.estado === "CERRADO").length,
     color: "#22c55e",
   },
@@ -1829,33 +1957,38 @@ useEffect(() => {
 }, [filasFiltradas, hallazgoActivo]);
 const kpis = [
   {
-    titulo: "Total reportes",
+    id: "total-reportes",
+    titulo: t("Total reportes"),
     valor: String(filasFiltradas.length),
     color: "#3b82f6",
   },
   {
-    titulo: "Abiertos",
+    id: "abiertos",
+    titulo: t("Abiertos"),
     valor: String(
       filasFiltradas.filter((item) => item.estado === "ABIERTO").length
     ),
     color: "#f59e0b",
   },
   {
-    titulo: "Cerrados",
+    id: "cerrados",
+    titulo: t("Cerrados"),
     valor: String(
       filasFiltradas.filter((item) => item.estado === "CERRADO").length
     ),
     color: "#22c55e",
   },
   {
-    titulo: "Críticos",
+    id: "criticos",
+    titulo: t("Críticos"),
     valor: String(
       filasFiltradas.filter((item) => item.criticidad === "CRÍTICO").length
     ),
     color: "#ef4444",
   },
   {
-    titulo: "Vencidos",
+    id: "vencidos",
+    titulo: t("Vencidos"),
     valor: String(
   filasFiltradas.filter(
     (item) =>
@@ -1865,24 +1998,78 @@ const kpis = [
     color: "#b91c1c",
   },
   {
-    titulo: "Empresas activas",
+    id: "empresas-activas",
+    titulo: t("Empresas activas"),
     valor: String(new Set(filasFiltradas.map((item) => item.empresa)).size),
     color: "#8b5cf6",
   },
   {
-  titulo: "Histórico total",
+  id: "historico-total",
+  titulo: t("Histórico total"),
   valor: String(totalHistoricoHallazgos),
   color: "#ef4444",
 },
 ];
+  const temaClaro = modoSistema === "claro";
+  const tema = {
+    fondo: temaClaro
+      ? "linear-gradient(180deg, #edf4fb 0%, #e5eef8 48%, #dfe9f5 100%)"
+      : "linear-gradient(180deg, #071426 0%, #0a1b34 45%, #07172b 100%)",
+    texto: temaClaro ? "#111827" : "white",
+    textoSuave: temaClaro ? "rgba(15,23,42,0.68)" : "rgba(255,255,255,0.72)",
+    textoMedio: temaClaro ? "rgba(15,23,42,0.78)" : "rgba(255,255,255,0.78)",
+    tarjeta: temaClaro ? "#ffffff" : "rgba(255,255,255,0.06)",
+    tarjetaSuave: temaClaro ? "#f8fafc" : "rgba(255,255,255,0.05)",
+    tarjetaElevada: temaClaro ? "#f1f5f9" : "rgba(255,255,255,0.08)",
+    borde: temaClaro ? "1px solid rgba(100,116,139,0.26)" : "1px solid rgba(255,255,255,0.10)",
+    bordeFuerte: temaClaro ? "1px solid rgba(71,85,105,0.34)" : "1px solid rgba(255,255,255,0.16)",
+    bordeSutil: temaClaro ? "1px solid rgba(148,163,184,0.34)" : "1px solid rgba(255,255,255,0.08)",
+    bordeDashed: temaClaro ? "1px dashed rgba(100,116,139,0.34)" : "1px dashed rgba(255,255,255,0.12)",
+    sombra: temaClaro ? "0 12px 28px rgba(15,23,42,0.10)" : "0 12px 28px rgba(0,0,0,0.22)",
+    azulActivo: temaClaro ? "#1d4ed8" : "#dbeafe",
+    inputScheme: temaClaro ? "light" : "dark",
+  };
+  const panelSurfaceStyle: React.CSSProperties = {
+    ...panelCardStyle,
+    background: tema.tarjeta,
+    border: tema.borde,
+    boxShadow: tema.sombra,
+  };
+  const controlStyle: React.CSSProperties = {
+    width: "100%",
+    padding: "11px 12px",
+    borderRadius: "13px",
+    border: tema.borde,
+    background: tema.tarjetaElevada,
+    color: tema.texto,
+    fontSize: "13px",
+    fontWeight: 700,
+    outline: "none",
+  };
+  const optionStyle = { color: "#0f172a", background: "#ffffff" };
+  const secondaryButtonStyle: React.CSSProperties = {
+    border: tema.borde,
+    background: tema.tarjetaElevada,
+    color: tema.texto,
+  };
+  const selectedButtonStyle: React.CSSProperties = {
+    border: temaClaro ? "1px solid rgba(37,99,235,0.48)" : "1px solid rgba(96,165,250,0.48)",
+    background: temaClaro
+      ? "linear-gradient(135deg, rgba(219,234,254,0.95), rgba(191,219,254,0.82))"
+      : "linear-gradient(135deg, rgba(59,130,246,0.22), rgba(37,99,235,0.18))",
+    color: temaClaro ? "#1e3a8a" : "#eff6ff",
+    boxShadow: temaClaro
+      ? "0 0 0 1px rgba(37,99,235,0.12), 0 10px 24px rgba(37,99,235,0.12)"
+      : "0 0 0 1px rgba(96,165,250,0.18), 0 10px 24px rgba(37,99,235,0.18)",
+  };
 
-  return (
+	  return (
     <main
+      data-panel-theme={temaClaro ? "light" : "dark"}
       style={{
         minHeight: "100vh",
-        background:
-          "linear-gradient(180deg, #071426 0%, #0a1b34 45%, #07172b 100%)",
-        color: "white",
+        background: tema.fondo,
+        color: tema.texto,
         fontFamily: "Arial, sans-serif",
         padding: "18px",
       }}
@@ -1895,7 +2082,7 @@ const kpis = [
       >
        <header
   style={{
-    ...panelCardStyle,
+    ...panelSurfaceStyle,
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
@@ -1916,8 +2103,8 @@ const kpis = [
         width: "58px",
         height: "58px",
         borderRadius: "16px",
-        background: "rgba(255,255,255,0.08)",
-        border: "1px solid rgba(255,255,255,0.10)",
+        background: tema.tarjetaElevada,
+        border: tema.borde,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -1971,7 +2158,7 @@ const kpis = [
           lineHeight: 1.08,
         }}
       >
-        Plataforma Ejecutiva de Hallazgos
+	        {t("Plataforma Ejecutiva de Hallazgos")}
       </div>
     </div>
   </div>
@@ -2009,30 +2196,30 @@ const kpis = [
           boxShadow: "0 0 10px rgba(103,239,72,0.65)",
         }}
       />
-      <span>Sistema activo</span>
+	      <span>{t("Sistema activo")}</span>
     </div>
 
-    <div>Sistema inteligente de reportes</div>
+	    <div>{t("Sistema inteligente de reportes")}</div>
 
     <div>
-      Vista activa:{" "}
-      {filtroRapido === "HOY"
-        ? "Hoy"
-        : filtroRapido === "SEMANA"
-        ? "Esta semana"
-        : filtroRapido === "MES"
-        ? "Este mes"
-        : "Personalizado"}
-    </div>
+	      {t("Vista activa:")}{" "}
+	      {filtroRapido === "HOY"
+	        ? t("Hoy")
+	        : filtroRapido === "SEMANA"
+	        ? t("Esta semana")
+	        : filtroRapido === "MES"
+	        ? t("Este mes")
+	        : t("Personalizado")}
+	    </div>
 
-   <div>Última actualización: {ultimaActualizacion}</div>
+	   <div>{t("Última actualización:")} {t(ultimaActualizacion)}</div>
   </div>
 </header>
 
 {filtrosActivos.length > 0 && (
   <div
     style={{
-      ...panelCardStyle,
+      ...panelSurfaceStyle,
       padding: "12px 16px",
       marginBottom: "18px",
       display: "flex",
@@ -2049,7 +2236,7 @@ const kpis = [
         marginRight: "4px",
       }}
     >
-      Filtros activos:
+	      {t("Filtros activos:")}
     </div>
 
    {filtrosActivos.map((filtro) => (
@@ -2062,9 +2249,9 @@ const kpis = [
       gap: "8px",
       padding: "7px 11px",
       borderRadius: "999px",
-      background: "rgba(59,130,246,0.16)",
-      border: "1px solid rgba(59,130,246,0.28)",
-      color: "#dbeafe",
+	      background: temaClaro ? "rgba(219,234,254,0.90)" : "rgba(59,130,246,0.16)",
+	      border: "1px solid rgba(59,130,246,0.28)",
+	      color: temaClaro ? "#1e3a8a" : "#dbeafe",
       fontSize: "12px",
       fontWeight: 700,
       lineHeight: 1,
@@ -2080,7 +2267,7 @@ const kpis = [
         width: "16px",
         height: "16px",
         borderRadius: "999px",
-        background: "rgba(255,255,255,0.14)",
+	        background: temaClaro ? "rgba(37,99,235,0.12)" : "rgba(255,255,255,0.14)",
         fontSize: "11px",
         fontWeight: 900,
       }}
@@ -2102,7 +2289,7 @@ const kpis = [
         >
          <aside
   style={{
-    ...panelCardStyle,
+    ...panelSurfaceStyle,
     padding: "16px",
     minHeight: "760px",
     display: "flex",
@@ -2115,8 +2302,8 @@ const kpis = [
     padding: "20px",
     minHeight: "220px",
     borderRadius: "18px",
-    background: "rgba(255,255,255,0.06)",
-    border: "1px solid rgba(255,255,255,0.10)",
+	    background: tema.tarjetaSuave,
+	    border: tema.borde,
   }}
 >
   <div
@@ -2169,8 +2356,8 @@ const kpis = [
           width: "84px",
           height: "84px",
           borderRadius: "16px",
-          background: "rgba(255,255,255,0.08)",
-          border: "1px solid rgba(255,255,255,0.12)",
+	          background: tema.tarjetaElevada,
+	          border: tema.borde,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -2194,7 +2381,7 @@ const kpis = [
             style={{
               fontSize: "30px",
               fontWeight: 900,
-              color: "#f8fafc",
+	          color: tema.texto,
               lineHeight: 1,
             }}
           >
@@ -2211,8 +2398,8 @@ const kpis = [
     width: "76px",
     height: "76px",
     borderRadius: "18px",
-    background: "rgba(255,255,255,0.08)",
-    border: "1px solid rgba(255,255,255,0.12)",
+	    background: tema.tarjetaElevada,
+	    border: tema.borde,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -2231,7 +2418,7 @@ const kpis = [
   >
     <path
       d="M15 17H9M18 17V11C18 8.23858 15.7614 6 13 6H11C8.23858 6 6 8.23858 6 11V17L4 19V20H20V19L18 17ZM13.73 20C13.5542 20.3031 13.3018 20.5542 12.9978 20.7285C12.6938 20.9028 12.3495 20.9942 12 20.9934C11.6505 20.9942 11.3062 20.9028 11.0022 20.7285C10.6982 20.5542 10.4458 20.3031 10.27 20"
-      stroke="white"
+	      stroke={tema.texto}
       strokeWidth="1.8"
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -2249,7 +2436,7 @@ const kpis = [
       padding: "0 10px",
       borderRadius: "999px",
       background: "#ff4d4f",
-      color: "white",
+	      color: "#ffffff",
       fontSize: "18px",
       fontWeight: 800,
       display: "flex",
@@ -2274,14 +2461,14 @@ const kpis = [
         borderRadius: "14px",
         border: "1px solid #2f6bff",
         background: "linear-gradient(180deg, #2f80ff 0%, #1d5eff 100%)",
-        color: "white",
+	      color: "#ffffff",
         fontSize: "13px",
         fontWeight: 800,
         cursor: "pointer",
         boxShadow: "0 8px 18px rgba(29,94,255,0.35)",
       }}
     >
-      Editar perfil
+	      {t("Editar perfil")}
     </button>
 
     {mostrarNotificaciones && (
@@ -2289,8 +2476,8 @@ const kpis = [
         style={{
           padding: "12px",
           borderRadius: "16px",
-          background: "rgba(255,255,255,0.05)",
-          border: "1px solid rgba(255,255,255,0.10)",
+	          background: tema.tarjetaSuave,
+	          border: tema.borde,
           display: "grid",
           gap: "10px",
         }}
@@ -2301,7 +2488,7 @@ const kpis = [
             fontWeight: 800,
           }}
         >
-          Notificaciones
+	          {t("Notificaciones")}
         </div>
 
         {notificaciones.length === 0 ? (
@@ -2311,7 +2498,7 @@ const kpis = [
               opacity: 0.72,
             }}
           >
-            Sin notificaciones por ahora
+	            {t("Sin notificaciones por ahora")}
           </div>
         ) : (
           <div
@@ -2327,15 +2514,15 @@ const kpis = [
                 style={{
                   padding: "12px",
                   borderRadius: "14px",
-                  background: "rgba(255,255,255,0.08)",
-                  border: "1px solid rgba(255,255,255,0.10)",
+	                  background: tema.tarjetaElevada,
+	                  border: tema.borde,
                   display: "grid",
                   gap: "6px",
                   cursor: "pointer",
                   appearance: "none",
                   WebkitAppearance: "none",
                   MozAppearance: "none",
-                  color: "white",
+	                  color: tema.texto,
                   textAlign: "left",
                 }}
               >
@@ -2372,7 +2559,7 @@ const kpis = [
     marginBottom: "12px",
   }}
 >
-  Reportes rápidos
+	  {t("Reportes rápidos")}
 </div>
 
    <div
@@ -2383,10 +2570,10 @@ const kpis = [
   }}
 >
   {[
-    { label: "Hoy", value: "HOY" as const },
-    { label: "Esta semana", value: "SEMANA" as const },
-    { label: "Este mes", value: "MES" as const },
-    { label: "Personalizado", value: "PERSONALIZADO" as const },
+	    { label: t("Hoy"), value: "HOY" as const },
+	    { label: t("Esta semana"), value: "SEMANA" as const },
+	    { label: t("Este mes"), value: "MES" as const },
+	    { label: t("Personalizado"), value: "PERSONALIZADO" as const },
   ].map((item) => {
     const activo = filtroRapido === item.value;
 
@@ -2399,13 +2586,13 @@ style={{
   minHeight: "72px",
   padding: "12px 10px",
   borderRadius: "16px",
-  border: activo
-    ? "1px solid rgba(103,239,72,0.40)"
-    : "1px solid rgba(255,255,255,0.10)",
+	  border: activo
+	    ? "1px solid rgba(103,239,72,0.40)"
+	    : tema.borde,
   background: activo
     ? "linear-gradient(180deg, rgba(103,239,72,0.18) 0%, rgba(215,255,57,0.10) 100%)"
-    : "rgba(255,255,255,0.08)",
-  color: "white",
+	    : tema.tarjetaElevada,
+	  color: activo ? (temaClaro ? "#14532d" : "white") : tema.texto,
   fontSize: "12px",
   fontWeight: 700,
   cursor: "pointer",
@@ -2427,8 +2614,8 @@ style={{
       flex: 1,
       padding: "14px",
       borderRadius: "18px",
-      background: "rgba(255,255,255,0.06)",
-      border: "1px solid rgba(255,255,255,0.10)",
+	      background: tema.tarjetaSuave,
+	      border: tema.borde,
       display: "flex",
       flexDirection: "column",
     }}
@@ -2440,17 +2627,17 @@ style={{
         marginBottom: "12px",
       }}
     >
-      Filtros
+	      {t("Filtros")}
     </div>
 
     {[
-      "Empresa",
-      "Obra / Proyecto",
-      "Fecha desde",
-      "Fecha hasta",
-      "Estado",
-      "Criticidad",
-      "Tipo de hallazgo",
+	      "Empresa",
+	      "Obra / Proyecto",
+	      "Fecha desde",
+	      "Fecha hasta",
+	      "Estado",
+	      "Criticidad",
+	      "Tipo de hallazgo",
    ].map((label) => (
   <div key={label}>
     <div
@@ -2461,26 +2648,18 @@ style={{
         fontWeight: 700,
       }}
     >
-      {label}
+	      {t(label)}
     </div>
 
    {label === "Empresa" ? (
   <select
     value={filtroEmpresa}
     onChange={(e) => setFiltroEmpresa(e.target.value)}
-    style={{
-      width: "100%",
-      padding: "11px 12px",
-      borderRadius: "13px",
-      border: "1px solid rgba(255,255,255,0.10)",
-      background: "rgba(255,255,255,0.08)",
-      color: "white",
-      fontSize: "13px",
-      fontWeight: 700,
-      outline: "none",
-      appearance: "none",
-      WebkitAppearance: "none",
-      MozAppearance: "none",
+	    style={{
+	      ...controlStyle,
+	      appearance: "none",
+	      WebkitAppearance: "none",
+	      MozAppearance: "none",
       cursor: "pointer",
     }}
   >
@@ -2488,9 +2667,9 @@ style={{
       <option
         key={empresa}
         value={empresa}
-        style={{ color: "#0f172a" }}
+	        style={optionStyle}
       >
-        {empresa}
+	        {textoOpcion(empresa)}
       </option>
     ))}
   </select>
@@ -2498,19 +2677,11 @@ style={{
   <select
     value={filtroObra}
     onChange={(e) => setFiltroObra(e.target.value)}
-    style={{
-      width: "100%",
-      padding: "11px 12px",
-      borderRadius: "13px",
-      border: "1px solid rgba(255,255,255,0.10)",
-      background: "rgba(255,255,255,0.08)",
-      color: "white",
-      fontSize: "13px",
-      fontWeight: 700,
-      outline: "none",
-      appearance: "none",
-      WebkitAppearance: "none",
-      MozAppearance: "none",
+	    style={{
+	      ...controlStyle,
+	      appearance: "none",
+	      WebkitAppearance: "none",
+	      MozAppearance: "none",
       cursor: "pointer",
     }}
   >
@@ -2518,9 +2689,9 @@ style={{
       <option
         key={obra}
         value={obra}
-        style={{ color: "#0f172a" }}
+	        style={optionStyle}
       >
-        {obra}
+	        {textoOpcion(obra)}
       </option>
     ))}
   </select>
@@ -2528,19 +2699,11 @@ style={{
   <select
     value={filtroEstado}
     onChange={(e) => setFiltroEstado(e.target.value)}
-    style={{
-      width: "100%",
-      padding: "11px 12px",
-      borderRadius: "13px",
-      border: "1px solid rgba(255,255,255,0.10)",
-      background: "rgba(255,255,255,0.08)",
-      color: "white",
-      fontSize: "13px",
-      fontWeight: 700,
-      outline: "none",
-      appearance: "none",
-      WebkitAppearance: "none",
-      MozAppearance: "none",
+	    style={{
+	      ...controlStyle,
+	      appearance: "none",
+	      WebkitAppearance: "none",
+	      MozAppearance: "none",
       cursor: "pointer",
     }}
   >
@@ -2548,9 +2711,9 @@ style={{
       <option
         key={estado}
         value={estado}
-        style={{ color: "#0f172a" }}
+	        style={optionStyle}
       >
-        {estado}
+	        {textoOpcion(estado)}
       </option>
     ))}
   </select>
@@ -2562,17 +2725,9 @@ style={{
   setFiltroRapido("PERSONALIZADO");
   setFiltroFechaDesde(e.target.value);
 }}
-    style={{
-      width: "100%",
-      padding: "11px 12px",
-      borderRadius: "13px",
-      border: "1px solid rgba(255,255,255,0.10)",
-      background: "rgba(255,255,255,0.08)",
-      color: "white",
-      fontSize: "13px",
-      fontWeight: 700,
-      outline: "none",
-      colorScheme: "dark",
+	    style={{
+	      ...controlStyle,
+	      colorScheme: tema.inputScheme,
     }}
   />
 ) : label === "Fecha hasta" ? (
@@ -2583,36 +2738,20 @@ style={{
   setFiltroRapido("PERSONALIZADO");
   setFiltroFechaHasta(e.target.value);
 }}
-    style={{
-      width: "100%",
-      padding: "11px 12px",
-      borderRadius: "13px",
-      border: "1px solid rgba(255,255,255,0.10)",
-      background: "rgba(255,255,255,0.08)",
-      color: "white",
-      fontSize: "13px",
-      fontWeight: 700,
-      outline: "none",
-      colorScheme: "dark",
+	    style={{
+	      ...controlStyle,
+	      colorScheme: tema.inputScheme,
     }}
   />
 ) : label === "Criticidad" ? (
   <select
     value={filtroCriticidad}
     onChange={(e) => setFiltroCriticidad(e.target.value)}
-    style={{
-      width: "100%",
-      padding: "11px 12px",
-      borderRadius: "13px",
-      border: "1px solid rgba(255,255,255,0.10)",
-      background: "rgba(255,255,255,0.08)",
-      color: "white",
-      fontSize: "13px",
-      fontWeight: 700,
-      outline: "none",
-      appearance: "none",
-      WebkitAppearance: "none",
-      MozAppearance: "none",
+	    style={{
+	      ...controlStyle,
+	      appearance: "none",
+	      WebkitAppearance: "none",
+	      MozAppearance: "none",
       cursor: "pointer",
     }}
   >
@@ -2620,9 +2759,9 @@ style={{
       <option
         key={criticidad}
         value={criticidad}
-        style={{ color: "#0f172a" }}
+	        style={optionStyle}
       >
-        {criticidad}
+	        {textoOpcion(criticidad)}
       </option>
     ))}
   </select>
@@ -2630,19 +2769,11 @@ style={{
   <select
     value={filtroTipoHallazgo}
     onChange={(e) => setFiltroTipoHallazgo(e.target.value)}
-    style={{
-      width: "100%",
-      padding: "11px 12px",
-      borderRadius: "13px",
-      border: "1px solid rgba(255,255,255,0.10)",
-      background: "rgba(255,255,255,0.08)",
-      color: "white",
-      fontSize: "13px",
-      fontWeight: 700,
-      outline: "none",
-      appearance: "none",
-      WebkitAppearance: "none",
-      MozAppearance: "none",
+	    style={{
+	      ...controlStyle,
+	      appearance: "none",
+	      WebkitAppearance: "none",
+	      MozAppearance: "none",
       cursor: "pointer",
     }}
   >
@@ -2650,9 +2781,9 @@ style={{
       <option
         key={tipo}
         value={tipo}
-        style={{ color: "#0f172a" }}
+	        style={optionStyle}
       >
-        {tipo}
+	        {textoOpcion(tipo)}
       </option>
     ))}
   </select>
@@ -2661,13 +2792,13 @@ style={{
     style={{
       padding: "11px 12px",
       borderRadius: "13px",
-      background: "rgba(255,255,255,0.08)",
-      border: "1px solid rgba(255,255,255,0.10)",
+	      background: tema.tarjetaElevada,
+	      border: tema.borde,
       fontSize: "13px",
-      color: "rgba(255,255,255,0.76)",
+	      color: tema.textoSuave,
     }}
   >
-    Seleccionar
+	    {t("Seleccionar")}
   </div>
 )}
   </div>
@@ -2689,7 +2820,7 @@ style={{
         boxShadow: "0 10px 22px rgba(109,255,72,0.22)",
       }}
     >
-      Limpiar filtros
+	      {t("Limpiar filtros")}
     </button>
   </div>
 
@@ -2697,8 +2828,8 @@ style={{
     style={{
       padding: "14px",
       borderRadius: "18px",
-      background: "rgba(255,255,255,0.06)",
-      border: "1px solid rgba(255,255,255,0.10)",
+	      background: tema.tarjetaSuave,
+	      border: tema.borde,
     }}
   >
     <div
@@ -2708,11 +2839,11 @@ style={{
         marginBottom: "12px",
       }}
     >
-      Acceso rápido
+	      {t("Acceso rápido")}
     </div>
 
     <div style={{ display: "grid", gap: "8px" }}>
-     {["Exportar a Excel", "Generar informe empresa/obra", "Configuración"].map((item) => (
+	     {["Exportar a Excel", "Generar informe empresa/obra", "Configuración"].map((item) => (
      <button
   key={item}
   onClick={() => {
@@ -2742,9 +2873,9 @@ style={{
     minHeight: "50px",
     padding: "14px 14px",
     borderRadius: "14px",
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.08)",
-    color: "white",
+	    border: tema.borde,
+	    background: tema.tarjetaElevada,
+	    color: tema.texto,
     fontSize: "13px",
     fontWeight: 700,
     textAlign: "left",
@@ -2753,7 +2884,7 @@ style={{
     alignItems: "center",
   }}
 >
-  {item}
+	  {t(item)}
 </button>
       ))}
     </div>
@@ -2775,17 +2906,23 @@ style={{
               }}
             >
               {kpis.map((kpi) => (
-                <div
-                  key={kpi.titulo}
-                  style={{
-  ...panelCardStyle,
-  padding: "14px 14px 16px 14px",
-  minHeight: "94px",
-  display: "flex",
-  flexDirection: "column",
-  justifyContent: "space-between",
+	                <div
+	                  key={kpi.id}
+	                  style={{
+  borderRadius: "22px",
+  background: tema.tarjeta,
+  borderTop: tema.bordeSutil,
+  borderRight: tema.bordeSutil,
+  borderBottom: tema.bordeSutil,
   borderLeft:
-    kpi.titulo === "Histórico total" ? "4px solid #ef4444" : undefined,
+    kpi.id === "historico-total" ? "4px solid #ef4444" : tema.bordeSutil,
+  boxShadow: tema.sombra,
+  backdropFilter: "blur(6px)",
+	  padding: "14px 14px 16px 14px",
+	  minHeight: "94px",
+	  display: "flex",
+	  flexDirection: "column",
+	  justifyContent: "space-between",
 }}
                 >
                   <div
@@ -2809,9 +2946,9 @@ style={{
                       color: kpi.color,
                     }}
                   >
-                   {kpi.titulo === "Histórico total"
-  ? contadorHistoricoAnimado.toLocaleString("es-CL")
-  : kpi.valor}
+	                   {kpi.id === "historico-total"
+	  ? contadorHistoricoAnimado.toLocaleString("es-CL")
+	  : kpi.valor}
                   </div>
                 </div>
               ))}
@@ -2826,7 +2963,7 @@ style={{
             >
               <div
                 style={{
-                  ...panelCardStyle,
+                  ...panelSurfaceStyle,
                   padding: "16px",
                   minHeight: "152px",
                 }}
@@ -2838,7 +2975,7 @@ style={{
                     marginBottom: "4px",
                   }}
                 >
-                  Reportes por empresa
+	                  {t("Reportes por empresa")}
                 </div>
 
                 <div
@@ -2848,14 +2985,14 @@ style={{
                     marginBottom: "12px",
                   }}
                 >
-                  Gráfico ejecutivo
+	                  {t("Gráfico ejecutivo")}
                 </div>
                 <div
   style={{
     minHeight: "120px",
     borderRadius: "16px",
-    background: "rgba(255,255,255,0.04)",
-    border: "1px dashed rgba(255,255,255,0.12)",
+	    background: tema.tarjetaSuave,
+	    border: tema.bordeDashed,
     padding: "14px",
     display: "grid",
     gap: "10px",
@@ -2865,7 +3002,7 @@ style={{
     <div
       style={{
         fontSize: "13px",
-        color: "rgba(255,255,255,0.72)",
+	        color: tema.textoSuave,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -2873,7 +3010,7 @@ style={{
         textAlign: "center",
       }}
     >
-      Sin datos por empresa para el filtro activo.
+	      {t("Sin datos por empresa para el filtro activo.")}
     </div>
   ) : (
     reportesPorEmpresa.map((item) => {
@@ -2892,7 +3029,7 @@ style={{
               fontWeight: 700,
             }}
           >
-            <span>{item.empresa}</span>
+	            <span>{t(item.empresa)}</span>
             <span>{item.total}</span>
           </div>
 
@@ -2900,7 +3037,7 @@ style={{
             style={{
               height: "10px",
               borderRadius: "999px",
-              background: "rgba(255,255,255,0.08)",
+	              background: temaClaro ? "rgba(148,163,184,0.20)" : "rgba(255,255,255,0.08)",
               overflow: "hidden",
             }}
           >
@@ -2924,8 +3061,8 @@ style={{
   style={{
     minHeight: "110px",
     borderRadius: "16px",
-    background: "rgba(255,255,255,0.04)",
-    border: "1px dashed rgba(255,255,255,0.12)",
+	    background: tema.tarjetaSuave,
+	    border: tema.bordeDashed,
     padding: "14px 12px 10px",
     display: "flex",
     alignItems: "flex-end",
@@ -2939,10 +3076,10 @@ style={{
         width: "100%",
         textAlign: "center",
         fontSize: "13px",
-        color: "rgba(255,255,255,0.72)",
+	        color: tema.textoSuave,
       }}
     >
-      Sin evolución diaria para el filtro activo.
+	      {t("Sin evolución diaria para el filtro activo.")}
     </div>
   ) : (
     evolucionDiaria.map((item) => {
@@ -2965,7 +3102,7 @@ style={{
             style={{
               fontSize: "11px",
               fontWeight: 800,
-              color: "rgba(255,255,255,0.82)",
+	              color: tema.textoMedio,
               lineHeight: 1,
             }}
           >
@@ -3003,7 +3140,7 @@ style={{
 
               <div
                 style={{
-                  ...panelCardStyle,
+                  ...panelSurfaceStyle,
                   padding: "16px",
                   minHeight: "152px",
                 }}
@@ -3015,7 +3152,7 @@ style={{
                     marginBottom: "4px",
                   }}
                 >
-                  Estado general
+	                  {t("Estado general")}
                 </div>
 
                 <div
@@ -3025,15 +3162,15 @@ style={{
                     marginBottom: "12px",
                   }}
                 >
-                  Distribución de abiertos, cerrados y críticos
+	                  {t("Distribución de abiertos, cerrados y críticos")}
                 </div>
 
 <div
   style={{
     minHeight: "240px",
     borderRadius: "16px",
-    background: "rgba(255,255,255,0.04)",
-    border: "1px dashed rgba(255,255,255,0.12)",
+	    background: tema.tarjetaSuave,
+	    border: tema.bordeDashed,
     padding: "14px",
     display: "grid",
     gap: "14px",
@@ -3043,7 +3180,7 @@ style={{
     <div
       style={{
         fontSize: "13px",
-        color: "rgba(255,255,255,0.72)",
+	        color: tema.textoSuave,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -3051,7 +3188,7 @@ style={{
         textAlign: "center",
       }}
     >
-      Sin datos para criticidad en el filtro activo.
+	      {t("Sin datos para criticidad en el filtro activo.")}
     </div>
   ) : (
     <div
@@ -3095,8 +3232,8 @@ style={{
             position: "absolute",
             inset: "18px",
             borderRadius: "999px",
-            background: "rgba(8,22,53,0.94)",
-            border: "1px solid rgba(255,255,255,0.08)",
+	            background: temaClaro ? "#ffffff" : "rgba(8,22,53,0.94)",
+	            border: tema.bordeSutil,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -3120,7 +3257,7 @@ style={{
               fontWeight: 700,
             }}
           >
-            Total
+	            {t("Total")}
           </div>
         </div>
       </div>
@@ -3174,7 +3311,7 @@ style={{
   <div
     style={{
       height: "1px",
-      background: "rgba(255,255,255,0.08)",
+	      background: temaClaro ? "rgba(148,163,184,0.24)" : "rgba(255,255,255,0.08)",
     }}
   />
 
@@ -3187,19 +3324,19 @@ style={{
         fontWeight: 700,
       }}
     >
-      Estado de reportes
+	      {t("Estado de reportes")}
     </div>
 
     {totalEstadoReportes === 0 ? (
       <div
         style={{
           fontSize: "13px",
-          color: "rgba(255,255,255,0.72)",
+	          color: tema.textoSuave,
           textAlign: "center",
           padding: "10px 0 4px",
         }}
       >
-        Sin datos de gestión para el filtro activo.
+	        {t("Sin datos de gestión para el filtro activo.")}
       </div>
     ) : (
       <div style={{ display: "grid", gap: "10px" }}>
@@ -3231,7 +3368,7 @@ style={{
                 style={{
                   height: "10px",
                   borderRadius: "999px",
-                  background: "rgba(255,255,255,0.08)",
+	                  background: temaClaro ? "rgba(148,163,184,0.22)" : "rgba(255,255,255,0.08)",
                   overflow: "hidden",
                 }}
               >
@@ -3256,7 +3393,7 @@ style={{
 
             <div
               style={{
-                ...panelCardStyle,
+                ...panelSurfaceStyle,
                 overflow: "hidden",
                 display: "flex",
                 flexDirection: "column",
@@ -3270,21 +3407,21 @@ style={{
                     "1.45fr 1.2fr 1.45fr 0.9fr 1.05fr 1.25fr 0.9fr",
                   gap: "10px",
                   padding: "14px 16px",
-                  background: "rgba(255,255,255,0.05)",
+	                  background: tema.tarjetaSuave,
                   fontSize: "11px",
                   fontWeight: 800,
                   letterSpacing: "0.7px",
                   textTransform: "uppercase",
-                  color: "rgba(255,255,255,0.74)",
+	                  color: tema.textoSuave,
                 }}
               >
-                <div>Código</div>
-                <div>Empresa</div>
-                <div>Tipo de hallazgo</div>
-                <div>Criticidad</div>
-                <div>Estado</div>
-                <div>Fecha / Hora</div>
-                <div>Acción</div>
+	                <div>{t("Código")}</div>
+	                <div>{t("Empresa")}</div>
+	                <div>{t("Tipo de hallazgo")}</div>
+	                <div>{t("Criticidad")}</div>
+	                <div>{t("Estado")}</div>
+	                <div>{t("Fecha / Hora")}</div>
+	                <div>{t("Acción")}</div>
               </div>
 
              {filasFiltradas.length === 0 ? (
@@ -3293,11 +3430,11 @@ style={{
       padding: "28px 16px",
       textAlign: "center",
       fontSize: "14px",
-      color: "rgba(255,255,255,0.72)",
-      borderTop: "1px solid rgba(255,255,255,0.08)",
+	      color: tema.textoSuave,
+	      borderTop: tema.bordeSutil,
     }}
   >
-    No hay hallazgos para el filtro seleccionado.
+	    {t("No hay hallazgos para el filtro seleccionado.")}
   </div>
 ) : (
   filasFiltradas.map((fila) => {
@@ -3312,7 +3449,7 @@ style={{
             "1.45fr 1.2fr 1.45fr 0.9fr 1.05fr 1.25fr 0.9fr",
           gap: "10px",
           padding: "16px",
-          borderTop: "1px solid rgba(255,255,255,0.08)",
+	          borderTop: tema.bordeSutil,
           alignItems: "center",
           fontSize: "13px",
         }}
@@ -3361,7 +3498,7 @@ style={{
       lineHeight: 1,
     }}
   >
-    {semaforoVencimiento(fila.fechaCompromiso, fila.estado).etiqueta}
+	    {t(semaforoVencimiento(fila.fechaCompromiso, fila.estado).etiqueta)}
   </span>
 </div>
         <div>{fila.fechaHora}</div>
@@ -3384,7 +3521,7 @@ style={{
               color: "#bfdbfe",
             }}
           >
-            Ver informe
+	            {t("Ver informe")}
           </button>
         </div>
       </div>
@@ -3396,7 +3533,7 @@ style={{
 
           <aside
             style={{
-              ...panelCardStyle,
+              ...panelSurfaceStyle,
               padding: vistaPrincipal === "configuracion" ? "24px" : "16px",
               minHeight: "760px",
               display: "flex",
@@ -3412,7 +3549,7 @@ style={{
       marginBottom: "12px",
     }}
   >
-    Informe Ejecutivo
+	    {t("Informe Ejecutivo")}
   </div>
 )}
 
@@ -3426,7 +3563,7 @@ style={{
   >
     <div
       style={{
-        ...panelCardStyle,
+        ...panelSurfaceStyle,
         padding: "20px 22px",
         display: "flex",
         justifyContent: "space-between",
@@ -3439,21 +3576,21 @@ style={{
           style={{
             fontSize: "24px",
             fontWeight: 900,
-            color: "white",
+	            color: tema.texto,
             marginBottom: "6px",
           }}
         >
-          Configuración del sistema
+	          {t("Configuración del sistema")}
         </div>
 
         <div
           style={{
             fontSize: "13px",
-            color: "rgba(255,255,255,0.72)",
+	            color: tema.textoSuave,
             lineHeight: 1.5,
           }}
         >
-          Administra identidad corporativa, apariencia y parámetros generales de la plataforma.
+	          {t("Administra identidad corporativa, apariencia y parámetros generales de la plataforma.")}
         </div>
       </div>
 
@@ -3473,16 +3610,16 @@ style={{
          style={{
   padding: "12px 18px",
   borderRadius: "14px",
-  border: "1px solid rgba(255,255,255,0.16)",
-  background: "linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04))",
-  color: "white",
+	  border: tema.bordeFuerte,
+	  background: tema.tarjetaElevada,
+	  color: tema.texto,
   fontSize: "13px",
   fontWeight: 800,
   cursor: "pointer",
   boxShadow: "0 8px 18px rgba(0,0,0,0.14)",
 }}
         >
-          Volver al panel
+	          {t("Volver al panel")}
         </button>
 
         <button
@@ -3499,7 +3636,7 @@ style={{
   boxShadow: "0 10px 22px rgba(132,204,22,0.24)",
 }}
         >
-          Guardar cambios
+	          {t("Guardar cambios")}
         </button>
       </div>
     </div>
@@ -3517,13 +3654,13 @@ style={{
           textAlign: "center",
         }}
       >
-        Configuración guardada correctamente
+	        {t("Configuración guardada correctamente")}
       </div>
     )}
 
    <div
   style={{
-    ...panelCardStyle,
+    ...panelSurfaceStyle,
     padding: "20px",
   }}
 >
@@ -3531,11 +3668,11 @@ style={{
     style={{
       fontSize: "16px",
       fontWeight: 800,
-      color: "white",
+	      color: tema.texto,
       marginBottom: "14px",
     }}
   >
-    Identidad de empresa
+	    {t("Identidad de empresa")}
   </div>
 
   <div
@@ -3550,15 +3687,15 @@ style={{
   style={{
     minHeight: "140px",
     borderRadius: "18px",
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03))",
-    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)",
+	    border: tema.borde,
+	    background: temaClaro ? "#f8fafc" : "linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03))",
+	    boxShadow: temaClaro ? "inset 0 1px 0 rgba(255,255,255,0.9)" : "inset 0 1px 0 rgba(255,255,255,0.05)",
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
     textAlign: "center",
-    color: "rgba(255,255,255,0.78)",
+	    color: tema.textoMedio,
     fontSize: "13px",
     fontWeight: 700,
     padding: "14px",
@@ -3570,8 +3707,8 @@ style={{
       width: "46px",
       height: "46px",
       borderRadius: "14px",
-      border: "1px solid rgba(255,255,255,0.12)",
-      background: "rgba(255,255,255,0.06)",
+	      border: tema.borde,
+	      background: tema.tarjetaElevada,
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
@@ -3583,7 +3720,7 @@ style={{
     ⬒
   </div>
 
-  <div>Logo empresa</div>
+	  <div>{t("Logo empresa")}</div>
 
   <div
     style={{
@@ -3610,10 +3747,10 @@ style={{
             opacity: 0.72,
             marginBottom: "6px",
             fontWeight: 700,
-            color: "white",
+	            color: tema.texto,
           }}
         >
-          Nombre empresa
+	          {t("Nombre empresa")}
         </div>
 
         <input
@@ -3623,14 +3760,14 @@ style={{
             minHeight: "46px",
             padding: "12px 14px",
             borderRadius: "14px",
-            border: "1px solid rgba(255,255,255,0.10)",
-            background: "rgba(255,255,255,0.05)",
-            color: "white",
+	            border: tema.borde,
+	            background: tema.tarjetaSuave,
+	            color: tema.texto,
             fontSize: "14px",
             fontWeight: 800,
             outline: "none",
           }}
-          placeholder="Nombre de la empresa"
+	          placeholder={t("Nombre de la empresa")}
         />
       </div>
 
@@ -3646,9 +3783,9 @@ style={{
             padding: "12px",
             minHeight: "74px",
             borderRadius: "14px",
-            border: "1px solid rgba(255,255,255,0.10)",
-            background: "rgba(255,255,255,0.05)",
-            color: "white",
+	            border: tema.borde,
+	            background: tema.tarjetaSuave,
+	            color: tema.texto,
             display: "flex",
             flexDirection: "column",
             justifyContent: "center",
@@ -3662,10 +3799,10 @@ style={{
               fontWeight: 700,
             }}
           >
-            Branding PC
+	            {t("Branding PC")}
           </div>
           <div style={{ fontSize: "13px", fontWeight: 800 }}>
-            Activo
+	            {t("Activo")}
           </div>
         </div>
 
@@ -3674,9 +3811,9 @@ style={{
             padding: "12px",
             minHeight: "74px",
             borderRadius: "14px",
-            border: "1px solid rgba(255,255,255,0.10)",
-            background: "rgba(255,255,255,0.05)",
-            color: "white",
+	            border: tema.borde,
+	            background: tema.tarjetaSuave,
+	            color: tema.texto,
             display: "flex",
             flexDirection: "column",
             justifyContent: "center",
@@ -3690,10 +3827,10 @@ style={{
               fontWeight: 700,
             }}
           >
-            Branding PDF
+	            {t("Branding PDF")}
           </div>
           <div style={{ fontSize: "13px", fontWeight: 800 }}>
-            Activo
+	            {t("Activo")}
           </div>
         </div>
 
@@ -3702,9 +3839,9 @@ style={{
             padding: "12px",
             minHeight: "74px",
             borderRadius: "14px",
-            border: "1px solid rgba(255,255,255,0.10)",
-            background: "rgba(255,255,255,0.05)",
-            color: "white",
+	            border: tema.borde,
+	            background: tema.tarjetaSuave,
+	            color: tema.texto,
             display: "flex",
             flexDirection: "column",
             justifyContent: "center",
@@ -3718,10 +3855,10 @@ style={{
               fontWeight: 700,
             }}
           >
-            Exportaciones
+	            {t("Exportaciones")}
           </div>
           <div style={{ fontSize: "13px", fontWeight: 800 }}>
-            Incluidas
+	            {t("Incluidas")}
           </div>
         </div>
       </div>
@@ -3730,7 +3867,7 @@ style={{
 </div>
     <div
   style={{
-    ...panelCardStyle,
+  ...panelSurfaceStyle,
     padding: "18px",
   }}
 >
@@ -3738,22 +3875,22 @@ style={{
     style={{
       fontSize: "15px",
       fontWeight: 800,
-      color: "white",
+	      color: tema.texto,
       marginBottom: "14px",
     }}
   >
-    Apariencia del sistema
+	    {t("Apariencia del sistema")}
   </div>
 
   <div
     style={{
       fontSize: "12px",
-      color: "rgba(255,255,255,0.72)",
+	      color: tema.textoSuave,
       lineHeight: 1.5,
       marginBottom: "14px",
     }}
   >
-    Define la presentación visual de la plataforma para operación diurna, nocturna o automática.
+	    {t("Define la presentación visual de la plataforma para operación diurna, nocturna o automática.")}
   </div>
 
   <div
@@ -3766,95 +3903,82 @@ style={{
     <button
       onClick={() => setModoSistema("claro")}
       style={
-        modoSistema === "claro"
-          ? {
-              padding: "14px 12px",
-              borderRadius: "14px",
-              border: "1px solid rgba(59,130,246,0.28)",
-              background: "rgba(59,130,246,0.14)",
-              color: "#dbeafe",
-              fontSize: "13px",
-              fontWeight: 800,
-              cursor: "pointer",
-            }
-          : {
-              padding: "14px 12px",
-              borderRadius: "14px",
-              border: "1px solid rgba(255,255,255,0.10)",
-              background: "rgba(255,255,255,0.05)",
-              color: "white",
-              fontSize: "13px",
-              fontWeight: 700,
-              cursor: "pointer",
+	        modoSistema === "claro"
+	          ? {
+	              padding: "14px 12px",
+	              borderRadius: "14px",
+	              ...selectedButtonStyle,
+	              fontSize: "13px",
+	              fontWeight: 800,
+	              cursor: "pointer",
+	            }
+	          : {
+	              padding: "14px 12px",
+	              borderRadius: "14px",
+	              ...secondaryButtonStyle,
+	              fontSize: "13px",
+	              fontWeight: 700,
+	              cursor: "pointer",
             }
       }
     >
-      Modo claro
+	      {t("Modo claro")}
     </button>
 
     <button
       onClick={() => setModoSistema("oscuro")}
       style={
-        modoSistema === "oscuro"
-          ? {
-              padding: "14px 12px",
-              borderRadius: "14px",
-              border: "1px solid rgba(59,130,246,0.28)",
-              background: "rgba(59,130,246,0.14)",
-              color: "#dbeafe",
-              fontSize: "13px",
-              fontWeight: 800,
-              cursor: "pointer",
-            }
-          : {
-              padding: "14px 12px",
-              borderRadius: "14px",
-              border: "1px solid rgba(255,255,255,0.10)",
-              background: "rgba(255,255,255,0.05)",
-              color: "white",
-              fontSize: "13px",
-              fontWeight: 700,
-              cursor: "pointer",
+	        modoSistema === "oscuro"
+	          ? {
+	              padding: "14px 12px",
+	              borderRadius: "14px",
+	              ...selectedButtonStyle,
+	              fontSize: "13px",
+	              fontWeight: 800,
+	              cursor: "pointer",
+	            }
+	          : {
+	              padding: "14px 12px",
+	              borderRadius: "14px",
+	              ...secondaryButtonStyle,
+	              fontSize: "13px",
+	              fontWeight: 700,
+	              cursor: "pointer",
             }
       }
     >
-      Modo oscuro
+	      {t("Modo oscuro")}
     </button>
 
     <button
       onClick={() => setModoSistema("automatico")}
       style={
-        modoSistema === "automatico"
-          ? {
-              padding: "14px 12px",
-              borderRadius: "14px",
-              border: "1px solid rgba(96,165,250,0.48)",
-              background: "linear-gradient(135deg, rgba(59,130,246,0.22), rgba(37,99,235,0.18))",
-              color: "#eff6ff",
-              fontSize: "13px",
-              fontWeight: 800,
-              cursor: "pointer",
-              boxShadow: "0 0 0 1px rgba(96,165,250,0.18), 0 10px 24px rgba(37,99,235,0.18)",
-            }
-          : {
-              padding: "14px 12px",
-              borderRadius: "14px",
-              border: "1px solid rgba(255,255,255,0.10)",
-              background: "rgba(255,255,255,0.05)",
-              color: "white",
-              fontSize: "13px",
-              fontWeight: 700,
-              cursor: "pointer",
+	        modoSistema === "automatico"
+	          ? {
+	              padding: "14px 12px",
+	              borderRadius: "14px",
+	              ...selectedButtonStyle,
+	              fontSize: "13px",
+	              fontWeight: 800,
+	              cursor: "pointer",
+	            }
+	          : {
+	              padding: "14px 12px",
+	              borderRadius: "14px",
+	              ...secondaryButtonStyle,
+	              fontSize: "13px",
+	              fontWeight: 700,
+	              cursor: "pointer",
             }
       }
     >
-      Automático
+	      {t("Automático")}
     </button>
   </div>
 </div>
 <div
   style={{
-    ...panelCardStyle,
+    ...panelSurfaceStyle,
     padding: "18px",
   }}
 >
@@ -3862,22 +3986,22 @@ style={{
     style={{
       fontSize: "15px",
       fontWeight: 800,
-      color: "white",
+	      color: tema.texto,
       marginBottom: "14px",
     }}
   >
-    Idioma del sistema
+	    {t("Idioma del sistema")}
   </div>
 
   <div
     style={{
       fontSize: "12px",
-      color: "rgba(255,255,255,0.72)",
+	      color: tema.textoSuave,
       lineHeight: 1.5,
       marginBottom: "14px",
     }}
   >
-    Define el idioma general de navegación, textos operativos e informes del sistema.
+	    {t("Define el idioma general de navegación, textos operativos e informes del sistema.")}
   </div>
 
   <div
@@ -3890,57 +4014,47 @@ style={{
     <button
       onClick={() => setIdiomaSistema("es")}
       style={
-        idiomaSistema === "es"
-          ? {
-              padding: "14px 12px",
-              borderRadius: "14px",
-              border: "1px solid rgba(96,165,250,0.48)",
-              background: "linear-gradient(135deg, rgba(59,130,246,0.22), rgba(37,99,235,0.18))",
-              color: "#eff6ff",
-              fontSize: "13px",
-              fontWeight: 800,
-              cursor: "pointer",
-              boxShadow: "0 0 0 1px rgba(96,165,250,0.18), 0 10px 24px rgba(37,99,235,0.18)",
-            }
-          : {
-              padding: "14px 12px",
-              borderRadius: "14px",
-              border: "1px solid rgba(255,255,255,0.10)",
-              background: "rgba(255,255,255,0.05)",
-              color: "white",
-              fontSize: "13px",
-              fontWeight: 700,
-              cursor: "pointer",
+	        idiomaSistema === "es"
+	          ? {
+	              padding: "14px 12px",
+	              borderRadius: "14px",
+	              ...selectedButtonStyle,
+	              fontSize: "13px",
+	              fontWeight: 800,
+	              cursor: "pointer",
+	            }
+	          : {
+	              padding: "14px 12px",
+	              borderRadius: "14px",
+	              ...secondaryButtonStyle,
+	              fontSize: "13px",
+	              fontWeight: 700,
+	              cursor: "pointer",
             }
       }
     >
-      Español
+	      {t("Español")}
     </button>
 
     <button
       onClick={() => setIdiomaSistema("en")}
       style={
-        idiomaSistema === "en"
-          ? {
-              padding: "14px 12px",
-              borderRadius: "14px",
-              border: "1px solid rgba(96,165,250,0.48)",
-              background: "linear-gradient(135deg, rgba(59,130,246,0.22), rgba(37,99,235,0.18))",
-              color: "#eff6ff",
-              fontSize: "13px",
-              fontWeight: 800,
-              cursor: "pointer",
-              boxShadow: "0 0 0 1px rgba(96,165,250,0.18), 0 10px 24px rgba(37,99,235,0.18)",
-            }
-          : {
-              padding: "14px 12px",
-              borderRadius: "14px",
-              border: "1px solid rgba(255,255,255,0.10)",
-              background: "rgba(255,255,255,0.05)",
-              color: "white",
-              fontSize: "13px",
-              fontWeight: 700,
-              cursor: "pointer",
+	        idiomaSistema === "en"
+	          ? {
+	              padding: "14px 12px",
+	              borderRadius: "14px",
+	              ...selectedButtonStyle,
+	              fontSize: "13px",
+	              fontWeight: 800,
+	              cursor: "pointer",
+	            }
+	          : {
+	              padding: "14px 12px",
+	              borderRadius: "14px",
+	              ...secondaryButtonStyle,
+	              fontSize: "13px",
+	              fontWeight: 700,
+	              cursor: "pointer",
             }
       }
     >
@@ -3950,37 +4064,32 @@ style={{
     <button
       onClick={() => setIdiomaSistema("auto")}
       style={
-        idiomaSistema === "auto"
-          ? {
-              padding: "14px 12px",
-              borderRadius: "14px",
-              border: "1px solid rgba(96,165,250,0.48)",
-              background: "linear-gradient(135deg, rgba(59,130,246,0.22), rgba(37,99,235,0.18))",
-              color: "#eff6ff",
-              fontSize: "13px",
-              fontWeight: 800,
-              cursor: "pointer",
-              boxShadow: "0 0 0 1px rgba(96,165,250,0.18), 0 10px 24px rgba(37,99,235,0.18)",
-            }
-          : {
-              padding: "14px 12px",
-              borderRadius: "14px",
-              border: "1px solid rgba(255,255,255,0.10)",
-              background: "rgba(255,255,255,0.05)",
-              color: "white",
-              fontSize: "13px",
-              fontWeight: 700,
-              cursor: "pointer",
+	        idiomaSistema === "auto"
+	          ? {
+	              padding: "14px 12px",
+	              borderRadius: "14px",
+	              ...selectedButtonStyle,
+	              fontSize: "13px",
+	              fontWeight: 800,
+	              cursor: "pointer",
+	            }
+	          : {
+	              padding: "14px 12px",
+	              borderRadius: "14px",
+	              ...secondaryButtonStyle,
+	              fontSize: "13px",
+	              fontWeight: 700,
+	              cursor: "pointer",
             }
       }
     >
-      Automático
+	      {t("Automático")}
     </button>
   </div>
 </div>
 <div
   style={{
-    ...panelCardStyle,
+    ...panelSurfaceStyle,
     padding: "18px",
   }}
 >
@@ -3988,22 +4097,22 @@ style={{
     style={{
       fontSize: "15px",
       fontWeight: 800,
-      color: "white",
+	      color: tema.texto,
       marginBottom: "14px",
     }}
   >
-    Informes PDF
+	    {t("Informes PDF")}
   </div>
 
   <div
     style={{
       fontSize: "12px",
-      color: "rgba(255,255,255,0.72)",
+	      color: tema.textoSuave,
       lineHeight: 1.5,
       marginBottom: "14px",
     }}
   >
-    Define cómo se presentan los documentos exportados y descargados desde la plataforma.
+	    {t("Define cómo se presentan los documentos exportados y descargados desde la plataforma.")}
   </div>
 
  <div
@@ -4018,9 +4127,9 @@ style={{
       padding: "16px",
       minHeight: "88px",
       borderRadius: "14px",
-      border: "1px solid rgba(255,255,255,0.10)",
-      background: "rgba(255,255,255,0.05)",
-      color: "white",
+	      border: tema.borde,
+	      background: tema.tarjetaSuave,
+	      color: tema.texto,
       display: "flex",
       flexDirection: "column",
       justifyContent: "center",
@@ -4034,10 +4143,10 @@ style={{
         fontWeight: 700,
       }}
     >
-      Branding PDF
+	      {t("Branding PDF")}
     </div>
     <div style={{ fontSize: "13px", fontWeight: 800 }}>
-      Activado
+	      {t("Activado")}
     </div>
   </div>
 
@@ -4046,9 +4155,9 @@ style={{
       padding: "16px",
       minHeight: "88px",
       borderRadius: "14px",
-      border: "1px solid rgba(255,255,255,0.10)",
-      background: "rgba(255,255,255,0.05)",
-      color: "white",
+	      border: tema.borde,
+	      background: tema.tarjetaSuave,
+	      color: tema.texto,
       display: "flex",
       flexDirection: "column",
       justifyContent: "center",
@@ -4062,10 +4171,10 @@ style={{
         fontWeight: 700,
       }}
     >
-      Formato de salida
+	      {t("Formato de salida")}
     </div>
     <div style={{ fontSize: "13px", fontWeight: 800 }}>
-      Carta vertical
+	      {t("Carta vertical")}
     </div>
   </div>
 
@@ -4074,9 +4183,9 @@ style={{
       padding: "16px",
       minHeight: "88px",
       borderRadius: "14px",
-      border: "1px solid rgba(255,255,255,0.10)",
-      background: "rgba(255,255,255,0.05)",
-      color: "white",
+	      border: tema.borde,
+	      background: tema.tarjetaSuave,
+	      color: tema.texto,
       display: "flex",
       flexDirection: "column",
       justifyContent: "center",
@@ -4090,10 +4199,10 @@ style={{
         fontWeight: 700,
       }}
     >
-      Logo de empresa
+	      {t("Logo de empresa")}
     </div>
     <div style={{ fontSize: "13px", fontWeight: 800 }}>
-      Incluir en portada y encabezado
+	      {t("Incluir en portada y encabezado")}
     </div>
   </div>
 
@@ -4102,9 +4211,9 @@ style={{
       padding: "16px",
       minHeight: "88px",
       borderRadius: "14px",
-      border: "1px solid rgba(255,255,255,0.10)",
-      background: "rgba(255,255,255,0.05)",
-      color: "white",
+	      border: tema.borde,
+	      background: tema.tarjetaSuave,
+	      color: tema.texto,
       display: "flex",
       flexDirection: "column",
       justifyContent: "center",
@@ -4118,17 +4227,17 @@ style={{
         fontWeight: 700,
       }}
     >
-      Pie institucional
+	      {t("Pie institucional")}
     </div>
     <div style={{ fontSize: "13px", fontWeight: 800 }}>
-      Emitido por Criterio Estratégico
+	      {t("Emitido por Criterio Estratégico")}
     </div>
   </div>
 </div>
 </div>
 <div
   style={{
-    ...panelCardStyle,
+    ...panelSurfaceStyle,
     padding: "18px",
   }}
 >
@@ -4136,22 +4245,22 @@ style={{
     style={{
       fontSize: "15px",
       fontWeight: 800,
-      color: "white",
+	      color: tema.texto,
       marginBottom: "14px",
     }}
   >
-    Usuarios y permisos
+	    {t("Usuarios y permisos")}
   </div>
 
   <div
     style={{
       fontSize: "12px",
-      color: "rgba(255,255,255,0.72)",
+	      color: tema.textoSuave,
       lineHeight: 1.5,
       marginBottom: "14px",
     }}
   >
-    Define perfiles de acceso y alcance de visualización para administración, supervisión y clientes corporativos.
+	    {t("Define perfiles de acceso y alcance de visualización para administración, supervisión y clientes corporativos.")}
   </div>
 
   <div
@@ -4166,9 +4275,9 @@ style={{
       padding: "16px",
       minHeight: "88px",
       borderRadius: "14px",
-      border: "1px solid rgba(255,255,255,0.10)",
-      background: "rgba(255,255,255,0.05)",
-      color: "white",
+	      border: tema.borde,
+	      background: tema.tarjetaSuave,
+	      color: tema.texto,
       display: "flex",
       flexDirection: "column",
       justifyContent: "center",
@@ -4182,10 +4291,10 @@ style={{
         fontWeight: 700,
       }}
     >
-      Perfil administrador
+	      {t("Perfil administrador")}
     </div>
     <div style={{ fontSize: "13px", fontWeight: 800 }}>
-      Acceso total al sistema
+	      {t("Acceso total al sistema")}
     </div>
   </div>
 
@@ -4194,9 +4303,9 @@ style={{
       padding: "16px",
       minHeight: "88px",
       borderRadius: "14px",
-      border: "1px solid rgba(255,255,255,0.10)",
-      background: "rgba(255,255,255,0.05)",
-      color: "white",
+	      border: tema.borde,
+	      background: tema.tarjetaSuave,
+	      color: tema.texto,
       display: "flex",
       flexDirection: "column",
       justifyContent: "center",
@@ -4210,10 +4319,10 @@ style={{
         fontWeight: 700,
       }}
     >
-      Perfil supervisor
+	      {t("Perfil supervisor")}
     </div>
     <div style={{ fontSize: "13px", fontWeight: 800 }}>
-      Reporte y seguimiento operativo
+	      {t("Reporte y seguimiento operativo")}
     </div>
   </div>
 
@@ -4222,9 +4331,9 @@ style={{
       padding: "16px",
       minHeight: "88px",
       borderRadius: "14px",
-      border: "1px solid rgba(255,255,255,0.10)",
-      background: "rgba(255,255,255,0.05)",
-      color: "white",
+	      border: tema.borde,
+	      background: tema.tarjetaSuave,
+	      color: tema.texto,
       display: "flex",
       flexDirection: "column",
       justifyContent: "center",
@@ -4238,10 +4347,10 @@ style={{
         fontWeight: 700,
       }}
     >
-      Cliente mandante
+	      {t("Cliente mandante")}
     </div>
     <div style={{ fontSize: "13px", fontWeight: 800 }}>
-      Visualización ejecutiva y reportes
+	      {t("Visualización ejecutiva y reportes")}
     </div>
   </div>
 
@@ -4250,9 +4359,9 @@ style={{
       padding: "16px",
       minHeight: "88px",
       borderRadius: "14px",
-      border: "1px solid rgba(255,255,255,0.10)",
-      background: "rgba(255,255,255,0.05)",
-      color: "white",
+	      border: tema.borde,
+	      background: tema.tarjetaSuave,
+	      color: tema.texto,
       display: "flex",
       flexDirection: "column",
       justifyContent: "center",
@@ -4266,10 +4375,10 @@ style={{
         fontWeight: 700,
       }}
     >
-      Alcance multiempresa
+	      {t("Alcance multiempresa")}
     </div>
     <div style={{ fontSize: "13px", fontWeight: 800 }}>
-      Por empresa, obra o corporativo
+	      {t("Por empresa, obra o corporativo")}
     </div>
   </div>
 </div>
@@ -4286,12 +4395,12 @@ style={{
       justifyContent: "center",
       textAlign: "center",
       fontSize: "14px",
-      color: "rgba(255,255,255,0.72)",
+	      color: tema.textoSuave,
       padding: "24px",
       lineHeight: 1.5,
     }}
   >
-    No hay informe disponible para el filtro seleccionado.
+	    {t("No hay informe disponible para el filtro seleccionado.")}
   </div>
 ) : (
   <>
@@ -4299,8 +4408,8 @@ style={{
       style={{
         padding: "12px",
         borderRadius: "14px",
-        background: "rgba(255,255,255,0.06)",
-        border: "1px solid rgba(255,255,255,0.10)",
+	        background: tema.tarjetaSuave,
+	        border: tema.borde,
         marginBottom: "14px",
       }}
     >
@@ -4312,7 +4421,7 @@ style={{
           fontWeight: 700,
         }}
       >
-        Código
+	        {t("Código")}
       </div>
       <div style={{ fontWeight: 900, fontSize: "14px" }}>
         {hallazgoActivo.codigo}
@@ -4327,7 +4436,7 @@ style={{
       fontWeight: 700,
     }}
   >
-    Estado plazo
+	    {t("Estado plazo")}
   </div>
 
   <div
@@ -4351,26 +4460,26 @@ style={{
       fontWeight: 800,
     }}
   >
-    {
-      semaforoVencimiento(
-        hallazgoActivo.fechaCompromiso,
-        hallazgoActivo.estado
-      ).etiqueta
-    }
+	    {t(
+	      semaforoVencimiento(
+	        hallazgoActivo.fechaCompromiso,
+	        hallazgoActivo.estado
+	      ).etiqueta
+	    )}
   </div>
 </div>
     {[
-      ["Empresa", hallazgoActivo.empresa],
-      ["Reportante", hallazgoActivo.reportante],
-      ["Cargo", hallazgoActivo.cargo],
-      ["Teléfono", hallazgoActivo.telefono],
-      ["Responsable", hallazgoActivo.responsable],
-["Fecha compromiso", hallazgoActivo.fechaCompromiso || "Sin definir"],
-["Fecha cierre", hallazgoActivo.fechaCierre || "Pendiente"],
-["Evidencia cierre", hallazgoActivo.evidenciaCierre || "Sin evidencia de cierre"],
-      ["Tipo", hallazgoActivo.tipoHallazgo],
-      ["Criticidad", hallazgoActivo.criticidad],
-      ["Fecha / Hora", hallazgoActivo.fechaHora],
+	      [t("Empresa"), hallazgoActivo.empresa],
+	      [t("Reportante"), hallazgoActivo.reportante],
+	      [t("Cargo"), hallazgoActivo.cargo],
+	      [t("Teléfono"), hallazgoActivo.telefono],
+	      [t("Responsable"), hallazgoActivo.responsable],
+	[t("Fecha compromiso"), hallazgoActivo.fechaCompromiso || t("Sin definir")],
+	[t("Fecha cierre"), hallazgoActivo.fechaCierre || t("Pendiente")],
+	[t("Evidencia cierre"), hallazgoActivo.evidenciaCierre || t("Sin evidencia de cierre")],
+	      [t("Tipo"), hallazgoActivo.tipoHallazgo],
+	      [t("Criticidad"), hallazgoActivo.criticidad],
+	      [t("Fecha / Hora"), hallazgoActivo.fechaHora],
     ].map(([titulo, valor]) => (
       <div key={titulo} style={{ marginBottom: "10px" }}>
         <div
@@ -4404,7 +4513,7 @@ style={{
           fontWeight: 700,
         }}
       >
-        Descripción
+	        {t("Descripción")}
       </div>
 
       <div
@@ -4413,8 +4522,8 @@ style={{
           lineHeight: 1.5,
           padding: "12px",
           borderRadius: "14px",
-          background: "rgba(255,255,255,0.06)",
-          border: "1px solid rgba(255,255,255,0.10)",
+	          background: tema.tarjetaSuave,
+	          border: tema.borde,
         }}
       >
         {hallazgoActivo.descripcion}
@@ -4429,7 +4538,7 @@ style={{
       fontWeight: 700,
     }}
   >
-    Evidencia fotográfica
+	    {t("Evidencia fotográfica")}
   </div>
 
   {hallazgoActivo.fotos && hallazgoActivo.fotos.length > 0 ? (
@@ -4450,8 +4559,8 @@ style={{
             height: "78px",
             objectFit: "cover",
             borderRadius: "10px",
-            border: "1px solid rgba(255,255,255,0.10)",
-            background: "rgba(255,255,255,0.06)",
+	            border: tema.borde,
+	            background: tema.tarjetaSuave,
           }}
         />
       ))}
@@ -4464,7 +4573,7 @@ style={{
         opacity: 0.75,
       }}
     >
-      Sin evidencia fotográfica
+	      {t("Sin evidencia fotográfica")}
     </div>
   )}
 </div>
@@ -4477,7 +4586,7 @@ style={{
           fontWeight: 700,
         }}
       >
-        Medida inmediata
+	        {t("Medida inmediata")}
       </div>
 
       <div
@@ -4486,8 +4595,8 @@ style={{
           lineHeight: 1.5,
           padding: "12px",
           borderRadius: "14px",
-          background: "rgba(255,255,255,0.06)",
-          border: "1px solid rgba(255,255,255,0.10)",
+	          background: tema.tarjetaSuave,
+	          border: tema.borde,
         }}
       >
         {hallazgoActivo.medidaInmediata}
@@ -4509,7 +4618,7 @@ style={{
         boxShadow: "0 10px 22px rgba(109,255,72,0.22)",
       }}
     >
-      Descargar PDF
+	      {t("Descargar PDF")}
     </button>
   </>
 )}
