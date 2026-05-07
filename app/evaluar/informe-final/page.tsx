@@ -5,7 +5,16 @@ import preguntasEvaluacion, {
   type RespuestasEvaluacion,
 } from "../../types/evaluacion";
 import { supabase } from "../../../lib/supabaseClient";
-type Hallazgo = Record<string, any>;
+type Hallazgo = Record<string, unknown> & {
+  asignacionCierre?: unknown;
+  contexto?: Record<string, unknown>;
+  evaluacion?: Record<string, unknown> & {
+    respuestas?: RespuestasEvaluacion;
+  };
+  reporte?: Record<string, unknown>;
+  resultado?: Record<string, unknown>;
+  resultadoFinal?: Record<string, unknown>;
+};
 
 type AnalisisInforme = {
   total: number;
@@ -53,6 +62,17 @@ type AccionesInforme = {
   fechaCierrePropuesta: string;
 };
 
+type AsignacionCierreDraft = {
+  tipoResponsableCorreccion: string;
+  empresaResponsable: string;
+  nombreResponsable: string;
+  cargoResponsable: string;
+  telefonoResponsable: string;
+  fechaCompromiso: string;
+  observacionSeguimiento: string;
+  evidenciaRequerida: string[];
+};
+
 type CausaDominante =
   | "orden_limpieza"
   | "altura"
@@ -63,6 +83,42 @@ type CausaDominante =
   | "segregacion"
   | "documental"
   | "general";
+
+const ASIGNACION_CIERRE_INICIAL: AsignacionCierreDraft = {
+  tipoResponsableCorreccion: "",
+  empresaResponsable: "",
+  nombreResponsable: "",
+  cargoResponsable: "",
+  telefonoResponsable: "",
+  fechaCompromiso: "",
+  observacionSeguimiento: "",
+  evidenciaRequerida: [],
+};
+
+const TIPOS_RESPONSABLE_CORRECCION = [
+  "Trabajador interno",
+  "Supervisor de área",
+  "Empresa contratista",
+  "Empresa subcontratista",
+  "Área interna",
+  "Mantención",
+  "Bodega",
+  "Administración",
+  "Prevención",
+  "Otro",
+];
+
+const EVIDENCIAS_CIERRE_REQUERIDAS = [
+  "Registro fotográfico",
+  "Documentación de corrección",
+  "Charla de seguridad",
+  "Registro firmado",
+  "Checklist corregido",
+  "Orden de trabajo",
+  "Certificado externo",
+  "Validación en terreno",
+  "Otra evidencia",
+];
 
 function obtenerUltimoHallazgo(): Hallazgo | null {
   if (typeof window === "undefined") return null;
@@ -76,13 +132,36 @@ function obtenerUltimoHallazgo(): Hallazgo | null {
   }
 }
 
-function texto(valor: any, fallback = "-") {
+function texto(valor: unknown, fallback = "-") {
   if (valor === null || valor === undefined) return fallback;
   const limpio = String(valor).trim();
   return limpio.length ? limpio : fallback;
 }
 
-function formatearFecha(valor: any) {
+function normalizarAsignacionCierre(valor: unknown): AsignacionCierreDraft {
+  const asignacion =
+    valor && typeof valor === "object"
+      ? (valor as Partial<AsignacionCierreDraft>)
+      : {};
+
+  return {
+    tipoResponsableCorreccion: texto(
+      asignacion.tipoResponsableCorreccion,
+      ""
+    ),
+    empresaResponsable: texto(asignacion.empresaResponsable, ""),
+    nombreResponsable: texto(asignacion.nombreResponsable, ""),
+    cargoResponsable: texto(asignacion.cargoResponsable, ""),
+    telefonoResponsable: texto(asignacion.telefonoResponsable, ""),
+    fechaCompromiso: texto(asignacion.fechaCompromiso, ""),
+    observacionSeguimiento: texto(asignacion.observacionSeguimiento, ""),
+    evidenciaRequerida: Array.isArray(asignacion.evidenciaRequerida)
+      ? asignacion.evidenciaRequerida.filter(Boolean).map(String)
+      : [],
+  };
+}
+
+function formatearFecha(valor: unknown) {
   if (!valor) {
     return new Date().toLocaleDateString("es-CL");
   }
@@ -96,7 +175,7 @@ function formatearFecha(valor: any) {
     }
   }
 
-  const fecha = valor instanceof Date ? valor : new Date(valor);
+  const fecha = valor instanceof Date ? valor : new Date(String(valor));
 
   if (!Number.isNaN(fecha.getTime())) {
     return fecha.toLocaleDateString("es-CL");
@@ -105,20 +184,20 @@ function formatearFecha(valor: any) {
   return String(valor);
 }
 
-function normalizarCriticidad(valor: any): string {
+function normalizarCriticidad(valor: unknown): string {
   return String(valor ?? "")
     .toUpperCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
 }
 
-function normalizarCorrelativo(valor: any) {
+function normalizarCorrelativo(valor: unknown) {
   const soloNumeros = String(valor ?? "").replace(/\D/g, "");
   if (!soloNumeros) return "00001";
   return soloNumeros.padStart(5, "0").slice(-5);
 }
 
-function sigla(valor: any, fallback: string) {
+function sigla(valor: unknown, fallback: string) {
   return texto(valor, fallback).toUpperCase().replace(/\s+/g, "");
 }
 
@@ -963,10 +1042,20 @@ function celdaTitulo() {
 export default function InformeFinalPage() {
   const [hallazgo, setHallazgo] = useState<Hallazgo | null>(null);
   const [cargado, setCargado] = useState(false);
+  const [asignacionCierreDraft, setAsignacionCierreDraft] =
+    useState<AsignacionCierreDraft>(ASIGNACION_CIERRE_INICIAL);
 
   useEffect(() => {
-    setHallazgo(obtenerUltimoHallazgo());
-    setCargado(true);
+    const timeoutId = window.setTimeout(() => {
+      const hallazgoGuardado = obtenerUltimoHallazgo();
+      setHallazgo(hallazgoGuardado);
+      setAsignacionCierreDraft(
+        normalizarAsignacionCierre(hallazgoGuardado?.asignacionCierre)
+      );
+      setCargado(true);
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
   }, []);
 
   const codigoInforme = useMemo(
@@ -999,6 +1088,29 @@ export default function InformeFinalPage() {
     hallazgo?.reporte?.empresa || hallazgo?.empresa,
     "Por definir"
   );
+  const reportante = texto(
+    hallazgo?.reporte?.responsable ||
+      hallazgo?.supervisor ||
+      hallazgo?.reportante ||
+      hallazgo?.responsable,
+    "Supervisor reportante"
+  );
+  const estadoSeguimiento =
+    asignacionCierreDraft.tipoResponsableCorreccion.trim() ||
+    asignacionCierreDraft.empresaResponsable.trim() ||
+    asignacionCierreDraft.nombreResponsable.trim()
+      ? "Asignado"
+      : "Sin asignar";
+  const responsableCorreccionResumen =
+    asignacionCierreDraft.nombreResponsable.trim() || "Sin asignar";
+  const empresaResponsableResumen =
+    asignacionCierreDraft.empresaResponsable.trim() || "Sin asignar";
+  const fechaCompromisoResumen =
+    asignacionCierreDraft.fechaCompromiso || "Sin definir";
+  const evidenciaRequeridaResumen =
+    asignacionCierreDraft.evidenciaRequerida.length > 0
+      ? asignacionCierreDraft.evidenciaRequerida.join(", ")
+      : "Sin evidencia requerida";
 
   const respuestas = (hallazgo?.evaluacion?.respuestas ||
     {}) as RespuestasEvaluacion;
@@ -1022,6 +1134,51 @@ export default function InformeFinalPage() {
     codigoInforme,
     causaDominante
   );
+
+  const actualizarAsignacionCierre = (
+    campo: keyof AsignacionCierreDraft,
+    valor: string
+  ) => {
+    setAsignacionCierreDraft((actual) => ({
+      ...actual,
+      [campo]: valor,
+    }));
+  };
+
+  const alternarEvidenciaRequerida = (evidencia: string) => {
+    setAsignacionCierreDraft((actual) => {
+      const yaSeleccionada = actual.evidenciaRequerida.includes(evidencia);
+
+      return {
+        ...actual,
+        evidenciaRequerida: yaSeleccionada
+          ? actual.evidenciaRequerida.filter((item) => item !== evidencia)
+          : [...actual.evidenciaRequerida, evidencia],
+      };
+    });
+  };
+
+  const inputAsignacionStyle = {
+    width: "100%",
+    border: "1px solid rgba(255,255,255,0.16)",
+    borderRadius: "14px",
+    background: "rgba(255,255,255,0.10)",
+    color: "white",
+    padding: "12px 13px",
+    fontSize: "14px",
+    outline: "none",
+    boxSizing: "border-box" as const,
+  };
+
+  const labelAsignacionStyle = {
+    display: "block",
+    color: "rgba(255,255,255,0.78)",
+    fontSize: "11px",
+    fontWeight: 800,
+    letterSpacing: "0.7px",
+    textTransform: "uppercase" as const,
+    marginBottom: "6px",
+  };
 
   if (!cargado) {
     return (
@@ -1521,6 +1678,262 @@ export default function InformeFinalPage() {
           </div>
         </div>
 
+        <section
+          style={{
+            marginTop: "14px",
+            padding: "16px",
+            borderRadius: "24px",
+            background:
+              "linear-gradient(180deg, rgba(10,31,68,0.90) 0%, rgba(7,22,48,0.82) 100%)",
+            border: "1px solid rgba(255,255,255,0.16)",
+            boxShadow:
+              "0 18px 36px rgba(0,0,0,0.24), inset 0 1px 0 rgba(255,255,255,0.08)",
+            color: "white",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "20px",
+              lineHeight: 1.15,
+              fontWeight: 900,
+              marginBottom: "8px",
+            }}
+          >
+            Responsable real de cierre / seguimiento
+          </div>
+
+          <p
+            style={{
+              margin: "0 0 16px",
+              color: "rgba(255,255,255,0.72)",
+              fontSize: "13px",
+              lineHeight: 1.45,
+            }}
+          >
+            El reportante informa el hallazgo. El responsable de corrección
+            puede ser una persona, empresa, contratista o área distinta.
+          </p>
+
+          <div style={{ display: "grid", gap: "12px" }}>
+            <div>
+              <label style={labelAsignacionStyle}>
+                Tipo de responsable de corrección
+              </label>
+              <select
+                value={asignacionCierreDraft.tipoResponsableCorreccion}
+                onChange={(e) =>
+                  actualizarAsignacionCierre(
+                    "tipoResponsableCorreccion",
+                    e.target.value
+                  )
+                }
+                style={inputAsignacionStyle}
+              >
+                <option value="">Seleccionar tipo</option>
+                {TIPOS_RESPONSABLE_CORRECCION.map((tipo) => (
+                  <option key={tipo} value={tipo}>
+                    {tipo}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label style={labelAsignacionStyle}>
+                Empresa / contratista responsable
+              </label>
+              <input
+                type="text"
+                value={asignacionCierreDraft.empresaResponsable}
+                onChange={(e) =>
+                  actualizarAsignacionCierre(
+                    "empresaResponsable",
+                    e.target.value
+                  )
+                }
+                placeholder="Ej: Empresa contratista o área interna"
+                style={inputAsignacionStyle}
+              />
+            </div>
+
+            <div>
+              <label style={labelAsignacionStyle}>Nombre responsable</label>
+              <input
+                type="text"
+                value={asignacionCierreDraft.nombreResponsable}
+                onChange={(e) =>
+                  actualizarAsignacionCierre(
+                    "nombreResponsable",
+                    e.target.value
+                  )
+                }
+                placeholder="Nombre de quien corregirá"
+                style={inputAsignacionStyle}
+              />
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "10px",
+              }}
+            >
+              <div>
+                <label style={labelAsignacionStyle}>Cargo responsable</label>
+                <input
+                  type="text"
+                  value={asignacionCierreDraft.cargoResponsable}
+                  onChange={(e) =>
+                    actualizarAsignacionCierre(
+                      "cargoResponsable",
+                      e.target.value
+                    )
+                  }
+                  placeholder="Cargo"
+                  style={inputAsignacionStyle}
+                />
+              </div>
+
+              <div>
+                <label style={labelAsignacionStyle}>Teléfono/contacto</label>
+                <input
+                  type="text"
+                  value={asignacionCierreDraft.telefonoResponsable}
+                  onChange={(e) =>
+                    actualizarAsignacionCierre(
+                      "telefonoResponsable",
+                      e.target.value
+                    )
+                  }
+                  placeholder="Contacto"
+                  style={inputAsignacionStyle}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label style={labelAsignacionStyle}>Fecha compromiso</label>
+              <input
+                type="date"
+                value={asignacionCierreDraft.fechaCompromiso}
+                onChange={(e) =>
+                  actualizarAsignacionCierre("fechaCompromiso", e.target.value)
+                }
+                style={inputAsignacionStyle}
+              />
+            </div>
+
+            <div>
+              <label style={labelAsignacionStyle}>
+                Observación inicial de seguimiento
+              </label>
+              <textarea
+                value={asignacionCierreDraft.observacionSeguimiento}
+                onChange={(e) =>
+                  actualizarAsignacionCierre(
+                    "observacionSeguimiento",
+                    e.target.value
+                  )
+                }
+                placeholder="Ejemplo: se solicita corregir condición antes de reiniciar actividades y enviar evidencia fotográfica."
+                style={{
+                  ...inputAsignacionStyle,
+                  minHeight: "92px",
+                  resize: "vertical",
+                  lineHeight: 1.45,
+                }}
+              />
+            </div>
+
+            <div>
+              <div style={labelAsignacionStyle}>
+                Evidencia requerida para cierre
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                {EVIDENCIAS_CIERRE_REQUERIDAS.map((evidencia) => {
+                  const seleccionada =
+                    asignacionCierreDraft.evidenciaRequerida.includes(
+                      evidencia
+                    );
+
+                  return (
+                    <button
+                      key={evidencia}
+                      type="button"
+                      onClick={() => alternarEvidenciaRequerida(evidencia)}
+                      style={{
+                        border: seleccionada
+                          ? "1px solid rgba(215,255,57,0.90)"
+                          : "1px solid rgba(255,255,255,0.16)",
+                        background: seleccionada
+                          ? "linear-gradient(135deg, rgba(103,239,72,0.95) 0%, rgba(215,255,57,0.92) 100%)"
+                          : "rgba(255,255,255,0.09)",
+                        color: seleccionada ? "#103a18" : "white",
+                        borderRadius: "999px",
+                        padding: "8px 11px",
+                        fontSize: "12px",
+                        fontWeight: 800,
+                        cursor: "pointer",
+                        boxShadow: seleccionada
+                          ? "0 8px 18px rgba(103,239,72,0.18)"
+                          : "none",
+                      }}
+                    >
+                      {evidencia}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div
+              style={{
+                marginTop: "4px",
+                padding: "13px",
+                borderRadius: "18px",
+                background: "rgba(255,255,255,0.08)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                display: "grid",
+                gap: "9px",
+              }}
+            >
+              {[
+                ["Responsable de corrección", responsableCorreccionResumen],
+                ["Empresa / contratista", empresaResponsableResumen],
+                ["Fecha compromiso", fechaCompromisoResumen],
+                ["Estado seguimiento", estadoSeguimiento],
+                ["Evidencia requerida", evidenciaRequeridaResumen],
+              ].map(([label, valor]) => (
+                <div key={label}>
+                  <div
+                    style={{
+                      fontSize: "10px",
+                      fontWeight: 900,
+                      letterSpacing: "0.7px",
+                      textTransform: "uppercase",
+                      color: "rgba(255,255,255,0.56)",
+                      marginBottom: "3px",
+                    }}
+                  >
+                    {label}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "14px",
+                      fontWeight: 800,
+                      color: "rgba(255,255,255,0.92)",
+                      lineHeight: 1.35,
+                    }}
+                  >
+                    {valor}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
         <button
   onClick={async () => {
     try {
@@ -1534,6 +1947,70 @@ export default function InformeFinalPage() {
       const ultimoIndex = data.length - 1;
       const actual = data[ultimoIndex] || {};
       const fechaGuardado = new Date().toISOString();
+      const fechaCompromisoAsignada =
+        asignacionCierreDraft.fechaCompromiso.trim();
+
+      if (
+        fechaCompromisoAsignada &&
+        (!/^\d{4}-\d{2}-\d{2}$/.test(fechaCompromisoAsignada) ||
+          Number.isNaN(
+            new Date(`${fechaCompromisoAsignada}T00:00:00`).getTime()
+          ))
+      ) {
+        alert("Revisa la fecha compromiso antes de guardar.");
+        return;
+      }
+
+      const tipoResponsableCorreccion =
+        asignacionCierreDraft.tipoResponsableCorreccion.trim();
+      const empresaResponsable =
+        asignacionCierreDraft.empresaResponsable.trim();
+      const nombreResponsable =
+        asignacionCierreDraft.nombreResponsable.trim();
+      const cargoResponsable =
+        asignacionCierreDraft.cargoResponsable.trim();
+      const telefonoResponsable =
+        asignacionCierreDraft.telefonoResponsable.trim();
+      const observacionSeguimiento =
+        asignacionCierreDraft.observacionSeguimiento.trim();
+      const evidenciaRequerida = asignacionCierreDraft.evidenciaRequerida;
+      const estadoSeguimientoGuardado =
+        tipoResponsableCorreccion || empresaResponsable || nombreResponsable
+          ? "Asignado"
+          : "Sin asignar";
+      const responsableCompatibilidad =
+        nombreResponsable || empresaResponsable || "Sin asignar";
+      const fechaCompromisoCompatibilidad =
+        fechaCompromisoAsignada || "Sin definir";
+      const evidenciaCierreCompatibilidad =
+        evidenciaRequerida.length > 0
+          ? evidenciaRequerida.join(", ")
+          : "Sin evidencia requerida";
+      const asignacionCierre = {
+        tipoResponsableCorreccion,
+        empresaResponsable,
+        nombreResponsable,
+        cargoResponsable,
+        telefonoResponsable,
+        fechaCompromiso: fechaCompromisoAsignada,
+        observacionSeguimiento,
+        evidenciaRequerida,
+        estadoSeguimiento: estadoSeguimientoGuardado,
+        encargadoSeguimiento: "Supervisor reportante",
+        validadorCierre: "",
+        estadoValidacion: "Pendiente de revisión",
+        observacionValidacion: "",
+        evidenciaRecibida: [],
+        bitacora: [
+          {
+            fechaHora: new Date().toISOString(),
+            usuario: reportante || "Supervisor reportante",
+            accion: "Asignación inicial desde app móvil",
+            resumen:
+              "Se registra responsable real de cierre y condiciones iniciales de seguimiento.",
+          },
+        ],
+      };
 
       const informeFinal = {
         codigoInforme,
@@ -1549,10 +2026,30 @@ export default function InformeFinalPage() {
         medidaCierre: acciones.medidaCierre,
         evidenciaCierre: acciones.evidenciaCierre,
         fechaCierrePropuesta: acciones.fechaCierrePropuesta,
+        asignacionCierre,
         fotos,
         fechaGuardado,
         estado: "guardado",
       };
+      data[ultimoIndex] = {
+        ...actual,
+        codigoInforme,
+        criticidad,
+        nivel: criticidad,
+        estado: "informado",
+        fechaInforme: fechaGuardado,
+        asignacionCierre,
+        responsable: responsableCompatibilidad,
+        fechaCompromiso: fechaCompromisoCompatibilidad,
+        evidenciaCierre: evidenciaCierreCompatibilidad,
+        informeFinal,
+      };
+
+      localStorage.setItem("hallazgos", JSON.stringify(data));
+      localStorage.setItem(
+        "ultimoInformeFinal",
+        JSON.stringify(informeFinal)
+      );
 const { error } = await supabase.from("hallazgos").insert([
   {
     area,
@@ -1567,21 +2064,6 @@ if (error) {
   alert("Error al guardar en Supabase.");
   return;
 }
-      data[ultimoIndex] = {
-        ...actual,
-        codigoInforme,
-        criticidad,
-        nivel: criticidad,
-        estado: "informado",
-        fechaInforme: fechaGuardado,
-        informeFinal,
-      };
-
-      localStorage.setItem("hallazgos", JSON.stringify(data));
-      localStorage.setItem(
-        "ultimoInformeFinal",
-        JSON.stringify(informeFinal)
-      );
 
       alert("Informe final guardado correctamente.");
     } catch {
