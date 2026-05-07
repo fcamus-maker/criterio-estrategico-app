@@ -3486,6 +3486,7 @@ style={{
         </button>
 
         <button
+          onClick={() => setGuardadoConfig(true)}
           style={{
   padding: "12px 18px",
   borderRadius: "14px",
@@ -3502,6 +3503,23 @@ style={{
         </button>
       </div>
     </div>
+
+    {guardadoConfig && (
+      <div
+        style={{
+          padding: "12px 18px",
+          borderRadius: "14px",
+          background: "rgba(132,204,22,0.16)",
+          border: "1px solid rgba(132,204,22,0.35)",
+          color: "#bbf7d0",
+          fontSize: "13px",
+          fontWeight: 800,
+          textAlign: "center",
+        }}
+      >
+        Configuración guardada correctamente
+      </div>
+    )}
 
    <div
   style={{
@@ -3598,7 +3616,9 @@ style={{
           Nombre empresa
         </div>
 
-        <div
+        <input
+          value={nombreEmpresaConfig}
+          onChange={(e) => setNombreEmpresaConfig(e.target.value)}
           style={{
             minHeight: "46px",
             padding: "12px 14px",
@@ -3608,12 +3628,10 @@ style={{
             color: "white",
             fontSize: "14px",
             fontWeight: 800,
-            display: "flex",
-            alignItems: "center",
+            outline: "none",
           }}
-        >
-          Cliente corporativo
-        </div>
+          placeholder="Nombre de la empresa"
+        />
       </div>
 
       <div
@@ -3746,56 +3764,95 @@ style={{
     }}
   >
     <button
-      style={{
-        padding: "14px 12px",
-        borderRadius: "14px",
-        border: "1px solid rgba(255,255,255,0.10)",
-        background: "rgba(255,255,255,0.05)",
-        color: "white",
-        fontSize: "13px",
-        fontWeight: 700,
-        cursor: "pointer",
-      }}
+      onClick={() => setModoSistema("claro")}
+      style={
+        modoSistema === "claro"
+          ? {
+              padding: "14px 12px",
+              borderRadius: "14px",
+              border: "1px solid rgba(59,130,246,0.28)",
+              background: "rgba(59,130,246,0.14)",
+              color: "#dbeafe",
+              fontSize: "13px",
+              fontWeight: 800,
+              cursor: "pointer",
+            }
+          : {
+              padding: "14px 12px",
+              borderRadius: "14px",
+              border: "1px solid rgba(255,255,255,0.10)",
+              background: "rgba(255,255,255,0.05)",
+              color: "white",
+              fontSize: "13px",
+              fontWeight: 700,
+              cursor: "pointer",
+            }
+      }
     >
       Modo claro
     </button>
 
     <button
-      onClick={() => setModoSistema("claro")}
-      style={{
-        padding: "14px 12px",
-        borderRadius: "14px",
-        border: "1px solid rgba(59,130,246,0.28)",
-        background: "rgba(59,130,246,0.14)",
-        color: "#dbeafe",
-        fontSize: "13px",
-        fontWeight: 800,
-        cursor: "pointer",
-      }}
+      onClick={() => setModoSistema("oscuro")}
+      style={
+        modoSistema === "oscuro"
+          ? {
+              padding: "14px 12px",
+              borderRadius: "14px",
+              border: "1px solid rgba(59,130,246,0.28)",
+              background: "rgba(59,130,246,0.14)",
+              color: "#dbeafe",
+              fontSize: "13px",
+              fontWeight: 800,
+              cursor: "pointer",
+            }
+          : {
+              padding: "14px 12px",
+              borderRadius: "14px",
+              border: "1px solid rgba(255,255,255,0.10)",
+              background: "rgba(255,255,255,0.05)",
+              color: "white",
+              fontSize: "13px",
+              fontWeight: 700,
+              cursor: "pointer",
+            }
+      }
     >
       Modo oscuro
     </button>
 
     <button
-      onClick={() => setModoSistema("oscuro")}
-      style={{
-  padding: "14px 12px",
-  borderRadius: "14px",
-  border: "1px solid rgba(96,165,250,0.48)",
-  background: "linear-gradient(135deg, rgba(59,130,246,0.22), rgba(37,99,235,0.18))",
-  color: "#eff6ff",
-  fontSize: "13px",
-  fontWeight: 800,
-  cursor: "pointer",
-  boxShadow: "0 0 0 1px rgba(96,165,250,0.18), 0 10px 24px rgba(37,99,235,0.18)",
-}}
+      onClick={() => setModoSistema("automatico")}
+      style={
+        modoSistema === "automatico"
+          ? {
+              padding: "14px 12px",
+              borderRadius: "14px",
+              border: "1px solid rgba(96,165,250,0.48)",
+              background: "linear-gradient(135deg, rgba(59,130,246,0.22), rgba(37,99,235,0.18))",
+              color: "#eff6ff",
+              fontSize: "13px",
+              fontWeight: 800,
+              cursor: "pointer",
+              boxShadow: "0 0 0 1px rgba(96,165,250,0.18), 0 10px 24px rgba(37,99,235,0.18)",
+            }
+          : {
+              padding: "14px 12px",
+              borderRadius: "14px",
+              border: "1px solid rgba(255,255,255,0.10)",
+              background: "rgba(255,255,255,0.05)",
+              color: "white",
+              fontSize: "13px",
+              fontWeight: 700,
+              cursor: "pointer",
+            }
+      }
     >
       Automático
     </button>
   </div>
 </div>
 <div
-  onClick={() => setModoSistema("claro")}
   style={{
     ...panelCardStyle,
     padding: "18px",
@@ -3831,47 +3888,91 @@ style={{
     }}
   >
     <button
-      style={{
-  padding: "14px 12px",
-  borderRadius: "14px",
-  border: "1px solid rgba(96,165,250,0.48)",
-  background: "linear-gradient(135deg, rgba(59,130,246,0.22), rgba(37,99,235,0.18))",
-  color: "#eff6ff",
-  fontSize: "13px",
-  fontWeight: 800,
-  cursor: "pointer",
-  boxShadow: "0 0 0 1px rgba(96,165,250,0.18), 0 10px 24px rgba(37,99,235,0.18)",
-}}
+      onClick={() => setIdiomaSistema("es")}
+      style={
+        idiomaSistema === "es"
+          ? {
+              padding: "14px 12px",
+              borderRadius: "14px",
+              border: "1px solid rgba(96,165,250,0.48)",
+              background: "linear-gradient(135deg, rgba(59,130,246,0.22), rgba(37,99,235,0.18))",
+              color: "#eff6ff",
+              fontSize: "13px",
+              fontWeight: 800,
+              cursor: "pointer",
+              boxShadow: "0 0 0 1px rgba(96,165,250,0.18), 0 10px 24px rgba(37,99,235,0.18)",
+            }
+          : {
+              padding: "14px 12px",
+              borderRadius: "14px",
+              border: "1px solid rgba(255,255,255,0.10)",
+              background: "rgba(255,255,255,0.05)",
+              color: "white",
+              fontSize: "13px",
+              fontWeight: 700,
+              cursor: "pointer",
+            }
+      }
     >
       Español
     </button>
 
     <button
-      style={{
-        padding: "14px 12px",
-        borderRadius: "14px",
-        border: "1px solid rgba(255,255,255,0.10)",
-        background: "rgba(255,255,255,0.05)",
-        color: "white",
-        fontSize: "13px",
-        fontWeight: 700,
-        cursor: "pointer",
-      }}
+      onClick={() => setIdiomaSistema("en")}
+      style={
+        idiomaSistema === "en"
+          ? {
+              padding: "14px 12px",
+              borderRadius: "14px",
+              border: "1px solid rgba(96,165,250,0.48)",
+              background: "linear-gradient(135deg, rgba(59,130,246,0.22), rgba(37,99,235,0.18))",
+              color: "#eff6ff",
+              fontSize: "13px",
+              fontWeight: 800,
+              cursor: "pointer",
+              boxShadow: "0 0 0 1px rgba(96,165,250,0.18), 0 10px 24px rgba(37,99,235,0.18)",
+            }
+          : {
+              padding: "14px 12px",
+              borderRadius: "14px",
+              border: "1px solid rgba(255,255,255,0.10)",
+              background: "rgba(255,255,255,0.05)",
+              color: "white",
+              fontSize: "13px",
+              fontWeight: 700,
+              cursor: "pointer",
+            }
+      }
     >
       English
     </button>
 
     <button
-      style={{
-        padding: "14px 12px",
-        borderRadius: "14px",
-        border: "1px solid rgba(255,255,255,0.10)",
-        background: "rgba(255,255,255,0.05)",
-        color: "white",
-        fontSize: "13px",
-        fontWeight: 700,
-        cursor: "pointer",
-      }}
+      onClick={() => setIdiomaSistema("auto")}
+      style={
+        idiomaSistema === "auto"
+          ? {
+              padding: "14px 12px",
+              borderRadius: "14px",
+              border: "1px solid rgba(96,165,250,0.48)",
+              background: "linear-gradient(135deg, rgba(59,130,246,0.22), rgba(37,99,235,0.18))",
+              color: "#eff6ff",
+              fontSize: "13px",
+              fontWeight: 800,
+              cursor: "pointer",
+              boxShadow: "0 0 0 1px rgba(96,165,250,0.18), 0 10px 24px rgba(37,99,235,0.18)",
+            }
+          : {
+              padding: "14px 12px",
+              borderRadius: "14px",
+              border: "1px solid rgba(255,255,255,0.10)",
+              background: "rgba(255,255,255,0.05)",
+              color: "white",
+              fontSize: "13px",
+              fontWeight: 700,
+              cursor: "pointer",
+            }
+      }
     >
       Automático
     </button>
