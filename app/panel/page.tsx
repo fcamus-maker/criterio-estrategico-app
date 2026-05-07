@@ -98,12 +98,68 @@ const panelCardStyle: React.CSSProperties = {
   backdropFilter: "blur(6px)",
 };
 
+const PANEL_CONFIG_STORAGE_KEY = "ce_panel_config";
+
+type FormatoExportacion = "pdf" | "excel" | "csv";
+type FormatosExportacionConfig = Record<FormatoExportacion, boolean>;
+type FormatoHojaPDF = "carta" | "a4";
+type OrientacionPDF = "vertical" | "horizontal";
+type PerfilPermiso = "administrador" | "supervisor" | "gerencia" | "cliente";
+
+type OpcionesPDFConfig = {
+  evidenciaFotografica: boolean;
+  firmaResponsable: boolean;
+  fechaHora: boolean;
+  formatoHoja: FormatoHojaPDF;
+  orientacion: OrientacionPDF;
+};
+
+type PanelConfigPersistida = {
+  nombreEmpresaConfig: string;
+  logoEmpresaConfig: string;
+  brandingPC: boolean;
+  brandingPDF: boolean;
+  formatosExportacion: FormatosExportacionConfig;
+  opcionesPDF: OpcionesPDFConfig;
+  perfilesActivos: Record<PerfilPermiso, boolean>;
+  modoSistema: "claro" | "oscuro" | "automatico";
+  idiomaSistema: "es" | "en" | "auto";
+};
+
+const formatosExportacionPorDefecto: FormatosExportacionConfig = {
+  pdf: true,
+  excel: true,
+  csv: true,
+};
+
+const opcionesPDFPorDefecto: OpcionesPDFConfig = {
+  evidenciaFotografica: true,
+  firmaResponsable: true,
+  fechaHora: true,
+  formatoHoja: "carta",
+  orientacion: "vertical",
+};
+
+const perfilesActivosPorDefecto: Record<PerfilPermiso, boolean> = {
+  administrador: true,
+  supervisor: true,
+  gerencia: true,
+  cliente: true,
+};
+
 export default function PanelEjecutivoPage() {
   const [vistaDerecha, setVistaDerecha] = useState<"informe" | "configuracion">("informe");
   const [vistaPrincipal, setVistaPrincipal] = useState<"panel" | "configuracion">("panel");
   const [modoSistema, setModoSistema] = useState<"claro" | "oscuro" | "automatico">("oscuro");
 const [idiomaSistema, setIdiomaSistema] = useState<"es" | "en" | "auto">("es");
 const [nombreEmpresaConfig, setNombreEmpresaConfig] = useState("Cliente corporativo");
+const [logoEmpresaConfig, setLogoEmpresaConfig] = useState("");
+const [logoInputKey, setLogoInputKey] = useState(0);
+const [brandingPC, setBrandingPC] = useState(true);
+const [brandingPDF, setBrandingPDF] = useState(true);
+const [formatosExportacion, setFormatosExportacion] = useState<FormatosExportacionConfig>(formatosExportacionPorDefecto);
+const [opcionesPDF, setOpcionesPDF] = useState<OpcionesPDFConfig>(opcionesPDFPorDefecto);
+const [perfilesActivos, setPerfilesActivos] = useState<Record<PerfilPermiso, boolean>>(perfilesActivosPorDefecto);
 const [guardadoConfig, setGuardadoConfig] = useState(false);
   const idiomaActivo = idiomaSistema === "en" ? "en" : "es";
   const textosEn: Record<string, string> = {
@@ -168,9 +224,18 @@ const [guardadoConfig, setGuardadoConfig] = useState(false);
     "Nombre de la empresa": "Company name",
     "Branding PC": "PC branding",
     Activo: "Active",
+    Inactivo: "Inactive",
     "Branding PDF": "PDF branding",
     Exportaciones: "Exports",
     Incluidas: "Included",
+    PDF: "PDF",
+    Excel: "Excel",
+    CSV: "CSV",
+    "Seleccionar logo": "Select logo",
+    "Quitar logo": "Remove logo",
+    "Seleccione o quite el logo corporativo": "Select or remove the corporate logo",
+    "Configuración local guardada en este navegador": "Local settings saved in this browser",
+    "Debe existir al menos un formato de exportación activo": "At least one export format must remain active",
     "Apariencia del sistema": "System appearance",
     "Define la presentación visual de la plataforma para operación diurna, nocturna o automática.": "Set the platform visual presentation for daytime, nighttime or automatic operation.",
     "Modo claro": "Light mode",
@@ -186,6 +251,16 @@ const [guardadoConfig, setGuardadoConfig] = useState(false);
     "Carta vertical": "Letter portrait",
     "Logo de empresa": "Company logo",
     "Incluir en portada y encabezado": "Include on cover and header",
+    "Incluir logo en PDF": "Include logo in PDF",
+    "Incluir evidencia fotográfica": "Include photo evidence",
+    "Incluir firma/responsable": "Include signature/responsible person",
+    "Incluir fecha y hora": "Include date and time",
+    "Formato de hoja": "Page size",
+    Carta: "Letter",
+    A4: "A4",
+    Orientación: "Orientation",
+    Vertical: "Portrait",
+    Horizontal: "Landscape",
     "Pie institucional": "Institutional footer",
     "Emitido por Criterio Estratégico": "Issued by Criterio Estrategico",
     "Usuarios y permisos": "Users and permissions",
@@ -194,6 +269,14 @@ const [guardadoConfig, setGuardadoConfig] = useState(false);
     "Acceso total al sistema": "Full system access",
     "Perfil supervisor": "Supervisor profile",
     "Reporte y seguimiento operativo": "Operational reporting and tracking",
+    Administrador: "Administrator",
+    Supervisor: "Supervisor",
+    Gerencia: "Management",
+    "Cliente / Mandante": "Client / Owner",
+    "Configuración completa, branding, usuarios y reportes.": "Full settings, branding, users and reports.",
+    "Seguimiento operativo, filtros e informes de avance.": "Operational tracking, filters and progress reports.",
+    "Vista ejecutiva, KPIs, informes y exportaciones.": "Executive view, KPIs, reports and exports.",
+    "Consulta controlada de hallazgos e informes compartidos.": "Controlled review of findings and shared reports.",
     "Cliente mandante": "Client owner",
     "Visualización ejecutiva y reportes": "Executive viewing and reports",
     "Alcance multiempresa": "Multi-company scope",
@@ -233,6 +316,162 @@ const [guardadoConfig, setGuardadoConfig] = useState(false);
     if (texto === "TODOS") return t("Todos");
     return texto;
   };
+  const nombreEmpresaVisible = nombreEmpresaConfig.trim() || "Cliente corporativo";
+  const hayFormatoExportacionActivo = Object.values(formatosExportacion).some(Boolean);
+  const cargarLogoEmpresa = (archivo: File | undefined) => {
+    if (!archivo) return;
+
+    const lector = new FileReader();
+    lector.onload = () => {
+      if (typeof lector.result === "string") {
+        setLogoEmpresaConfig(lector.result);
+      }
+    };
+    lector.readAsDataURL(archivo);
+  };
+
+  const quitarLogoEmpresa = () => {
+    setLogoEmpresaConfig("");
+    setLogoInputKey((valor) => valor + 1);
+  };
+
+  const alternarFormatoExportacion = (formato: FormatoExportacion) => {
+    setFormatosExportacion((actual) => {
+      const activos = Object.values(actual).filter(Boolean).length;
+      if (actual[formato] && activos <= 1) {
+        return actual;
+      }
+
+      return {
+        ...actual,
+        [formato]: !actual[formato],
+      };
+    });
+  };
+
+  const alternarPerfilActivo = (perfil: PerfilPermiso) => {
+    setPerfilesActivos((actual) => {
+      const activos = Object.values(actual).filter(Boolean).length;
+      if (actual[perfil] && activos <= 1) {
+        return actual;
+      }
+
+      return {
+        ...actual,
+        [perfil]: !actual[perfil],
+      };
+    });
+  };
+
+  const guardarConfiguracionPanel = () => {
+    const configuracion: PanelConfigPersistida = {
+      nombreEmpresaConfig: nombreEmpresaVisible,
+      logoEmpresaConfig,
+      brandingPC,
+      brandingPDF,
+      formatosExportacion,
+      opcionesPDF,
+      perfilesActivos,
+      modoSistema,
+      idiomaSistema,
+    };
+
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(
+        PANEL_CONFIG_STORAGE_KEY,
+        JSON.stringify(configuracion)
+      );
+    }
+
+    setNombreEmpresaConfig(nombreEmpresaVisible);
+    setGuardadoConfig(true);
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const configuracionGuardada = window.localStorage.getItem(PANEL_CONFIG_STORAGE_KEY);
+    if (!configuracionGuardada) return;
+
+    try {
+      const configuracion = JSON.parse(configuracionGuardada) as Partial<PanelConfigPersistida>;
+
+      if (typeof configuracion.nombreEmpresaConfig === "string") {
+        setNombreEmpresaConfig(configuracion.nombreEmpresaConfig.trim() || "Cliente corporativo");
+      }
+
+      if (typeof configuracion.logoEmpresaConfig === "string") {
+        setLogoEmpresaConfig(configuracion.logoEmpresaConfig);
+      }
+
+      if (typeof configuracion.brandingPC === "boolean") {
+        setBrandingPC(configuracion.brandingPC);
+      }
+
+      if (typeof configuracion.brandingPDF === "boolean") {
+        setBrandingPDF(configuracion.brandingPDF);
+      }
+
+      if (configuracion.formatosExportacion) {
+        const formatosGuardados = {
+          ...formatosExportacionPorDefecto,
+          ...configuracion.formatosExportacion,
+        };
+        setFormatosExportacion(
+          Object.values(formatosGuardados).some(Boolean)
+            ? formatosGuardados
+            : formatosExportacionPorDefecto
+        );
+      }
+
+      if (configuracion.opcionesPDF) {
+        setOpcionesPDF({
+          ...opcionesPDFPorDefecto,
+          ...configuracion.opcionesPDF,
+        });
+      }
+
+      if (configuracion.perfilesActivos) {
+        const perfilesGuardados = {
+          ...perfilesActivosPorDefecto,
+          ...configuracion.perfilesActivos,
+        };
+        setPerfilesActivos(
+          Object.values(perfilesGuardados).some(Boolean)
+            ? perfilesGuardados
+            : perfilesActivosPorDefecto
+        );
+      }
+
+      if (
+        configuracion.modoSistema === "claro" ||
+        configuracion.modoSistema === "oscuro" ||
+        configuracion.modoSistema === "automatico"
+      ) {
+        setModoSistema(configuracion.modoSistema);
+      }
+
+      if (
+        configuracion.idiomaSistema === "es" ||
+        configuracion.idiomaSistema === "en" ||
+        configuracion.idiomaSistema === "auto"
+      ) {
+        setIdiomaSistema(configuracion.idiomaSistema);
+      }
+    } catch {
+      window.localStorage.removeItem(PANEL_CONFIG_STORAGE_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!guardadoConfig) return;
+
+    const timeout = window.setTimeout(() => {
+      setGuardadoConfig(false);
+    }, 3600);
+
+    return () => window.clearTimeout(timeout);
+  }, [guardadoConfig]);
   const filas = hallazgosMock;
 const totalHistoricoHallazgos = filas.length;
 const totalVencidos = filas.filter(
@@ -2062,6 +2301,37 @@ const kpis = [
       ? "0 0 0 1px rgba(37,99,235,0.12), 0 10px 24px rgba(37,99,235,0.12)"
       : "0 0 0 1px rgba(96,165,250,0.18), 0 10px 24px rgba(37,99,235,0.18)",
   };
+  const activeToggleStyle: React.CSSProperties = {
+    border: temaClaro ? "1px solid rgba(34,197,94,0.45)" : "1px solid rgba(132,204,22,0.42)",
+    background: temaClaro
+      ? "linear-gradient(135deg, rgba(220,252,231,0.96), rgba(187,247,208,0.78))"
+      : "linear-gradient(135deg, rgba(132,204,22,0.22), rgba(34,197,94,0.14))",
+    color: temaClaro ? "#14532d" : "#dcfce7",
+    boxShadow: temaClaro
+      ? "0 10px 22px rgba(34,197,94,0.12)"
+      : "0 10px 22px rgba(34,197,94,0.14)",
+  };
+  const inactiveToggleStyle: React.CSSProperties = {
+    border: tema.borde,
+    background: tema.tarjetaSuave,
+    color: tema.textoSuave,
+  };
+  const smallStatusStyle = (activo: boolean): React.CSSProperties => ({
+    alignSelf: "flex-start",
+    padding: "6px 9px",
+    borderRadius: "999px",
+    border: activo
+      ? "1px solid rgba(34,197,94,0.36)"
+      : tema.bordeSutil,
+    background: activo
+      ? "rgba(34,197,94,0.14)"
+      : temaClaro
+        ? "rgba(100,116,139,0.10)"
+        : "rgba(255,255,255,0.05)",
+    color: activo ? (temaClaro ? "#166534" : "#bbf7d0") : tema.textoSuave,
+    fontSize: "11px",
+    fontWeight: 900,
+  });
 
 	  return (
     <main
@@ -2125,11 +2395,11 @@ const kpis = [
         }}
       >
         <img
-          src="/logo.png"
-          alt="Criterio Estratégico"
+          src={brandingPC && logoEmpresaConfig ? logoEmpresaConfig : "/logo.png"}
+          alt={brandingPC ? nombreEmpresaVisible : "Criterio Estratégico"}
           style={{
-            width: "36px",
-            height: "36px",
+            width: brandingPC && logoEmpresaConfig ? "40px" : "36px",
+            height: brandingPC && logoEmpresaConfig ? "40px" : "36px",
             objectFit: "contain",
             display: "block",
           }}
@@ -2148,7 +2418,7 @@ const kpis = [
           fontWeight: 700,
         }}
       >
-        Criterio Estratégico
+        {brandingPC ? nombreEmpresaVisible : "Criterio Estratégico"}
       </div>
 
       <div
@@ -2507,7 +2777,7 @@ const kpis = [
               gap: "10px",
             }}
           >
-            {notificaciones.map((item: any, index: number) => (
+            {notificaciones.map((item, index) => (
               <button
                 key={index}
                 type="button"
@@ -3623,7 +3893,7 @@ style={{
         </button>
 
         <button
-          onClick={() => setGuardadoConfig(true)}
+          onClick={guardarConfiguracionPanel}
           style={{
   padding: "12px 18px",
   borderRadius: "14px",
@@ -3648,7 +3918,7 @@ style={{
           borderRadius: "14px",
           background: "rgba(132,204,22,0.16)",
           border: "1px solid rgba(132,204,22,0.35)",
-          color: "#bbf7d0",
+          color: temaClaro ? "#166534" : "#bbf7d0",
           fontSize: "13px",
           fontWeight: 800,
           textAlign: "center",
@@ -3702,23 +3972,36 @@ style={{
     gap: "8px",
   }}
 >
-  <div
-    style={{
-      width: "46px",
-      height: "46px",
-      borderRadius: "14px",
-	      border: tema.borde,
-	      background: tema.tarjetaElevada,
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      fontSize: "18px",
-      color: "#dbeafe",
-      boxShadow: "0 6px 14px rgba(0,0,0,0.14)",
-    }}
-  >
-    ⬒
-  </div>
+  {logoEmpresaConfig ? (
+    <img
+      src={logoEmpresaConfig}
+      alt={t("Logo empresa")}
+      style={{
+        width: "76px",
+        height: "76px",
+        objectFit: "contain",
+        display: "block",
+      }}
+    />
+  ) : (
+    <div
+      style={{
+        width: "46px",
+        height: "46px",
+        borderRadius: "14px",
+	        border: tema.borde,
+	        background: tema.tarjetaElevada,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: "18px",
+        color: "#dbeafe",
+        boxShadow: "0 6px 14px rgba(0,0,0,0.14)",
+      }}
+    >
+      ⬒
+    </div>
+  )}
 
 	  <div>{t("Logo empresa")}</div>
 
@@ -3773,22 +4056,81 @@ style={{
 
       <div
         style={{
+          display: "flex",
+          gap: "10px",
+          flexWrap: "wrap",
+          alignItems: "center",
+        }}
+      >
+        <input
+          key={logoInputKey}
+          id="logo-empresa-config"
+          type="file"
+          accept="image/png,image/jpeg,image/jpg,image/svg+xml"
+          onChange={(e) => cargarLogoEmpresa(e.target.files?.[0])}
+          style={{ display: "none" }}
+        />
+        <label
+          htmlFor="logo-empresa-config"
+          style={{
+            padding: "11px 14px",
+            borderRadius: "14px",
+            ...selectedButtonStyle,
+            fontSize: "12px",
+            fontWeight: 900,
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          {t("Seleccionar logo")}
+        </label>
+        <button
+          type="button"
+          onClick={quitarLogoEmpresa}
+          style={{
+            padding: "11px 14px",
+            borderRadius: "14px",
+            ...secondaryButtonStyle,
+            fontSize: "12px",
+            fontWeight: 800,
+            cursor: "pointer",
+          }}
+        >
+          {t("Quitar logo")}
+        </button>
+        <div
+          style={{
+            color: tema.textoSuave,
+            fontSize: "12px",
+            fontWeight: 700,
+          }}
+        >
+          {t("Seleccione o quite el logo corporativo")}
+        </div>
+      </div>
+
+      <div
+        style={{
           display: "grid",
-          gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+          gridTemplateColumns: "repeat(3, minmax(150px, 1fr))",
           gap: "10px",
         }}
       >
-        <div
+        <button
+          type="button"
+          onClick={() => setBrandingPC((valor) => !valor)}
           style={{
             padding: "12px",
             minHeight: "74px",
             borderRadius: "14px",
-	            border: tema.borde,
-	            background: tema.tarjetaSuave,
-	            color: tema.texto,
+	            ...(brandingPC ? activeToggleStyle : inactiveToggleStyle),
             display: "flex",
             flexDirection: "column",
             justifyContent: "center",
+            textAlign: "left",
+            cursor: "pointer",
           }}
         >
           <div
@@ -3802,21 +4144,23 @@ style={{
 	            {t("Branding PC")}
           </div>
           <div style={{ fontSize: "13px", fontWeight: 800 }}>
-	            {t("Activo")}
+	            {brandingPC ? t("Activo") : t("Inactivo")}
           </div>
-        </div>
+        </button>
 
-        <div
+        <button
+          type="button"
+          onClick={() => setBrandingPDF((valor) => !valor)}
           style={{
             padding: "12px",
             minHeight: "74px",
             borderRadius: "14px",
-	            border: tema.borde,
-	            background: tema.tarjetaSuave,
-	            color: tema.texto,
+	            ...(brandingPDF ? activeToggleStyle : inactiveToggleStyle),
             display: "flex",
             flexDirection: "column",
             justifyContent: "center",
+            textAlign: "left",
+            cursor: "pointer",
           }}
         >
           <div
@@ -3830,9 +4174,9 @@ style={{
 	            {t("Branding PDF")}
           </div>
           <div style={{ fontSize: "13px", fontWeight: 800 }}>
-	            {t("Activo")}
+	            {brandingPDF ? t("Activo") : t("Inactivo")}
           </div>
-        </div>
+        </button>
 
         <div
           style={{
@@ -3857,10 +4201,56 @@ style={{
           >
 	            {t("Exportaciones")}
           </div>
-          <div style={{ fontSize: "13px", fontWeight: 800 }}>
-	            {t("Incluidas")}
+          <div
+            style={{
+              display: "flex",
+              gap: "6px",
+              flexWrap: "wrap",
+            }}
+          >
+            {(["pdf", "excel", "csv"] as FormatoExportacion[]).map((formato) => (
+              <button
+                key={formato}
+                type="button"
+                onClick={() => alternarFormatoExportacion(formato)}
+                style={{
+                  padding: "7px 9px",
+                  borderRadius: "999px",
+                  ...(formatosExportacion[formato] ? activeToggleStyle : inactiveToggleStyle),
+                  fontSize: "11px",
+                  fontWeight: 900,
+                  cursor: "pointer",
+                }}
+              >
+                {formato === "pdf" ? t("PDF") : formato === "excel" ? t("Excel") : t("CSV")}
+              </button>
+            ))}
           </div>
         </div>
+      </div>
+      {!hayFormatoExportacionActivo && (
+        <div
+          style={{
+            padding: "10px 12px",
+            borderRadius: "12px",
+            border: "1px solid rgba(245,158,11,0.34)",
+            background: "rgba(245,158,11,0.12)",
+            color: temaClaro ? "#92400e" : "#fde68a",
+            fontSize: "12px",
+            fontWeight: 800,
+          }}
+        >
+          {t("Debe existir al menos un formato de exportación activo")}
+        </div>
+      )}
+      <div
+        style={{
+          color: tema.textoSuave,
+          fontSize: "12px",
+          fontWeight: 700,
+        }}
+      >
+        {t("Configuración local guardada en este navegador")}
       </div>
     </div>
   </div>
@@ -4118,35 +4508,117 @@ style={{
  <div
   style={{
     display: "grid",
-    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gridTemplateColumns: "repeat(2, minmax(220px, 1fr))",
     gap: "12px",
   }}
 >
+  {[
+    {
+      key: "logo",
+      titulo: t("Incluir logo en PDF"),
+      activo: brandingPDF,
+      disabled: true,
+    },
+    {
+      key: "evidencia",
+      titulo: t("Incluir evidencia fotográfica"),
+      activo: opcionesPDF.evidenciaFotografica,
+      onClick: () =>
+        setOpcionesPDF((actual) => ({
+          ...actual,
+          evidenciaFotografica: !actual.evidenciaFotografica,
+        })),
+    },
+    {
+      key: "firma",
+      titulo: t("Incluir firma/responsable"),
+      activo: opcionesPDF.firmaResponsable,
+      onClick: () =>
+        setOpcionesPDF((actual) => ({
+          ...actual,
+          firmaResponsable: !actual.firmaResponsable,
+        })),
+    },
+    {
+      key: "fecha",
+      titulo: t("Incluir fecha y hora"),
+      activo: opcionesPDF.fechaHora,
+      onClick: () =>
+        setOpcionesPDF((actual) => ({
+          ...actual,
+          fechaHora: !actual.fechaHora,
+        })),
+    },
+  ].map((item) => (
+    <button
+      key={item.key}
+      type="button"
+      onClick={item.onClick}
+      style={{
+        padding: "16px",
+        minHeight: "88px",
+        borderRadius: "14px",
+        ...(item.activo ? activeToggleStyle : inactiveToggleStyle),
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "space-between",
+        textAlign: "left",
+        cursor: item.disabled ? "default" : "pointer",
+      }}
+    >
+      <div
+        style={{
+          fontSize: "12px",
+          fontWeight: 900,
+          lineHeight: 1.35,
+        }}
+      >
+        {item.titulo}
+      </div>
+      <span style={smallStatusStyle(item.activo)}>
+        {item.activo ? t("Activo") : t("Inactivo")}
+      </span>
+    </button>
+  ))}
+
   <div
     style={{
       padding: "16px",
       minHeight: "88px",
       borderRadius: "14px",
-	      border: tema.borde,
-	      background: tema.tarjetaSuave,
-	      color: tema.texto,
-      display: "flex",
-      flexDirection: "column",
-      justifyContent: "center",
+      border: tema.borde,
+      background: tema.tarjetaSuave,
+      color: tema.texto,
+      display: "grid",
+      gap: "10px",
     }}
   >
-    <div
-      style={{
-        fontSize: "11px",
-        opacity: 0.72,
-        marginBottom: "6px",
-        fontWeight: 700,
-      }}
-    >
-	      {t("Branding PDF")}
+    <div style={{ fontSize: "12px", fontWeight: 900 }}>
+      {t("Formato de hoja")}
     </div>
-    <div style={{ fontSize: "13px", fontWeight: 800 }}>
-	      {t("Activado")}
+    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+      {(["carta", "a4"] as FormatoHojaPDF[]).map((formato) => (
+        <button
+          key={formato}
+          type="button"
+          onClick={() =>
+            setOpcionesPDF((actual) => ({
+              ...actual,
+              formatoHoja: formato,
+            }))
+          }
+          style={{
+            padding: "9px 11px",
+            borderRadius: "999px",
+            ...(opcionesPDF.formatoHoja === formato ? activeToggleStyle : inactiveToggleStyle),
+            fontSize: "12px",
+            fontWeight: 900,
+            cursor: "pointer",
+          }}
+        >
+          {formato === "carta" ? t("Carta") : t("A4")}
+        </button>
+      ))}
     </div>
   </div>
 
@@ -4155,85 +4627,43 @@ style={{
       padding: "16px",
       minHeight: "88px",
       borderRadius: "14px",
-	      border: tema.borde,
-	      background: tema.tarjetaSuave,
-	      color: tema.texto,
-      display: "flex",
-      flexDirection: "column",
-      justifyContent: "center",
+      border: tema.borde,
+      background: tema.tarjetaSuave,
+      color: tema.texto,
+      display: "grid",
+      gap: "10px",
     }}
   >
-    <div
-      style={{
-        fontSize: "11px",
-        opacity: 0.72,
-        marginBottom: "6px",
-        fontWeight: 700,
-      }}
-    >
-	      {t("Formato de salida")}
+    <div style={{ fontSize: "12px", fontWeight: 900 }}>
+      {t("Orientación")}
     </div>
-    <div style={{ fontSize: "13px", fontWeight: 800 }}>
-	      {t("Carta vertical")}
-    </div>
-  </div>
-
-  <div
-    style={{
-      padding: "16px",
-      minHeight: "88px",
-      borderRadius: "14px",
-	      border: tema.borde,
-	      background: tema.tarjetaSuave,
-	      color: tema.texto,
-      display: "flex",
-      flexDirection: "column",
-      justifyContent: "center",
-    }}
-  >
-    <div
-      style={{
-        fontSize: "11px",
-        opacity: 0.72,
-        marginBottom: "6px",
-        fontWeight: 700,
-      }}
-    >
-	      {t("Logo de empresa")}
-    </div>
-    <div style={{ fontSize: "13px", fontWeight: 800 }}>
-	      {t("Incluir en portada y encabezado")}
-    </div>
-  </div>
-
-  <div
-    style={{
-      padding: "16px",
-      minHeight: "88px",
-      borderRadius: "14px",
-	      border: tema.borde,
-	      background: tema.tarjetaSuave,
-	      color: tema.texto,
-      display: "flex",
-      flexDirection: "column",
-      justifyContent: "center",
-    }}
-  >
-    <div
-      style={{
-        fontSize: "11px",
-        opacity: 0.72,
-        marginBottom: "6px",
-        fontWeight: 700,
-      }}
-    >
-	      {t("Pie institucional")}
-    </div>
-    <div style={{ fontSize: "13px", fontWeight: 800 }}>
-	      {t("Emitido por Criterio Estratégico")}
+    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+      {(["vertical", "horizontal"] as OrientacionPDF[]).map((orientacion) => (
+        <button
+          key={orientacion}
+          type="button"
+          onClick={() =>
+            setOpcionesPDF((actual) => ({
+              ...actual,
+              orientacion,
+            }))
+          }
+          style={{
+            padding: "9px 11px",
+            borderRadius: "999px",
+            ...(opcionesPDF.orientacion === orientacion ? activeToggleStyle : inactiveToggleStyle),
+            fontSize: "12px",
+            fontWeight: 900,
+            cursor: "pointer",
+          }}
+        >
+          {orientacion === "vertical" ? t("Vertical") : t("Horizontal")}
+        </button>
+      ))}
     </div>
   </div>
 </div>
+{/* Esta configuración queda lista para conectarse luego con la exportación PDF real. */}
 </div>
 <div
   style={{
@@ -4264,124 +4694,89 @@ style={{
   </div>
 
   <div
-  style={{
-    display: "grid",
-    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-    gap: "12px",
-  }}
->
-  <div
     style={{
-      padding: "16px",
-      minHeight: "88px",
-      borderRadius: "14px",
-	      border: tema.borde,
-	      background: tema.tarjetaSuave,
-	      color: tema.texto,
-      display: "flex",
-      flexDirection: "column",
-      justifyContent: "center",
+      display: "grid",
+      gridTemplateColumns: "repeat(2, minmax(220px, 1fr))",
+      gap: "12px",
     }}
   >
-    <div
-      style={{
-        fontSize: "11px",
-        opacity: 0.72,
-        marginBottom: "6px",
-        fontWeight: 700,
-      }}
-    >
-	      {t("Perfil administrador")}
-    </div>
-    <div style={{ fontSize: "13px", fontWeight: 800 }}>
-	      {t("Acceso total al sistema")}
-    </div>
-  </div>
+    {[
+      {
+        key: "administrador" as PerfilPermiso,
+        titulo: t("Administrador"),
+        descripcion: t("Acceso total al sistema"),
+        permisos: t("Configuración completa, branding, usuarios y reportes."),
+      },
+      {
+        key: "supervisor" as PerfilPermiso,
+        titulo: t("Supervisor"),
+        descripcion: t("Reporte y seguimiento operativo"),
+        permisos: t("Seguimiento operativo, filtros e informes de avance."),
+      },
+      {
+        key: "gerencia" as PerfilPermiso,
+        titulo: t("Gerencia"),
+        descripcion: t("Visualización ejecutiva y reportes"),
+        permisos: t("Vista ejecutiva, KPIs, informes y exportaciones."),
+      },
+      {
+        key: "cliente" as PerfilPermiso,
+        titulo: t("Cliente / Mandante"),
+        descripcion: t("Alcance multiempresa"),
+        permisos: t("Consulta controlada de hallazgos e informes compartidos."),
+      },
+    ].map((perfil) => {
+      const activo = perfilesActivos[perfil.key];
 
-  <div
-    style={{
-      padding: "16px",
-      minHeight: "88px",
-      borderRadius: "14px",
-	      border: tema.borde,
-	      background: tema.tarjetaSuave,
-	      color: tema.texto,
-      display: "flex",
-      flexDirection: "column",
-      justifyContent: "center",
-    }}
-  >
-    <div
-      style={{
-        fontSize: "11px",
-        opacity: 0.72,
-        marginBottom: "6px",
-        fontWeight: 700,
-      }}
-    >
-	      {t("Perfil supervisor")}
-    </div>
-    <div style={{ fontSize: "13px", fontWeight: 800 }}>
-	      {t("Reporte y seguimiento operativo")}
-    </div>
+      return (
+        <button
+          key={perfil.key}
+          type="button"
+          onClick={() => alternarPerfilActivo(perfil.key)}
+          style={{
+            padding: "16px",
+            minHeight: "118px",
+            borderRadius: "14px",
+            ...(activo ? activeToggleStyle : inactiveToggleStyle),
+            color: activo ? undefined : tema.texto,
+            display: "grid",
+            gap: "8px",
+            textAlign: "left",
+            cursor: "pointer",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "10px",
+            }}
+          >
+            <div style={{ fontSize: "13px", fontWeight: 900 }}>
+              {perfil.titulo}
+            </div>
+            <span style={smallStatusStyle(activo)}>
+              {activo ? t("Activo") : t("Inactivo")}
+            </span>
+          </div>
+          <div style={{ fontSize: "13px", fontWeight: 800 }}>
+            {perfil.descripcion}
+          </div>
+          <div
+            style={{
+              fontSize: "12px",
+              lineHeight: 1.45,
+              color: activo ? (temaClaro ? "#166534" : "#dcfce7") : tema.textoSuave,
+              fontWeight: 700,
+            }}
+          >
+            {perfil.permisos}
+          </div>
+        </button>
+      );
+    })}
   </div>
-
-  <div
-    style={{
-      padding: "16px",
-      minHeight: "88px",
-      borderRadius: "14px",
-	      border: tema.borde,
-	      background: tema.tarjetaSuave,
-	      color: tema.texto,
-      display: "flex",
-      flexDirection: "column",
-      justifyContent: "center",
-    }}
-  >
-    <div
-      style={{
-        fontSize: "11px",
-        opacity: 0.72,
-        marginBottom: "6px",
-        fontWeight: 700,
-      }}
-    >
-	      {t("Cliente mandante")}
-    </div>
-    <div style={{ fontSize: "13px", fontWeight: 800 }}>
-	      {t("Visualización ejecutiva y reportes")}
-    </div>
-  </div>
-
-  <div
-    style={{
-      padding: "16px",
-      minHeight: "88px",
-      borderRadius: "14px",
-	      border: tema.borde,
-	      background: tema.tarjetaSuave,
-	      color: tema.texto,
-      display: "flex",
-      flexDirection: "column",
-      justifyContent: "center",
-    }}
-  >
-    <div
-      style={{
-        fontSize: "11px",
-        opacity: 0.72,
-        marginBottom: "6px",
-        fontWeight: 700,
-      }}
-    >
-	      {t("Alcance multiempresa")}
-    </div>
-    <div style={{ fontSize: "13px", fontWeight: 800 }}>
-	      {t("Por empresa, obra o corporativo")}
-    </div>
-  </div>
-</div>
 </div>
   </div>
 )}
