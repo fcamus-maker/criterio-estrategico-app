@@ -99,6 +99,7 @@ const panelCardStyle: React.CSSProperties = {
 };
 
 const PANEL_CONFIG_STORAGE_KEY = "ce_panel_config";
+const PANEL_PROFILE_STORAGE_KEY = "ce_panel_profile";
 
 type FormatoExportacion = "pdf" | "excel" | "csv";
 type FormatosExportacionConfig = Record<FormatoExportacion, boolean>;
@@ -124,6 +125,12 @@ type PanelConfigPersistida = {
   perfilesActivos: Record<PerfilPermiso, boolean>;
   modoSistema: "claro" | "oscuro" | "automatico";
   idiomaSistema: "es" | "en" | "auto";
+};
+
+type PanelProfilePersistido = {
+  nombrePerfil: string;
+  cargoPerfil: string;
+  fotoPerfil: string | null;
 };
 
 const formatosExportacionPorDefecto: FormatosExportacionConfig = {
@@ -161,6 +168,7 @@ const [formatosExportacion, setFormatosExportacion] = useState<FormatosExportaci
 const [opcionesPDF, setOpcionesPDF] = useState<OpcionesPDFConfig>(opcionesPDFPorDefecto);
 const [perfilesActivos, setPerfilesActivos] = useState<Record<PerfilPermiso, boolean>>(perfilesActivosPorDefecto);
 const [guardadoConfig, setGuardadoConfig] = useState(false);
+const [fechaActualizacion, setFechaActualizacion] = useState<Date | null>(null);
   const idiomaActivo = idiomaSistema === "en" ? "en" : "es";
   const textosEn: Record<string, string> = {
     "Plataforma Ejecutiva de Hallazgos": "Executive Findings Platform",
@@ -174,6 +182,21 @@ const [guardadoConfig, setGuardadoConfig] = useState(false);
     "Última actualización:": "Last update:",
     "Filtros activos:": "Active filters:",
     "Editar perfil": "Edit profile",
+    "Guardar perfil": "Save profile",
+    Cerrar: "Close",
+    Cancelar: "Cancel",
+    Salir: "Exit",
+    Nombre: "Name",
+    Cargo: "Role",
+    "Foto de perfil": "Profile photo",
+    "Seleccionar foto": "Select photo",
+    "Quitar foto": "Remove photo",
+    "Perfil actualizado correctamente": "Profile updated successfully",
+    "Los cambios se guardan en este navegador": "Changes are saved in this browser",
+    "Foto cargada correctamente": "Photo uploaded successfully",
+    "No se pudo guardar el perfil en este navegador": "The profile could not be saved in this browser",
+    "La foto es demasiado pesada. Selecciona una imagen más liviana.": "The photo is too large. Select a smaller image.",
+    "Actualiza los datos visibles del usuario en el panel lateral": "Update the user details visible in the side panel",
     Notificaciones: "Notifications",
     "Sin notificaciones por ahora": "No notifications for now",
     "Reportes rápidos": "Quick reports",
@@ -472,6 +495,33 @@ const [guardadoConfig, setGuardadoConfig] = useState(false);
 
     return () => window.clearTimeout(timeout);
   }, [guardadoConfig]);
+
+  useEffect(() => {
+    const actualizarFecha = () => {
+      setFechaActualizacion(new Date());
+    };
+
+    actualizarFecha();
+    const intervalo = window.setInterval(actualizarFecha, 60000);
+
+    return () => window.clearInterval(intervalo);
+  }, []);
+
+  const formatearUltimaActualizacion = (fecha: Date | null) => {
+    if (!fecha) return "";
+
+    const dia = String(fecha.getDate()).padStart(2, "0");
+    const mes = String(fecha.getMonth() + 1).padStart(2, "0");
+    const anio = String(fecha.getFullYear());
+    const hora = String(fecha.getHours()).padStart(2, "0");
+    const minutos = String(fecha.getMinutes()).padStart(2, "0");
+
+    if (idiomaActivo === "en") {
+      return `${mes}/${dia}/${anio} · ${hora}:${minutos}`;
+    }
+
+    return `${dia}-${mes}-${anio} · ${hora}:${minutos}`;
+  };
   const filas = hallazgosMock;
 const totalHistoricoHallazgos = filas.length;
 const totalVencidos = filas.filter(
@@ -1614,9 +1664,157 @@ const [filtroFechaDesde, setFiltroFechaDesde] = useState("");
 const [filtroFechaHasta, setFiltroFechaHasta] = useState("");
 const [filtroTipoHallazgo, setFiltroTipoHallazgo] = useState("TODOS");
 const [mostrarNotificaciones, setMostrarNotificaciones] = useState(false);
-const [usuario, setUsuario] = useState(usuarioMock);
+const [usuario, setUsuario] = useState({
+  ...usuarioMock,
+  nombre: usuarioMock.nombre || "Freddy Camus",
+  cargo: usuarioMock.cargo || "Ingeniero en Prevención de Riesgos",
+  foto: usuarioMock.foto || "",
+});
 const [mostrarEditorPerfil, setMostrarEditorPerfil] = useState(false);
-const inicialUsuario = usuario.nombre.charAt(0).toUpperCase();
+const [nombrePerfil, setNombrePerfil] = useState(usuarioMock.nombre || "Freddy Camus");
+const [cargoPerfil, setCargoPerfil] = useState(usuarioMock.cargo || "Ingeniero en Prevención de Riesgos");
+const [fotoPerfil, setFotoPerfil] = useState(usuarioMock.foto || "");
+const [nombrePerfilDraft, setNombrePerfilDraft] = useState(usuarioMock.nombre || "Freddy Camus");
+const [cargoPerfilDraft, setCargoPerfilDraft] = useState(usuarioMock.cargo || "Ingeniero en Prevención de Riesgos");
+const [fotoPerfilDraft, setFotoPerfilDraft] = useState<string | null>(usuarioMock.foto || null);
+const [fotoPerfilInputKey, setFotoPerfilInputKey] = useState(0);
+const [guardadoPerfil, setGuardadoPerfil] = useState(false);
+const [fotoPerfilCargada, setFotoPerfilCargada] = useState(false);
+const [errorPerfil, setErrorPerfil] = useState("");
+const [campoPerfilActivo, setCampoPerfilActivo] = useState<"nombre" | "cargo" | null>(null);
+const [controlPerfilActivo, setControlPerfilActivo] = useState<string | null>(null);
+const inicialUsuario = (usuario.nombre.trim() || "Freddy Camus").charAt(0).toUpperCase();
+const inicialPerfil = (nombrePerfilDraft.trim() || "Freddy Camus").charAt(0).toUpperCase();
+const abrirEditorPerfil = () => {
+  setNombrePerfilDraft(nombrePerfil || "Freddy Camus");
+  setCargoPerfilDraft(cargoPerfil || "Ingeniero en Prevención de Riesgos");
+  setFotoPerfilDraft(fotoPerfil || null);
+  setGuardadoPerfil(false);
+  setErrorPerfil("");
+  setFotoPerfilCargada(false);
+  setMostrarEditorPerfil(true);
+};
+const salirEditorPerfil = () => {
+  setMostrarEditorPerfil(false);
+  setGuardadoPerfil(false);
+  setErrorPerfil("");
+  setFotoPerfilCargada(false);
+  setCampoPerfilActivo(null);
+  setControlPerfilActivo(null);
+};
+const cargarFotoPerfil = (archivo: File | undefined) => {
+  if (!archivo) return;
+
+  const lector = new FileReader();
+  lector.onload = () => {
+    if (typeof lector.result === "string") {
+      setFotoPerfilDraft(lector.result);
+      setFotoPerfilCargada(true);
+      setErrorPerfil("");
+    }
+  };
+  lector.readAsDataURL(archivo);
+};
+const quitarFotoPerfil = () => {
+  setFotoPerfilDraft(null);
+  setErrorPerfil("");
+  setFotoPerfilCargada(false);
+  setFotoPerfilInputKey((valor) => valor + 1);
+};
+const guardarPerfil = () => {
+  const nombreFinal = nombrePerfilDraft.trim() || "Freddy Camus";
+  const cargoFinal = cargoPerfilDraft.trim() || "Ingeniero en Prevención de Riesgos";
+  const fotoFinal = fotoPerfilDraft || null;
+  const limiteFotoPerfil = 1.5 * 1024 * 1024;
+
+  if (fotoFinal && fotoFinal.length > limiteFotoPerfil) {
+    setErrorPerfil("La foto es demasiado pesada. Selecciona una imagen más liviana.");
+    setGuardadoPerfil(false);
+    return;
+  }
+
+  const profileToSave: PanelProfilePersistido = {
+    nombrePerfil: nombreFinal,
+    cargoPerfil: cargoFinal,
+    fotoPerfil: fotoFinal,
+  };
+
+  if (typeof window === "undefined") {
+    setErrorPerfil("No se pudo guardar el perfil en este navegador");
+    setGuardadoPerfil(false);
+    return;
+  }
+
+  try {
+    localStorage.setItem(PANEL_PROFILE_STORAGE_KEY, JSON.stringify(profileToSave));
+    const savedProfile = localStorage.getItem(PANEL_PROFILE_STORAGE_KEY);
+
+    if (!savedProfile) {
+      setErrorPerfil("No se pudo guardar el perfil en este navegador");
+      setGuardadoPerfil(false);
+      return;
+    }
+  } catch {
+    setErrorPerfil("No se pudo guardar el perfil en este navegador");
+    setGuardadoPerfil(false);
+    return;
+  }
+
+  setUsuario((actual) => ({
+    ...actual,
+    nombre: nombreFinal,
+    cargo: cargoFinal,
+    foto: fotoFinal || "",
+  }));
+  setNombrePerfil(nombreFinal);
+  setCargoPerfil(cargoFinal);
+  setFotoPerfil(fotoFinal || "");
+
+  setErrorPerfil("");
+  setGuardadoPerfil(true);
+  setFotoPerfilCargada(false);
+  setCampoPerfilActivo(null);
+  setControlPerfilActivo(null);
+  setMostrarEditorPerfil(false);
+};
+useEffect(() => {
+  if (typeof window === "undefined") return;
+
+  const perfilGuardado = window.localStorage.getItem(PANEL_PROFILE_STORAGE_KEY);
+  if (!perfilGuardado) return;
+
+  try {
+    const perfil = JSON.parse(perfilGuardado) as Partial<PanelProfilePersistido>;
+    const nombreGuardado = perfil.nombrePerfil?.trim() || "Freddy Camus";
+    const cargoGuardado = perfil.cargoPerfil?.trim() || "Ingeniero en Prevención de Riesgos";
+    const fotoGuardada = typeof perfil.fotoPerfil === "string" ? perfil.fotoPerfil : "";
+
+    setUsuario((actual) => ({
+      ...actual,
+      nombre: nombreGuardado,
+      cargo: cargoGuardado,
+      foto: fotoGuardada,
+    }));
+    setNombrePerfil(nombreGuardado);
+    setCargoPerfil(cargoGuardado);
+    setFotoPerfil(fotoGuardada);
+    setNombrePerfilDraft(nombreGuardado);
+    setCargoPerfilDraft(cargoGuardado);
+    setFotoPerfilDraft(fotoGuardada || null);
+  } catch {
+    console.warn("No se pudo leer ce_panel_profile desde localStorage.");
+    return;
+  }
+}, []);
+useEffect(() => {
+  if (!guardadoPerfil) return;
+
+  const timeout = window.setTimeout(() => {
+    setGuardadoPerfil(false);
+  }, 3200);
+
+  return () => window.clearTimeout(timeout);
+}, [guardadoPerfil]);
 const limpiarFiltros = () => {
   setFiltroRapido("PERSONALIZADO");
   setFiltroEmpresa("TODAS");
@@ -1795,12 +1993,7 @@ const filasFiltradas = filasBase.filter((item) => {
 
   return true;
 });
-const ultimaActualizacion =
-  filasFiltradas.length > 0
-    ? filasFiltradas.reduce((max, item) => {
-        return new Date(item.fechaISO) > new Date(max.fechaISO) ? item : max;
-      }).fechaHora
-    : "Sin datos";
+const ultimaActualizacion = formatearUltimaActualizacion(fechaActualizacion);
     const filtrosActivos = [
   filtroEmpresa !== "TODAS" ? `Empresa: ${filtroEmpresa}` : null,
   filtroObra !== "TODAS" ? `Obra: ${filtroObra}` : null,
@@ -2332,6 +2525,64 @@ const kpis = [
     fontSize: "11px",
     fontWeight: 900,
   });
+  const salmonBorde = temaClaro ? "rgba(190,99,83,0.46)" : "rgba(251,146,124,0.46)";
+  const salmonFondo = temaClaro ? "rgba(254,226,221,0.72)" : "rgba(251,146,124,0.11)";
+  const salmonSombra = temaClaro
+    ? "0 0 0 3px rgba(251,146,124,0.14), 0 10px 24px rgba(190,99,83,0.10)"
+    : "0 0 0 3px rgba(251,146,124,0.13), 0 10px 24px rgba(0,0,0,0.22)";
+  const perfilInputStyle = (campo: "nombre" | "cargo"): React.CSSProperties => {
+    const activo = campoPerfilActivo === campo;
+
+    return {
+      ...controlStyle,
+      minHeight: "48px",
+      border: activo ? `1px solid ${salmonBorde}` : tema.borde,
+      background: activo ? salmonFondo : tema.tarjetaElevada,
+      color: tema.texto,
+      boxShadow: activo ? salmonSombra : "none",
+      transition: "border-color 160ms ease, background 160ms ease, box-shadow 160ms ease",
+    };
+  };
+  const perfilButtonStyle = (
+    id: string,
+    variant: "salmon" | "neutral" | "primary"
+  ): React.CSSProperties => {
+    const activo = controlPerfilActivo === id;
+
+    if (variant === "primary") {
+      return {
+        padding: "13px 16px",
+        borderRadius: "14px",
+        border: activo ? `1px solid ${salmonBorde}` : "1px solid rgba(132,204,22,0.24)",
+        background: activo
+          ? (temaClaro
+              ? "linear-gradient(135deg, rgba(254,226,221,0.98), rgba(253,186,169,0.82))"
+              : "linear-gradient(135deg, rgba(251,146,124,0.22), rgba(34,197,94,0.18))")
+          : "linear-gradient(135deg, #84cc16, #22c55e)",
+        color: activo ? (temaClaro ? "#7f1d1d" : "#fff7ed") : "#052e16",
+        fontSize: "13px",
+        fontWeight: 900,
+        cursor: "pointer",
+        boxShadow: activo ? salmonSombra : "0 10px 22px rgba(132,204,22,0.20)",
+        transition: "border-color 160ms ease, background 160ms ease, box-shadow 160ms ease",
+      };
+    }
+
+    return {
+      padding: "12px 14px",
+      borderRadius: "14px",
+      border: activo ? `1px solid ${salmonBorde}` : tema.borde,
+      background: variant === "salmon" || activo ? salmonFondo : tema.tarjetaElevada,
+      color: tema.texto,
+      fontSize: "13px",
+      fontWeight: variant === "salmon" ? 900 : 800,
+      cursor: "pointer",
+      boxShadow: activo ? salmonSombra : "none",
+      transition: "border-color 160ms ease, background 160ms ease, box-shadow 160ms ease",
+    };
+  };
+  const activarControlPerfil = (id: string) => setControlPerfilActivo(id);
+  const desactivarControlPerfil = () => setControlPerfilActivo(null);
 
 	  return (
     <main
@@ -2482,9 +2733,339 @@ const kpis = [
 	        : t("Personalizado")}
 	    </div>
 
-	   <div>{t("Última actualización:")} {t(ultimaActualizacion)}</div>
+	   <div>{t("Última actualización:")} {ultimaActualizacion}</div>
   </div>
 </header>
+
+{mostrarEditorPerfil && (
+  <div
+    style={{
+      position: "fixed",
+      inset: 0,
+      zIndex: 80,
+      background: temaClaro ? "rgba(15,23,42,0.18)" : "rgba(2,6,23,0.62)",
+      backdropFilter: "blur(8px)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "24px",
+    }}
+  >
+    <div
+      style={{
+        width: "min(560px, calc(100vw - 32px))",
+        maxHeight: "calc(100vh - 48px)",
+        overflowY: "auto",
+        borderRadius: "24px",
+        border: temaClaro ? "1px solid rgba(100,116,139,0.24)" : "1px solid rgba(255,255,255,0.14)",
+        background: temaClaro
+          ? "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.96))"
+          : "linear-gradient(180deg, rgba(15,23,42,0.96), rgba(8,19,36,0.96))",
+        boxShadow: temaClaro
+          ? "0 28px 70px rgba(15,23,42,0.18)"
+          : "0 28px 80px rgba(0,0,0,0.46)",
+        padding: "22px",
+        display: "grid",
+        gap: "18px",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          gap: "16px",
+        }}
+      >
+        <div>
+          <div
+            style={{
+              fontSize: "22px",
+              fontWeight: 900,
+              color: tema.texto,
+              marginBottom: "6px",
+            }}
+          >
+            {t("Editar perfil")}
+          </div>
+          <div
+            style={{
+              fontSize: "13px",
+              color: tema.textoSuave,
+              lineHeight: 1.5,
+              maxWidth: "390px",
+            }}
+          >
+            {t("Actualiza los datos visibles del usuario en el panel lateral")}
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={salirEditorPerfil}
+          onMouseEnter={() => activarControlPerfil("cerrar")}
+          onMouseLeave={desactivarControlPerfil}
+          onFocus={() => activarControlPerfil("cerrar")}
+          onBlur={desactivarControlPerfil}
+          style={{
+            ...perfilButtonStyle("cerrar", "neutral"),
+            width: "42px",
+            height: "42px",
+            padding: 0,
+            flexShrink: 0,
+            fontSize: "20px",
+            lineHeight: 1,
+          }}
+          aria-label={t("Cerrar")}
+        >
+          ×
+        </button>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "132px 1fr",
+          gap: "18px",
+          alignItems: "center",
+          padding: "16px",
+          borderRadius: "20px",
+          border: tema.borde,
+          background: temaClaro ? "rgba(248,250,252,0.88)" : "rgba(255,255,255,0.045)",
+        }}
+      >
+        <div
+          style={{
+            display: "grid",
+            gap: "8px",
+            justifyItems: "center",
+          }}
+        >
+          <div
+            style={{
+              width: "116px",
+              height: "116px",
+              borderRadius: "24px",
+              border: fotoPerfilDraft ? `1px solid ${salmonBorde}` : tema.borde,
+              background: fotoPerfilDraft ? salmonFondo : tema.tarjetaElevada,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              overflow: "hidden",
+              boxShadow: fotoPerfilDraft ? salmonSombra : "0 10px 26px rgba(0,0,0,0.18)",
+            }}
+          >
+            {fotoPerfilDraft ? (
+              <img
+                src={fotoPerfilDraft}
+                alt={t("Foto de perfil")}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                  display: "block",
+                }}
+              />
+            ) : (
+              <span
+                style={{
+                  fontSize: "42px",
+                  fontWeight: 900,
+                  color: tema.texto,
+                }}
+              >
+                {inicialPerfil}
+              </span>
+            )}
+          </div>
+          <div
+            style={{
+              fontSize: "11px",
+              color: tema.textoSuave,
+              fontWeight: 800,
+            }}
+          >
+            {t("Foto de perfil")}
+          </div>
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gap: "10px",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              gap: "10px",
+              flexWrap: "wrap",
+            }}
+          >
+            <input
+              key={fotoPerfilInputKey}
+              id="foto-perfil-panel"
+              type="file"
+              accept="image/png,image/jpeg,image/jpg,image/svg+xml"
+              onChange={(e) => cargarFotoPerfil(e.target.files?.[0])}
+              style={{ display: "none" }}
+            />
+            <label
+              htmlFor="foto-perfil-panel"
+              onMouseEnter={() => activarControlPerfil("seleccionar-foto")}
+              onMouseLeave={desactivarControlPerfil}
+              onFocus={() => activarControlPerfil("seleccionar-foto")}
+              onBlur={desactivarControlPerfil}
+              style={{
+                ...perfilButtonStyle("seleccionar-foto", "salmon"),
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              {t("Seleccionar foto")}
+            </label>
+            <button
+              type="button"
+              onClick={quitarFotoPerfil}
+              onMouseEnter={() => activarControlPerfil("quitar-foto")}
+              onMouseLeave={desactivarControlPerfil}
+              onFocus={() => activarControlPerfil("quitar-foto")}
+              onBlur={desactivarControlPerfil}
+              style={perfilButtonStyle("quitar-foto", "neutral")}
+            >
+              {t("Quitar foto")}
+            </button>
+          </div>
+          <div
+            style={{
+              fontSize: "12px",
+              color: tema.textoSuave,
+              lineHeight: 1.45,
+              fontWeight: 700,
+            }}
+          >
+            {fotoPerfilCargada
+              ? t("Foto cargada correctamente")
+              : t("Los cambios se guardan en este navegador")}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gap: "14px" }}>
+        <label style={{ display: "grid", gap: "7px" }}>
+          <span
+            style={{
+              fontSize: "12px",
+              color: tema.textoSuave,
+              fontWeight: 900,
+            }}
+          >
+            {t("Nombre")}
+          </span>
+          <input
+            value={nombrePerfilDraft}
+            onChange={(e) => setNombrePerfilDraft(e.target.value)}
+            onFocus={() => setCampoPerfilActivo("nombre")}
+            onBlur={() => setCampoPerfilActivo(null)}
+            onMouseEnter={() => setCampoPerfilActivo("nombre")}
+            onMouseLeave={() => setCampoPerfilActivo(null)}
+            style={perfilInputStyle("nombre")}
+            placeholder="Freddy Camus"
+          />
+        </label>
+
+        <label style={{ display: "grid", gap: "7px" }}>
+          <span
+            style={{
+              fontSize: "12px",
+              color: tema.textoSuave,
+              fontWeight: 900,
+            }}
+          >
+            {t("Cargo")}
+          </span>
+          <input
+            value={cargoPerfilDraft}
+            onChange={(e) => setCargoPerfilDraft(e.target.value)}
+            onFocus={() => setCampoPerfilActivo("cargo")}
+            onBlur={() => setCampoPerfilActivo(null)}
+            onMouseEnter={() => setCampoPerfilActivo("cargo")}
+            onMouseLeave={() => setCampoPerfilActivo(null)}
+            style={perfilInputStyle("cargo")}
+            placeholder="Ingeniero en Prevención de Riesgos"
+          />
+        </label>
+      </div>
+
+      {guardadoPerfil && (
+        <div
+          style={{
+            padding: "12px 14px",
+            borderRadius: "14px",
+            background: "rgba(34,197,94,0.14)",
+            border: "1px solid rgba(34,197,94,0.34)",
+            color: temaClaro ? "#166534" : "#bbf7d0",
+            fontSize: "13px",
+            fontWeight: 850,
+            textAlign: "center",
+          }}
+        >
+          {t("Perfil actualizado correctamente")}
+        </div>
+      )}
+
+      {errorPerfil && (
+        <div
+          style={{
+            padding: "12px 14px",
+            borderRadius: "14px",
+            background: "rgba(190,99,83,0.14)",
+            border: `1px solid ${salmonBorde}`,
+            color: temaClaro ? "#7f1d1d" : "#fecaca",
+            fontSize: "13px",
+            fontWeight: 850,
+            textAlign: "center",
+          }}
+        >
+          {t(errorPerfil)}
+        </div>
+      )}
+
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          gap: "10px",
+          flexWrap: "wrap",
+        }}
+      >
+        <button
+          type="button"
+          onClick={salirEditorPerfil}
+          onMouseEnter={() => activarControlPerfil("salir")}
+          onMouseLeave={desactivarControlPerfil}
+          onFocus={() => activarControlPerfil("salir")}
+          onBlur={desactivarControlPerfil}
+          style={perfilButtonStyle("salir", "neutral")}
+        >
+          {t("Salir")}
+        </button>
+        <button
+          type="button"
+          onClick={guardarPerfil}
+          onMouseEnter={() => activarControlPerfil("guardar")}
+          onMouseLeave={desactivarControlPerfil}
+          onFocus={() => activarControlPerfil("guardar")}
+          onBlur={desactivarControlPerfil}
+          style={perfilButtonStyle("guardar", "primary")}
+        >
+          {t("Guardar perfil")}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 
 {filtrosActivos.length > 0 && (
   <div
@@ -2621,7 +3202,9 @@ const kpis = [
   alignItems: "center",
 }}
     >
-      <div
+      <button
+        type="button"
+        onClick={abrirEditorPerfil}
         style={{
           width: "84px",
           height: "84px",
@@ -2634,6 +3217,8 @@ const kpis = [
           overflow: "hidden",
           flexShrink: 0,
           boxShadow: "0 8px 20px rgba(0,0,0,0.22)",
+          padding: 0,
+          cursor: "pointer",
         }}
       >
         {usuario.foto ? (
@@ -2658,7 +3243,7 @@ const kpis = [
             {inicialUsuario}
           </span>
         )}
-      </div>
+      </button>
 
       <button
   type="button"
@@ -2724,7 +3309,7 @@ const kpis = [
 
     <button
       type="button"
-      onClick={() => setMostrarEditorPerfil((prev) => !prev)}
+      onClick={abrirEditorPerfil}
       style={{
         width: "100%",
         padding: "12px 16px",
@@ -2740,6 +3325,24 @@ const kpis = [
     >
 	      {t("Editar perfil")}
     </button>
+
+    {guardadoPerfil && !mostrarEditorPerfil && (
+      <div
+        style={{
+          padding: "10px 12px",
+          borderRadius: "14px",
+          background: "rgba(34,197,94,0.14)",
+          border: "1px solid rgba(34,197,94,0.34)",
+          color: temaClaro ? "#166534" : "#bbf7d0",
+          fontSize: "12px",
+          fontWeight: 800,
+          lineHeight: 1.35,
+          textAlign: "center",
+        }}
+      >
+        {t("Perfil actualizado correctamente")}
+      </div>
+    )}
 
     {mostrarNotificaciones && (
       <div
