@@ -133,6 +133,40 @@ type PanelProfilePersistido = {
   fotoPerfil: string | null;
 };
 
+type BitacoraCierreLocal = {
+  fechaHora: string;
+  usuario: string;
+  accion: string;
+  resumen: string;
+  camposModificados: string[];
+  estadoAnterior: string;
+  estadoNuevo: string;
+};
+
+type GestionCierreDraft = {
+  responsableCorreccionTipo: string;
+  responsableCorreccionEmpresa: string;
+  responsableCorreccionNombre: string;
+  responsableCorreccionCargo: string;
+  responsableCorreccionTelefono: string;
+  encargadoSeguimientoNombre: string;
+  estadoSeguimiento: string;
+  accionCorrectivaRequerida: string;
+  evidenciaRequerida: string[];
+  responsableCierreFechaCompromiso: string;
+  validadorCierreNombre: string;
+  validadorCierreEstado: string;
+  validadorCierreObservacion: string;
+};
+
+type GestionCierreLocal = Partial<GestionCierreDraft> & {
+  responsableCierreEstadoSeguimiento?: string;
+  responsableCierreEvidencia?: string;
+  evidenciaRecibida?: string;
+  responsableCierreObservacion?: string;
+  bitacoraCierre?: BitacoraCierreLocal[];
+};
+
 const formatosExportacionPorDefecto: FormatosExportacionConfig = {
   pdf: true,
   excel: true,
@@ -155,8 +189,8 @@ const perfilesActivosPorDefecto: Record<PerfilPermiso, boolean> = {
 };
 
 export default function PanelEjecutivoPage() {
-  const [vistaDerecha, setVistaDerecha] = useState<"informe" | "configuracion">("informe");
-  const [vistaPrincipal, setVistaPrincipal] = useState<"panel" | "configuracion">("panel");
+  const [vistaDerecha, setVistaDerecha] = useState<"informe" | "configuracion" | "seguimiento">("informe");
+  const [vistaPrincipal, setVistaPrincipal] = useState<"panel" | "configuracion" | "seguimiento">("panel");
   const [modoSistema, setModoSistema] = useState<"claro" | "oscuro" | "automatico">("oscuro");
 const [idiomaSistema, setIdiomaSistema] = useState<"es" | "en" | "auto">("es");
 const [nombreEmpresaConfig, setNombreEmpresaConfig] = useState("Cliente corporativo");
@@ -206,6 +240,7 @@ const [fechaActualizacion, setFechaActualizacion] = useState<Date | null>(null);
     "Fecha desde": "Start date",
     "Fecha hasta": "End date",
     Estado: "Status",
+    Fecha: "Date",
     Criticidad: "Severity",
     "Tipo de hallazgo": "Finding type",
     Seleccionar: "Select",
@@ -214,6 +249,99 @@ const [fechaActualizacion, setFechaActualizacion] = useState<Date | null>(null);
     "Exportar a Excel": "Export to Excel",
     "Generar informe empresa/obra": "Generate company/site report",
     Configuración: "Settings",
+    "Seguimiento de cierre": "Closure follow-up",
+    "Control de responsables, plazos, evidencias y estado de corrección.": "Control of responsible parties, deadlines, evidence and correction status.",
+    "Responsable de cierre": "Closure responsible",
+    "Responsable de corrección": "Correction responsible",
+    "Encargado de seguimiento": "Follow-up owner",
+    "Validador de cierre": "Closure validator",
+    "Seleccionar validador": "Select validator",
+    "El validador revisa la evidencia y aprueba o rechaza el cierre definitivo.": "The validator reviews the evidence and approves or rejects the final closure.",
+    "Los datos pueden ser preasignados desde la app móvil por el supervisor y ajustados desde la plataforma PC. Todo cambio debe quedar registrado en bitácora.": "Data can be preassigned from the mobile app by the supervisor and adjusted from the PC platform. Every change must be recorded in the log.",
+    "Acción correctiva requerida": "Required corrective action",
+    "Evidencia requerida": "Required evidence",
+    "Evidencia recibida": "Received evidence",
+    "Gestionar cierre": "Manage closure",
+    Asignación: "Assignment",
+    "Tipo de responsable de corrección": "Correction responsible type",
+    "Nombre responsable": "Responsible name",
+    "Empresa contratista": "Contractor company",
+    "Corrección requerida": "Required correction",
+    Validación: "Validation",
+    "Estado de validación": "Validation status",
+    "Observación de validación": "Validation note",
+    "No se pudo guardar. Revisa los campos obligatorios.": "Could not save. Review the required fields.",
+    "Tipo de responsable de corrección es obligatorio.": "Correction responsible type is required.",
+    "Empresa responsable es obligatoria.": "Responsible company is required.",
+    "Acción correctiva requerida es obligatoria.": "Required corrective action is required.",
+    "Selecciona al menos una evidencia requerida.": "Select at least one required evidence item.",
+    "Para aprobar o cerrar, agrega evidencia requerida o una observación de validación.": "To approve or close, add required evidence or a validation note.",
+    "Para aprobar, define validador, evidencia requerida y observación de validación.": "To approve, define validator, required evidence and validation note.",
+    "Trabajador interno": "Internal worker",
+    "Supervisor de área": "Area supervisor",
+    "Empresa subcontratista": "Subcontractor company",
+    "Área interna": "Internal area",
+    Mantención: "Maintenance",
+    Bodega: "Warehouse",
+    Administración: "Administration",
+    Prevención: "Prevention",
+    Otro: "Other",
+    "Registro fotográfico": "Photo record",
+    "Documentación de corrección": "Correction documentation",
+    "Charla de seguridad": "Safety briefing",
+    "Registro firmado": "Signed record",
+    "Checklist corregido": "Corrected checklist",
+    "Orden de trabajo": "Work order",
+    "Certificado externo": "External certificate",
+    "Validación en terreno": "Field validation",
+    "Otra evidencia": "Other evidence",
+    Aprobado: "Approved",
+    "Requiere nueva evidencia": "Requires new evidence",
+    "Actualización de cierre": "Closure update",
+    "Actualización desde plataforma PC": "Update from PC platform",
+    "Usuario autorizado": "Authorized user",
+    "Pendiente de validador": "Validator pending",
+    "Pendiente de evidencia": "Evidence pending",
+    "Pendiente de revisión": "Review pending",
+    "Evidencia solicitada": "Evidence requested",
+    "Cerrado con evidencia": "Closed with evidence",
+    "Acción correctiva pendiente de definición": "Corrective action pending definition",
+    "Registro fotográfico y documentación de corrección": "Photo record and correction documentation",
+    "Validación pendiente de evidencia y revisión": "Validation pending evidence and review",
+    "Evidencia cargada": "Evidence uploaded",
+    "En revisión": "In review",
+    Rechazado: "Rejected",
+    Prevencionista: "Safety officer",
+    "Supervisor autorizado": "Authorized supervisor",
+    Mandante: "Client owner",
+    "Jefe de obra": "Site manager",
+    "Otro usuario autorizado": "Other authorized user",
+    Responsable: "Responsible",
+    "Empresa responsable": "Responsible company",
+    Contratista: "Contractor",
+    "Estado seguimiento": "Follow-up status",
+    "Evidencia de cierre": "Closure evidence",
+    "Observación de seguimiento": "Follow-up note",
+    "Sin asignar": "Unassigned",
+    Asignado: "Assigned",
+    "En seguimiento": "In follow-up",
+    Vencido: "Overdue",
+    Cerrado: "Closed",
+    "Requiere corrección": "Requires correction",
+    "Pendiente de asignación": "Pending assignment",
+    "Sin contacto": "No contact",
+    "Responsable pendiente de definición": "Closure responsible pending definition",
+    "Responsable de cierre pendiente de definición": "Closure responsible pending definition",
+    "Ver detalle": "View detail",
+    "Buscar responsable": "Search responsible",
+    Buscar: "Search",
+    "Buscar por nombre de responsable": "Search by responsible person's name",
+    "Sin coincidencias para los filtros de seguimiento seleccionados.": "No matches for the selected follow-up filters.",
+    "Cerrados con evidencia": "Closed with evidence",
+    "Sin responsable asignado": "Without assigned responsible",
+    "Pendientes de cierre": "Pending closure",
+    "El reportante no se asume automáticamente como responsable de cierre.": "The reporter is not automatically assumed to be responsible for closure.",
+    "El reportante no se asume automáticamente como responsable de corrección. El seguimiento puede ser asignado a un supervisor o usuario autorizado.": "The reporter is not automatically assumed to be responsible for correction. Follow-up can be assigned to a supervisor or authorized user.",
     "Total reportes": "Total reports",
     Abiertos: "Open",
     Cerrados: "Closed",
@@ -1663,6 +1791,31 @@ const [filtroCriticidad, setFiltroCriticidad] = useState("TODAS");
 const [filtroFechaDesde, setFiltroFechaDesde] = useState("");
 const [filtroFechaHasta, setFiltroFechaHasta] = useState("");
 const [filtroTipoHallazgo, setFiltroTipoHallazgo] = useState("TODOS");
+const [filtroSeguimientoEstado, setFiltroSeguimientoEstado] = useState("TODOS");
+const [filtroSeguimientoEmpresa, setFiltroSeguimientoEmpresa] = useState("TODAS");
+const [filtroSeguimientoCriticidad, setFiltroSeguimientoCriticidad] = useState("TODAS");
+const [filtroSeguimientoFecha, setFiltroSeguimientoFecha] = useState("");
+const [busquedaResponsableSeguimiento, setBusquedaResponsableSeguimiento] = useState("");
+const [busquedaResponsableSeguimientoDraft, setBusquedaResponsableSeguimientoDraft] = useState("");
+const [codigoSeguimientoActivo, setCodigoSeguimientoActivo] = useState("");
+const [mostrarGestionCierre, setMostrarGestionCierre] = useState(false);
+const [gestionCierreLocal, setGestionCierreLocal] = useState<Record<string, GestionCierreLocal>>({});
+const [gestionCierreDraft, setGestionCierreDraft] = useState<GestionCierreDraft>({
+  responsableCorreccionTipo: "Empresa contratista",
+  responsableCorreccionEmpresa: "",
+  responsableCorreccionNombre: "",
+  responsableCorreccionCargo: "",
+  responsableCorreccionTelefono: "",
+  encargadoSeguimientoNombre: "Usuario autorizado",
+  accionCorrectivaRequerida: "",
+  evidenciaRequerida: [],
+  responsableCierreFechaCompromiso: "",
+  validadorCierreNombre: "",
+  estadoSeguimiento: "Sin asignar",
+  validadorCierreEstado: "Pendiente de revisión",
+  validadorCierreObservacion: "",
+});
+const [errorGestionCierre, setErrorGestionCierre] = useState("");
 const [mostrarNotificaciones, setMostrarNotificaciones] = useState(false);
 const [usuario, setUsuario] = useState({
   ...usuarioMock,
@@ -1993,6 +2146,444 @@ const filasFiltradas = filasBase.filter((item) => {
 
   return true;
 });
+type HallazgoSeguimiento = (typeof filas)[number] & {
+  responsableCierreNombre: string;
+  responsableCierreCargo: string;
+  responsableCierreEmpresa: string;
+  responsableCierreTelefono: string;
+  responsableCierreEstadoSeguimiento: string;
+  responsableCierreFechaCompromiso: string;
+  responsableCierreEvidencia: string;
+  responsableCierreObservacion: string;
+  responsableCorreccionTipo: string;
+  responsableCorreccionNombre: string;
+  responsableCorreccionCargo: string;
+  responsableCorreccionEmpresa: string;
+  responsableCorreccionTelefono: string;
+  encargadoSeguimientoNombre: string;
+  encargadoSeguimientoCargo: string;
+  validadorCierreNombre: string;
+  validadorCierreEstado: string;
+  validadorCierreObservacion: string;
+  accionCorrectivaRequerida: string;
+  evidenciaRequerida: string;
+  evidenciaRecibida: string;
+};
+
+const obtenerCampoSeguimiento = (
+  item: (typeof filas)[number],
+  campo: string,
+  fallback: string
+) => {
+  const valor = (item as unknown as Record<string, unknown>)[campo];
+  return typeof valor === "string" && valor.trim() ? valor.trim() : fallback;
+};
+
+// Estos campos deben venir luego desde flujo móvil, formulario de reporte,
+// asignación de responsable, evidencia de cierre y base de datos/Supabase.
+const hallazgosSeguimiento: HallazgoSeguimiento[] = filas.map((item) => {
+  const edicionLocal = gestionCierreLocal[item.codigo] || {};
+  const responsableReal = obtenerCampoSeguimiento(item, "responsableCierreNombre", "");
+  const evidenciaReal = obtenerCampoSeguimiento(item, "responsableCierreEvidencia", "");
+  const estadoReal = obtenerCampoSeguimiento(item, "responsableCierreEstadoSeguimiento", "");
+  const estadoCerradoConEvidencia = item.estado === "CERRADO" && Boolean(evidenciaReal);
+
+  const baseSeguimiento: HallazgoSeguimiento = {
+    ...item,
+    responsableCierreNombre: responsableReal || "Sin asignar",
+    responsableCierreCargo: obtenerCampoSeguimiento(item, "responsableCierreCargo", "Pendiente"),
+    responsableCierreEmpresa: obtenerCampoSeguimiento(
+      item,
+      "responsableCierreEmpresa",
+      item.empresa || "Sin definir"
+    ),
+    responsableCierreTelefono: obtenerCampoSeguimiento(item, "responsableCierreTelefono", "Sin contacto"),
+    responsableCierreEstadoSeguimiento:
+      estadoReal || (estadoCerradoConEvidencia ? "Cerrado" : "Pendiente de asignación"),
+    responsableCierreFechaCompromiso: obtenerCampoSeguimiento(
+      item,
+      "responsableCierreFechaCompromiso",
+      item.fechaCompromiso || "Sin definir"
+    ),
+    responsableCierreEvidencia: evidenciaReal || "Sin evidencia de cierre",
+    responsableCierreObservacion: obtenerCampoSeguimiento(
+      item,
+      "responsableCierreObservacion",
+      "Responsable de cierre pendiente de definición"
+    ),
+    responsableCorreccionTipo: obtenerCampoSeguimiento(
+      item,
+      "responsableCorreccionTipo",
+      "Empresa contratista"
+    ),
+    responsableCorreccionNombre: responsableReal || "Sin asignar",
+    responsableCorreccionCargo: obtenerCampoSeguimiento(item, "responsableCorreccionCargo", "Pendiente"),
+    responsableCorreccionEmpresa: obtenerCampoSeguimiento(
+      item,
+      "responsableCorreccionEmpresa",
+      item.empresa || "Sin definir"
+    ),
+    responsableCorreccionTelefono: obtenerCampoSeguimiento(item, "responsableCorreccionTelefono", "Sin contacto"),
+    encargadoSeguimientoNombre: obtenerCampoSeguimiento(item, "encargadoSeguimientoNombre", "Usuario autorizado"),
+    encargadoSeguimientoCargo: obtenerCampoSeguimiento(item, "encargadoSeguimientoCargo", "Encargado de seguimiento"),
+    validadorCierreNombre: obtenerCampoSeguimiento(item, "validadorCierreNombre", "Pendiente de validador"),
+    validadorCierreEstado: obtenerCampoSeguimiento(item, "validadorCierreEstado", "Pendiente de revisión"),
+    validadorCierreObservacion: obtenerCampoSeguimiento(
+      item,
+      "validadorCierreObservacion",
+      "Validación pendiente de evidencia y revisión"
+    ),
+    accionCorrectivaRequerida: obtenerCampoSeguimiento(
+      item,
+      "accionCorrectivaRequerida",
+      item.medidaInmediata || "Acción correctiva pendiente de definición"
+    ),
+    evidenciaRequerida: obtenerCampoSeguimiento(
+      item,
+      "evidenciaRequerida",
+      "Registro fotográfico y documentación de corrección"
+    ),
+    evidenciaRecibida: evidenciaReal || "Pendiente de evidencia",
+  };
+
+  const responsableCorreccionNombre =
+    edicionLocal.responsableCorreccionNombre ?? baseSeguimiento.responsableCorreccionNombre;
+  const evidenciaRequerida =
+    Array.isArray(edicionLocal.evidenciaRequerida) && edicionLocal.evidenciaRequerida.length > 0
+      ? edicionLocal.evidenciaRequerida.join(", ")
+      : baseSeguimiento.evidenciaRequerida;
+  const evidenciaRecibida = edicionLocal.evidenciaRecibida ?? baseSeguimiento.evidenciaRecibida;
+
+  return {
+    ...baseSeguimiento,
+    ...edicionLocal,
+    responsableCorreccionNombre,
+    responsableCierreNombre: responsableCorreccionNombre,
+    responsableCierreCargo: edicionLocal.responsableCorreccionCargo ?? baseSeguimiento.responsableCierreCargo,
+    responsableCierreEmpresa: edicionLocal.responsableCorreccionEmpresa ?? baseSeguimiento.responsableCierreEmpresa,
+    responsableCierreTelefono: edicionLocal.responsableCorreccionTelefono ?? baseSeguimiento.responsableCierreTelefono,
+    responsableCierreEvidencia: evidenciaRecibida,
+    evidenciaRequerida,
+    evidenciaRecibida,
+  };
+});
+
+const estadoSeguimientoVisual = (item: HallazgoSeguimiento) => {
+  if (item.responsableCorreccionNombre === "Sin asignar") return "Sin asignar";
+  if (item.responsableCierreEstadoSeguimiento === "Cerrado") return "Cerrado";
+  if (item.responsableCierreEstadoSeguimiento === "Cerrado con evidencia") return "Cerrado";
+  if (item.responsableCierreEstadoSeguimiento === "Rechazado") return "Rechazado";
+  if (item.responsableCierreEstadoSeguimiento === "En revisión") return "En revisión";
+  if (item.responsableCierreEstadoSeguimiento === "Evidencia solicitada") return "En seguimiento";
+  if (item.responsableCierreEstadoSeguimiento === "Evidencia cargada") return "Evidencia cargada";
+  const vencimiento = semaforoVencimiento(item.responsableCierreFechaCompromiso, item.estado).etiqueta;
+  if (vencimiento === "VENCIDO" && item.estado !== "CERRADO") return "Vencido";
+  if (item.responsableCierreEstadoSeguimiento === "En seguimiento") return "En seguimiento";
+  return "Asignado";
+};
+
+const opcionesSeguimientoEstado = [
+  "TODOS",
+  "Sin asignar",
+  "Asignado",
+  "En seguimiento",
+  "Evidencia cargada",
+  "En revisión",
+  "Vencido",
+  "Cerrado",
+  "Rechazado",
+];
+const opcionesSeguimientoEmpresa = [
+  "TODAS",
+  ...Array.from(new Set(hallazgosSeguimiento.map((item) => item.responsableCierreEmpresa))),
+];
+
+const hallazgosSeguimientoFiltrados = hallazgosSeguimiento.filter((item) => {
+  const estadoVisual = estadoSeguimientoVisual(item);
+  const busqueda = busquedaResponsableSeguimiento.trim().toLowerCase();
+  const fechaCompromiso = item.responsableCierreFechaCompromiso;
+
+  return (
+    (filtroSeguimientoEstado === "TODOS" || estadoVisual === filtroSeguimientoEstado) &&
+    (filtroSeguimientoEmpresa === "TODAS" || item.responsableCierreEmpresa === filtroSeguimientoEmpresa) &&
+    (filtroSeguimientoCriticidad === "TODAS" || item.criticidad === filtroSeguimientoCriticidad) &&
+    (!filtroSeguimientoFecha || fechaCompromiso === filtroSeguimientoFecha) &&
+    (!busqueda ||
+      item.responsableCorreccionNombre.toLowerCase().includes(busqueda) ||
+      item.encargadoSeguimientoNombre.toLowerCase().includes(busqueda) ||
+      item.codigo.toLowerCase().includes(busqueda))
+  );
+});
+
+const hallazgoSeguimientoActivo =
+  hallazgosSeguimiento.find((item) => item.codigo === codigoSeguimientoActivo) ||
+  hallazgosSeguimientoFiltrados[0] ||
+  hallazgosSeguimiento[0];
+
+const ejecutarBusquedaResponsableSeguimiento = () => {
+  setBusquedaResponsableSeguimiento(busquedaResponsableSeguimientoDraft.trim());
+};
+
+const limpiarBusquedaResponsableSeguimiento = () => {
+  setBusquedaResponsableSeguimiento("");
+  setBusquedaResponsableSeguimientoDraft("");
+};
+
+const opcionesTipoResponsableCorreccion = [
+  "Trabajador interno",
+  "Supervisor de área",
+  "Empresa contratista",
+  "Empresa subcontratista",
+  "Área interna",
+  "Mantención",
+  "Bodega",
+  "Administración",
+  "Prevención",
+  "Otro",
+];
+
+const opcionesEvidenciaRequerida = [
+  "Registro fotográfico",
+  "Documentación de corrección",
+  "Charla de seguridad",
+  "Registro firmado",
+  "Checklist corregido",
+  "Orden de trabajo",
+  "Certificado externo",
+  "Validación en terreno",
+  "Otra evidencia",
+];
+
+const opcionesEstadoValidacion = [
+  "Pendiente de revisión",
+  "En revisión",
+  "Aprobado",
+  "Rechazado",
+  "Requiere nueva evidencia",
+];
+
+const opcionesEstadoSeguimientoGestion = [
+  "Sin asignar",
+  "Asignado",
+  "En seguimiento",
+  "Evidencia solicitada",
+  "Evidencia cargada",
+  "Vencido",
+  "Cerrado con evidencia",
+];
+
+const opcionesValidadorCierre = [
+  "Administrador",
+  "Prevencionista",
+  "Supervisor autorizado",
+  "Mandante",
+  "Jefe de obra",
+  "Otro usuario autorizado",
+];
+
+const abrirGestionCierre = () => {
+  if (!hallazgoSeguimientoActivo) return;
+
+  setGestionCierreDraft({
+    responsableCorreccionTipo: hallazgoSeguimientoActivo.responsableCorreccionTipo,
+    responsableCorreccionEmpresa: hallazgoSeguimientoActivo.responsableCorreccionEmpresa,
+    responsableCorreccionNombre:
+      hallazgoSeguimientoActivo.responsableCorreccionNombre === "Sin asignar"
+        ? ""
+        : hallazgoSeguimientoActivo.responsableCorreccionNombre,
+    responsableCorreccionCargo:
+      hallazgoSeguimientoActivo.responsableCorreccionCargo === "Pendiente"
+        ? ""
+        : hallazgoSeguimientoActivo.responsableCorreccionCargo,
+    responsableCorreccionTelefono:
+      hallazgoSeguimientoActivo.responsableCorreccionTelefono === "Sin contacto"
+        ? ""
+        : hallazgoSeguimientoActivo.responsableCorreccionTelefono,
+    encargadoSeguimientoNombre: hallazgoSeguimientoActivo.encargadoSeguimientoNombre,
+    accionCorrectivaRequerida: hallazgoSeguimientoActivo.accionCorrectivaRequerida,
+    evidenciaRequerida:
+      hallazgoSeguimientoActivo.evidenciaRequerida === "Registro fotográfico y documentación de corrección"
+        ? []
+        : hallazgoSeguimientoActivo.evidenciaRequerida.split(", ").filter(Boolean),
+    responsableCierreFechaCompromiso:
+      hallazgoSeguimientoActivo.responsableCierreFechaCompromiso === "Sin definir"
+        ? ""
+        : hallazgoSeguimientoActivo.responsableCierreFechaCompromiso,
+    validadorCierreNombre:
+      hallazgoSeguimientoActivo.validadorCierreNombre === "Pendiente de validador"
+        ? ""
+        : hallazgoSeguimientoActivo.validadorCierreNombre,
+    estadoSeguimiento: estadoSeguimientoVisual(hallazgoSeguimientoActivo),
+    validadorCierreEstado: hallazgoSeguimientoActivo.validadorCierreEstado,
+    validadorCierreObservacion: hallazgoSeguimientoActivo.validadorCierreObservacion,
+  });
+  setErrorGestionCierre("");
+  setMostrarGestionCierre(true);
+};
+
+const alternarEvidenciaGestion = (evidencia: string) => {
+  setGestionCierreDraft((actual) => ({
+    ...actual,
+    evidenciaRequerida: actual.evidenciaRequerida.includes(evidencia)
+      ? actual.evidenciaRequerida.filter((item) => item !== evidencia)
+      : [...actual.evidenciaRequerida, evidencia],
+  }));
+};
+
+const estadoSeguimientoDesdeGestion = (draft: GestionCierreDraft) => {
+  if (draft.estadoSeguimiento === "Cerrado con evidencia") return "Cerrado";
+  if (draft.estadoSeguimiento) return draft.estadoSeguimiento;
+  if (draft.responsableCorreccionNombre.trim()) return "Asignado";
+  return "Pendiente de asignación";
+};
+
+const guardarGestionCierre = () => {
+  if (!hallazgoSeguimientoActivo) return;
+
+  if (!gestionCierreDraft.responsableCorreccionTipo.trim()) {
+    setErrorGestionCierre("Tipo de responsable de corrección es obligatorio.");
+    return;
+  }
+
+  if (!gestionCierreDraft.responsableCorreccionEmpresa.trim()) {
+    setErrorGestionCierre("Empresa responsable es obligatoria.");
+    return;
+  }
+
+  if (!gestionCierreDraft.accionCorrectivaRequerida.trim()) {
+    setErrorGestionCierre("Acción correctiva requerida es obligatoria.");
+    return;
+  }
+
+  if (gestionCierreDraft.evidenciaRequerida.length === 0) {
+    setErrorGestionCierre("Selecciona al menos una evidencia requerida.");
+    return;
+  }
+
+  if (
+    gestionCierreDraft.validadorCierreEstado === "Aprobado" &&
+    (!gestionCierreDraft.validadorCierreNombre.trim() ||
+      gestionCierreDraft.evidenciaRequerida.length === 0 ||
+      !gestionCierreDraft.validadorCierreObservacion.trim())
+  ) {
+    setErrorGestionCierre("Para aprobar, define validador, evidencia requerida y observación de validación.");
+    return;
+  }
+
+  const estadoAnterior = estadoSeguimientoVisual(hallazgoSeguimientoActivo);
+  const estadoSeguimiento = estadoSeguimientoDesdeGestion(gestionCierreDraft);
+  const camposModificados = [
+    gestionCierreDraft.responsableCorreccionTipo !== hallazgoSeguimientoActivo.responsableCorreccionTipo
+      ? t("Tipo de responsable de corrección")
+      : null,
+    gestionCierreDraft.responsableCorreccionEmpresa !== hallazgoSeguimientoActivo.responsableCorreccionEmpresa
+      ? t("Empresa responsable")
+      : null,
+    gestionCierreDraft.responsableCorreccionNombre !== hallazgoSeguimientoActivo.responsableCorreccionNombre
+      ? t("Nombre responsable")
+      : null,
+    gestionCierreDraft.encargadoSeguimientoNombre !== hallazgoSeguimientoActivo.encargadoSeguimientoNombre
+      ? t("Encargado de seguimiento")
+      : null,
+    estadoSeguimiento !== estadoAnterior ? t("Estado seguimiento") : null,
+    gestionCierreDraft.validadorCierreEstado !== hallazgoSeguimientoActivo.validadorCierreEstado
+      ? t("Estado de validación")
+      : null,
+    gestionCierreDraft.validadorCierreNombre !== hallazgoSeguimientoActivo.validadorCierreNombre
+      ? t("Validador de cierre")
+      : null,
+  ].filter(Boolean) as string[];
+  const fechaHora = new Date().toLocaleString("es-CL");
+  const resumen = [
+    `${t("Responsable de corrección")}: ${
+      gestionCierreDraft.responsableCorreccionNombre.trim() || t("Sin asignar")
+    }`,
+    `${t("Estado seguimiento")}: ${t(estadoSeguimiento)}`,
+    `${t("Fecha compromiso")}: ${
+      gestionCierreDraft.responsableCierreFechaCompromiso || t("Sin definir")
+    }`,
+  ].join(" · ");
+
+  setGestionCierreLocal((actual) => {
+    const previo = actual[hallazgoSeguimientoActivo.codigo] || {};
+    return {
+      ...actual,
+      [hallazgoSeguimientoActivo.codigo]: {
+        ...previo,
+        ...gestionCierreDraft,
+        responsableCorreccionNombre:
+          gestionCierreDraft.responsableCorreccionNombre.trim() || "Sin asignar",
+        responsableCorreccionCargo:
+          gestionCierreDraft.responsableCorreccionCargo.trim() || "Pendiente",
+        responsableCorreccionTelefono:
+          gestionCierreDraft.responsableCorreccionTelefono.trim() || "Sin contacto",
+        encargadoSeguimientoNombre:
+          gestionCierreDraft.encargadoSeguimientoNombre.trim() || "Usuario autorizado",
+        validadorCierreNombre:
+          gestionCierreDraft.validadorCierreNombre.trim() || "Pendiente de validador",
+        responsableCierreFechaCompromiso:
+          gestionCierreDraft.responsableCierreFechaCompromiso || "Sin definir",
+        responsableCierreEstadoSeguimiento: estadoSeguimiento,
+        responsableCierreObservacion:
+          gestionCierreDraft.validadorCierreObservacion.trim() ||
+          "Responsable de cierre pendiente de definición",
+        evidenciaRecibida:
+          gestionCierreDraft.validadorCierreEstado === "Aprobado" &&
+          gestionCierreDraft.evidenciaRequerida.length > 0
+            ? gestionCierreDraft.evidenciaRequerida.join(", ")
+            : "Pendiente de evidencia",
+        bitacoraCierre: [
+          ...(previo.bitacoraCierre || []),
+          {
+            fechaHora,
+            usuario: usuario?.nombre || "Administrador",
+            accion: "Actualización desde plataforma PC",
+            resumen,
+            camposModificados,
+            estadoAnterior,
+            estadoNuevo: estadoSeguimiento,
+          },
+        ],
+      },
+    };
+  });
+  setCodigoSeguimientoActivo(hallazgoSeguimientoActivo.codigo);
+  setErrorGestionCierre("");
+  setMostrarGestionCierre(false);
+};
+
+const kpisSeguimiento = [
+  {
+    id: "sin-responsable",
+    titulo: t("Sin responsable asignado"),
+    valor: String(hallazgosSeguimiento.filter((item) => estadoSeguimientoVisual(item) === "Sin asignar").length),
+    color: "#f59e0b",
+  },
+  {
+    id: "en-seguimiento",
+    titulo: t("En seguimiento"),
+    valor: String(hallazgosSeguimiento.filter((item) => estadoSeguimientoVisual(item) === "En seguimiento").length),
+    color: "#3b82f6",
+  },
+  {
+    id: "vencidos",
+    titulo: t("Vencidos"),
+    valor: String(hallazgosSeguimiento.filter((item) => estadoSeguimientoVisual(item) === "Vencido").length),
+    color: "#ef4444",
+  },
+  {
+    id: "cerrados-evidencia",
+    titulo: t("Cerrados con evidencia"),
+    valor: String(
+      hallazgosSeguimiento.filter(
+        (item) =>
+          estadoSeguimientoVisual(item) === "Cerrado" &&
+          item.responsableCierreEvidencia !== "Sin evidencia de cierre"
+      ).length
+    ),
+    color: "#22c55e",
+  },
+];
 const ultimaActualizacion = formatearUltimaActualizacion(fechaActualizacion);
     const filtrosActivos = [
   filtroEmpresa !== "TODAS" ? `Empresa: ${filtroEmpresa}` : null,
@@ -2583,6 +3174,84 @@ const kpis = [
   };
   const activarControlPerfil = (id: string) => setControlPerfilActivo(id);
   const desactivarControlPerfil = () => setControlPerfilActivo(null);
+  const seguimientoFilterLabelStyle: React.CSSProperties = {
+    width: "fit-content",
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "4px 8px",
+    borderRadius: "8px",
+    border: temaClaro ? "1px solid rgba(37,99,235,0.30)" : "1px solid rgba(96,165,250,0.35)",
+    background: temaClaro ? "rgba(219,234,254,0.84)" : "rgba(37,99,235,0.28)",
+    color: temaClaro ? "#1e3a8a" : "#ffffff",
+    fontSize: "11px",
+    fontWeight: 850,
+    letterSpacing: "0.04em",
+    textTransform: "uppercase",
+    lineHeight: 1,
+  };
+  const seguimientoChipStyle = (estado: string): React.CSSProperties => {
+    if (estado === "Cerrado") {
+      return {
+        background: "rgba(34,197,94,0.15)",
+        border: "1px solid rgba(34,197,94,0.34)",
+        color: temaClaro ? "#166534" : "#bbf7d0",
+      };
+    }
+
+    if (estado === "Vencido") {
+      return {
+        background: "rgba(239,68,68,0.15)",
+        border: "1px solid rgba(239,68,68,0.34)",
+        color: temaClaro ? "#991b1b" : "#fecaca",
+      };
+    }
+
+    if (estado === "En seguimiento") {
+      return {
+        background: "rgba(59,130,246,0.15)",
+        border: "1px solid rgba(59,130,246,0.34)",
+        color: temaClaro ? "#1e40af" : "#bfdbfe",
+      };
+    }
+
+    if (estado === "Evidencia cargada") {
+      return {
+        background: "rgba(20,184,166,0.15)",
+        border: "1px solid rgba(20,184,166,0.34)",
+        color: temaClaro ? "#0f766e" : "#99f6e4",
+      };
+    }
+
+    if (estado === "En revisión") {
+      return {
+        background: "rgba(168,85,247,0.15)",
+        border: "1px solid rgba(168,85,247,0.34)",
+        color: temaClaro ? "#6b21a8" : "#e9d5ff",
+      };
+    }
+
+    if (estado === "Rechazado") {
+      return {
+        background: "rgba(251,146,124,0.15)",
+        border: "1px solid rgba(251,146,124,0.38)",
+        color: temaClaro ? "#9a3412" : "#fed7aa",
+      };
+    }
+
+    if (estado === "Asignado") {
+      return {
+        background: "rgba(14,165,233,0.13)",
+        border: "1px solid rgba(14,165,233,0.30)",
+        color: temaClaro ? "#075985" : "#bae6fd",
+      };
+    }
+
+    return {
+      background: temaClaro ? "rgba(245,158,11,0.12)" : "rgba(245,158,11,0.13)",
+      border: "1px solid rgba(245,158,11,0.30)",
+      color: temaClaro ? "#92400e" : "#fde68a",
+    };
+  };
 
 	  return (
     <main
@@ -3067,6 +3736,407 @@ const kpis = [
   </div>
 )}
 
+{mostrarGestionCierre && hallazgoSeguimientoActivo && (
+  <div
+    style={{
+      position: "fixed",
+      inset: 0,
+      zIndex: 85,
+      background: temaClaro ? "rgba(15,23,42,0.18)" : "rgba(2,6,23,0.62)",
+      backdropFilter: "blur(8px)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "24px",
+    }}
+  >
+    <div
+      style={{
+        width: "min(760px, calc(100vw - 32px))",
+        maxHeight: "calc(100vh - 48px)",
+        overflowY: "auto",
+        borderRadius: "24px",
+        border: tema.bordeFuerte,
+        background: temaClaro
+          ? "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.96))"
+          : "linear-gradient(180deg, rgba(15,23,42,0.96), rgba(8,19,36,0.96))",
+        boxShadow: temaClaro
+          ? "0 28px 70px rgba(15,23,42,0.18)"
+          : "0 28px 80px rgba(0,0,0,0.46)",
+        padding: "22px",
+        display: "grid",
+        gap: "16px",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          gap: "16px",
+          alignItems: "flex-start",
+        }}
+      >
+        <div>
+          <div style={{ fontSize: "22px", fontWeight: 900, marginBottom: "5px" }}>
+            {t("Gestionar cierre")} · {hallazgoSeguimientoActivo.codigo}
+          </div>
+          <div style={{ color: tema.textoSuave, fontSize: "13px", lineHeight: 1.5 }}>
+            {t("El reportante no se asume automáticamente como responsable de corrección. El seguimiento puede ser asignado a un supervisor o usuario autorizado.")}
+          </div>
+          <div
+            style={{
+              marginTop: "10px",
+              padding: "9px 11px",
+              borderRadius: "12px",
+              border: temaClaro ? "1px solid rgba(37,99,235,0.24)" : "1px solid rgba(96,165,250,0.24)",
+              background: temaClaro ? "rgba(219,234,254,0.58)" : "rgba(37,99,235,0.12)",
+              color: temaClaro ? "#1e3a8a" : "#dbeafe",
+              fontSize: "12px",
+              fontWeight: 800,
+              lineHeight: 1.45,
+            }}
+          >
+            {t("Los datos pueden ser preasignados desde la app móvil por el supervisor y ajustados desde la plataforma PC. Todo cambio debe quedar registrado en bitácora.")}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => setMostrarGestionCierre(false)}
+          style={{
+            width: "42px",
+            height: "42px",
+            borderRadius: "14px",
+            ...secondaryButtonStyle,
+            fontSize: "20px",
+            fontWeight: 900,
+            cursor: "pointer",
+          }}
+          aria-label={t("Cerrar")}
+        >
+          ×
+        </button>
+      </div>
+
+      <div
+        style={{
+          padding: "16px",
+          borderRadius: "18px",
+          border: tema.borde,
+          background: tema.tarjetaSuave,
+          display: "grid",
+          gap: "12px",
+        }}
+      >
+        <div style={{ fontSize: "14px", fontWeight: 900 }}>{t("Asignación")}</div>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+            gap: "10px",
+          }}
+        >
+          <label style={{ display: "grid", gap: "6px" }}>
+            <span style={{ fontSize: "11px", color: tema.textoSuave, fontWeight: 900 }}>
+              {t("Tipo de responsable de corrección")}
+            </span>
+            <select
+              value={gestionCierreDraft.responsableCorreccionTipo}
+              onChange={(e) =>
+                setGestionCierreDraft((actual) => ({
+                  ...actual,
+                  responsableCorreccionTipo: e.target.value,
+                }))
+              }
+              style={{ ...controlStyle, cursor: "pointer" }}
+            >
+              {opcionesTipoResponsableCorreccion.map((opcion) => (
+                <option key={opcion} value={opcion} style={optionStyle}>
+                  {t(opcion)}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {[
+            ["responsableCorreccionEmpresa", t("Empresa responsable")],
+            ["responsableCorreccionNombre", t("Nombre responsable")],
+            ["responsableCorreccionCargo", t("Cargo")],
+            ["responsableCorreccionTelefono", t("Teléfono")],
+            ["encargadoSeguimientoNombre", t("Encargado de seguimiento")],
+          ].map(([campo, label]) => (
+            <label key={campo} style={{ display: "grid", gap: "6px" }}>
+              <span style={{ fontSize: "11px", color: tema.textoSuave, fontWeight: 900 }}>
+                {label}
+              </span>
+              <input
+                value={String(gestionCierreDraft[campo as keyof GestionCierreDraft] || "")}
+                onChange={(e) =>
+                  setGestionCierreDraft((actual) => ({
+                    ...actual,
+                    [campo]: e.target.value,
+                  }))
+                }
+                style={controlStyle}
+              />
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <div
+        style={{
+          padding: "16px",
+          borderRadius: "18px",
+          border: tema.borde,
+          background: tema.tarjetaSuave,
+          display: "grid",
+          gap: "12px",
+        }}
+      >
+        <div style={{ fontSize: "14px", fontWeight: 900 }}>{t("Corrección requerida")}</div>
+        <label style={{ display: "grid", gap: "6px" }}>
+          <span style={{ fontSize: "11px", color: tema.textoSuave, fontWeight: 900 }}>
+            {t("Acción correctiva requerida")}
+          </span>
+          <textarea
+            value={gestionCierreDraft.accionCorrectivaRequerida}
+            onChange={(e) =>
+              setGestionCierreDraft((actual) => ({
+                ...actual,
+                accionCorrectivaRequerida: e.target.value,
+              }))
+            }
+            style={{
+              ...controlStyle,
+              minHeight: "92px",
+              resize: "vertical",
+              lineHeight: 1.45,
+            }}
+          />
+        </label>
+
+        <div style={{ display: "grid", gap: "8px" }}>
+          <div style={{ fontSize: "11px", color: tema.textoSuave, fontWeight: 900 }}>
+            {t("Evidencia requerida")}
+          </div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+              gap: "8px",
+            }}
+          >
+            {opcionesEvidenciaRequerida.map((evidencia) => {
+              const activo = gestionCierreDraft.evidenciaRequerida.includes(evidencia);
+              return (
+                <button
+                  key={evidencia}
+                  type="button"
+                  onClick={() => alternarEvidenciaGestion(evidencia)}
+                  style={{
+                    minHeight: "42px",
+                    padding: "9px 10px",
+                    borderRadius: "13px",
+                    ...(activo
+                      ? {
+                          border: temaClaro
+                            ? "1px solid rgba(37,99,235,0.70)"
+                            : "1px solid rgba(147,197,253,0.72)",
+                          background: temaClaro
+                            ? "linear-gradient(135deg, rgba(219,234,254,1), rgba(191,219,254,0.90))"
+                            : "linear-gradient(135deg, rgba(59,130,246,0.32), rgba(37,99,235,0.22))",
+                          color: temaClaro ? "#1e3a8a" : "#eff6ff",
+                          boxShadow: temaClaro
+                            ? "0 8px 18px rgba(37,99,235,0.14)"
+                            : "0 8px 18px rgba(37,99,235,0.20)",
+                        }
+                      : secondaryButtonStyle),
+                    fontSize: "11px",
+                    fontWeight: 850,
+                    cursor: "pointer",
+                    textAlign: "left",
+                  }}
+                >
+                  {activo ? "✓ " : ""}
+                  {t(evidencia)}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <label style={{ display: "grid", gap: "6px" }}>
+          <span style={{ fontSize: "11px", color: tema.textoSuave, fontWeight: 900 }}>
+            {t("Fecha compromiso")}
+          </span>
+          <input
+            type="date"
+            value={gestionCierreDraft.responsableCierreFechaCompromiso}
+            onChange={(e) =>
+              setGestionCierreDraft((actual) => ({
+                ...actual,
+                responsableCierreFechaCompromiso: e.target.value,
+              }))
+            }
+            style={{ ...controlStyle, colorScheme: tema.inputScheme }}
+          />
+        </label>
+        <label style={{ display: "grid", gap: "6px" }}>
+          <span style={{ fontSize: "11px", color: tema.textoSuave, fontWeight: 900 }}>
+            {t("Estado seguimiento")}
+          </span>
+          <select
+            value={gestionCierreDraft.estadoSeguimiento}
+            onChange={(e) =>
+              setGestionCierreDraft((actual) => ({
+                ...actual,
+                estadoSeguimiento: e.target.value,
+              }))
+            }
+            style={{ ...controlStyle, cursor: "pointer" }}
+          >
+            {opcionesEstadoSeguimientoGestion.map((opcion) => (
+              <option key={opcion} value={opcion} style={optionStyle}>
+                {t(opcion)}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div
+        style={{
+          padding: "16px",
+          borderRadius: "18px",
+          border: tema.borde,
+          background: tema.tarjetaSuave,
+          display: "grid",
+          gap: "12px",
+        }}
+      >
+        <div style={{ fontSize: "14px", fontWeight: 900 }}>{t("Validación")}</div>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: "10px",
+          }}
+        >
+          <label style={{ display: "grid", gap: "6px" }}>
+            <span style={{ fontSize: "11px", color: tema.textoSuave, fontWeight: 900 }}>
+              {t("Validador de cierre")}
+            </span>
+            <select
+              value={gestionCierreDraft.validadorCierreNombre}
+              onChange={(e) =>
+                setGestionCierreDraft((actual) => ({
+                  ...actual,
+                  validadorCierreNombre: e.target.value,
+                }))
+              }
+              style={{ ...controlStyle, cursor: "pointer" }}
+            >
+              <option value="" style={optionStyle}>
+                {t("Seleccionar validador")}
+              </option>
+              {opcionesValidadorCierre.map((opcion) => (
+                <option key={opcion} value={opcion} style={optionStyle}>
+                  {t(opcion)}
+                </option>
+              ))}
+            </select>
+            <span style={{ fontSize: "11px", color: tema.textoSuave, fontWeight: 700, lineHeight: 1.35 }}>
+              {t("El validador revisa la evidencia y aprueba o rechaza el cierre definitivo.")}
+            </span>
+          </label>
+          <label style={{ display: "grid", gap: "6px" }}>
+            <span style={{ fontSize: "11px", color: tema.textoSuave, fontWeight: 900 }}>
+              {t("Estado de validación")}
+            </span>
+            <select
+              value={gestionCierreDraft.validadorCierreEstado}
+              onChange={(e) =>
+                setGestionCierreDraft((actual) => ({
+                  ...actual,
+                  validadorCierreEstado: e.target.value,
+                }))
+              }
+              style={{ ...controlStyle, cursor: "pointer" }}
+            >
+              {opcionesEstadoValidacion.map((opcion) => (
+                <option key={opcion} value={opcion} style={optionStyle}>
+                  {t(opcion)}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <label style={{ display: "grid", gap: "6px" }}>
+          <span style={{ fontSize: "11px", color: tema.textoSuave, fontWeight: 900 }}>
+            {t("Observación de validación")}
+          </span>
+          <textarea
+            value={gestionCierreDraft.validadorCierreObservacion}
+            onChange={(e) =>
+              setGestionCierreDraft((actual) => ({
+                ...actual,
+                validadorCierreObservacion: e.target.value,
+              }))
+            }
+            style={{
+              ...controlStyle,
+              minHeight: "82px",
+              resize: "vertical",
+              lineHeight: 1.45,
+            }}
+          />
+        </label>
+      </div>
+
+      {errorGestionCierre && (
+        <div
+          style={{
+            padding: "12px 14px",
+            borderRadius: "14px",
+            background: "rgba(190,99,83,0.14)",
+            border: "1px solid rgba(251,146,124,0.38)",
+            color: temaClaro ? "#7f1d1d" : "#fecaca",
+            fontSize: "13px",
+            fontWeight: 850,
+            textAlign: "center",
+          }}
+        >
+          {t(errorGestionCierre)}
+        </div>
+      )}
+
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          gap: "10px",
+          flexWrap: "wrap",
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setMostrarGestionCierre(false)}
+          style={perfilButtonStyle("cancelar-gestion", "neutral")}
+        >
+          {t("Cancelar")}
+        </button>
+        <button
+          type="button"
+          onClick={guardarGestionCierre}
+          style={perfilButtonStyle("guardar-gestion", "primary")}
+        >
+          {t("Guardar cambios")}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
 {filtrosActivos.length > 0 && (
   <div
     style={{
@@ -3202,9 +4272,7 @@ const kpis = [
   alignItems: "center",
 }}
     >
-      <button
-        type="button"
-        onClick={abrirEditorPerfil}
+      <div
         style={{
           width: "84px",
           height: "84px",
@@ -3217,8 +4285,7 @@ const kpis = [
           overflow: "hidden",
           flexShrink: 0,
           boxShadow: "0 8px 20px rgba(0,0,0,0.22)",
-          padding: 0,
-          cursor: "pointer",
+          cursor: "default",
         }}
       >
         {usuario.foto ? (
@@ -3243,7 +4310,7 @@ const kpis = [
             {inicialUsuario}
           </span>
         )}
-      </button>
+      </div>
 
       <button
   type="button"
@@ -3716,7 +4783,7 @@ style={{
     </div>
 
     <div style={{ display: "grid", gap: "8px" }}>
-	     {["Exportar a Excel", "Generar informe empresa/obra", "Configuración"].map((item) => (
+	     {["Exportar a Excel", "Generar informe empresa/obra", "Seguimiento de cierre", "Configuración"].map((item) => (
      <button
   key={item}
   onClick={() => {
@@ -3727,6 +4794,12 @@ style={{
 
 if (item === "Generar informe empresa/obra") {
   generarInformeEmpresaObra();
+  return;
+}
+
+if (item === "Seguimiento de cierre") {
+  setVistaPrincipal("seguimiento");
+  setVistaDerecha("seguimiento");
   return;
 }
 
@@ -3746,18 +4819,58 @@ style={{
     minHeight: "50px",
     padding: "14px 14px",
     borderRadius: "14px",
-	    border: tema.borde,
-	    background: tema.tarjetaElevada,
-	    color: tema.texto,
+	    border: item === "Seguimiento de cierre"
+	      ? "1px solid rgba(251,146,124,0.42)"
+	      : tema.borde,
+	    background: item === "Seguimiento de cierre"
+	      ? "linear-gradient(135deg, rgba(190,99,83,0.94), rgba(127,29,29,0.84))"
+	      : tema.tarjetaElevada,
+	    color: item === "Seguimiento de cierre" ? "#fff7ed" : tema.texto,
     fontSize: "13px",
-    fontWeight: 700,
+    fontWeight: item === "Seguimiento de cierre" ? 900 : 700,
     textAlign: "left",
     cursor: "pointer",
     display: "flex",
     alignItems: "center",
+    justifyContent: "space-between",
+    boxShadow: item === "Seguimiento de cierre"
+      ? "0 10px 22px rgba(190,99,83,0.20)"
+      : "none",
+    transition: "background 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease",
+  }}
+  onMouseEnter={(e) => {
+    if (item !== "Seguimiento de cierre") return;
+    e.currentTarget.style.background = "linear-gradient(135deg, rgba(220,110,92,0.98), rgba(153,45,34,0.90))";
+    e.currentTarget.style.boxShadow = "0 12px 26px rgba(220,110,92,0.26)";
+  }}
+  onMouseLeave={(e) => {
+    if (item !== "Seguimiento de cierre") return;
+    e.currentTarget.style.background = "linear-gradient(135deg, rgba(190,99,83,0.94), rgba(127,29,29,0.84))";
+    e.currentTarget.style.boxShadow = "0 10px 22px rgba(190,99,83,0.20)";
+  }}
+  onFocus={(e) => {
+    if (item !== "Seguimiento de cierre") return;
+    e.currentTarget.style.borderColor = "rgba(253,186,116,0.70)";
+    e.currentTarget.style.boxShadow = "0 0 0 3px rgba(251,146,124,0.18), 0 12px 26px rgba(220,110,92,0.24)";
+  }}
+  onBlur={(e) => {
+    if (item !== "Seguimiento de cierre") return;
+    e.currentTarget.style.borderColor = "rgba(251,146,124,0.42)";
+    e.currentTarget.style.boxShadow = "0 10px 22px rgba(190,99,83,0.20)";
   }}
 >
-	  {t(item)}
+	  <span>{t(item)}</span>
+    {item === "Seguimiento de cierre" && (
+      <span
+        style={{
+          fontSize: "14px",
+          lineHeight: 1,
+          opacity: 0.92,
+        }}
+      >
+        ↗
+      </span>
+    )}
 </button>
       ))}
     </div>
@@ -3766,7 +4879,7 @@ style={{
           <section
             style={{
               minHeight: "760px",
-              display: vistaPrincipal === "configuracion" ? "none" : "grid",
+              display: vistaPrincipal === "panel" ? "grid" : "none",
               gridTemplateRows: "auto auto 1fr",
               gap: "18px",
             }}
@@ -4407,14 +5520,14 @@ style={{
           <aside
             style={{
               ...panelSurfaceStyle,
-              padding: vistaPrincipal === "configuracion" ? "24px" : "16px",
+              padding: vistaPrincipal === "panel" ? "16px" : "24px",
               minHeight: "760px",
               display: "flex",
               flexDirection: "column",
-              gridColumn: vistaPrincipal === "configuracion" ? "2 / 4" : "auto",
+              gridColumn: vistaPrincipal === "panel" ? "auto" : "2 / 4",
             }}
             >
- {vistaDerecha === "configuracion" ? null : (
+{vistaDerecha !== "informe" ? null : (
   <div
     style={{
       fontSize: "16px",
@@ -4423,6 +5536,440 @@ style={{
     }}
   >
 	    {t("Informe Ejecutivo")}
+  </div>
+)}
+
+{vistaDerecha === "seguimiento" && (
+  <div
+    style={{
+      display: "grid",
+      gap: "16px",
+      marginBottom: "12px",
+    }}
+  >
+    <div
+      style={{
+        ...panelSurfaceStyle,
+        padding: "20px 22px",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        gap: "16px",
+      }}
+    >
+      <div>
+        <div
+          style={{
+            fontSize: "24px",
+            fontWeight: 900,
+            color: tema.texto,
+            marginBottom: "6px",
+          }}
+        >
+          {t("Seguimiento de cierre")}
+        </div>
+        <div
+          style={{
+            fontSize: "13px",
+            color: tema.textoSuave,
+            lineHeight: 1.5,
+          }}
+        >
+          {t("Control de responsables, plazos, evidencias y estado de corrección.")}
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={() => {
+          setVistaPrincipal("panel");
+          setVistaDerecha("informe");
+        }}
+        style={{
+          padding: "12px 18px",
+          borderRadius: "14px",
+          ...secondaryButtonStyle,
+          fontSize: "13px",
+          fontWeight: 800,
+          cursor: "pointer",
+          boxShadow: "0 8px 18px rgba(0,0,0,0.14)",
+        }}
+      >
+        {t("Volver al panel")}
+      </button>
+    </div>
+
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+        gap: "12px",
+      }}
+    >
+      {kpisSeguimiento.map((kpi) => (
+        <div
+          key={kpi.id}
+          style={{
+            ...panelSurfaceStyle,
+            padding: "16px",
+            minHeight: "92px",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "space-between",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "11px",
+              color: tema.textoSuave,
+              fontWeight: 900,
+              textTransform: "uppercase",
+              lineHeight: 1.25,
+            }}
+          >
+            {kpi.titulo}
+          </div>
+          <div
+            style={{
+              fontSize: "34px",
+              fontWeight: 900,
+              color: kpi.color,
+              lineHeight: 1,
+            }}
+          >
+            {kpi.valor}
+          </div>
+        </div>
+      ))}
+    </div>
+
+    <div
+      style={{
+        ...panelSurfaceStyle,
+        padding: "16px",
+        display: "grid",
+        gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
+        gap: "12px",
+      }}
+    >
+      <label style={{ display: "grid", gap: "7px" }}>
+        <span style={seguimientoFilterLabelStyle}>
+          {t("Estado").toUpperCase()}
+        </span>
+        <select
+          value={filtroSeguimientoEstado}
+          onChange={(e) => setFiltroSeguimientoEstado(e.target.value)}
+          style={{ ...controlStyle, cursor: "pointer" }}
+        >
+          {opcionesSeguimientoEstado.map((estado) => (
+            <option key={estado} value={estado} style={optionStyle}>
+              {estado === "TODOS" ? t("Todos") : t(estado)}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label style={{ display: "grid", gap: "7px" }}>
+        <span style={seguimientoFilterLabelStyle}>
+          {t("Empresa").toUpperCase()}
+        </span>
+        <select
+          value={filtroSeguimientoEmpresa}
+          onChange={(e) => setFiltroSeguimientoEmpresa(e.target.value)}
+          style={{ ...controlStyle, cursor: "pointer" }}
+        >
+          {opcionesSeguimientoEmpresa.map((empresa) => (
+            <option key={empresa} value={empresa} style={optionStyle}>
+              {empresa === "TODAS" ? t("Todas") : empresa}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label style={{ display: "grid", gap: "7px" }}>
+        <span style={seguimientoFilterLabelStyle}>
+          {t("Criticidad").toUpperCase()}
+        </span>
+        <select
+          value={filtroSeguimientoCriticidad}
+          onChange={(e) => setFiltroSeguimientoCriticidad(e.target.value)}
+          style={{ ...controlStyle, cursor: "pointer" }}
+        >
+          {opcionesCriticidad.map((criticidad) => (
+            <option key={criticidad} value={criticidad} style={optionStyle}>
+              {textoOpcion(criticidad)}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label style={{ display: "grid", gap: "7px" }}>
+        <span style={seguimientoFilterLabelStyle}>
+          {t("Fecha").toUpperCase()}
+        </span>
+        <input
+          type="date"
+          value={filtroSeguimientoFecha}
+          onChange={(e) => setFiltroSeguimientoFecha(e.target.value)}
+          style={{ ...controlStyle, colorScheme: tema.inputScheme }}
+          aria-label={t("Fecha")}
+        />
+      </label>
+      <label style={{ display: "grid", gap: "7px" }}>
+        <span style={seguimientoFilterLabelStyle}>
+          {t("Responsable de corrección").toUpperCase()}
+        </span>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr auto auto",
+            gap: "8px",
+          }}
+        >
+          <input
+            value={busquedaResponsableSeguimientoDraft}
+            onChange={(e) => setBusquedaResponsableSeguimientoDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                ejecutarBusquedaResponsableSeguimiento();
+              }
+            }}
+            style={controlStyle}
+            placeholder={t("Buscar por nombre de responsable")}
+          />
+          <button
+            type="button"
+            onClick={ejecutarBusquedaResponsableSeguimiento}
+            style={{
+              padding: "0 13px",
+              borderRadius: "13px",
+              ...selectedButtonStyle,
+              fontSize: "12px",
+              fontWeight: 900,
+              cursor: "pointer",
+            }}
+          >
+            {t("Buscar")}
+          </button>
+          <button
+            type="button"
+            onClick={limpiarBusquedaResponsableSeguimiento}
+            style={{
+              width: "40px",
+              borderRadius: "13px",
+              ...secondaryButtonStyle,
+              fontSize: "15px",
+              fontWeight: 900,
+              cursor: "pointer",
+            }}
+            aria-label={t("Limpiar filtros")}
+          >
+            ×
+          </button>
+        </div>
+      </label>
+    </div>
+
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "minmax(0, 1.65fr) minmax(300px, 0.95fr)",
+        gap: "16px",
+        alignItems: "stretch",
+      }}
+    >
+      <div
+        style={{
+          ...panelSurfaceStyle,
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "0.85fr 1.15fr 1.15fr 0.9fr 1.25fr 1.15fr 1fr 1fr 1fr 0.85fr",
+            gap: "10px",
+            padding: "13px 14px",
+            background: tema.tarjetaSuave,
+            color: tema.textoSuave,
+            fontSize: "10px",
+            fontWeight: 900,
+            textTransform: "uppercase",
+          }}
+        >
+          <div>{t("Código")}</div>
+          <div>{t("Empresa")}</div>
+          <div>{t("Tipo de hallazgo")}</div>
+          <div>{t("Criticidad")}</div>
+          <div>{t("Responsable de corrección")}</div>
+          <div>{t("Empresa responsable")}</div>
+          <div>{t("Fecha compromiso")}</div>
+          <div>{t("Estado seguimiento")}</div>
+          <div>{t("Evidencia de cierre")}</div>
+          <div>{t("Acción")}</div>
+        </div>
+
+        {hallazgosSeguimientoFiltrados.length === 0 ? (
+          <div
+            style={{
+              padding: "28px 16px",
+              borderTop: tema.bordeSutil,
+              color: tema.textoSuave,
+              fontSize: "14px",
+              fontWeight: 800,
+              textAlign: "center",
+            }}
+          >
+            {t("Sin coincidencias para los filtros de seguimiento seleccionados.")}
+          </div>
+        ) : hallazgosSeguimientoFiltrados.map((item) => {
+          const estadoVisual = estadoSeguimientoVisual(item);
+          const activo = hallazgoSeguimientoActivo?.codigo === item.codigo;
+          return (
+            <div
+              key={item.codigo}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "0.85fr 1.15fr 1.15fr 0.9fr 1.25fr 1.15fr 1fr 1fr 1fr 0.85fr",
+                gap: "10px",
+                padding: "14px",
+                borderTop: tema.bordeSutil,
+                alignItems: "center",
+                fontSize: "12px",
+                background: activo
+                  ? (temaClaro ? "rgba(219,234,254,0.46)" : "rgba(59,130,246,0.09)")
+                  : "transparent",
+              }}
+            >
+              <div style={{ fontWeight: 900 }}>{item.codigo}</div>
+              <div>{item.empresa} / {item.obra}</div>
+              <div>{item.tipoHallazgo}</div>
+              <div>
+                <span
+                  style={{
+                    display: "inline-flex",
+                    padding: "6px 8px",
+                    borderRadius: "999px",
+                    background: chipColor(item.criticidad).fondo,
+                    border: chipColor(item.criticidad).borde,
+                    color: chipColor(item.criticidad).texto,
+                    fontSize: "10px",
+                    fontWeight: 900,
+                  }}
+                >
+                  {item.criticidad}
+                </span>
+              </div>
+              <div style={{ fontWeight: 800 }}>{t(item.responsableCorreccionNombre)}</div>
+              <div>{item.responsableCorreccionEmpresa}</div>
+              <div>{t(item.responsableCierreFechaCompromiso)}</div>
+              <div>
+                <span
+                  style={{
+                    display: "inline-flex",
+                    padding: "6px 8px",
+                    borderRadius: "999px",
+                    fontSize: "10px",
+                    fontWeight: 900,
+                    ...seguimientoChipStyle(estadoVisual),
+                  }}
+                >
+                  {t(estadoVisual)}
+                </span>
+              </div>
+              <div>{t(item.responsableCierreEvidencia)}</div>
+              <button
+                type="button"
+                onClick={() => setCodigoSeguimientoActivo(item.codigo)}
+                style={{
+                  padding: "9px 10px",
+                  borderRadius: "12px",
+                  ...secondaryButtonStyle,
+                  fontSize: "11px",
+                  fontWeight: 900,
+                  cursor: "pointer",
+                }}
+              >
+                {t("Ver detalle")}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+
+      {hallazgoSeguimientoActivo && (
+        <div
+          style={{
+            ...panelSurfaceStyle,
+            padding: "18px",
+            display: "grid",
+            gap: "14px",
+            alignSelf: "start",
+          }}
+        >
+          <div>
+            <div style={{ fontSize: "18px", fontWeight: 900, marginBottom: "4px" }}>
+              {hallazgoSeguimientoActivo.codigo}
+            </div>
+            <div style={{ color: tema.textoSuave, fontSize: "12px", lineHeight: 1.45 }}>
+              {hallazgoSeguimientoActivo.descripcion}
+            </div>
+          </div>
+          {[
+            [t("Reportante"), hallazgoSeguimientoActivo.reportante],
+            [t("Responsable de corrección"), t(hallazgoSeguimientoActivo.responsableCorreccionNombre)],
+            [t("Encargado de seguimiento"), t(hallazgoSeguimientoActivo.encargadoSeguimientoNombre)],
+            [t("Validador de cierre"), t(hallazgoSeguimientoActivo.validadorCierreNombre)],
+            [t("Fecha compromiso"), t(hallazgoSeguimientoActivo.responsableCierreFechaCompromiso)],
+            [t("Estado seguimiento"), t(estadoSeguimientoVisual(hallazgoSeguimientoActivo))],
+            [t("Acción correctiva requerida"), t(hallazgoSeguimientoActivo.accionCorrectivaRequerida)],
+            [t("Evidencia requerida"), t(hallazgoSeguimientoActivo.evidenciaRequerida)],
+            [t("Evidencia recibida"), t(hallazgoSeguimientoActivo.evidenciaRecibida)],
+            [t("Observación de seguimiento"), t(hallazgoSeguimientoActivo.responsableCierreObservacion)],
+          ].map(([label, value]) => (
+            <div
+              key={label}
+              style={{
+                padding: "12px",
+                borderRadius: "14px",
+                border: tema.borde,
+                background: tema.tarjetaSuave,
+              }}
+            >
+              <div style={{ fontSize: "11px", color: tema.textoSuave, fontWeight: 900, marginBottom: "5px" }}>
+                {label}
+              </div>
+              <div style={{ fontSize: "13px", fontWeight: 800, lineHeight: 1.35 }}>{value}</div>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={abrirGestionCierre}
+            style={{
+              width: "100%",
+              padding: "13px 14px",
+              borderRadius: "14px",
+              ...selectedButtonStyle,
+              fontSize: "13px",
+              fontWeight: 900,
+              cursor: "pointer",
+            }}
+          >
+            {t("Gestionar cierre")}
+          </button>
+          <div
+            style={{
+              padding: "12px",
+              borderRadius: "14px",
+              border: "1px solid rgba(245,158,11,0.32)",
+              background: "rgba(245,158,11,0.12)",
+              color: temaClaro ? "#92400e" : "#fde68a",
+              fontSize: "12px",
+              fontWeight: 800,
+              lineHeight: 1.45,
+            }}
+          >
+            {t("El reportante no se asume automáticamente como responsable de corrección. El seguimiento puede ser asignado a un supervisor o usuario autorizado.")}
+          </div>
+        </div>
+      )}
+    </div>
   </div>
 )}
 
@@ -5384,7 +6931,7 @@ style={{
   </div>
 )}
 
-{vistaDerecha === "configuracion" ? null : filasFiltradas.length === 0 ? (
+{vistaDerecha !== "informe" ? null : filasFiltradas.length === 0 ? (
   <div
     style={{
       flex: 1,
