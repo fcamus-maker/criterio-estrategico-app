@@ -29,6 +29,29 @@ export interface SeguimientoCierre {
   estadoCierre: "Pendiente de cierre" | "En gestión" | "Cerrado";
 }
 
+export interface GeolocalizacionHallazgo {
+  latitud: number;
+  longitud: number;
+  precisionGps?: number;
+  fechaHoraGeolocalizacion: string;
+  estadoGeolocalizacion:
+    | "capturada"
+    | "pendiente"
+    | "rechazada"
+    | "no_disponible";
+}
+
+export interface AsignacionCierreHallazgo {
+  tipoResponsableCorreccion?: string;
+  empresaResponsable?: string;
+  nombreResponsable?: string;
+  cargoResponsable?: string;
+  telefonoResponsable?: string;
+  fechaCompromiso?: string;
+  observacionSeguimiento?: string;
+  evidenciaRequerida?: string[];
+}
+
 export type EvidenciaFoto =
   | string
   | {
@@ -56,6 +79,8 @@ export interface Hallazgo {
   proyecto?: string;
   obra?: string;
   empresa?: string;
+  supervisor?: string;
+  reportante?: string;
   empresaSigla?: string;
   siglaEmpresa?: string;
   siglaProyecto?: string;
@@ -68,6 +93,7 @@ export interface Hallazgo {
   nivelCriticidad?: CriticidadHallazgo;
   nivel?: CriticidadHallazgo;
   fechaInforme?: string;
+  geolocalizacion?: GeolocalizacionHallazgo;
 
   reporte?: {
     area?: string;
@@ -94,6 +120,7 @@ export interface Hallazgo {
   contexto?: {
     obra?: string;
     empresa?: string;
+    supervisor?: string;
   };
 
   evaluacion?: {
@@ -124,6 +151,7 @@ export interface Hallazgo {
 
   informeFinal?: Record<string, unknown>;
   seguimientoCierre?: SeguimientoCierre;
+  asignacionCierre?: AsignacionCierreHallazgo;
 
   correlativo?: string | number;
   numeroRegistro?: string | number;

@@ -63,6 +63,10 @@ export default function ReportarPage() {
 });
   
 const [tipoRiesgo, setTipoRiesgo] = useState("");
+const [capturandoGps, setCapturandoGps] = useState(false);
+const [mensajeGps, setMensajeGps] = useState(
+  "Captura la ubicación GPS para habilitar el guardado."
+);
 useEffect(() => {
   try {
     const usuarioGuardado = JSON.parse(
@@ -115,8 +119,69 @@ useEffect(() => {
 });
 };
 
+const capturarUbicacionGps = () => {
+  if (!("geolocation" in navigator)) {
+    setMensajeGps(
+      "No se pudo capturar la ubicación. Debes permitir el acceso a ubicación para guardar el hallazgo."
+    );
+    setHallazgo((prev) => ({
+      ...prev,
+      geolocalizacion: undefined,
+    }));
+    return;
+  }
+
+  setCapturandoGps(true);
+  setMensajeGps("Solicitando ubicación del dispositivo...");
+
+  navigator.geolocation.getCurrentPosition(
+    (posicion) => {
+      const geolocalizacion = {
+        latitud: posicion.coords.latitude,
+        longitud: posicion.coords.longitude,
+        precisionGps: posicion.coords.accuracy,
+        fechaHoraGeolocalizacion: new Date().toISOString(),
+        estadoGeolocalizacion: "capturada" as const,
+      };
+
+      setHallazgo((prev) => ({
+        ...prev,
+        geolocalizacion,
+      }));
+      setMensajeGps("Ubicación capturada correctamente.");
+      setCapturandoGps(false);
+    },
+    () => {
+      setHallazgo((prev) => ({
+        ...prev,
+        geolocalizacion: undefined,
+      }));
+      setMensajeGps(
+        "No se pudo capturar la ubicación. Debes permitir el acceso a ubicación para guardar el hallazgo."
+      );
+      setCapturandoGps(false);
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 12000,
+      maximumAge: 0,
+    }
+  );
+};
+
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+
+    if (
+      hallazgo.geolocalizacion?.estadoGeolocalizacion !== "capturada" ||
+      typeof hallazgo.geolocalizacion.latitud !== "number" ||
+      typeof hallazgo.geolocalizacion.longitud !== "number"
+    ) {
+      alert(
+        "No se pudo capturar la ubicación. Debes permitir el acceso a ubicación para guardar el hallazgo."
+      );
+      return;
+    }
 
     const existentes = JSON.parse(localStorage.getItem("hallazgos") || "[]");
 
@@ -133,6 +198,7 @@ supervisor: hallazgo.contexto.supervisor,
 cargo: JSON.parse(localStorage.getItem("usuarioActivo") || "null")?.cargo || "",
   estado: "abierto",
   reporte: hallazgo.reporte,
+  geolocalizacion: hallazgo.geolocalizacion,
 
   evaluacion: {
   respuestas: {},
@@ -154,6 +220,7 @@ cargo: JSON.parse(localStorage.getItem("usuarioActivo") || "null")?.cargo || "",
     descripcion: "",
     fotos: [],
   },
+  geolocalizacion: undefined,
 });
   };
 const inputStyle = {
@@ -339,19 +406,125 @@ const inputStyle = {
     ))}
   </div>
 )}
+
+<div
+  style={{
+    padding: "16px",
+    borderRadius: "16px",
+    background: "rgba(255,255,255,0.09)",
+    border: "1px solid rgba(255,255,255,0.14)",
+    marginBottom: "12px",
+  }}
+>
+  <div
+    style={{
+      fontSize: "16px",
+      fontWeight: 800,
+      marginBottom: "8px",
+    }}
+  >
+    Ubicación del hallazgo
+  </div>
+
+  <p
+    style={{
+      margin: "0 0 12px",
+      fontSize: "13px",
+      lineHeight: 1.45,
+      opacity: 0.78,
+    }}
+  >
+    La ubicación GPS es obligatoria para guardar y evaluar el hallazgo.
+  </p>
+
+  <button
+    type="button"
+    onClick={capturarUbicacionGps}
+    disabled={capturandoGps}
+    style={{
+      width: "100%",
+      padding: "13px",
+      borderRadius: "13px",
+      border: "1px solid rgba(96,165,250,0.35)",
+      background: capturandoGps
+        ? "rgba(148,163,184,0.35)"
+        : "linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%)",
+      color: "white",
+      fontSize: "15px",
+      fontWeight: 800,
+      cursor: capturandoGps ? "not-allowed" : "pointer",
+      marginBottom: "12px",
+    }}
+  >
+    {capturandoGps ? "Capturando ubicación..." : "Capturar ubicación GPS"}
+  </button>
+
+  <div
+    style={{
+      fontSize: "13px",
+      lineHeight: 1.5,
+      color:
+        hallazgo.geolocalizacion?.estadoGeolocalizacion === "capturada"
+          ? "#bbf7d0"
+          : "#fecaca",
+      fontWeight: 700,
+    }}
+  >
+    {mensajeGps}
+  </div>
+
+  {hallazgo.geolocalizacion?.estadoGeolocalizacion === "capturada" && (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+        gap: "8px",
+        marginTop: "12px",
+        fontSize: "12px",
+      }}
+    >
+      <div>
+        <div style={{ opacity: 0.68, marginBottom: "3px" }}>Latitud</div>
+        <strong>{hallazgo.geolocalizacion.latitud.toFixed(6)}</strong>
+      </div>
+      <div>
+        <div style={{ opacity: 0.68, marginBottom: "3px" }}>Longitud</div>
+        <strong>{hallazgo.geolocalizacion.longitud.toFixed(6)}</strong>
+      </div>
+      <div style={{ gridColumn: "1 / -1" }}>
+        <div style={{ opacity: 0.68, marginBottom: "3px" }}>
+          Precisión aproximada
+        </div>
+        <strong>
+          {typeof hallazgo.geolocalizacion.precisionGps === "number"
+            ? `${Math.round(hallazgo.geolocalizacion.precisionGps)} metros`
+            : "No informada"}
+        </strong>
+      </div>
+    </div>
+  )}
+</div>
+
        <button
   type="submit"
+  disabled={hallazgo.geolocalizacion?.estadoGeolocalizacion !== "capturada"}
   style={{
     marginTop: "10px",
     width: "100%",
     padding: "14px",
     borderRadius: "14px",
-    background: "linear-gradient(90deg, #22c55e, #4ade80)",
+    background:
+      hallazgo.geolocalizacion?.estadoGeolocalizacion === "capturada"
+        ? "linear-gradient(90deg, #22c55e, #4ade80)"
+        : "linear-gradient(90deg, #64748b, #94a3b8)",
     color: "#052e16",
     border: "none",
     fontSize: "16px",
     fontWeight: 700,
-    cursor: "pointer",
+    cursor:
+      hallazgo.geolocalizacion?.estadoGeolocalizacion === "capturada"
+        ? "pointer"
+        : "not-allowed",
     boxShadow: "0 10px 30px rgba(34,197,94,0.3)"
   }}
 >
