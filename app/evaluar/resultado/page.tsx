@@ -100,7 +100,29 @@ export default function ResultadoPage() {
         )}
 
        <button
-  onClick={() => (window.location.href = "/evaluar/informe-final")}
+  onClick={() => {
+    const data = JSON.parse(localStorage.getItem("hallazgos") || "[]");
+
+    if (Array.isArray(data) && data.length > 0 && nivel) {
+      const nivelCalculado = String(nivel).toUpperCase();
+
+      data[data.length - 1] = {
+        ...data[data.length - 1],
+        criticidad: nivelCalculado,
+        nivelCriticidad: nivelCalculado,
+        nivel: nivelCalculado,
+        resultadoFinal: {
+          ...(data[data.length - 1]?.resultadoFinal || {}),
+          criticidad: nivelCalculado,
+          nivel: nivelCalculado,
+        },
+      };
+
+      localStorage.setItem("hallazgos", JSON.stringify(data));
+    }
+
+    window.location.href = "/evaluar/seguimiento-cierre";
+  }}
   style={{
     width: "100%",
     padding: "14px",
@@ -112,7 +134,7 @@ export default function ResultadoPage() {
     cursor: "pointer",
   }}
 >
-  Finalizar
+  Asignar responsable de cierre
 </button>
       </div>
     </div>

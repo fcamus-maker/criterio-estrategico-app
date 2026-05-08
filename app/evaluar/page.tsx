@@ -1,11 +1,3 @@
-"use client";
+import Home from "../page";
 
-import { useEffect } from "react";
-
-export default function EvaluarPage() {
-  useEffect(() => {
-    window.location.href = "/evaluar/paso1";
-  }, []);
-
-  return null;
-}
+export default Home;

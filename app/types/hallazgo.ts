@@ -1,68 +1,131 @@
-export interface Hallazgo {
-  id: number;
-  estado: "abierto" | "cerrado";
-  reporte: {
-    area: string;
-    responsable: string;
-    fecha: string;
-    descripcion: string;
-    fotos: string[];
-  };
+export type EstadoHallazgo =
+  | "Reportado"
+  | "Evaluado"
+  | "En gestión"
+  | "Cerrado"
+  | "informado"
+  | "abierto"
+  | "cerrado";
+
+export type CriticidadHallazgo =
+  | "Bajo"
+  | "Medio"
+  | "Alto"
+  | "Crítico"
+  | "CRÍTICO"
+  | "ALTO"
+  | "MEDIO"
+  | "BAJO";
+
+export interface SeguimientoCierre {
+  responsableCierreNombre: string;
+  responsableCierreCargo: string;
+  responsableCierreEmpresa: string;
+  responsableCierreTelefono: string;
+  fechaCompromisoCierre: string;
+  fechaMaximaPermitidaCierre?: string;
+  plazoCierrePorCriticidad?: string;
+  observacionInicialSeguimiento: string;
+  estadoCierre: "Pendiente de cierre" | "En gestión" | "Cerrado";
 }
 
-  reporte: {
-    area: string;
-    responsable: string;
-    fecha: string;
-    descripcion: string;
-    fotos: string[];
+export type EvidenciaFoto =
+  | string
+  | {
+      url?: string;
+      src?: string;
+      preview?: string;
+      base64?: string;
+      dataUrl?: string;
+    };
+
+export interface Hallazgo {
+  id?: number;
+  codigo?: string;
+  codigoInforme?: string;
+  codigoReporte?: string;
+  codigo_reporte?: string;
+  estado?: EstadoHallazgo;
+
+  area?: string;
+  responsable?: string;
+  cargo?: string;
+  fecha?: string;
+  hora?: string;
+  horaReporte?: string;
+  proyecto?: string;
+  obra?: string;
+  empresa?: string;
+  empresaSigla?: string;
+  siglaEmpresa?: string;
+  siglaProyecto?: string;
+  siglaObra?: string;
+  descripcion?: string;
+  detalle?: string;
+  fotos?: EvidenciaFoto[];
+  imagenes?: EvidenciaFoto[];
+  criticidad?: CriticidadHallazgo;
+  nivelCriticidad?: CriticidadHallazgo;
+  nivel?: CriticidadHallazgo;
+  fechaInforme?: string;
+
+  reporte?: {
+    area?: string;
+    responsable?: string;
+    cargo?: string;
+    fecha?: string;
+    hora?: string;
+    descripcion?: string;
+    fotos?: EvidenciaFoto[];
+    imagenes?: EvidenciaFoto[];
+    evidencias?: EvidenciaFoto[];
+    proyecto?: string;
+    obra?: string;
+    empresa?: string;
+    empresaSigla?: string;
+    siglaEmpresa?: string;
+    siglaProyecto?: string;
+    siglaObra?: string;
+    codigoInforme?: string;
+    codigoReporte?: string;
+    codigo_reporte?: string;
   };
 
-    evaluacion: {
-    respuestas: Record<string, string>;
+  contexto?: {
+    obra?: string;
+    empresa?: string;
   };
 
-  bloque1: {
-    tipoPeligro: string;
-    tipoDesviacion: string;
-    severidadPotencial: string;
-    personasExpuestas: string;
-    frecuenciaExposicion: string;
+  evaluacion?: {
+    respuestas?: Record<string, string>;
+    criticidad?: CriticidadHallazgo;
   };
 
-  bloque2: {
-    tareaEnEjecucion: string;
-    peligroActivo: string;
-    ocurrenciaInmediata: string;
-    areaControlada: string;
-    controlesVisibles: string;
-    trabajoDetenido: string;
-    repeticionInmediata: string;
+  resultado?: {
+    puntajeBloque1?: number;
+    puntajeBloque2?: number;
+    puntajeBloque3?: number;
+    puntajeFinal?: number;
+    criticidad?: CriticidadHallazgo;
+    nivel?: CriticidadHallazgo;
+    prioridad?: "Baja" | "Media" | "Alta" | "Urgente";
+    recomendacion?: string | string[];
+    accionInmediata?: string;
   };
 
-  bloque3: {
-    existePTS: string;
-    ptsVigente: string;
-    trabajadorCapacitado: string;
-    registroCapacitacion: string;
-    charla5Minutos: string;
-    existeASTIPER: string;
-    riesgosIdentificados: string;
-    permisosAplicables: string;
-    permisosVigentes: string;
-    supervisionInformada: string;
+  resultadoFinal?: Record<string, unknown> & {
+    criticidad?: CriticidadHallazgo;
+    nivel?: CriticidadHallazgo;
   };
 
-  resultado: {
-    puntajeBloque1: number;
-    puntajeBloque2: number;
-    puntajeBloque3: number;
-    puntajeFinal: number;
-    criticidad: "Bajo" | "Medio" | "Alto" | "Crítico";
-    prioridad: "Baja" | "Media" | "Alta" | "Urgente";
-    recomendacion: string;
-    accionInmediata: string;
-  };
+  bloque1?: Record<string, string>;
+  bloque2?: Record<string, string>;
+  bloque3?: Record<string, string>;
 
-  estado: "Reportado" | "Evaluado" | "En gestión" | "Cerrado";
-};
+  informeFinal?: Record<string, unknown>;
+  seguimientoCierre?: SeguimientoCierre;
+
+  correlativo?: string | number;
+  numeroRegistro?: string | number;
+  numero?: string | number;
+}

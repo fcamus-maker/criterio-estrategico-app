@@ -161,13 +161,12 @@ export default function Paso3() {
         >
           <span
             style={{ fontSize: "22px", cursor: "pointer" }}
-            onClick={() => (window.location.href = "/")}
+            onClick={() => (window.location.href = "/evaluar/paso2")}
           >
             ‹
           </span>
-          <span style={{ fontSize: "20px" }}>🏠</span>
           <span style={{ fontSize: "17px", fontWeight: 700 }}>
-            Criterio Estratégico
+            Volver al paso 2
           </span>
         </div>
 
@@ -426,9 +425,7 @@ export default function Paso3() {
 
     if (Array.isArray(data) && data.length > 0) {
       const ultimo = data[data.length - 1];
-      const nivelCalculado = String(
-        resultado?.nivel || resultado?.criticidad || "ALTO"
-      ).toUpperCase();
+      const nivelCalculado = String(resultado.nivel || "ALTO").toUpperCase();
 
       data[data.length - 1] = {
         ...ultimo,
@@ -445,7 +442,7 @@ export default function Paso3() {
       localStorage.setItem("hallazgos", JSON.stringify(data));
     }
 
-    window.location.href = "/evaluar/informe-final";
+    window.location.href = "/evaluar/seguimiento-cierre";
   }}
   style={{
     width: "100%",
@@ -460,7 +457,7 @@ export default function Paso3() {
     boxShadow: "0 10px 24px rgba(0,0,0,0.25)",
   }}
 >
-  Finalizar
+  Asignar responsable de cierre
 </button>
       </div>
     </div>

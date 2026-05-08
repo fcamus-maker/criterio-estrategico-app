@@ -4,17 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import preguntasEvaluacion, {
   type RespuestasEvaluacion,
 } from "../../types/evaluacion";
+import type { Hallazgo, SeguimientoCierre } from "../../types/hallazgo";
 import { supabase } from "../../../lib/supabaseClient";
-type Hallazgo = Record<string, unknown> & {
-  asignacionCierre?: unknown;
-  contexto?: Record<string, unknown>;
-  evaluacion?: Record<string, unknown> & {
-    respuestas?: RespuestasEvaluacion;
-  };
-  reporte?: Record<string, unknown>;
-  resultado?: Record<string, unknown>;
-  resultadoFinal?: Record<string, unknown>;
-};
 
 type AnalisisInforme = {
   total: number;
@@ -184,7 +175,24 @@ function formatearFecha(valor: unknown) {
   return String(valor);
 }
 
-function normalizarCriticidad(valor: unknown): string {
+function obtenerFechaReporte(valor: any): Date {
+  if (typeof valor === "string") {
+    const match = valor.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+    if (match) {
+      const [, anio, mes, dia] = match;
+      return new Date(Number(anio), Number(mes) - 1, Number(dia));
+    }
+  }
+
+  const fecha = valor instanceof Date ? valor : new Date(valor);
+  if (!Number.isNaN(fecha.getTime())) return fecha;
+
+  const hoy = new Date();
+  return new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+}
+
+function normalizarCriticidad(valor: any): string {
   return String(valor ?? "")
     .toUpperCase()
     .normalize("NFD")
@@ -605,23 +613,27 @@ function sumarDias(fechaBase: Date, dias: number): Date {
   return copia;
 }
 
-function obtenerFechaCierrePropuesta(criticidad: string): string {
-  const ahora = new Date();
+function obtenerFechaCierrePropuesta(criticidad: string, fechaReporte: Date): string {
   const nivel = normalizarCriticidad(criticidad);
+  const base = new Date(
+    fechaReporte.getFullYear(),
+    fechaReporte.getMonth(),
+    fechaReporte.getDate()
+  );
 
   if (nivel.includes("CRIT")) {
-    return `Inmediata · ${formatearFecha(ahora)}`;
+    return formatearFecha(base);
   }
 
   if (nivel.includes("ALTO")) {
-    return `Durante la jornada · ${formatearFecha(ahora)}`;
+    return formatearFecha(sumarDias(base, 1));
   }
 
   if (nivel.includes("MED")) {
-    return formatearFecha(sumarDias(ahora, 1));
+    return formatearFecha(sumarDias(base, 3));
   }
 
-  return formatearFecha(sumarDias(ahora, 2));
+  return formatearFecha(sumarDias(base, 7));
 }
 
 function generarFundamento(
@@ -830,7 +842,8 @@ function generarAcciones(
   contexto: ContextoHallazgo,
   criticidad: string,
   codigoInforme: string,
-  causaDominante: CausaDominante
+  causaDominante: CausaDominante,
+  fechaReporte: Date
 ): AccionesInforme {
   const seed = codigoInforme;
 const nivel = normalizarCriticidad(criticidad);
@@ -1013,7 +1026,7 @@ const nivel = normalizarCriticidad(criticidad);
     medidaInmediata,
     medidaCierre,
     evidenciaCierre,
-    fechaCierrePropuesta: obtenerFechaCierrePropuesta(criticidad),
+    fechaCierrePropuesta: obtenerFechaCierrePropuesta(criticidad, fechaReporte),
   };
 }
 
@@ -1044,6 +1057,7 @@ export default function InformeFinalPage() {
   const [cargado, setCargado] = useState(false);
   const [asignacionCierreDraft, setAsignacionCierreDraft] =
     useState<AsignacionCierreDraft>(ASIGNACION_CIERRE_INICIAL);
+  const [guardado, setGuardado] = useState(false);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -1070,7 +1084,11 @@ export default function InformeFinalPage() {
   const responsable = texto(
     hallazgo?.reporte?.responsable || hallazgo?.responsable
   );
-  const fecha = formatearFecha(hallazgo?.reporte?.fecha || hallazgo?.fecha);
+  const fechaBaseReporte = useMemo(
+    () => obtenerFechaReporte(hallazgo?.reporte?.fecha || hallazgo?.fecha),
+    [hallazgo]
+  );
+  const fecha = formatearFecha(fechaBaseReporte);
   const descripcion = texto(
     hallazgo?.reporte?.descripcion ||
       hallazgo?.descripcion ||
@@ -1111,6 +1129,9 @@ export default function InformeFinalPage() {
     asignacionCierreDraft.evidenciaRequerida.length > 0
       ? asignacionCierreDraft.evidenciaRequerida.join(", ")
       : "Sin evidencia requerida";
+  const seguimientoCierre = hallazgo?.seguimientoCierre as
+    | SeguimientoCierre
+    | undefined;
 
   const respuestas = (hallazgo?.evaluacion?.respuestas ||
     {}) as RespuestasEvaluacion;
@@ -1132,7 +1153,8 @@ export default function InformeFinalPage() {
     contexto,
     criticidad,
     codigoInforme,
-    causaDominante
+    causaDominante,
+    fechaBaseReporte
   );
 
   const actualizarAsignacionCierre = (
@@ -1225,6 +1247,118 @@ export default function InformeFinalPage() {
     );
   }
 
+  if (guardado) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          background:
+            "radial-gradient(circle at top, #1b6ef3 0%, #0c4fc7 32%, #06245d 72%, #041638 100%)",
+          color: "white",
+          padding: "18px 12px 28px",
+          fontFamily: "Arial, sans-serif",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <div style={{ width: "100%", maxWidth: "410px" }}>
+          <div
+            style={{
+              ...hoja(),
+              padding: "24px 18px",
+              textAlign: "center",
+            }}
+          >
+            <div
+              style={{
+                width: "62px",
+                height: "62px",
+                borderRadius: "20px",
+                margin: "0 auto 14px",
+                background:
+                  "linear-gradient(135deg, #67ef48 0%, #22c55e 100%)",
+                color: "#103a18",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "34px",
+                fontWeight: 900,
+                boxShadow: "0 12px 24px rgba(34,197,94,0.25)",
+              }}
+            >
+              ✓
+            </div>
+
+            <h1
+              style={{
+                margin: "0 0 8px",
+                fontSize: "26px",
+                lineHeight: 1.1,
+                color: "#132238",
+              }}
+            >
+              Informe guardado correctamente
+            </h1>
+
+            <p
+              style={{
+                margin: "0 0 20px",
+                fontSize: "15px",
+                lineHeight: 1.45,
+                color: "#415a77",
+              }}
+            >
+              El informe quedó registrado localmente y enviado a Supabase si la
+              conexión está configurada.
+            </p>
+
+            <div style={{ display: "grid", gap: "10px" }}>
+              <button
+                onClick={() => {
+                  window.location.href = "/evaluar";
+                }}
+                style={{
+                  width: "100%",
+                  padding: "15px",
+                  borderRadius: "16px",
+                  border: "none",
+                  background:
+                    "linear-gradient(180deg, #1890ff 0%, #0f63d8 100%)",
+                  color: "white",
+                  fontSize: "17px",
+                  fontWeight: 900,
+                  cursor: "pointer",
+                }}
+              >
+                Volver al inicio
+              </button>
+
+              <button
+                onClick={() => {
+                  window.location.href = "/evaluar/reportar";
+                }}
+                style={{
+                  width: "100%",
+                  padding: "15px",
+                  borderRadius: "16px",
+                  border: "1px solid #bfd2ec",
+                  background: "#f7faff",
+                  color: "#19447a",
+                  fontSize: "17px",
+                  fontWeight: 900,
+                  cursor: "pointer",
+                }}
+              >
+                Nuevo hallazgo
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       style={{
@@ -1239,7 +1373,7 @@ export default function InformeFinalPage() {
         <div style={{ marginBottom: "10px" }}>
           <button
             onClick={() => {
-              window.location.href = "/";
+              window.location.href = "/evaluar/seguimiento-cierre";
             }}
             style={{
               background: "transparent",
@@ -1252,7 +1386,7 @@ export default function InformeFinalPage() {
               fontWeight: 700,
             }}
           >
-            ← Criterio Estratégico
+            ← Volver a seguimiento
           </button>
         </div>
 
@@ -1455,8 +1589,8 @@ export default function InformeFinalPage() {
                   </div>
                 </div>
 
-                <div>
-  <div style={celdaTitulo()}>Responsable</div>
+<div>
+  <div style={celdaTitulo()}>Supervisor reportante</div>
   <div
     style={{
       fontSize: "14px",
@@ -1596,6 +1730,107 @@ export default function InformeFinalPage() {
                       />
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+
+            <div
+              style={{
+                borderTop: "1px solid #dbe6f5",
+                paddingTop: "12px",
+                marginTop: "12px",
+                marginBottom: "12px",
+              }}
+            >
+              <div style={{ ...celdaTitulo(), marginBottom: "8px" }}>
+                Seguimiento de cierre
+              </div>
+
+              {seguimientoCierre ? (
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: "8px",
+                  }}
+                >
+                  {[
+                    [
+                      "Responsable real de cierre",
+                      seguimientoCierre.responsableCierreNombre,
+                    ],
+                    ["Cargo", seguimientoCierre.responsableCierreCargo],
+                    [
+                      "Empresa / contratista",
+                      seguimientoCierre.responsableCierreEmpresa,
+                    ],
+                    [
+                      "Teléfono de contacto",
+                      seguimientoCierre.responsableCierreTelefono,
+                    ],
+                    [
+                      "Fecha compromiso de cierre",
+                      formatearFecha(seguimientoCierre.fechaCompromisoCierre),
+                    ],
+                    [
+                      "Plazo máximo según criticidad",
+                      seguimientoCierre.fechaMaximaPermitidaCierre
+                        ? `${formatearFecha(
+                            seguimientoCierre.fechaMaximaPermitidaCierre
+                          )} · ${texto(
+                            seguimientoCierre.plazoCierrePorCriticidad,
+                            "Plazo no registrado"
+                          )}`
+                        : texto(
+                            seguimientoCierre.plazoCierrePorCriticidad,
+                            "Plazo no registrado"
+                          ),
+                    ],
+                    ["Estado inicial", seguimientoCierre.estadoCierre],
+                  ].map(([label, value]) => (
+                    <div key={label}>
+                      <div style={celdaTitulo()}>{label}</div>
+                      <div
+                        style={{
+                          fontSize: "14px",
+                          fontWeight: 700,
+                          color: "#1c2f49",
+                        }}
+                      >
+                        {texto(value)}
+                      </div>
+                    </div>
+                  ))}
+
+                  <div style={{ gridColumn: "1 / -1" }}>
+                    <div style={celdaTitulo()}>Observación de seguimiento</div>
+                    <div
+                      style={{
+                        fontSize: "14px",
+                        lineHeight: 1.5,
+                        color: "#1c2f49",
+                      }}
+                    >
+                      {texto(
+                        seguimientoCierre.observacionInicialSeguimiento,
+                        "Sin observación registrada."
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  style={{
+                    border: "1px dashed #bfd2ec",
+                    borderRadius: "14px",
+                    padding: "14px",
+                    textAlign: "center",
+                    color: "#5b708f",
+                    fontSize: "13px",
+                    background: "#f7faff",
+                  }}
+                >
+                  Seguimiento de cierre pendiente de asignación.
                 </div>
               )}
             </div>
@@ -2017,10 +2252,11 @@ export default function InformeFinalPage() {
         criticidad,
         fecha,
         area,
-        responsable,
+        supervisorReportante: responsable,
         proyecto,
         empresa,
         descripcion,
+        seguimientoCierre,
         conclusion: fundamento,
         medidaInmediata: acciones.medidaInmediata,
         medidaCierre: acciones.medidaCierre,
@@ -2031,17 +2267,37 @@ export default function InformeFinalPage() {
         fechaGuardado,
         estado: "guardado",
       };
+
+      if (supabase) {
+        const { error } = await supabase.from("hallazgos").insert([
+          {
+            area,
+            responsable,
+            "descripción": descripcion,
+            fecha: fechaGuardado,
+            criticidad,
+          },
+        ]);
+
+        if (error) {
+          console.error(error);
+          alert("Error al guardar en Supabase.");
+          return;
+        }
+      } else {
+        console.warn(
+          "Supabase no está configurado. Guardando solo en localStorage."
+        );
+      }
+
       data[ultimoIndex] = {
         ...actual,
         codigoInforme,
         criticidad,
         nivel: criticidad,
-        estado: "informado",
+        estado: "abierto",
         fechaInforme: fechaGuardado,
-        asignacionCierre,
-        responsable: responsableCompatibilidad,
-        fechaCompromiso: fechaCompromisoCompatibilidad,
-        evidenciaCierre: evidenciaCierreCompatibilidad,
+        seguimientoCierre,
         informeFinal,
       };
 
@@ -2050,23 +2306,10 @@ export default function InformeFinalPage() {
         "ultimoInformeFinal",
         JSON.stringify(informeFinal)
       );
-const { error } = await supabase.from("hallazgos").insert([
-  {
-    area,
-    responsable,
-    "descripción": descripcion,
-    fecha: fechaGuardado,
-  },
-]);
 
-if (error) {
-  console.error(error);
-  alert("Error al guardar en Supabase.");
-  return;
-}
-
-      alert("Informe final guardado correctamente.");
-    } catch {
+      setGuardado(true);
+    } catch (error) {
+      console.error(error);
       alert("Ocurrió un error al guardar el informe.");
     }
   }}

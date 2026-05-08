@@ -33,6 +33,19 @@ function correlativoHallazgo(valor: number) {
   return String(valor).padStart(4, "0");
 }
 
+function esHallazgoCerrado(hallazgo: any) {
+  const estado = String(
+    hallazgo?.seguimientoCierre?.estadoCierre ||
+      hallazgo?.estadoCierre ||
+      hallazgo?.estado ||
+      ""
+  )
+    .trim()
+    .toUpperCase();
+
+  return estado === "CERRADO";
+}
+
 export default function Home() {
   const [hallazgos, setHallazgos] = useState<any[]>([]);
   const [usuarioActivo, setUsuarioActivo] = useState<UsuarioActivo | null>(null);
@@ -105,8 +118,8 @@ export default function Home() {
 
   const resumen = useMemo(() => {
     const reportados = hallazgos.length;
-    const abiertos = hallazgos.filter((h) => h.estado === "abierto").length;
-    const cerrados = hallazgos.filter((h) => h.estado === "cerrado").length;
+    const cerrados = hallazgos.filter(esHallazgoCerrado).length;
+    const abiertos = reportados - cerrados;
     return { reportados, abiertos, cerrados };
   }, [hallazgos]);
 
@@ -528,7 +541,7 @@ if (cargandoInicio) return null;
             </div>
 
             <button
-              onClick={() => (window.location.href = "/reportar")}
+              onClick={() => (window.location.href = "/evaluar/reportar")}
               style={{
                 width: "100%",
                 padding: "17px",
