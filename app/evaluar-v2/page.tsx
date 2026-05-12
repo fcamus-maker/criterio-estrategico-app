@@ -56,13 +56,13 @@ export default function EvaluarV2HomePage() {
   const [mensaje, setMensaje] = useState("");
 
   useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
+    const frameId = window.requestAnimationFrame(() => {
       const supervisorGuardado = cargarSupervisor();
       setSupervisor(supervisorGuardado);
       setDraft(supervisorGuardado);
-    }, 0);
+    });
 
-    return () => window.clearTimeout(timeoutId);
+    return () => window.cancelAnimationFrame(frameId);
   }, []);
 
   const codigoPreview = useMemo(() => {
@@ -106,6 +106,7 @@ export default function EvaluarV2HomePage() {
     color: "white",
     fontFamily: "Arial, sans-serif",
     overflowX: "hidden" as const,
+    touchAction: "pan-y" as const,
   };
 
   const containerStyle = {
@@ -115,6 +116,7 @@ export default function EvaluarV2HomePage() {
     padding: "16px",
     boxSizing: "border-box" as const,
     overflowX: "hidden" as const,
+    touchAction: "pan-y" as const,
   };
 
   const cardStyle = {
@@ -125,10 +127,13 @@ export default function EvaluarV2HomePage() {
     boxShadow: "0 18px 36px rgba(0,0,0,0.28)",
     padding: "16px",
     boxSizing: "border-box" as const,
+    maxWidth: "100%",
+    overflowX: "hidden" as const,
   };
 
   const inputStyle = {
     width: "100%",
+    maxWidth: "100%",
     fontSize: "16px",
     boxSizing: "border-box" as const,
     border: "1px solid rgba(255,255,255,0.14)",
@@ -137,6 +142,7 @@ export default function EvaluarV2HomePage() {
     color: "white",
     padding: "12px 13px",
     outline: "none",
+    touchAction: "manipulation" as const,
   };
 
   const buttonStyle = {
@@ -149,10 +155,16 @@ export default function EvaluarV2HomePage() {
     fontWeight: 900,
     cursor: "pointer",
     boxSizing: "border-box" as const,
+    maxWidth: "100%",
   };
 
   return (
-    <main style={pageStyle}>
+    <main
+      style={pageStyle}
+      onDoubleClick={(event) => {
+        event.preventDefault();
+      }}
+    >
       <div style={containerStyle}>
         <header style={{ textAlign: "center", marginBottom: "18px" }}>
           <div

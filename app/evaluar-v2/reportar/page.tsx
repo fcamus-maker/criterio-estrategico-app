@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ChangeEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 
 type SupervisorV2 = {
   nombre: string;
@@ -23,7 +23,7 @@ type UbicacionV2 = {
   latitud: number;
   longitud: number;
   precisionGps: number;
-  fechaHora: string;
+  fechaHoraGeolocalizacion: string;
   estadoGeolocalizacion: "real" | "simulada-desarrollo";
 };
 
@@ -118,7 +118,6 @@ export default function ReportarV2Page() {
     useState<SupervisorV2>(SUPERVISOR_DEFAULT);
   const [fechaActual, setFechaActual] = useState("");
   const [horaActual, setHoraActual] = useState("");
-  const [mounted, setMounted] = useState(false);
   const [area, setArea] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [fotos, setFotos] = useState<FotoV2[]>([]);
@@ -127,9 +126,10 @@ export default function ReportarV2Page() {
   const [error, setError] = useState("");
   const [procesandoFotos, setProcesandoFotos] = useState(false);
   const [capturandoGps, setCapturandoGps] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
+    const frameId = window.requestAnimationFrame(() => {
       const ahora = new Date();
       setSupervisor(cargarSupervisor());
       setFechaActual(ahora.toLocaleDateString("es-CL"));
@@ -139,17 +139,19 @@ export default function ReportarV2Page() {
           minute: "2-digit",
         })
       );
-      setMounted(true);
-    }, 0);
+    });
 
-    return () => window.clearTimeout(timeoutId);
+    return () => window.cancelAnimationFrame(frameId);
   }, []);
 
   const seleccionarFotos = async (event: ChangeEvent<HTMLInputElement>) => {
     const input = event.currentTarget as HTMLInputElement;
     const files = Array.from(input.files ?? []);
 
-    if (files.length === 0) return;
+    if (files.length === 0) {
+      input.value = "";
+      return;
+    }
 
     setProcesandoFotos(true);
     setError("");
@@ -171,9 +173,7 @@ export default function ReportarV2Page() {
       setError("No se pudo cargar la fotografía seleccionada.");
     } finally {
       setProcesandoFotos(false);
-      if (input) {
-        input.value = "";
-      }
+      input.value = "";
     }
   };
 
@@ -202,7 +202,7 @@ export default function ReportarV2Page() {
           latitud: position.coords.latitude,
           longitud: position.coords.longitude,
           precisionGps: position.coords.accuracy,
-          fechaHora: new Date().toISOString(),
+          fechaHoraGeolocalizacion: new Date().toISOString(),
           estadoGeolocalizacion: "real",
         });
         setMensaje("Ubicación GPS capturada.");
@@ -227,7 +227,7 @@ export default function ReportarV2Page() {
       latitud: -29.982379,
       longitud: -71.348969,
       precisionGps: 35,
-      fechaHora: new Date().toISOString(),
+      fechaHoraGeolocalizacion: new Date().toISOString(),
       estadoGeolocalizacion: "simulada-desarrollo",
     });
     setError("");
@@ -263,6 +263,7 @@ export default function ReportarV2Page() {
     color: "white",
     fontFamily: "Arial, sans-serif",
     overflowX: "hidden" as const,
+    touchAction: "pan-y" as const,
   };
 
   const containerStyle = {
@@ -272,6 +273,7 @@ export default function ReportarV2Page() {
     padding: "16px",
     boxSizing: "border-box" as const,
     overflowX: "hidden" as const,
+    touchAction: "pan-y" as const,
   };
 
   const cardStyle = {
@@ -282,11 +284,14 @@ export default function ReportarV2Page() {
     boxShadow: "0 18px 36px rgba(0,0,0,0.28)",
     padding: "16px",
     boxSizing: "border-box" as const,
+    maxWidth: "100%",
+    overflowX: "hidden" as const,
     marginBottom: "14px",
   };
 
   const inputStyle = {
     width: "100%",
+    maxWidth: "100%",
     fontSize: "16px",
     boxSizing: "border-box" as const,
     border: "1px solid rgba(255,255,255,0.14)",
@@ -295,6 +300,7 @@ export default function ReportarV2Page() {
     color: "white",
     padding: "12px 13px",
     outline: "none",
+    touchAction: "manipulation" as const,
   };
 
   const buttonStyle = {
@@ -307,6 +313,7 @@ export default function ReportarV2Page() {
     fontWeight: 900,
     cursor: "pointer",
     boxSizing: "border-box" as const,
+    maxWidth: "100%",
   };
 
   const labelStyle = {
@@ -318,7 +325,12 @@ export default function ReportarV2Page() {
   };
 
   return (
-    <main style={pageStyle}>
+    <main
+      style={pageStyle}
+      onDoubleClick={(event) => {
+        event.preventDefault();
+      }}
+    >
       <div style={containerStyle}>
         <header style={{ marginBottom: "14px" }}>
           <a
@@ -359,8 +371,8 @@ export default function ReportarV2Page() {
               ["Cargo", supervisor.cargo],
               ["Empresa", supervisor.empresa],
               ["Obra", supervisor.obra],
-              ["Fecha actual", mounted ? fechaActual || "—" : "—"],
-              ["Hora actual", mounted ? horaActual || "—" : "—"],
+              ["Fecha actual", fechaActual || "—"],
+              ["Hora actual", horaActual || "—"],
             ].map(([label, valor]) => (
               <div key={label}>
                 <div style={{ fontSize: "11px", opacity: 0.62 }}>{label}</div>
@@ -447,6 +459,7 @@ export default function ReportarV2Page() {
           </div>
 
           <input
+            ref={fileInputRef}
             type="file"
             accept="image/*"
             multiple
@@ -598,7 +611,8 @@ export default function ReportarV2Page() {
                   <strong>Estado:</strong> {ubicacion.estadoGeolocalizacion}
                 </div>
                 <div>
-                  <strong>Fecha/hora:</strong> {ubicacion.fechaHora}
+                  <strong>Fecha/hora:</strong>{" "}
+                  {ubicacion.fechaHoraGeolocalizacion}
                 </div>
               </>
             ) : (
