@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useRouter } from "next/navigation";
 
 type SupervisorV2 = {
   nombre: string;
@@ -9,6 +10,7 @@ type SupervisorV2 = {
   obra: string;
   siglaEmpresa: string;
   siglaProyecto: string;
+  foto: string;
 };
 
 type FotoV2 = {
@@ -28,6 +30,8 @@ type UbicacionV2 = {
 };
 
 const STORAGE_SUPERVISOR = "ce_mobile_v2_supervisor";
+const STORAGE_REPORTE_ACTUAL = "ce_mobile_v2_reporte_actual";
+const STORAGE_HISTORIAL = "ce_mobile_v2_historial_reportes";
 
 const SUPERVISOR_DEFAULT: SupervisorV2 = {
   nombre: "Freddy Camus",
@@ -36,7 +40,14 @@ const SUPERVISOR_DEFAULT: SupervisorV2 = {
   obra: "PEL",
   siglaEmpresa: "TNT",
   siglaProyecto: "PEL",
+  foto: "",
 };
+
+function vibrarOk() {
+  if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+    navigator.vibrate(20);
+  }
+}
 
 function cargarSupervisor(): SupervisorV2 {
   if (typeof window === "undefined") return SUPERVISOR_DEFAULT;
@@ -59,9 +70,19 @@ function cargarSupervisor(): SupervisorV2 {
       siglaProyecto: String(
         guardado.siglaProyecto || SUPERVISOR_DEFAULT.siglaProyecto
       ),
+      foto: String(guardado.foto || SUPERVISOR_DEFAULT.foto),
     };
   } catch {
     return SUPERVISOR_DEFAULT;
+  }
+}
+
+function obtenerTotalHistorial() {
+  try {
+    const historial = JSON.parse(localStorage.getItem(STORAGE_HISTORIAL) || "[]");
+    return Array.isArray(historial) ? historial.length : 0;
+  } catch {
+    return 0;
   }
 }
 
@@ -114,6 +135,7 @@ function comprimirFoto(file: File): Promise<FotoV2> {
 }
 
 export default function ReportarV2Page() {
+  const router = useRouter();
   const [supervisor, setSupervisor] =
     useState<SupervisorV2>(SUPERVISOR_DEFAULT);
   const [fechaActual, setFechaActual] = useState("");
@@ -126,6 +148,8 @@ export default function ReportarV2Page() {
   const [error, setError] = useState("");
   const [procesandoFotos, setProcesandoFotos] = useState(false);
   const [capturandoGps, setCapturandoGps] = useState(false);
+  const [navegando, setNavegando] = useState(false);
+  const [botonActivo, setBotonActivo] = useState("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -181,6 +205,7 @@ export default function ReportarV2Page() {
     setFotos((actuales) => actuales.filter((foto) => foto.id !== fotoId));
     setMensaje("Fotografía eliminada.");
     setError("");
+    vibrarOk();
   };
 
   const capturarGps = () => {
@@ -207,6 +232,7 @@ export default function ReportarV2Page() {
         });
         setMensaje("Ubicación GPS capturada.");
         setCapturandoGps(false);
+        vibrarOk();
       },
       () => {
         setError(
@@ -232,9 +258,12 @@ export default function ReportarV2Page() {
     });
     setError("");
     setMensaje("Ubicación simulada cargada para desarrollo local.");
+    vibrarOk();
   };
 
   const validarReporte = () => {
+    if (navegando) return;
+
     setError("");
     setMensaje("");
 
@@ -253,8 +282,49 @@ export default function ReportarV2Page() {
       return;
     }
 
+    const reporteV2 = {
+      codigo: `CE-${supervisor.siglaProyecto || "PEL"}/${
+        supervisor.siglaEmpresa || "TNT"
+      }-V2-${String(obtenerTotalHistorial() + 1).padStart(4, "0")}`,
+      supervisor: supervisor.nombre,
+      cargo: supervisor.cargo,
+      empresa: supervisor.empresa,
+      obra: supervisor.obra,
+      siglaEmpresa: supervisor.siglaEmpresa,
+      siglaProyecto: supervisor.siglaProyecto,
+      supervisorFoto: supervisor.foto,
+      fecha: fechaActual,
+      hora: horaActual,
+      area: area.trim(),
+      descripcion: descripcion.trim(),
+      fotos,
+      gps: ubicacion,
+      estadoValidacion: "validado",
+      mensajeValidacion: "Reporte V2 válido para continuar.",
+    };
+
+    localStorage.setItem(STORAGE_REPORTE_ACTUAL, JSON.stringify(reporteV2));
     setMensaje("Reporte V2 válido para continuar.");
+    setNavegando(true);
+    vibrarOk();
+    router.push("/evaluar-v2/evaluacion/paso1");
   };
+
+  const feedbackBoton = (id: string) => ({
+    onPointerDown: () => setBotonActivo(id),
+    onPointerUp: () => setBotonActivo(""),
+    onPointerCancel: () => setBotonActivo(""),
+    onPointerLeave: () => setBotonActivo(""),
+  });
+
+  const estiloFeedback = (id: string) =>
+    botonActivo === id
+      ? {
+          transform: "translateY(2px) scale(0.985)",
+          filter: "brightness(1.12)",
+          boxShadow: "0 8px 16px rgba(0,0,0,0.28)",
+        }
+      : {};
 
   const pageStyle = {
     minHeight: "100vh",
@@ -270,7 +340,7 @@ export default function ReportarV2Page() {
     width: "100%",
     maxWidth: "430px",
     margin: "0 auto",
-    padding: "16px",
+    padding: "16px 16px calc(96px + env(safe-area-inset-bottom))",
     boxSizing: "border-box" as const,
     overflowX: "hidden" as const,
     touchAction: "pan-y" as const,
@@ -314,6 +384,7 @@ export default function ReportarV2Page() {
     cursor: "pointer",
     boxSizing: "border-box" as const,
     maxWidth: "100%",
+    transition: "transform 120ms ease, filter 120ms ease, box-shadow 120ms ease",
   };
 
   const labelStyle = {
@@ -333,6 +404,22 @@ export default function ReportarV2Page() {
     >
       <div style={containerStyle}>
         <header style={{ marginBottom: "14px" }}>
+          <div
+            style={{
+              width: "76px",
+              height: "76px",
+              borderRadius: "50%",
+              margin: "0 0 12px",
+              backgroundImage: "url('/logo.png')",
+              backgroundPosition: "center",
+              backgroundRepeat: "no-repeat",
+              backgroundSize: "cover",
+              overflow: "hidden",
+              border: "1px solid rgba(255,255,255,0.28)",
+              boxShadow: "0 14px 28px rgba(0,0,0,0.28)",
+            }}
+            aria-label="Logo Criterio Estratégico"
+          />
           <a
             href="/evaluar-v2"
             style={{
@@ -521,6 +608,7 @@ export default function ReportarV2Page() {
                   <button
                     type="button"
                     onClick={() => eliminarFoto(foto.id)}
+                    {...feedbackBoton(`eliminar-${foto.id}`)}
                     style={{
                       width: "100%",
                       fontSize: "12px",
@@ -533,6 +621,9 @@ export default function ReportarV2Page() {
                       fontWeight: 900,
                       cursor: "pointer",
                       boxSizing: "border-box",
+                      transition:
+                        "transform 120ms ease, filter 120ms ease, box-shadow 120ms ease",
+                      ...estiloFeedback(`eliminar-${foto.id}`),
                     }}
                   >
                     Eliminar
@@ -560,12 +651,14 @@ export default function ReportarV2Page() {
               type="button"
               onClick={capturarGps}
               disabled={capturandoGps}
+              {...feedbackBoton("gps")}
               style={{
                 ...buttonStyle,
                 color: "white",
                 background: capturandoGps
                   ? "rgba(255,255,255,0.18)"
                   : "linear-gradient(135deg, #2563eb, #1d4ed8)",
+                ...estiloFeedback("gps"),
               }}
             >
               {capturandoGps
@@ -576,10 +669,12 @@ export default function ReportarV2Page() {
             <button
               type="button"
               onClick={usarUbicacionSimulada}
+              {...feedbackBoton("gps-simulado")}
               style={{
                 ...buttonStyle,
                 color: "#08172d",
                 background: "linear-gradient(135deg, #67ef48 0%, #d7ff39 100%)",
+                ...estiloFeedback("gps-simulado"),
               }}
             >
               Usar ubicación simulada
@@ -643,14 +738,20 @@ export default function ReportarV2Page() {
         <button
           type="button"
           onClick={validarReporte}
+          disabled={navegando}
+          {...feedbackBoton("validar")}
           style={{
             ...buttonStyle,
             color: "#08172d",
-            background: "linear-gradient(135deg, #facc15, #f97316)",
+            background: navegando
+              ? "rgba(255,255,255,0.18)"
+              : "linear-gradient(135deg, #facc15, #f97316)",
             boxShadow: "0 14px 28px rgba(249,115,22,0.22)",
+            opacity: navegando ? 0.72 : 1,
+            ...estiloFeedback("validar"),
           }}
         >
-          Validar reporte
+          {navegando ? "Continuando..." : "Validar reporte"}
         </button>
       </div>
     </main>
