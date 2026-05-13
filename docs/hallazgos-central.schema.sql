@@ -1,6 +1,14 @@
 -- Esquema de referencia para la futura base central de Plataforma Hallazgos.
--- No ejecutar automaticamente: este archivo documenta la estructura objetivo
--- para conectar app movil V2 -> base central -> panel PC -> mapa GPS -> Radar.
+-- NO EJECUTAR TODAVIA.
+-- Este archivo documenta la estructura objetivo para conectar:
+-- app movil V2 -> Supabase/base central -> panel PC -> Radar -> Mapa GPS -> KPI.
+--
+-- Antes de ejecutar en un proyecto real se debe revisar:
+-- 1. estrategia de codigos unicos centralizados;
+-- 2. bucket Storage `hallazgos-evidencias`;
+-- 3. RLS/policies multiempresa;
+-- 4. migracion desde datos locales/mock;
+-- 5. plan de rollback y entorno de prueba.
 
 create table if not exists public.hallazgos_central (
   id uuid primary key default gen_random_uuid(),
@@ -49,6 +57,8 @@ create table if not exists public.hallazgos_central (
 
   -- Evidencias. En produccion se recomienda guardar archivos en Storage
   -- y conservar aqui URL, storage_path y metadatos, no base64 pesado.
+  -- Estructura sugerida de cada item:
+  -- { id, nombre, tipo, storagePath, url, fechaCarga, origen, tamanoBytes }
   evidencias jsonb not null default '[]'::jsonb,
 
   -- Geolocalizacion para mapa GPS y trazabilidad territorial.
@@ -120,11 +130,21 @@ create index if not exists hallazgos_central_estado_idx
 create index if not exists hallazgos_central_empresa_obra_idx
   on public.hallazgos_central (empresa, obra);
 
+create index if not exists hallazgos_central_area_idx
+  on public.hallazgos_central (area);
+
 create index if not exists hallazgos_central_fecha_reporte_idx
   on public.hallazgos_central (fecha_hora_reporte);
 
 create index if not exists hallazgos_central_criticidad_idx
   on public.hallazgos_central (criticidad);
+
+create index if not exists hallazgos_central_responsable_cierre_idx
+  on public.hallazgos_central (
+    responsable_cierre_empresa,
+    responsable_cierre_nombre,
+    estado_cierre
+  );
 
 create index if not exists hallazgos_central_gps_idx
   on public.hallazgos_central (latitud, longitud)
@@ -136,3 +156,13 @@ create index if not exists hallazgos_central_radar_idx
     radar_causa_dominante,
     radar_nivel_exposicion
   );
+
+-- Storage futuro recomendado:
+-- bucket: hallazgos-evidencias
+-- path: empresa/{empresa}/obra/{obra}/hallazgo/{codigo}/{evidencia_id}.jpg
+-- No guardar Base64 en esta tabla central.
+
+-- RLS futuro recomendado:
+-- enable row level security on public.hallazgos_central;
+-- Crear policies por empresa/obra/rol despues de definir autenticacion real.
+-- No activar policies sin pruebas multiempresa y usuarios de mandante/contratista.

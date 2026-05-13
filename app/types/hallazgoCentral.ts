@@ -207,4 +207,7 @@ export type HallazgoCentral = {
   fechaCreacion?: string;
   fechaActualizacion?: string;
   fechaSincronizacion?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  syncedAt?: string;
 };

@@ -406,6 +406,8 @@ export function adaptarReporteV2AHallazgoCentral(
     rawMobileV2: reporte as Record<string, unknown>,
     fechaCreacion: texto(reporte.fechaGuardado, fechaHoraReporteISO),
     fechaActualizacion: texto(reporte.fechaGuardado, fechaHoraReporteISO),
+    createdAt: texto(reporte.fechaGuardado, fechaHoraReporteISO),
+    updatedAt: texto(reporte.fechaGuardado, fechaHoraReporteISO),
   };
 }
 

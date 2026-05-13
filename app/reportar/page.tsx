@@ -1,13 +1,13 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Hallazgo } from "@/types/hallazgo";
+import { Hallazgo } from "@/app/types/hallazgo";
 import { useRouter } from "next/navigation";
 
 export default function ReportarPage() {
   const router = useRouter();
 
  const [hallazgo, setHallazgo] = useState<Hallazgo>({
-  id: "",
+  id: 0,
   codigo: "",
   contexto: {
     empresa: "",
@@ -62,45 +62,48 @@ export default function ReportarPage() {
   estado: "Reportado",
 });
   
-const [tipoRiesgo, setTipoRiesgo] = useState("");
 const [capturandoGps, setCapturandoGps] = useState(false);
 const [mensajeGps, setMensajeGps] = useState(
   "Captura la ubicación GPS para habilitar el guardado."
 );
 useEffect(() => {
-  try {
-    const usuarioGuardado = JSON.parse(
-      localStorage.getItem("usuarioActivo") || "null"
-    );
+  const frameId = window.requestAnimationFrame(() => {
+    try {
+      const usuarioGuardado = JSON.parse(
+        localStorage.getItem("usuarioActivo") || "null"
+      );
 
-    if (!usuarioGuardado) return;
+      if (!usuarioGuardado) return;
 
-    const ahora = new Date();
-    const fechaHoy = ahora.toISOString().split("T")[0];
-    const horaHoy = ahora.toLocaleTimeString("es-CL", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+      const ahora = new Date();
+      const fechaHoy = ahora.toISOString().split("T")[0];
+      const horaHoy = ahora.toLocaleTimeString("es-CL", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
 
-    setHallazgo((prev: Hallazgo) =>
-      ({
-        ...prev,
-        contexto: {
-          empresa: usuarioGuardado.empresa || "",
-          obra: usuarioGuardado.obra || "",
-          supervisor: usuarioGuardado.nombre || "",
-        },
-        cargo: usuarioGuardado.cargo || "",
-        reporte: {
-          ...prev.reporte,
-          responsable: usuarioGuardado.nombre || "",
-          fecha: fechaHoy,
-        },
-        horaReporte: horaHoy,
-        timestampReporte: ahora.toISOString(),
-      }) as Hallazgo
-    );
-  } catch {}
+      setHallazgo((prev: Hallazgo) =>
+        ({
+          ...prev,
+          contexto: {
+            empresa: usuarioGuardado.empresa || "",
+            obra: usuarioGuardado.obra || "",
+            supervisor: usuarioGuardado.nombre || "",
+          },
+          cargo: usuarioGuardado.cargo || "",
+          reporte: {
+            ...prev.reporte,
+            responsable: usuarioGuardado.nombre || "",
+            fecha: fechaHoy,
+          },
+          horaReporte: horaHoy,
+          timestampReporte: ahora.toISOString(),
+        }) as Hallazgo
+      );
+    } catch {}
+  });
+
+  return () => window.cancelAnimationFrame(frameId);
 }, []);
 
   const handleImagenes = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -186,15 +189,15 @@ const capturarUbicacionGps = () => {
     const existentes = JSON.parse(localStorage.getItem("hallazgos") || "[]");
 
 const correlativo = String(existentes.length + 1).padStart(4, "0");
-const codigo = `CE-${hallazgo.contexto.obra}/${hallazgo.contexto.empresa}-${correlativo}`;
+	const codigo = `CE-${hallazgo.contexto?.obra || "OBRA"}/${hallazgo.contexto?.empresa || "EMPRESA"}-${correlativo}`;
 
 const nuevoHallazgo = {
   ...hallazgo,
   id: Date.now(),
   codigo,
-  empresa: hallazgo.contexto.empresa,
-obra: hallazgo.contexto.obra,
-supervisor: hallazgo.contexto.supervisor,
+	  empresa: hallazgo.contexto?.empresa || "",
+	obra: hallazgo.contexto?.obra || "",
+	supervisor: hallazgo.contexto?.supervisor || "",
 cargo: JSON.parse(localStorage.getItem("usuarioActivo") || "null")?.cargo || "",
   estado: "abierto",
   reporte: hallazgo.reporte,
@@ -230,9 +233,33 @@ const inputStyle = {
   border: "none",
   marginBottom: "12px",
   background: "rgba(255,255,255,0.1)",
-  color: "white",
+	  color: "white",
+	};
+
+const obtenerSrcFoto = (foto: unknown) => {
+  if (typeof foto === "string") return foto;
+  if (foto && typeof foto === "object") {
+    const evidencia = foto as {
+      url?: string;
+      src?: string;
+      preview?: string;
+      base64?: string;
+      dataUrl?: string;
+    };
+    return (
+      evidencia.url ||
+      evidencia.src ||
+      evidencia.preview ||
+      evidencia.dataUrl ||
+      evidencia.base64 ||
+      ""
+    );
+  }
+
+  return "";
 };
-  return (
+
+	  return (
   <div
     style={{
       minHeight: "100vh",
@@ -288,12 +315,12 @@ const inputStyle = {
         <input
           type="text"
           placeholder="Área (ej: Oficina, Planta, Bodega)"
-          value={hallazgo?.reporte.area || ""}
+	          value={hallazgo.reporte?.area || ""}
           onChange={(e) =>
             setHallazgo({
               ...hallazgo,
               reporte: {
-                ...hallazgo.reporte,
+	                ...(hallazgo.reporte ?? {}),
                 area: e.target.value,
               },
             })
@@ -307,7 +334,7 @@ const inputStyle = {
 
         <input
   type="text"
-  value={hallazgo?.reporte.responsable || ""}
+	  value={hallazgo.reporte?.responsable || ""}
   readOnly
   style={{ ...inputStyle, opacity: 0.9 }}
 />
@@ -318,7 +345,7 @@ const inputStyle = {
 
 <input
   type="text"
-  value={hallazgo?.reporte.fecha || ""}
+	  value={hallazgo.reporte?.fecha || ""}
   readOnly
   style={{ ...inputStyle, opacity: 0.9 }}
 />
@@ -329,7 +356,7 @@ const inputStyle = {
 
 <input
   type="text"
-  value={String((hallazgo as any)?.horaReporte || "")}
+	  value={hallazgo.horaReporte || ""}
   readOnly
   style={{ ...inputStyle, opacity: 0.9 }}
 />
@@ -339,12 +366,12 @@ const inputStyle = {
 
         <textarea
           placeholder="Descripción del hallazgo"
-          value={hallazgo?.reporte.descripcion || ""}
+	          value={hallazgo.reporte?.descripcion || ""}
           onChange={(e) =>
             setHallazgo({
               ...hallazgo,
               reporte: {
-                ...hallazgo.reporte,
+	                ...(hallazgo.reporte ?? {}),
                 descripcion: e.target.value,
               },
             })
@@ -381,7 +408,7 @@ const inputStyle = {
   />
 </label>
 
-{hallazgo?.reporte.fotos?.length > 0 && (
+	{(hallazgo.reporte?.fotos?.length ?? 0) > 0 && (
   <div
     style={{
       display: "flex",
@@ -390,10 +417,10 @@ const inputStyle = {
       marginBottom: "12px",
     }}
   >
-    {hallazgo.reporte.fotos.map((img, i) => (
-      <img
-        key={i}
-        src={img}
+	    {(hallazgo.reporte?.fotos ?? []).map((img, i) => (
+	      <img
+	        key={i}
+	        src={obtenerSrcFoto(img)}
         alt={`Foto ${i + 1}`}
         style={{
           width: "90px",
