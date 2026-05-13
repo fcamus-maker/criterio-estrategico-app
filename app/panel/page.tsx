@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { hallazgosMock, notificacionesMock, usuarioMock } from "./mockdata";
+import { cargarHallazgosPanelConReportesV2 } from "./sources/hallazgosPanelSource";
 
 function chipColor(tipo: string) {
   const valor = String(tipo).toUpperCase();
@@ -203,6 +204,7 @@ const [opcionesPDF, setOpcionesPDF] = useState<OpcionesPDFConfig>(opcionesPDFPor
 const [perfilesActivos, setPerfilesActivos] = useState<Record<PerfilPermiso, boolean>>(perfilesActivosPorDefecto);
 const [guardadoConfig, setGuardadoConfig] = useState(false);
 const [fechaActualizacion, setFechaActualizacion] = useState<Date | null>(null);
+const [filasPanel, setFilasPanel] = useState(hallazgosMock);
   const idiomaActivo = idiomaSistema === "en" ? "en" : "es";
   const textosEn: Record<string, string> = {
     "Plataforma Ejecutiva de Hallazgos": "Executive Findings Platform",
@@ -635,6 +637,10 @@ const [fechaActualizacion, setFechaActualizacion] = useState<Date | null>(null);
     return () => window.clearInterval(intervalo);
   }, []);
 
+  useEffect(() => {
+    setFilasPanel(cargarHallazgosPanelConReportesV2(hallazgosMock));
+  }, []);
+
   const formatearUltimaActualizacion = (fecha: Date | null) => {
     if (!fecha) return "";
 
@@ -650,7 +656,7 @@ const [fechaActualizacion, setFechaActualizacion] = useState<Date | null>(null);
 
     return `${dia}-${mes}-${anio} · ${hora}:${minutos}`;
   };
-  const filas = hallazgosMock;
+  const filas = filasPanel;
 const totalHistoricoHallazgos = filas.length;
 const totalVencidos = filas.filter(
   (fila) =>
