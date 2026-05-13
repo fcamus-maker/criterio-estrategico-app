@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { intentarGuardarReporteV2EnRepositorioCentral } from "@/app/services/guardarReporteV2Central";
 
 type FotoV2 = {
   id: string;
@@ -488,9 +487,10 @@ export default function InformeFinalV2Page() {
                   setGuardando(true);
                   const reporteGuardado = guardarReporteEnHistorial(reporte);
                   setReporte(reporteGuardado);
-                  void intentarGuardarReporteV2EnRepositorioCentral(
-                    reporteGuardado
-                  )
+                  void import("@/app/services/guardarReporteV2Central")
+                    .then(({ intentarGuardarReporteV2EnRepositorioCentral }) =>
+                      intentarGuardarReporteV2EnRepositorioCentral(reporteGuardado)
+                    )
                     .then(({ resultado }) => {
                       if (!resultado.ok) {
                         console.info(

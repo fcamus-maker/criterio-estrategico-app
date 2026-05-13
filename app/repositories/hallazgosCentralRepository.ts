@@ -211,28 +211,44 @@ function mapearHallazgoAFilaSupabase(hallazgo: HallazgoCentral) {
     reportante_telefono: hallazgo.reportante.telefono,
     reportante_email: hallazgo.reportante.email,
     reportante_foto_url: hallazgo.reportante.fotoUrl,
+    supervisor_nombre: hallazgo.reportante.nombre,
+    supervisor_cargo: hallazgo.reportante.cargo,
     fecha_reporte: fecha(hallazgo.fechaReporte),
     hora_reporte: texto(hallazgo.horaReporte) || null,
+    fecha_iso: fecha(hallazgo.fechaHoraReporteISO),
     fecha_hora_reporte: fecha(hallazgo.fechaHoraReporteISO),
     descripcion: hallazgo.descripcion,
     tipo_hallazgo: hallazgo.tipoHallazgo,
     criticidad: hallazgo.criticidad,
     prioridad: hallazgo.prioridad,
     puntaje_evaluacion: hallazgo.puntajeEvaluacion,
+    evaluacion: json(
+      {
+        puntaje: hallazgo.puntajeEvaluacion,
+        respuestas: hallazgo.respuestasEvaluacion,
+        criticidad: hallazgo.criticidad,
+        prioridad: hallazgo.prioridad,
+        recomendacion: hallazgo.recomendacion,
+        accionInmediata: hallazgo.accionInmediata,
+      },
+      {}
+    ),
     respuestas_evaluacion: json(hallazgo.respuestasEvaluacion, {}),
     accion_inmediata: hallazgo.accionInmediata,
     recomendacion: hallazgo.recomendacion,
     estado: hallazgo.estado,
     estado_cierre: hallazgo.estadoCierre || seguimiento?.estadoCierre || "PENDIENTE",
+    estado_seguimiento: seguimiento?.estadoCierre || hallazgo.estadoCierre || "PENDIENTE",
     evidencias: evidenciasSinBase64(hallazgo.evidencias),
-    latitud: geo?.latitud,
-    longitud: geo?.longitud,
-    precision_gps: geo?.precisionGps,
-    fecha_hora_geolocalizacion: fecha(geo?.fechaHoraGeolocalizacion),
-    estado_geolocalizacion: geo?.estadoGeolocalizacion,
-    direccion_referencial: geo?.direccionReferencial,
-    zona: geo?.zona,
-    sector: geo?.sector,
+    fotos: evidenciasSinBase64(hallazgo.evidencias),
+    gps_latitud: geo?.latitud,
+    gps_longitud: geo?.longitud,
+    gps_precision: geo?.precisionGps,
+    gps_fecha_hora: fecha(geo?.fechaHoraGeolocalizacion),
+    gps_estado: geo?.estadoGeolocalizacion,
+    gps_direccion_referencial: geo?.direccionReferencial,
+    gps_zona: geo?.zona,
+    gps_sector: geo?.sector,
     visible_en_mapa: hallazgo.mapaGps?.visibleEnMapa ?? Boolean(geo),
     geolocalizacion: geo || {},
     responsable_cierre_tipo: responsable?.tipoResponsable,
@@ -241,17 +257,14 @@ function mapearHallazgoAFilaSupabase(hallazgo: HallazgoCentral) {
     responsable_cierre_empresa: responsable?.empresa,
     responsable_cierre_telefono: responsable?.telefono,
     responsable_cierre_email: responsable?.email,
+    fecha_compromiso: fecha(seguimiento?.fechaCompromiso),
     fecha_compromiso_cierre: fecha(seguimiento?.fechaCompromiso),
     fecha_maxima_permitida_cierre: fecha(seguimiento?.fechaMaximaPermitida),
-    plazo_cierre_por_criticidad: seguimiento?.plazoPorCriticidad,
     observacion_inicial_cierre: seguimiento?.observacionInicial,
     accion_correctiva_requerida: seguimiento?.accionCorrectivaRequerida,
     evidencia_requerida: json(seguimiento?.evidenciaRequerida, []),
     evidencia_recibida: evidenciasSinBase64(seguimiento?.evidenciaRecibida),
     fecha_cierre: fecha(seguimiento?.fechaCierre),
-    validador_cierre_nombre: seguimiento?.validadorNombre,
-    validador_cierre_estado: seguimiento?.validadorEstado,
-    validador_cierre_observacion: seguimiento?.validadorObservacion,
     seguimiento_cierre: seguimiento || {},
     radar_categoria_riesgo: radar?.categoriaRiesgo,
     radar_causa_dominante: radar?.causaDominante,
@@ -309,8 +322,11 @@ function mapearCambiosAFilaSupabase(cambios: Partial<HallazgoCentral>) {
   asignarSiDefinido(fila, "reportante_telefono", cambios.reportante?.telefono);
   asignarSiDefinido(fila, "reportante_email", cambios.reportante?.email);
   asignarSiDefinido(fila, "reportante_foto_url", cambios.reportante?.fotoUrl);
+  asignarSiDefinido(fila, "supervisor_nombre", cambios.reportante?.nombre);
+  asignarSiDefinido(fila, "supervisor_cargo", cambios.reportante?.cargo);
   asignarSiDefinido(fila, "fecha_reporte", cambios.fechaReporte);
   asignarSiDefinido(fila, "hora_reporte", cambios.horaReporte);
+  asignarSiDefinido(fila, "fecha_iso", cambios.fechaHoraReporteISO);
   asignarSiDefinido(fila, "fecha_hora_reporte", cambios.fechaHoraReporteISO);
   asignarSiDefinido(fila, "descripcion", cambios.descripcion);
   asignarSiDefinido(fila, "tipo_hallazgo", cambios.tipoHallazgo);
@@ -322,20 +338,22 @@ function mapearCambiosAFilaSupabase(cambios: Partial<HallazgoCentral>) {
   asignarSiDefinido(fila, "recomendacion", cambios.recomendacion);
   asignarSiDefinido(fila, "estado", cambios.estado);
   asignarSiDefinido(fila, "estado_cierre", cambios.estadoCierre);
+  asignarSiDefinido(fila, "estado_seguimiento", cambios.estadoCierre);
 
   if (cambios.evidencias) {
     fila.evidencias = evidenciasSinBase64(cambios.evidencias);
+    fila.fotos = evidenciasSinBase64(cambios.evidencias);
   }
 
   if (geo) {
-    fila.latitud = geo.latitud;
-    fila.longitud = geo.longitud;
-    fila.precision_gps = geo.precisionGps;
-    fila.fecha_hora_geolocalizacion = geo.fechaHoraGeolocalizacion;
-    fila.estado_geolocalizacion = geo.estadoGeolocalizacion;
-    fila.direccion_referencial = geo.direccionReferencial;
-    fila.zona = geo.zona;
-    fila.sector = geo.sector;
+    fila.gps_latitud = geo.latitud;
+    fila.gps_longitud = geo.longitud;
+    fila.gps_precision = geo.precisionGps;
+    fila.gps_fecha_hora = geo.fechaHoraGeolocalizacion;
+    fila.gps_estado = geo.estadoGeolocalizacion;
+    fila.gps_direccion_referencial = geo.direccionReferencial;
+    fila.gps_zona = geo.zona;
+    fila.gps_sector = geo.sector;
     fila.visible_en_mapa = cambios.mapaGps?.visibleEnMapa ?? true;
     fila.geolocalizacion = geo;
   }
@@ -347,17 +365,16 @@ function mapearCambiosAFilaSupabase(cambios: Partial<HallazgoCentral>) {
     fila.responsable_cierre_empresa = responsable?.empresa;
     fila.responsable_cierre_telefono = responsable?.telefono;
     fila.responsable_cierre_email = responsable?.email;
+    fila.responsable_cierre_tipo = responsable?.tipoResponsable;
+    fila.estado_seguimiento = seguimiento.estadoCierre;
+    fila.fecha_compromiso = seguimiento.fechaCompromiso;
     fila.fecha_compromiso_cierre = seguimiento.fechaCompromiso;
     fila.fecha_maxima_permitida_cierre = seguimiento.fechaMaximaPermitida;
-    fila.plazo_cierre_por_criticidad = seguimiento.plazoPorCriticidad;
     fila.observacion_inicial_cierre = seguimiento.observacionInicial;
     fila.accion_correctiva_requerida = seguimiento.accionCorrectivaRequerida;
     fila.evidencia_requerida = seguimiento.evidenciaRequerida || [];
     fila.evidencia_recibida = evidenciasSinBase64(seguimiento.evidenciaRecibida);
     fila.fecha_cierre = seguimiento.fechaCierre;
-    fila.validador_cierre_nombre = seguimiento.validadorNombre;
-    fila.validador_cierre_estado = seguimiento.validadorEstado;
-    fila.validador_cierre_observacion = seguimiento.validadorObservacion;
     fila.seguimiento_cierre = seguimiento;
   }
 
@@ -386,18 +403,26 @@ function mapearCambiosAFilaSupabase(cambios: Partial<HallazgoCentral>) {
 
 function mapearFilaSupabaseAHallazgo(fila: Record<string, unknown>): HallazgoCentral {
   const geolocalizacion =
-    typeof fila.latitud === "number" && typeof fila.longitud === "number"
+    (typeof fila.gps_latitud === "number" &&
+      typeof fila.gps_longitud === "number") ||
+    (typeof fila.latitud === "number" && typeof fila.longitud === "number")
       ? {
-          latitud: fila.latitud,
-          longitud: fila.longitud,
-          precisionGps: fila.precision_gps as number | undefined,
-          fechaHoraGeolocalizacion: texto(fila.fecha_hora_geolocalizacion),
-          estadoGeolocalizacion: texto(fila.estado_geolocalizacion) as
+          latitud: (fila.gps_latitud ?? fila.latitud) as number,
+          longitud: (fila.gps_longitud ?? fila.longitud) as number,
+          precisionGps: (fila.gps_precision ?? fila.precision_gps) as
+            | number
+            | undefined,
+          fechaHoraGeolocalizacion: texto(
+            fila.gps_fecha_hora ?? fila.fecha_hora_geolocalizacion
+          ),
+          estadoGeolocalizacion: texto(fila.gps_estado ?? fila.estado_geolocalizacion) as
             | GeolocalizacionHallazgoCentral["estadoGeolocalizacion"]
             | undefined,
-          direccionReferencial: texto(fila.direccion_referencial),
-          zona: texto(fila.zona),
-          sector: texto(fila.sector),
+          direccionReferencial: texto(
+            fila.gps_direccion_referencial ?? fila.direccion_referencial
+          ),
+          zona: texto(fila.gps_zona ?? fila.zona),
+          sector: texto(fila.gps_sector ?? fila.sector),
         }
       : undefined;
 
@@ -521,10 +546,10 @@ function aplicarFiltrosSupabase<T extends SupabaseFilterQuery<T>>(
   }
   if (filtros.origen) consulta = consulta.eq("origen", filtros.origen);
   if (filtros.fechaDesde) {
-    consulta = consulta.gte("fecha_hora_reporte", filtros.fechaDesde);
+    consulta = consulta.gte("fecha_iso", filtros.fechaDesde);
   }
   if (filtros.fechaHasta) {
-    consulta = consulta.lte("fecha_hora_reporte", filtros.fechaHasta);
+    consulta = consulta.lte("fecha_iso", filtros.fechaHasta);
   }
 
   return consulta;
@@ -542,7 +567,7 @@ export async function listarHallazgosCentrales(
     let query = cliente
       .from(TABLA_HALLAZGOS_CENTRAL)
       .select("*")
-      .order("fecha_hora_reporte", { ascending: false, nullsFirst: false })
+      .order("fecha_iso", { ascending: false, nullsFirst: false })
       .range(offset, offset + limit - 1);
 
     query = aplicarFiltrosSupabase(query, filtros);
