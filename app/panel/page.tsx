@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { analizarRadarPreventivo } from "../analytics/radarPreventivo";
 import type {
@@ -7,8 +8,23 @@ import type {
   HallazgoCentral,
   TipoHallazgoCentral,
 } from "../types/hallazgoCentral";
-import { hallazgosMock, notificacionesMock, usuarioMock } from "./mockdata";
+import { hallazgosMock, notificacionesMock, usuarioMock, type HallazgoPanel } from "./mockdata";
 import { cargarHallazgosPanelConFuentesOpcionales } from "./sources/hallazgosPanelSource";
+
+type HallazgoPanelExtendido = HallazgoPanel & {
+  area?: string;
+  gps?: HallazgoCentral["geolocalizacion"];
+  recomendacion?: string;
+  fechaCompromiso?: string;
+  fechaCierre?: string;
+  evidenciaCierre?: string;
+  responsable?: string;
+  responsableCierreNombre?: string;
+  responsableCierreCargo?: string;
+  responsableCierreEmpresa?: string;
+  responsableCierreTelefono?: string;
+  evidenciaRequerida?: string;
+};
 
 function chipColor(tipo: string) {
   const valor = String(tipo).toUpperCase();
@@ -211,7 +227,7 @@ const [opcionesPDF, setOpcionesPDF] = useState<OpcionesPDFConfig>(opcionesPDFPor
 const [perfilesActivos, setPerfilesActivos] = useState<Record<PerfilPermiso, boolean>>(perfilesActivosPorDefecto);
 const [guardadoConfig, setGuardadoConfig] = useState(false);
 const [fechaActualizacion, setFechaActualizacion] = useState<Date | null>(null);
-const [filasPanel, setFilasPanel] = useState(hallazgosMock);
+const [filasPanel, setFilasPanel] = useState<HallazgoPanelExtendido[]>(hallazgosMock);
   const idiomaActivo = idiomaSistema === "en" ? "en" : "es";
   const textosEn: Record<string, string> = {
     "Plataforma Ejecutiva de Hallazgos": "Executive Findings Platform",
@@ -444,9 +460,7 @@ const [filasPanel, setFilasPanel] = useState(hallazgosMock);
     "No hay informe disponible para el filtro seleccionado.": "No report available for the selected filter.",
     "Estado plazo": "Deadline status",
     Reportante: "Reporter",
-    Cargo: "Role",
     Teléfono: "Phone",
-    Responsable: "Responsible",
     "Fecha compromiso": "Commitment date",
     "Fecha cierre": "Close date",
     "Evidencia cierre": "Close evidence",
@@ -678,8 +692,10 @@ const [filasPanel, setFilasPanel] = useState(hallazgosMock);
   const filas = filasPanel;
 const totalHistoricoHallazgos = filas.length;
 const totalVencidos = filas.filter(
-  (fila) =>
-    semaforoVencimiento(fila.fechaCompromiso, fila.estado).etiqueta === "VENCIDO"
+  (fila) => {
+    const fechaCompromiso = (fila as { fechaCompromiso?: string }).fechaCompromiso || "";
+    return semaforoVencimiento(fechaCompromiso, fila.estado).etiqueta === "VENCIDO";
+  }
 ).length;
 const [contadorHistoricoAnimado, setContadorHistoricoAnimado] = useState(0);
 const [notificaciones, setNotificaciones] = useState(notificacionesMock);
@@ -1807,7 +1823,7 @@ useEffect(() => {
 
   return () => window.clearInterval(intervalo);
 }, [totalHistoricoHallazgos]);
-const [hallazgoActivo, setHallazgoActivo] = useState(filas[0]);
+const [hallazgoActivo, setHallazgoActivo] = useState<HallazgoPanelExtendido>(filas[0]);
 const [filtroRapido, setFiltroRapido] = useState<"HOY" | "SEMANA" | "MES" | "PERSONALIZADO">("HOY");
 const [filtroEmpresa, setFiltroEmpresa] = useState("TODAS");
 const [filtroObra, setFiltroObra] = useState("TODAS");
@@ -2013,9 +2029,10 @@ const abrirNotificacion = (hallazgoId: string) => {
   setHallazgoActivo(hallazgoRelacionado);
 
   setNotificaciones((prev) =>
-    prev.map((item) =>
-      item.hallazgoId === hallazgoId ? { ...item, leida: true } : item
-    )
+    prev.map((item) => {
+      const notificacion = item as typeof item & { hallazgoId?: string };
+      return notificacion.hallazgoId === hallazgoId ? { ...item, leida: true } : item;
+    })
   );
 
   setMostrarNotificaciones(false);
@@ -2208,6 +2225,7 @@ const obtenerCampoSeguimiento = (
 // asignación de responsable, evidencia de cierre y base de datos/Supabase.
 const hallazgosSeguimiento: HallazgoSeguimiento[] = filas.map((item) => {
   const edicionLocal = gestionCierreLocal[item.codigo] || {};
+  const itemExtendido = item as typeof item & { fechaCompromiso?: string };
   const responsableReal = obtenerCampoSeguimiento(item, "responsableCierreNombre", "");
   const evidenciaReal = obtenerCampoSeguimiento(item, "responsableCierreEvidencia", "");
   const estadoReal = obtenerCampoSeguimiento(item, "responsableCierreEstadoSeguimiento", "");
@@ -2228,7 +2246,7 @@ const hallazgosSeguimiento: HallazgoSeguimiento[] = filas.map((item) => {
     responsableCierreFechaCompromiso: obtenerCampoSeguimiento(
       item,
       "responsableCierreFechaCompromiso",
-      item.fechaCompromiso || "Sin definir"
+      itemExtendido.fechaCompromiso || "Sin definir"
     ),
     responsableCierreEvidencia: evidenciaReal || "Sin evidencia de cierre",
     responsableCierreObservacion: obtenerCampoSeguimiento(
@@ -2963,27 +2981,34 @@ if (!elementoPdf) {
   return;
 }
 
-// @ts-expect-error html2pdf.js no trae tipos en este proyecto
-const html2pdf = (await import("html2pdf.js")).default;
+type Html2PdfWorkerLocal = {
+  set: (options: Record<string, unknown>) => Html2PdfWorkerLocal;
+  from: (element: HTMLElement) => Html2PdfWorkerLocal;
+  save: () => Promise<void>;
+};
+type Html2PdfFactoryLocal = () => Html2PdfWorkerLocal;
+const html2pdf = (await import("html2pdf.js")).default as unknown as Html2PdfFactoryLocal;
 
 try {
   await html2pdf()
-    .set({
-      margin: 0,
-      filename: nombreArchivo,
-      image: { type: "jpeg", quality: 0.98 },
-      html2canvas: {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: "#ffffff",
-      },
-      jsPDF: {
-        unit: "mm",
-        format: "letter",
-        orientation: "portrait",
-      },
-      pagebreak: { mode: ["css", "legacy"] },
-    })
+    .set(
+      {
+        margin: 0,
+        filename: nombreArchivo,
+        image: { type: "jpeg", quality: 0.98 },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: "#ffffff",
+        },
+        jsPDF: {
+          unit: "mm",
+          format: "letter",
+          orientation: "portrait",
+        },
+        pagebreak: { mode: ["css", "legacy"] },
+      } as Record<string, unknown>
+    )
     .from(elementoPdf)
     .save();
 } finally {
@@ -3039,8 +3064,10 @@ const kpis = [
     titulo: t("Vencidos"),
     valor: String(
   filasFiltradas.filter(
-    (item) =>
-      semaforoVencimiento(item.fechaCompromiso, item.estado).etiqueta === "VENCIDO"
+    (item) => {
+      const fechaCompromiso = (item as typeof item & { fechaCompromiso?: string }).fechaCompromiso || "";
+      return semaforoVencimiento(fechaCompromiso, item.estado).etiqueta === "VENCIDO";
+    }
   ).length
 ),
     color: "#b91c1c",
@@ -4973,6 +5000,58 @@ style={{
     </div>
 
     <div style={{ display: "grid", gap: "8px" }}>
+      <Link
+        href="/panel/mapa-gps"
+        style={{
+          width: "100%",
+          minHeight: "50px",
+          padding: "14px 14px",
+          borderRadius: "14px",
+          border: "1px solid rgba(56,189,248,0.46)",
+          background: "linear-gradient(135deg, rgba(37,99,235,0.96), rgba(14,165,233,0.86))",
+          color: "#eff6ff",
+          fontSize: "13px",
+          fontWeight: 900,
+          textAlign: "left",
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          boxShadow: "0 10px 22px rgba(14,165,233,0.22)",
+          textDecoration: "none",
+          transition: "background 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background =
+            "linear-gradient(135deg, rgba(59,130,246,1), rgba(34,211,238,0.92))";
+          e.currentTarget.style.boxShadow = "0 12px 26px rgba(14,165,233,0.30)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background =
+            "linear-gradient(135deg, rgba(37,99,235,0.96), rgba(14,165,233,0.86))";
+          e.currentTarget.style.boxShadow = "0 10px 22px rgba(14,165,233,0.22)";
+          e.currentTarget.style.transform = "translateY(0)";
+        }}
+        onMouseDown={(e) => {
+          e.currentTarget.style.transform = "translateY(1px) scale(0.99)";
+          e.currentTarget.style.boxShadow = "0 7px 16px rgba(14,165,233,0.22)";
+        }}
+        onMouseUp={(e) => {
+          e.currentTarget.style.transform = "translateY(0)";
+          e.currentTarget.style.boxShadow = "0 12px 26px rgba(14,165,233,0.30)";
+        }}
+      >
+        <span>Mapa GPS de Hallazgos</span>
+        <span
+          style={{
+            fontSize: "14px",
+            lineHeight: 1,
+            opacity: 0.94,
+          }}
+        >
+          ↗
+        </span>
+      </Link>
 	     {["Exportar a Excel", "Generar informe empresa/obra", "Seguimiento de cierre", "Configuración"].map((item) => (
      <button
   key={item}
@@ -5227,10 +5306,10 @@ style={{
                   }}
                 >
                   {[
-                    ["Críticos abiertos", radarPreventivo.criticosAbiertos, "#ef4444"],
-                    ["Altos abiertos", altosAbiertosRadar, "#f59e0b"],
-                    ["Alertas", radarPreventivo.alertas.length, radarVisual.color],
-                  ].map(([label, value, color]) => (
+                    { label: "Críticos abiertos", value: radarPreventivo.criticosAbiertos, color: "#ef4444" },
+                    { label: "Altos abiertos", value: altosAbiertosRadar, color: "#f59e0b" },
+                    { label: "Alertas", value: radarPreventivo.alertas.length, color: radarVisual.color },
+                  ].map(({ label, value, color }) => (
                     <div
                       key={label}
                       style={{
@@ -5786,6 +5865,8 @@ style={{
 ) : (
   filasFiltradas.map((fila) => {
     const chip = chipColor(fila.criticidad);
+    const fechaCompromiso = (fila as typeof fila & { fechaCompromiso?: string }).fechaCompromiso || "";
+    const semaforoFila = semaforoVencimiento(fechaCompromiso, fila.estado);
 
     return (
       <div
@@ -5837,15 +5918,15 @@ style={{
       width: "fit-content",
       padding: "4px 8px",
       borderRadius: "999px",
-      background: semaforoVencimiento(fila.fechaCompromiso, fila.estado).fondo,
-      border: semaforoVencimiento(fila.fechaCompromiso, fila.estado).borde,
-      color: semaforoVencimiento(fila.fechaCompromiso, fila.estado).texto,
+      background: semaforoFila.fondo,
+      border: semaforoFila.borde,
+      color: semaforoFila.texto,
       fontSize: "11px",
       fontWeight: 800,
       lineHeight: 1,
     }}
   >
-	    {t(semaforoVencimiento(fila.fechaCompromiso, fila.estado).etiqueta)}
+	    {t(semaforoFila.etiqueta)}
   </span>
 </div>
         <div>{fila.fechaHora}</div>
@@ -7351,15 +7432,15 @@ style={{
       padding: "6px 10px",
       borderRadius: "999px",
       background: semaforoVencimiento(
-        hallazgoActivo.fechaCompromiso,
+        hallazgoActivo.fechaCompromiso || "",
         hallazgoActivo.estado
       ).fondo,
       border: semaforoVencimiento(
-        hallazgoActivo.fechaCompromiso,
+        hallazgoActivo.fechaCompromiso || "",
         hallazgoActivo.estado
       ).borde,
       color: semaforoVencimiento(
-        hallazgoActivo.fechaCompromiso,
+        hallazgoActivo.fechaCompromiso || "",
         hallazgoActivo.estado
       ).texto,
       fontSize: "12px",
@@ -7368,7 +7449,7 @@ style={{
   >
 	    {t(
 	      semaforoVencimiento(
-	        hallazgoActivo.fechaCompromiso,
+	        hallazgoActivo.fechaCompromiso || "",
 	        hallazgoActivo.estado
 	      ).etiqueta
 	    )}
