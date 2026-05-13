@@ -9,6 +9,9 @@
 -- 3. RLS/policies multiempresa;
 -- 4. migracion desde datos locales/mock;
 -- 5. plan de rollback y entorno de prueba.
+--
+-- Paquete separado para activacion controlada:
+-- docs/supabase/README.md
 
 create table if not exists public.hallazgos_central (
   id uuid primary key default gen_random_uuid(),

@@ -40,6 +40,8 @@ export type FiltrosHallazgosCentrales = {
   fechaDesde?: string;
   fechaHasta?: string;
   origen?: HallazgoCentral["origen"];
+  limit?: number;
+  offset?: number;
 };
 
 export type FiltrosMapaGpsCentral = FiltrosHallazgosCentrales & {
@@ -535,11 +537,13 @@ export async function listarHallazgosCentrales(
   if (!habilitado || !cliente) return lecturaVacia([]);
 
   try {
+    const limit = Math.min(Math.max(filtros.limit || 100, 1), 500);
+    const offset = Math.max(filtros.offset || 0, 0);
     let query = cliente
       .from(TABLA_HALLAZGOS_CENTRAL)
       .select("*")
       .order("fecha_hora_reporte", { ascending: false, nullsFirst: false })
-      .limit(500);
+      .range(offset, offset + limit - 1);
 
     query = aplicarFiltrosSupabase(query, filtros);
 

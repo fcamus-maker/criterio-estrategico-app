@@ -34,6 +34,8 @@ Reglas:
 ## 3. Schema central
 
 - Revisar `docs/hallazgos-central.schema.sql` antes de ejecutar.
+- Revisar el paquete separado `docs/supabase/README.md` y ejecutar, si se
+  aprueba, en este orden: tabla, indices, Storage, RLS/policies y codigos.
 - Confirmar nombre objetivo de tabla: `public.hallazgos_central`.
 - Confirmar columnas de contexto: empresa, obra, area, reportante, fechas,
   criticidad, estado y cierre.
@@ -64,6 +66,8 @@ Reglas:
 
 ## 6. Prueba controlada
 
+Checklist detallado: `docs/supabase/06-prueba-e2e-controlada.md`.
+
 1. Confirmar `NEXT_PUBLIC_CE_SUPABASE_ENABLED=false`.
 2. Levantar app y validar que app movil V2 y panel funcionan con fallback.
 3. Crear tabla y bucket en entorno de prueba.
@@ -79,6 +83,8 @@ Reglas:
 13. Simular falla de red/Supabase y confirmar fallback.
 
 ## 7. Reversion
+
+Plan detallado: `docs/supabase/07-rollback-fallback.md`.
 
 - Volver `NEXT_PUBLIC_CE_SUPABASE_ENABLED=false`.
 - Reiniciar servidor.

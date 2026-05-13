@@ -99,6 +99,7 @@ reporte exista en local y en Supabase.
 
 - Completar el checklist operativo
   `docs/supabase-activacion-controlada-checklist.md`.
+- Revisar el paquete SQL/documental en `docs/supabase/README.md`.
 - Crear tabla real `public.hallazgos_central` desde el schema revisado en un
   entorno de prueba.
 - Crear bucket real `hallazgos-evidencias` y validar politicas de acceso.
