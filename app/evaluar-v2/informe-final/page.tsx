@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { intentarGuardarReporteV2EnRepositorioCentral } from "@/app/services/guardarReporteV2Central";
 
 type FotoV2 = {
   id: string;
@@ -487,6 +488,23 @@ export default function InformeFinalV2Page() {
                   setGuardando(true);
                   const reporteGuardado = guardarReporteEnHistorial(reporte);
                   setReporte(reporteGuardado);
+                  void intentarGuardarReporteV2EnRepositorioCentral(
+                    reporteGuardado
+                  )
+                    .then(({ resultado }) => {
+                      if (!resultado.ok) {
+                        console.info(
+                          "Escritura central V2 no activa. Se mantiene guardado local.",
+                          resultado.error
+                        );
+                      }
+                    })
+                    .catch((error) => {
+                      console.warn(
+                        "No se pudo preparar la escritura central V2. Se mantiene guardado local.",
+                        error
+                      );
+                    });
                   vibrarOk();
                   setGuardado(true);
                   setGuardando(false);
