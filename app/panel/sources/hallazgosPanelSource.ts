@@ -1,8 +1,10 @@
 import type { HallazgoPanel } from "../mockdata";
+import { adaptarHallazgosCentralesAHallazgosPanel } from "../../adapters/hallazgoCentralToHallazgoPanel";
 import {
   adaptarReportesV2AHallazgosPanel,
   type ReporteV2,
 } from "../adapters/reporteV2ToHallazgoPanel";
+import { listarHallazgosCentrales } from "../../repositories/hallazgosCentralRepository";
 
 const STORAGE_HISTORIAL_V2 = "ce_mobile_v2_historial_reportes";
 
@@ -28,10 +30,47 @@ export function cargarHallazgosPanelConReportesV2(
 
   if (reportesV2.length === 0) return hallazgosBase;
 
+  return combinarHallazgosSinDuplicar(
+    hallazgosBase,
+    adaptarReportesV2AHallazgosPanel(reportesV2)
+  );
+}
+
+function combinarHallazgosSinDuplicar(
+  hallazgosBase: HallazgoPanel[],
+  hallazgosAdicionales: HallazgoPanel[]
+): HallazgoPanel[] {
   const codigosBase = new Set(hallazgosBase.map((hallazgo) => hallazgo.codigo));
-  const hallazgosV2 = adaptarReportesV2AHallazgosPanel(reportesV2).filter(
+  const nuevosHallazgos = hallazgosAdicionales.filter(
     (hallazgo) => !codigosBase.has(hallazgo.codigo)
   );
 
-  return [...hallazgosBase, ...hallazgosV2];
+  return [...hallazgosBase, ...nuevosHallazgos];
+}
+
+export async function cargarHallazgosPanelConFuentesOpcionales(
+  hallazgosBase: HallazgoPanel[]
+): Promise<HallazgoPanel[]> {
+  try {
+    const respuestaCentral = await listarHallazgosCentrales();
+
+    if (respuestaCentral.ok && respuestaCentral.data.length > 0) {
+      const hallazgosCentrales = adaptarHallazgosCentralesAHallazgosPanel(
+        respuestaCentral.data
+      );
+      const conCentral = combinarHallazgosSinDuplicar(
+        hallazgosBase,
+        hallazgosCentrales
+      );
+
+      return cargarHallazgosPanelConReportesV2(conCentral);
+    }
+  } catch (error) {
+    console.warn(
+      "No se pudo leer repositorio central de hallazgos. Usando fallback local/mock.",
+      error
+    );
+  }
+
+  return cargarHallazgosPanelConReportesV2(hallazgosBase);
 }

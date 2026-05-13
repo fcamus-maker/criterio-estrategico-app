@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { hallazgosMock, notificacionesMock, usuarioMock } from "./mockdata";
-import { cargarHallazgosPanelConReportesV2 } from "./sources/hallazgosPanelSource";
+import { cargarHallazgosPanelConFuentesOpcionales } from "./sources/hallazgosPanelSource";
 
 function chipColor(tipo: string) {
   const valor = String(tipo).toUpperCase();
@@ -638,7 +638,19 @@ const [filasPanel, setFilasPanel] = useState(hallazgosMock);
   }, []);
 
   useEffect(() => {
-    setFilasPanel(cargarHallazgosPanelConReportesV2(hallazgosMock));
+    let activo = true;
+
+    void cargarHallazgosPanelConFuentesOpcionales(hallazgosMock).then(
+      (hallazgos) => {
+        if (activo) {
+          setFilasPanel(hallazgos);
+        }
+      }
+    );
+
+    return () => {
+      activo = false;
+    };
   }, []);
 
   const formatearUltimaActualizacion = (fecha: Date | null) => {
