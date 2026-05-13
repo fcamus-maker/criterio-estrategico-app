@@ -1,8 +1,8 @@
 # Integracion real Mobile V2, Supabase y Panel PC
 
-Estado: diagnostico y preparacion documental. No ejecutar migraciones, no crear
-tablas reales, no activar Storage y no activar escritura remota sin un bloque de
-implementacion dedicado.
+Estado: integracion real controlada preparada. No ejecutar migraciones, no crear
+tablas reales, no crear buckets Storage y no activar escritura remota sin
+validacion del entorno real.
 
 ## Estado actual
 
@@ -11,13 +11,35 @@ implementacion dedicado.
 - `app/evaluar-v2/informe-final/page.tsx` llama de forma opcional a
   `intentarGuardarReporteV2EnRepositorioCentral`, pero el repositorio central
   responde como desactivado y no escribe datos reales.
-- `app/repositories/hallazgosCentralRepository.ts` esta preparado como contrato,
-  con lecturas vacias y escrituras bloqueadas para evitar efectos laterales.
+- `lib/supabaseClient.ts` solo crea cliente si existen URL, anon key y la
+  bandera explicita `NEXT_PUBLIC_CE_SUPABASE_ENABLED=true`.
+- `app/repositories/hallazgosCentralRepository.ts` tiene lectura, escritura y
+  subida a Storage controladas por bandera, con fallback si Supabase no esta
+  habilitado o falla.
 - El panel PC lee mediante `app/panel/sources/hallazgosPanelSource.ts` con orden
   seguro: repositorio central, historial local V2 y `mockdata`.
-- `lib/supabaseClient.ts` crea cliente solo si existen URL y anon key, pero la
-  dependencia debe estar instalada en `node_modules` antes de compilar.
 - `.env.local` contiene URL de Supabase; no se revisan ni se imprimen secretos.
+
+## Bandera de activacion
+
+Variables esperadas para activar Supabase real en un entorno controlado:
+
+```txt
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+NEXT_PUBLIC_CE_SUPABASE_ENABLED=true
+```
+
+Reglas:
+
+- Si falta URL, anon key o la bandera no es exactamente `true`, no se crea
+  cliente Supabase.
+- Sin cliente habilitado, el repositorio central no intenta lectura ni escritura
+  real y responde con fallback seguro.
+- La bandera no crea tablas, no ejecuta SQL y no crea Storage; esos recursos
+  deben existir antes de una prueba real.
+- No editar ni commitear archivos `.env` reales. Documentar valores requeridos,
+  pero administrar secretos fuera del repositorio.
 
 ## Ruta objetivo
 
@@ -75,14 +97,15 @@ reporte exista en local y en Supabase.
 
 ## Brechas antes de activar
 
-- Confirmar instalacion efectiva de `@supabase/supabase-js`.
-- Definir bandera explicita de activacion, por ejemplo
-  `NEXT_PUBLIC_CE_SUPABASE_READ_ENABLED` y una ruta server-side para escritura.
-- Implementar repositorio real con consultas tipadas y manejo de errores.
+- Crear tabla real `public.hallazgos_central` desde el schema revisado en un
+  entorno de prueba.
+- Crear bucket real `hallazgos-evidencias` y validar politicas de acceso.
 - Implementar subida a Storage antes del insert central.
 - Definir schema final, RLS, policies e indices en entorno controlado.
 - Agregar pruebas de adaptadores, fallback y duplicados.
 - Validar flujo end-to-end con dos dispositivos generando reportes simultaneos.
+- Evaluar una ruta server-side para escritura si la anon key no debe insertar
+  directamente desde cliente.
 
 ## Advertencia
 
