@@ -71,7 +71,7 @@ const pageStyle: CSSProperties = {
   background:
     "radial-gradient(circle at 18% 0%, rgba(37,99,235,0.28), transparent 32%), radial-gradient(circle at 80% 12%, rgba(168,85,247,0.18), transparent 28%), radial-gradient(circle at 52% 88%, rgba(20,184,166,0.14), transparent 30%), linear-gradient(135deg, #07111f 0%, #0f172a 48%, #111827 100%)",
   color: "#f8fafc",
-  padding: "20px 22px 28px",
+  padding: "clamp(16px, 1.25vw, 28px)",
   boxSizing: "border-box",
   fontFamily:
     "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
@@ -82,7 +82,7 @@ const shellStyle: CSSProperties = {
   maxWidth: "none",
   margin: "0 auto",
   display: "grid",
-  gap: "16px",
+  gap: "clamp(16px, 0.95vw, 22px)",
 };
 
 const surfaceStyle: CSSProperties = {
@@ -338,9 +338,10 @@ export default function KpiGerencialAvanzadoPage() {
   const maxTendencia = Math.max(1, ...analisis.tendenciaTemporal.map((item) => item.total));
 
   return (
-    <main style={pageStyle}>
-      <div style={shellStyle}>
+    <main className="ce-panel-page ce-panel-kpi-page" style={pageStyle}>
+      <div className="ce-panel-shell ce-panel-kpi-shell" style={shellStyle}>
         <header
+          className="ce-panel-header"
           style={{
             ...surfaceStyle,
             padding: "22px",
@@ -416,8 +417,17 @@ export default function KpiGerencialAvanzadoPage() {
           ))}
         </section>
 
-        <section style={{ display: "grid", gridTemplateColumns: "minmax(300px, 340px) minmax(0, 1fr) minmax(340px, 390px)", gap: "16px", alignItems: "start" }}>
-          <aside style={{ ...surfaceStyle, padding: "18px", display: "grid", gap: "13px" }}>
+        <section
+          className="ce-panel-kpi-grid-layout"
+          style={{
+            display: "grid",
+            gridTemplateColumns:
+              "clamp(300px, 16vw, 390px) minmax(0, 1fr) clamp(340px, 18vw, 440px)",
+            gap: "clamp(16px, 0.95vw, 24px)",
+            alignItems: "start",
+          }}
+        >
+          <aside className="ce-panel-kpi-filters" style={{ ...surfaceStyle, padding: "18px", display: "grid", gap: "13px" }}>
             <div>
               <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 950 }}>Filtros avanzados</h2>
               <p style={{ margin: "6px 0 0", color: "#94a3b8", fontSize: "12px", lineHeight: 1.45, fontWeight: 700 }}>
@@ -571,7 +581,7 @@ export default function KpiGerencialAvanzadoPage() {
             </button>
           </aside>
 
-          <section style={{ display: "grid", gap: "16px", minWidth: 0 }}>
+          <section className="ce-panel-kpi-main" style={{ display: "grid", gap: "16px", minWidth: 0 }}>
             <section style={{ ...surfaceStyle, padding: "18px", display: "grid", gap: "14px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "center" }}>
                 <div>
@@ -605,7 +615,7 @@ export default function KpiGerencialAvanzadoPage() {
                   </p>
                 </div>
               ) : (
-                <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.35fr) minmax(330px, 0.85fr)", gap: "16px", alignItems: "stretch" }}>
+                <div className="ce-panel-kpi-analysis-grid" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.35fr) minmax(330px, 0.85fr)", gap: "16px", alignItems: "stretch" }}>
                   <div style={{ borderRadius: "24px", padding: "18px", background: "rgba(15,23,42,0.72)", border: "1px solid rgba(148,163,184,0.18)" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "14px" }}>
                       <div style={{ fontSize: "15px", fontWeight: 950 }}>Ranking comparativo</div>
@@ -655,7 +665,7 @@ export default function KpiGerencialAvanzadoPage() {
               )}
             </section>
 
-            <section style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.1fr) minmax(360px, 0.9fr)", gap: "16px" }}>
+            <section className="ce-panel-kpi-secondary-grid" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.1fr) minmax(360px, 0.9fr)", gap: "16px" }}>
               <div style={{ ...surfaceStyle, padding: "18px" }}>
                 <div style={{ fontSize: "16px", fontWeight: 950, marginBottom: "14px" }}>Tendencia temporal</div>
                 <div style={{ height: "230px", display: "flex", alignItems: "end", gap: "10px", paddingTop: "16px" }}>
@@ -687,7 +697,7 @@ export default function KpiGerencialAvanzadoPage() {
             </section>
           </section>
 
-          <aside style={{ ...surfaceStyle, padding: "18px", display: "grid", gap: "14px" }}>
+          <aside className="ce-panel-kpi-report" style={{ ...surfaceStyle, padding: "18px", display: "grid", gap: "14px" }}>
             <div>
               <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 950 }}>Informe ejecutivo preparado</h2>
               <p style={{ margin: "6px 0 0", color: "#94a3b8", fontSize: "12px", lineHeight: 1.45, fontWeight: 700 }}>

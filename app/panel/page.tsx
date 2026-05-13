@@ -3470,22 +3470,26 @@ const riesgoOperativoPrincipal =
 
 	  return (
     <main
+      className="ce-panel-page"
       data-panel-theme={temaClaro ? "light" : "dark"}
       style={{
         minHeight: "100vh",
         background: tema.fondo,
         color: tema.texto,
         fontFamily: "Arial, sans-serif",
-        padding: "18px",
+        padding: "clamp(14px, 1.35vw, 28px)",
       }}
     >
       <div
+        className="ce-panel-shell"
         style={{
-          maxWidth: "1720px",
+          width: "100%",
+          maxWidth: "none",
           margin: "0 auto",
         }}
       >
        <header
+  className="ce-panel-main-header"
   style={{
     ...panelSurfaceStyle,
     display: "flex",
@@ -4416,14 +4420,17 @@ const riesgoOperativoPrincipal =
 )}
 
         <div
+          className="ce-panel-dashboard-grid"
           style={{
             display: "grid",
-            gridTemplateColumns: "240px minmax(0, 1fr) 300px",
-            gap: "18px",
+            gridTemplateColumns:
+              "clamp(240px, 14vw, 310px) minmax(0, 1fr) clamp(300px, 17vw, 390px)",
+            gap: "clamp(16px, 1vw, 24px)",
             alignItems: "stretch",
           }}
         >
          <aside
+          className="ce-panel-left-rail"
   style={{
     ...panelSurfaceStyle,
     padding: "16px",
@@ -5198,6 +5205,7 @@ style={{
   </div>
 </aside>
           <section
+            className="ce-panel-main-content"
             style={{
               minHeight: "760px",
               display: vistaPrincipal === "panel" ? "grid" : "none",
@@ -5206,9 +5214,10 @@ style={{
             }}
           >
             <div
+              className="ce-panel-kpi-grid"
               style={{
                 display: "grid",
-               gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
+               gridTemplateColumns: "repeat(auto-fit, minmax(132px, 1fr))",
                 gap: "12px",
               }}
             >
@@ -5262,6 +5271,7 @@ style={{
             </div>
 
             <section
+              className="ce-panel-radar"
               style={{
                 ...panelSurfaceStyle,
                 padding: "18px",
@@ -5271,7 +5281,8 @@ style={{
                   ? "0 16px 34px rgba(15,23,42,0.12)"
                   : "0 18px 38px rgba(0,0,0,0.30)",
                 display: "grid",
-                gridTemplateColumns: "1.1fr 1.6fr 1.1fr",
+                gridTemplateColumns:
+                  "minmax(220px, 1.1fr) minmax(360px, 1.6fr) minmax(240px, 1.1fr)",
                 gap: "16px",
                 alignItems: "stretch",
               }}
@@ -5433,6 +5444,7 @@ style={{
             </section>
 
             <div
+              className="ce-panel-chart-grid"
               style={{
                 display: "grid",
                 gridTemplateColumns: "1fr 1fr",
@@ -5870,9 +5882,11 @@ style={{
             </div>
 
             <div
+              className="ce-panel-table"
               style={{
                 ...panelSurfaceStyle,
                 overflow: "hidden",
+                overflowX: "auto",
                 display: "flex",
                 flexDirection: "column",
                 minHeight: "0",
@@ -5890,7 +5904,8 @@ style={{
                   fontWeight: 800,
                   letterSpacing: "0.7px",
                   textTransform: "uppercase",
-	                  color: tema.textoSuave,
+                  color: tema.textoSuave,
+                  minWidth: "860px",
                 }}
               >
 	                <div>{t("Código")}</div>
@@ -5932,6 +5947,7 @@ style={{
 	          borderTop: tema.bordeSutil,
           alignItems: "center",
           fontSize: "13px",
+          minWidth: "860px",
         }}
       >
         <div style={{ fontWeight: 800 }}>{fila.codigo}</div>
@@ -6012,6 +6028,7 @@ style={{
           </section>
 
           <aside
+            className="ce-panel-right-rail"
             style={{
               ...panelSurfaceStyle,
               padding: vistaPrincipal === "panel" ? "16px" : "24px",

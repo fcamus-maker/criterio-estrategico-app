@@ -69,16 +69,18 @@ const pageStyle: CSSProperties = {
   background:
     "radial-gradient(circle at 18% 10%, rgba(59,130,246,0.24), transparent 30%), radial-gradient(circle at 78% 0%, rgba(239,68,68,0.18), transparent 26%), linear-gradient(135deg, #07111f 0%, #0f1e36 45%, #172554 100%)",
   color: "#f8fafc",
-  padding: "28px",
+  padding: "clamp(16px, 1.45vw, 30px)",
+  boxSizing: "border-box",
   fontFamily:
     "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
 };
 
 const shellStyle: CSSProperties = {
-  maxWidth: "1480px",
+  width: "100%",
+  maxWidth: "none",
   margin: "0 auto",
   display: "grid",
-  gap: "18px",
+  gap: "clamp(16px, 1vw, 22px)",
 };
 
 const surfaceStyle: CSSProperties = {
@@ -427,14 +429,15 @@ export default function MapaGpsHallazgosPage() {
   }
 
   return (
-    <main style={pageStyle}>
-      <div style={shellStyle}>
+    <main className="ce-panel-page ce-panel-map-page" style={pageStyle}>
+      <div className="ce-panel-shell ce-panel-map-shell" style={shellStyle}>
         <header
+          className="ce-panel-header"
           style={{
             ...surfaceStyle,
             padding: "22px",
             display: "grid",
-            gridTemplateColumns: "1fr auto",
+            gridTemplateColumns: "minmax(0, 1fr) auto",
             gap: "18px",
             alignItems: "center",
           }}
@@ -499,9 +502,10 @@ export default function MapaGpsHallazgosPage() {
         </header>
 
         <section
+          className="ce-panel-map-summary"
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+            gridTemplateColumns: "repeat(4, minmax(190px, 1fr))",
             gap: "14px",
           }}
         >
@@ -582,14 +586,16 @@ export default function MapaGpsHallazgosPage() {
         </section>
 
         <section
+          className="ce-panel-map-grid"
           style={{
             display: "grid",
-            gridTemplateColumns: "300px minmax(0, 1fr) 330px",
-            gap: "18px",
+            gridTemplateColumns:
+              "clamp(300px, 16vw, 390px) minmax(0, 1fr) clamp(330px, 18vw, 440px)",
+            gap: "clamp(16px, 1vw, 24px)",
             alignItems: "stretch",
           }}
         >
-          <aside style={{ ...surfaceStyle, padding: "18px", display: "grid", gap: "14px" }}>
+          <aside className="ce-panel-map-filters" style={{ ...surfaceStyle, padding: "18px", display: "grid", gap: "14px" }}>
             <div>
               <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 950 }}>
                 Filtros territoriales
@@ -750,9 +756,10 @@ export default function MapaGpsHallazgosPage() {
           </aside>
 
           <section
+            className="ce-panel-map-canvas-card"
             style={{
               ...surfaceStyle,
-              minHeight: "680px",
+              minHeight: "clamp(680px, 50vw, 880px)",
               padding: "18px",
               display: "grid",
               gridTemplateRows: "auto minmax(0, 1fr) auto",
@@ -790,10 +797,11 @@ export default function MapaGpsHallazgosPage() {
             </div>
 
             <div
+              className="ce-panel-map-canvas"
               style={{
                 position: "relative",
                 borderRadius: "28px",
-                minHeight: "520px",
+                minHeight: "clamp(520px, 38vw, 720px)",
                 overflow: "hidden",
                 border: "1px solid rgba(125,211,252,0.18)",
                 background:
@@ -1033,7 +1041,7 @@ export default function MapaGpsHallazgosPage() {
             </div>
           </section>
 
-          <aside style={{ ...surfaceStyle, padding: "18px", display: "grid", gap: "14px" }}>
+          <aside className="ce-panel-map-insights" style={{ ...surfaceStyle, padding: "18px", display: "grid", gap: "14px" }}>
             <div>
               <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 950 }}>
                 Zonas y lectura ejecutiva
