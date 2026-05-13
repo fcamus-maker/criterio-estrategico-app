@@ -5001,6 +5001,58 @@ style={{
 
     <div style={{ display: "grid", gap: "8px" }}>
       <Link
+        href="/panel/kpi-gerencial"
+        style={{
+          width: "100%",
+          minHeight: "50px",
+          padding: "14px 14px",
+          borderRadius: "14px",
+          border: "1px solid rgba(167,139,250,0.48)",
+          background: "linear-gradient(135deg, rgba(88,28,135,0.96), rgba(37,99,235,0.88))",
+          color: "#f5f3ff",
+          fontSize: "13px",
+          fontWeight: 900,
+          textAlign: "left",
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          boxShadow: "0 10px 22px rgba(124,58,237,0.22)",
+          textDecoration: "none",
+          transition: "background 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background =
+            "linear-gradient(135deg, rgba(109,40,217,1), rgba(59,130,246,0.96))";
+          e.currentTarget.style.boxShadow = "0 12px 26px rgba(124,58,237,0.30)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background =
+            "linear-gradient(135deg, rgba(88,28,135,0.96), rgba(37,99,235,0.88))";
+          e.currentTarget.style.boxShadow = "0 10px 22px rgba(124,58,237,0.22)";
+          e.currentTarget.style.transform = "translateY(0)";
+        }}
+        onMouseDown={(e) => {
+          e.currentTarget.style.transform = "translateY(1px) scale(0.99)";
+          e.currentTarget.style.boxShadow = "0 7px 16px rgba(124,58,237,0.22)";
+        }}
+        onMouseUp={(e) => {
+          e.currentTarget.style.transform = "translateY(0)";
+          e.currentTarget.style.boxShadow = "0 12px 26px rgba(124,58,237,0.30)";
+        }}
+      >
+        <span>KPI Gerencial Avanzado</span>
+        <span
+          style={{
+            fontSize: "14px",
+            lineHeight: 1,
+            opacity: 0.94,
+          }}
+        >
+          ↗
+        </span>
+      </Link>
+      <Link
         href="/panel/mapa-gps"
         style={{
           width: "100%",
