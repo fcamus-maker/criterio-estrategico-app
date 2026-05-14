@@ -27,14 +27,17 @@ clientes.
 
 ## Flujo de prueba
 
-1. Login supervisor demo.
-2. Crear hallazgo con GPS y 3 fotos.
-3. Confirmar insert en `public.hallazgos_central`.
-4. Confirmar archivos en `hallazgos-evidencias`.
-5. Login admin demo.
-6. Revisar panel, Radar, Mapa GPS, KPI y seguimiento.
-7. Confirmar que usuario auditor solo lee.
-8. Confirmar que usuarios demo no ven datos reales.
+1. Ejecutar SQL base revisado de Auth/perfiles en entorno de prueba.
+2. Crear usuarios demo en Supabase Auth.
+3. Poblar `profiles` y `usuario_asignaciones`.
+4. Probar `/login` con supervisor demo.
+5. Crear hallazgo con GPS y 3 fotos.
+6. Confirmar insert en `public.hallazgos_central`.
+7. Confirmar archivos en `hallazgos-evidencias`.
+8. Probar `/login` con admin demo.
+9. Revisar panel, Radar, Mapa GPS, KPI y seguimiento.
+10. Confirmar que usuario auditor solo lee.
+11. Confirmar que usuarios demo no ven datos reales.
 
 ## Reglas de seguridad
 
@@ -45,6 +48,7 @@ clientes.
 - Evidencias mediante signed URLs o select controlado.
 - No compartir service role key.
 - No subir `.env.local`.
+- No exigir login en app/panel hasta validar usuarios demo y fallback.
 
 ## Rollback
 
@@ -52,4 +56,3 @@ clientes.
 - Desactivar usuarios demo.
 - Mantener dataset demo separado.
 - No borrar hallazgos reales.
-

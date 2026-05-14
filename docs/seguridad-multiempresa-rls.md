@@ -141,17 +141,28 @@ Ventajas del enfoque hibrido:
 
 ## Orden de implementacion recomendado
 
-1. Crear `empresas`, `obras`, `profiles`, `usuario_empresa_obra`.
-2. Crear usuarios demo en Supabase Auth.
-3. Poblar perfiles y asignaciones.
-4. Actualizar app movil para cargar perfil autenticado.
-5. Actualizar repositorio para enviar `empresa_id`, `obra_id`,
+1. Revisar `docs/supabase/auth-profiles-roles-base-propuesta.sql`.
+2. Crear `empresas`, `obras`, `roles`, `profiles`, `usuario_asignaciones`.
+3. Crear usuarios demo en Supabase Auth.
+4. Poblar perfiles y asignaciones.
+5. Actualizar app movil para cargar perfil autenticado.
+6. Actualizar repositorio para enviar `empresa_id`, `obra_id`,
    `supervisor_user_id`.
-6. Actualizar panel para leer segun sesion/rol.
-7. Probar RLS en entorno controlado con usuarios demo.
-8. Eliminar policy temporal anon de Storage.
-9. Activar policies productivas.
-10. Preparar signed URLs para evidencias.
+7. Actualizar panel para leer segun sesion/rol.
+8. Probar RLS en entorno controlado con usuarios demo.
+9. Eliminar policy temporal anon de Storage.
+10. Activar policies productivas.
+11. Preparar signed URLs para evidencias.
+
+## Fase 25B preparada
+
+- Tipos base: `app/types/authRoles.ts`.
+- Servicio no bloqueante: `app/services/authProfileService.ts`.
+- Login de prueba no obligatorio: `/login`.
+- SQL base no ejecutado:
+  `docs/supabase/auth-profiles-roles-base-propuesta.sql`.
+- Documentacion operativa:
+  `docs/auth-profiles-roles-implementacion.md`.
 
 ## Rollback
 
@@ -160,4 +171,3 @@ Ventajas del enfoque hibrido:
 - No eliminar columnas texto.
 - Probar RLS primero con una copia o entorno controlado.
 - Mantener scripts SQL separados y reversibles.
-

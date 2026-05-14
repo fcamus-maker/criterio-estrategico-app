@@ -13,9 +13,11 @@ Este paquete separa la activacion futura en piezas revisables:
 5. `05-codigos-unicos.sql`: propuesta para codigos centralizados.
 6. `06-prueba-e2e-controlada.md`: checklist App V2 -> Supabase -> Panel.
 7. `07-rollback-fallback.md`: retorno seguro a fallback.
-8. `rls-produccion-propuesta.sql`: modelo Auth/perfiles/asignaciones y RLS
+8. `auth-profiles-roles-base-propuesta.sql`: base Auth/perfiles/roles sin RLS
+   definitivo.
+9. `rls-produccion-propuesta.sql`: modelo Auth/perfiles/asignaciones y RLS
    definitivo propuesto.
-9. `storage-policies-produccion-propuesta.sql`: policies productivas propuestas
+10. `storage-policies-produccion-propuesta.sql`: policies productivas propuestas
    para `hallazgos-evidencias`.
 
 Documentos complementarios:
@@ -23,6 +25,7 @@ Documentos complementarios:
 - `../seguridad-multiempresa-rls.md`
 - `../usuarios-roles-matriz.md`
 - `../demo-controlada-plan.md`
+- `../auth-profiles-roles-implementacion.md`
 
 ## Orden recomendado de revision
 

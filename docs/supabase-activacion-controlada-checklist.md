@@ -57,6 +57,8 @@ Reglas:
 
 ## 5. RLS y policies
 
+- Revisar `docs/auth-profiles-roles-implementacion.md`.
+- Revisar `docs/supabase/auth-profiles-roles-base-propuesta.sql`.
 - Activar RLS despues de definir empresas, obras, roles y modelo de usuarios.
 - Revisar `docs/seguridad-multiempresa-rls.md`.
 - Revisar `docs/usuarios-roles-matriz.md`.
