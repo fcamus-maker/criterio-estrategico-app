@@ -15,9 +15,10 @@ Este paquete separa la activacion futura en piezas revisables:
 7. `07-rollback-fallback.md`: retorno seguro a fallback.
 8. `auth-profiles-roles-base-propuesta.sql`: base Auth/perfiles/roles sin RLS
    definitivo.
-9. `rls-produccion-propuesta.sql`: modelo Auth/perfiles/asignaciones y RLS
+9. `auth-demo-seed-propuesta.sql`: seed demo con placeholders de UUID Auth.
+10. `rls-produccion-propuesta.sql`: modelo Auth/perfiles/asignaciones y RLS
    definitivo propuesto.
-10. `storage-policies-produccion-propuesta.sql`: policies productivas propuestas
+11. `storage-policies-produccion-propuesta.sql`: policies productivas propuestas
    para `hallazgos-evidencias`.
 
 Documentos complementarios:

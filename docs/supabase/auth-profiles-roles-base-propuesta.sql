@@ -1,9 +1,33 @@
--- Plataforma Hallazgos - Auth + profiles + roles base.
+-- FASE 25C - SQL BASE CONTROLADO / SIN RLS DEFINITIVO.
 -- PROPUESTA / NO EJECUTAR SIN REVISION.
--- No activa RLS definitivo por si sola.
--- No elimina la policy temporal anon de Storage.
+--
+-- Que crea:
+-- - public.empresas
+-- - public.obras
+-- - public.roles
+-- - public.profiles
+-- - public.usuario_asignaciones
+-- - funciones helper para RLS futuro
+--
+-- Que NO hace:
+-- - NO activa RLS definitivo.
+-- - NO crea policies.
+-- - NO inserta usuarios en auth.users.
+-- - NO contiene passwords ni credenciales.
+-- - NO toca public.hallazgos.
+-- - NO elimina ni modifica Storage ni la policy temporal anon.
 
 create extension if not exists pgcrypto;
+
+create or replace function public.set_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
 
 create table if not exists public.empresas (
   id uuid primary key default gen_random_uuid(),
@@ -86,16 +110,48 @@ create table if not exists public.usuario_asignaciones (
 create index if not exists profiles_rol_idx
   on public.profiles (rol, activo);
 
+create index if not exists profiles_email_idx
+  on public.profiles (email);
+
 create index if not exists profiles_empresa_obra_idx
   on public.profiles (empresa_id, obra_id)
   where activo = true;
 
+create index if not exists obras_empresa_idx
+  on public.obras (empresa_id);
+
 create index if not exists usuario_asignaciones_usuario_idx
   on public.usuario_asignaciones (usuario_id, activo);
+
+create index if not exists usuario_asignaciones_empresa_idx
+  on public.usuario_asignaciones (empresa_id, activo);
+
+create index if not exists usuario_asignaciones_obra_idx
+  on public.usuario_asignaciones (obra_id, activo);
 
 create index if not exists usuario_asignaciones_alcance_idx
   on public.usuario_asignaciones (empresa_id, obra_id, rol)
   where activo = true;
+
+drop trigger if exists empresas_set_updated_at on public.empresas;
+create trigger empresas_set_updated_at
+before update on public.empresas
+for each row execute function public.set_updated_at();
+
+drop trigger if exists obras_set_updated_at on public.obras;
+create trigger obras_set_updated_at
+before update on public.obras
+for each row execute function public.set_updated_at();
+
+drop trigger if exists profiles_set_updated_at on public.profiles;
+create trigger profiles_set_updated_at
+before update on public.profiles
+for each row execute function public.set_updated_at();
+
+drop trigger if exists usuario_asignaciones_set_updated_at on public.usuario_asignaciones;
+create trigger usuario_asignaciones_set_updated_at
+before update on public.usuario_asignaciones
+for each row execute function public.set_updated_at();
 
 -- Compatibilidad futura con hallazgos_central.
 -- Revisar contra tabla real antes de ejecutar.
@@ -170,3 +226,21 @@ comment on table public.profiles is
 
 comment on table public.usuario_asignaciones is
   'Asignaciones usuario-empresa-obra para permisos multiempresa.';
+
+-- Verificacion manual sugerida despues de ejecutar:
+-- select table_name
+-- from information_schema.tables
+-- where table_schema = 'public'
+--   and table_name in ('empresas', 'obras', 'roles', 'profiles', 'usuario_asignaciones')
+-- order by table_name;
+--
+-- Rollback manual si se ejecuta en entorno equivocado y no hay datos:
+-- drop table if exists public.usuario_asignaciones;
+-- drop table if exists public.profiles;
+-- drop table if exists public.obras;
+-- drop table if exists public.empresas;
+-- drop table if exists public.roles;
+-- drop function if exists public.usuario_tiene_acceso_obra(uuid, uuid);
+-- drop function if exists public.usuario_tiene_acceso_empresa(uuid);
+-- drop function if exists public.is_super_admin_ce();
+-- drop function if exists public.usuario_rol();

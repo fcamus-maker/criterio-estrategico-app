@@ -89,6 +89,23 @@ Checklist detallado: `docs/supabase/06-prueba-e2e-controlada.md`.
 12. Confirmar Radar, Mapa GPS y KPI con la fuente central.
 13. Simular falla de red/Supabase y confirmar fallback.
 
+## 6B. Fase 25C Auth demo
+
+- [ ] SQL base Auth revisado.
+- [ ] SQL base ejecutado manualmente desde SQL Editor.
+- [ ] Usuarios Auth demo creados desde Supabase Dashboard.
+- [ ] UUIDs de usuarios Auth copiados.
+- [ ] `docs/supabase/auth-demo-seed-propuesta.sql` editado localmente con UUIDs
+      reales antes de pegar en SQL Editor.
+- [ ] Empresa demo creada.
+- [ ] Obra demo creada.
+- [ ] Profiles demo insertados.
+- [ ] Asignaciones demo insertadas.
+- [ ] `/login` probado.
+- [ ] `/evaluar-v2` sigue sin bloqueo.
+- [ ] `/panel` sigue sin bloqueo.
+- [ ] RLS definitivo aun no activado.
+
 ## 7. Reversion
 
 Plan detallado: `docs/supabase/07-rollback-fallback.md`.
