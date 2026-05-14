@@ -52,18 +52,31 @@ export async function cargarHallazgosPanelConFuentesOpcionales(
   hallazgosBase: HallazgoPanel[]
 ): Promise<HallazgoPanel[]> {
   try {
-    const respuestaCentral = await listarHallazgosCentrales();
+    const respuestaCentral = await listarHallazgosCentrales({ limit: 500 });
 
     if (respuestaCentral.ok && respuestaCentral.data.length > 0) {
       const hallazgosCentrales = adaptarHallazgosCentralesAHallazgosPanel(
         respuestaCentral.data
       );
-      const conCentral = combinarHallazgosSinDuplicar(
-        hallazgosBase,
-        hallazgosCentrales
-      );
 
-      return cargarHallazgosPanelConReportesV2(conCentral);
+      if (process.env.NODE_ENV !== "production") {
+        console.info("[panel-source] fuente supabase hallazgos_central", {
+          registros: hallazgosCentrales.length,
+        });
+      }
+
+      return hallazgosCentrales;
+    }
+
+    if (process.env.NODE_ENV !== "production") {
+      console.info("[panel-source] fallback mock/local", {
+        motivo: respuestaCentral.ok
+          ? "hallazgos_central sin registros"
+          : respuestaCentral.error,
+        registrosCentrales: respuestaCentral.ok
+          ? respuestaCentral.data.length
+          : 0,
+      });
     }
   } catch (error) {
     console.warn(

@@ -154,6 +154,19 @@ function texto(valor: unknown, fallback = "") {
   return limpio || fallback;
 }
 
+function numero(valor: unknown): number | undefined {
+  if (typeof valor === "number") {
+    return Number.isFinite(valor) ? valor : undefined;
+  }
+
+  if (typeof valor === "string") {
+    const parsed = Number(valor);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+
+  return undefined;
+}
+
 function fechaSoloSupabase(valor: unknown) {
   const limpio = texto(valor);
   if (!limpio) return null;
@@ -462,16 +475,14 @@ function mapearCambiosAFilaSupabase(cambios: Partial<HallazgoCentral>) {
 }
 
 function mapearFilaSupabaseAHallazgo(fila: Record<string, unknown>): HallazgoCentral {
+  const latitud = numero(fila.gps_latitud ?? fila.latitud);
+  const longitud = numero(fila.gps_longitud ?? fila.longitud);
   const geolocalizacion =
-    (typeof fila.gps_latitud === "number" &&
-      typeof fila.gps_longitud === "number") ||
-    (typeof fila.latitud === "number" && typeof fila.longitud === "number")
+    typeof latitud === "number" && typeof longitud === "number"
       ? {
-          latitud: (fila.gps_latitud ?? fila.latitud) as number,
-          longitud: (fila.gps_longitud ?? fila.longitud) as number,
-          precisionGps: (fila.gps_precision ?? fila.precision_gps) as
-            | number
-            | undefined,
+          latitud,
+          longitud,
+          precisionGps: numero(fila.gps_precision ?? fila.precision_gps),
           fechaHoraGeolocalizacion: texto(
             fila.gps_fecha_hora ?? fila.fecha_hora_geolocalizacion
           ),
