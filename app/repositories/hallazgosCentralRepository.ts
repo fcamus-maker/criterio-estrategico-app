@@ -86,6 +86,7 @@ export type SubirEvidenciaHallazgoInput = {
 };
 
 export type ResultadoSubidaEvidencia = {
+  bucket: string;
   storagePath: string;
   url?: string;
 };
@@ -151,6 +152,18 @@ function falloSupabase<T>(
 
 function texto(valor: unknown, fallback = "") {
   const limpio = String(valor ?? "").trim();
+  return limpio || fallback;
+}
+
+function segmentoStorage(valor: unknown, fallback: string) {
+  const limpio = texto(valor, fallback)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+
   return limpio || fallback;
 }
 
@@ -882,10 +895,15 @@ export async function subirEvidenciaHallazgo(
   const { cliente, habilitado } = await obtenerSupabaseDisponible();
   if (!habilitado || !cliente) return falloRepositorioDesactivado();
 
-  const empresa = texto(input.empresa, "sin-empresa").replace(/\s+/g, "-");
-  const obra = texto(input.obra, "sin-obra").replace(/\s+/g, "-");
-  const extension = texto(input.extension, "jpg").replace(/^\./, "");
-  const storagePath = `empresa/${empresa}/obra/${obra}/hallazgo/${input.codigo}/${input.evidenciaId}.${extension}`;
+  const empresa = segmentoStorage(input.empresa, "sin-empresa");
+  const obra = segmentoStorage(input.obra, "sin-obra");
+  const codigo = segmentoStorage(input.codigo, "sin-codigo");
+  const evidenciaId = segmentoStorage(input.evidenciaId, "evidencia");
+  const extension = segmentoStorage(
+    texto(input.extension, "jpg").replace(/^\./, ""),
+    "jpg"
+  );
+  const storagePath = `empresa/${empresa}/obra/${obra}/hallazgo/${codigo}/${evidenciaId}.${extension}`;
 
   try {
     const { data, error } = await cliente.storage
@@ -899,15 +917,11 @@ export async function subirEvidenciaHallazgo(
       return falloSupabase(error, "No se pudo subir evidencia a Storage.");
     }
 
-    const { data: publicUrl } = cliente.storage
-      .from(BUCKET_EVIDENCIAS)
-      .getPublicUrl(data.path);
-
     return {
       ok: true,
       data: {
+        bucket: BUCKET_EVIDENCIAS,
         storagePath: data.path,
-        url: publicUrl.publicUrl,
       },
       origen: "supabase",
     };

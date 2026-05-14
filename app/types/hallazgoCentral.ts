@@ -49,12 +49,17 @@ export type EvidenciaHallazgoCentral = {
   id?: string;
   nombre?: string;
   tipo?: string;
+  bucket?: string;
   url?: string;
   dataUrl?: string;
   storagePath?: string;
+  tamanoBytes?: number;
+  indice?: number;
+  estadoSubida?: "subida" | "pendiente" | "error";
   descripcion?: string;
   fechaCarga?: string;
   origen?: OrigenHallazgoCentral;
+  error?: string;
 };
 
 export type GeolocalizacionHallazgoCentral = {

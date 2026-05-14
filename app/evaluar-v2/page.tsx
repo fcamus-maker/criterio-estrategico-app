@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { useRouter } from "next/navigation";
 
 type SupervisorV2 = {
   nombre: string;
@@ -136,6 +137,7 @@ function comprimirFotoSupervisor(file: File): Promise<string> {
 }
 
 export default function EvaluarV2HomePage() {
+  const router = useRouter();
   const [supervisor, setSupervisor] =
     useState<SupervisorV2>(SUPERVISOR_DEFAULT);
   const [draft, setDraft] = useState<SupervisorV2>(SUPERVISOR_DEFAULT);
@@ -147,6 +149,7 @@ export default function EvaluarV2HomePage() {
   const [editorPerfilAbierto, setEditorPerfilAbierto] = useState(false);
   const [perfilSupervisorGuardado, setPerfilSupervisorGuardado] =
     useState(false);
+  const [navegandoReporte, setNavegandoReporte] = useState(false);
 
   useEffect(() => {
     const frameId = window.requestAnimationFrame(() => {
@@ -267,6 +270,15 @@ export default function EvaluarV2HomePage() {
       [campo]: valor,
     }));
     setMensaje("");
+  };
+
+  const irAReporte = () => {
+    if (navegandoReporte) return;
+
+    setNavegandoReporte(true);
+    setMensaje("");
+    vibrarOk();
+    router.push("/evaluar-v2/reportar");
   };
 
   const feedbackBoton = (id: string) => ({
@@ -493,9 +505,10 @@ export default function EvaluarV2HomePage() {
           </button>
         </section>
 
-        <a
-          href="/evaluar-v2/reportar"
-          onClick={vibrarOk}
+        <button
+          type="button"
+          onClick={irAReporte}
+          disabled={navegandoReporte}
           {...feedbackBoton("reportar")}
           style={{
             ...buttonStyle,
@@ -506,11 +519,12 @@ export default function EvaluarV2HomePage() {
             background: "linear-gradient(135deg, #67ef48 0%, #d7ff39 100%)",
             boxShadow: "0 14px 28px rgba(103,239,72,0.22)",
             marginBottom: "14px",
+            opacity: navegandoReporte ? 0.76 : 1,
             ...estiloFeedback("reportar"),
           }}
         >
           Reportar Hallazgo
-        </a>
+        </button>
 
         {mensaje && (
           <div

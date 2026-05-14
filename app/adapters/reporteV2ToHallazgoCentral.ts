@@ -15,12 +15,17 @@ export type FotoReporteV2Central = {
   id?: string;
   nombre?: string;
   tipo?: string;
+  bucket?: string;
   dataUrl?: string;
   url?: string;
   storagePath?: string;
+  tamanoBytes?: number;
+  indice?: number;
+  estadoSubida?: "subida" | "pendiente" | "error";
   fechaCarga?: string;
   dataUrlOmitida?: boolean;
   storagePendiente?: boolean;
+  error?: string;
 };
 
 export type GpsReporteV2Central = {
@@ -197,13 +202,21 @@ function evidenciasDesdeFotos(
       id: texto(foto.id),
       nombre: texto(foto.nombre, "fotografia-v2.jpg"),
       tipo: texto(foto.tipo, "image/jpeg"),
+      bucket: texto(foto.bucket),
       url: texto(foto.url),
       storagePath: texto(foto.storagePath),
-      descripcion: foto.dataUrl || foto.dataUrlOmitida || foto.storagePendiente
-        ? "Evidencia fotografica pendiente de carga a Storage."
-        : "",
+      tamanoBytes: foto.tamanoBytes,
+      indice: foto.indice,
+      estadoSubida: foto.estadoSubida,
+      descripcion:
+        foto.estadoSubida === "error"
+          ? "Evidencia fotografica pendiente por error de Storage."
+          : foto.dataUrl || foto.dataUrlOmitida || foto.storagePendiente
+            ? "Evidencia fotografica pendiente de carga a Storage."
+            : "",
       fechaCarga: texto(foto.fechaCarga),
       origen: "mobile-v2" as const,
+      error: texto(foto.error),
     }))
     .filter((foto) => foto.url || foto.storagePath || foto.nombre);
 }

@@ -7,12 +7,17 @@ export type FotoReporteV2Storage = {
   id?: string;
   nombre?: string;
   tipo?: string;
+  bucket?: string;
   dataUrl?: string;
   url?: string;
   storagePath?: string;
+  tamanoBytes?: number;
+  indice?: number;
+  estadoSubida?: "subida" | "pendiente" | "error";
   fechaCarga?: string;
   dataUrlOmitida?: boolean;
   storagePendiente?: boolean;
+  error?: string;
 };
 
 export type ReporteV2Storage = {

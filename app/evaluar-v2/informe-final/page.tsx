@@ -57,7 +57,11 @@ type DetalleGuardadoV2 = {
   localOk?: boolean;
   centralOk?: boolean;
   centralPendiente?: boolean;
+  evidenciasIntentadas?: number;
+  evidenciasSubidas?: number;
+  evidenciasPendientes?: number;
   errorCentral?: string;
+  errorEvidencias?: string;
   codigo?: string;
   tablaDestino?: string;
   supabaseHabilitado?: boolean;
@@ -631,6 +635,16 @@ export default function InformeFinalV2Page() {
                       ? `sincronizado OK: ${detalleGuardado.codigo || "sin codigo"}`
                       : `pendiente/error: ${
                           detalleGuardado.errorCentral || "sin detalle"
+                        }`}
+                  </div>
+                  <div>
+                    Evidencias Storage:{" "}
+                    {detalleGuardado.evidenciasIntentadas === undefined
+                      ? "sin lectura"
+                      : `${detalleGuardado.evidenciasSubidas || 0}/${detalleGuardado.evidenciasIntentadas} OK${
+                          detalleGuardado.evidenciasPendientes
+                            ? `, ${detalleGuardado.evidenciasPendientes} pendiente(s)`
+                            : ""
                         }`}
                   </div>
                   <div>Tabla destino: {detalleGuardado.tablaDestino}</div>
