@@ -58,11 +58,16 @@ Reglas:
 ## 5. RLS y policies
 
 - Activar RLS despues de definir empresas, obras, roles y modelo de usuarios.
+- Revisar `docs/seguridad-multiempresa-rls.md`.
+- Revisar `docs/usuarios-roles-matriz.md`.
+- Revisar `docs/supabase/rls-produccion-propuesta.sql`.
+- Revisar `docs/supabase/storage-policies-produccion-propuesta.sql`.
 - Separar lectura por empresa, obra, rol, mandante y contratista.
 - Permitir escritura solo a usuarios autorizados o a una ruta server-side.
 - Evitar lectura multiempresa con anon key sin filtros/policies.
 - Registrar auditoria: usuario, dispositivo, version de app y timestamp.
 - Probar policies con usuario de mandante, contratista y administrador.
+- Eliminar la policy temporal anon de Storage antes de demo real o produccion.
 
 ## 6. Prueba controlada
 

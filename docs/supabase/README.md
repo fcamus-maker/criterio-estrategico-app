@@ -13,6 +13,16 @@ Este paquete separa la activacion futura en piezas revisables:
 5. `05-codigos-unicos.sql`: propuesta para codigos centralizados.
 6. `06-prueba-e2e-controlada.md`: checklist App V2 -> Supabase -> Panel.
 7. `07-rollback-fallback.md`: retorno seguro a fallback.
+8. `rls-produccion-propuesta.sql`: modelo Auth/perfiles/asignaciones y RLS
+   definitivo propuesto.
+9. `storage-policies-produccion-propuesta.sql`: policies productivas propuestas
+   para `hallazgos-evidencias`.
+
+Documentos complementarios:
+
+- `../seguridad-multiempresa-rls.md`
+- `../usuarios-roles-matriz.md`
+- `../demo-controlada-plan.md`
 
 ## Orden recomendado de revision
 
@@ -24,6 +34,7 @@ Este paquete separa la activacion futura en piezas revisables:
 6. Ejecutar solo manualmente en Supabase SQL Editor o migracion aprobada.
 7. Crear bucket `hallazgos-evidencias` solo despues de validar policies.
 8. Activar bandera solo para prueba controlada.
+9. Eliminar policies temporales anon antes de demo real o produccion.
 
 ## Protecciones
 
