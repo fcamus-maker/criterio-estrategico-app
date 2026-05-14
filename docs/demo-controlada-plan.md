@@ -1,11 +1,17 @@
 # Plan demo controlada
 
-Estado: propuesta. No desplegar ni crear usuarios reales desde este bloque.
+Estado: propuesta para demo controlada. No usar como produccion final.
 
 ## Objetivo
 
 Mostrar Plataforma Hallazgos a una empresa sin exponer datos reales ni mezclar
 clientes.
+
+Advertencia obligatoria:
+
+> Demo controlada interna. No usar para operacion productiva real hasta activar
+> RLS/policies definitivas, control de usuarios por empresa/obra y revision de
+> seguridad.
 
 ## Datos demo
 
@@ -24,8 +30,11 @@ clientes.
 
 ## Rutas futuras
 
+- Login: `https://hallazgos.criterioestrategico.cl/login`
 - App movil: `https://hallazgos.criterioestrategico.cl/evaluar-v2`
 - Panel PC: `https://hallazgos.criterioestrategico.cl/panel`
+- Mapa GPS: `https://hallazgos.criterioestrategico.cl/panel/mapa-gps`
+- KPI Gerencial: `https://hallazgos.criterioestrategico.cl/panel/kpi-gerencial`
 
 ## Flujo de prueba
 
@@ -45,14 +54,54 @@ clientes.
 
 ## Reglas de seguridad
 
-- No usar policy anon temporal en demo.
-- Usar Supabase Auth.
-- Usar RLS por asignacion empresa/obra.
+- Maximo inicial recomendado: 5 a 10 usuarios conocidos.
+- Usar solo empresa/obra demo.
+- Usar solo hallazgos ficticios o de prueba.
+- No usar datos reales sensibles.
+- No usar clientes reales sin autorizacion expresa.
+- La policy anon temporal de Storage es solo desarrollo; no es produccion.
+- Usar Supabase Auth para pruebas de login.
+- RLS por asignacion empresa/obra queda pendiente antes de cliente real.
 - Bucket privado.
 - Evidencias mediante signed URLs o select controlado.
 - No compartir service role key.
 - No subir `.env.local`.
 - No exigir login en app/panel hasta validar usuarios demo y fallback.
+
+## Instrucciones iPhone
+
+1. Abrir link de `/evaluar-v2` en Safari.
+2. Probar creacion de reporte con 1 foto.
+3. Probar creacion de reporte con 3 fotos.
+4. Confirmar mensaje de sincronizacion.
+5. Compartir -> Agregar a pantalla de inicio.
+6. Abrir desde icono `Hallazgos CE`.
+
+## Instrucciones PC
+
+1. Abrir `/panel`.
+2. Revisar ultimos reportes.
+3. Abrir `/panel/mapa-gps`.
+4. Abrir `/panel/kpi-gerencial`.
+5. Revisar seguimiento de cierre.
+
+## Que registrar
+
+- Fecha y hora de prueba.
+- Usuario demo utilizado.
+- Dispositivo y navegador.
+- Codigo del hallazgo.
+- Cantidad de fotos.
+- Mensaje final mostrado.
+- Error si aparece.
+
+## Criterios de exito
+
+- El reporte se guarda en `public.hallazgos_central`.
+- Las evidencias suben a `hallazgos-evidencias`.
+- El panel muestra el hallazgo.
+- Mapa y KPI siguen cargando.
+- La app instalada desde iPhone abre correctamente.
 
 ## Rollback
 

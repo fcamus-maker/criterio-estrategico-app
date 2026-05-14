@@ -139,6 +139,45 @@ Ventajas del enfoque hibrido:
 - Paths de Storage ya separan empresa/obra/hallazgo, pero hoy usan texto
   normalizado; en produccion deben usar UUID o codigo estable de empresa/obra.
 
+## Estado previo a demo controlada
+
+Protegido o preparado:
+
+- Supabase Auth existe y `/login` funciona con usuarios demo.
+- `profiles`, `empresas`, `obras` y `usuario_asignaciones` existen en Supabase.
+- Hallazgos y evidencias se guardan en tabla/bucket central real.
+- No se guarda Base64 pesado en `hallazgos_central`.
+
+No protegido aun:
+
+- `/evaluar-v2` no exige login.
+- `/panel` no exige login.
+- RLS definitivo aun no esta activo.
+- La policy temporal anon de Storage sigue vigente para pruebas.
+- El panel puede ver datos sin filtro obligatorio por usuario/empresa.
+
+Permitido solo para demo:
+
+- Pruebas con usuarios conocidos.
+- Datos ficticios.
+- Empresa/obra demo.
+- Monitoreo manual desde panel.
+
+Debe resolverse antes de cliente real:
+
+- RLS definitivo por empresa/obra/rol.
+- Reemplazo de policy temporal anon de Storage.
+- Login obligatorio por ruta o por entorno demo/produccion.
+- Signed URLs o acceso estricto a evidencias.
+- Auditoria de acciones por usuario.
+
+Debe resolverse antes de pruebas masivas:
+
+- Limites de concurrencia.
+- Control de duplicados.
+- Plan de soporte y rollback.
+- Politica de retencion de evidencias.
+
 ## Orden de implementacion recomendado
 
 1. Revisar `docs/supabase/auth-profiles-roles-base-propuesta.sql`.

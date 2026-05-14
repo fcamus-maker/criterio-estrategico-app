@@ -10,6 +10,7 @@ import {
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [mostrarPassword, setMostrarPassword] = useState(false);
   const [mensaje, setMensaje] = useState("");
   const [cargando, setCargando] = useState(false);
 
@@ -99,20 +100,53 @@ export default function LoginPage() {
 
           <label style={{ display: "grid", gap: "6px", fontWeight: 800 }}>
             Contraseña
-            <input
-              value={password}
-              type="password"
-              autoComplete="current-password"
-              onChange={(event) => setPassword(event.target.value)}
+            <div
               style={{
+                display: "grid",
+                gridTemplateColumns: "1fr auto",
+                alignItems: "stretch",
                 borderRadius: "12px",
                 border: "1px solid rgba(255,255,255,0.18)",
                 background: "rgba(255,255,255,0.10)",
-                color: "white",
-                padding: "12px",
-                fontSize: "15px",
+                overflow: "hidden",
               }}
-            />
+            >
+              <input
+                value={password}
+                type={mostrarPassword ? "text" : "password"}
+                autoComplete="current-password"
+                onChange={(event) => setPassword(event.target.value)}
+                style={{
+                  minWidth: 0,
+                  border: "none",
+                  outline: "none",
+                  background: "transparent",
+                  color: "white",
+                  padding: "12px",
+                  fontSize: "15px",
+                }}
+              />
+              <button
+                type="button"
+                aria-label={
+                  mostrarPassword ? "Ocultar contraseña" : "Mostrar contraseña"
+                }
+                onClick={() => setMostrarPassword((actual) => !actual)}
+                style={{
+                  border: "none",
+                  borderLeft: "1px solid rgba(255,255,255,0.14)",
+                  background: "rgba(255,255,255,0.10)",
+                  color: "white",
+                  cursor: "pointer",
+                  fontSize: "12px",
+                  fontWeight: 900,
+                  padding: "0 12px",
+                  minWidth: "74px",
+                }}
+              >
+                {mostrarPassword ? "Ocultar" : "Ver"}
+              </button>
+            </div>
           </label>
 
           <button
