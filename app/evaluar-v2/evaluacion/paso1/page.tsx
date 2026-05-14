@@ -3,8 +3,13 @@
 import { useEffect, useState } from "react";
 import { preguntasEvaluacion } from "@/app/types/evaluacion";
 import { useRouter } from "next/navigation";
+import {
+  guardarReporteActualV2,
+  leerReporteActualV2,
+  type ReporteV2Storage,
+} from "../../storageReporteV2";
 
-type ReporteV2 = {
+type ReporteV2 = ReporteV2Storage & {
   codigo?: string;
   supervisor?: string;
   empresa?: string;
@@ -16,25 +21,9 @@ type ReporteV2 = {
   };
 };
 
-const STORAGE_REPORTE_ACTUAL = "ce_mobile_v2_reporte_actual";
-
 function vibrarOk() {
   if (typeof navigator !== "undefined" && "vibrate" in navigator) {
     navigator.vibrate(20);
-  }
-}
-
-function cargarReporteActual(): ReporteV2 | null {
-  try {
-    const guardado = localStorage.getItem(STORAGE_REPORTE_ACTUAL);
-    if (!guardado) return null;
-
-    const reporte = JSON.parse(guardado);
-    if (!reporte || typeof reporte !== "object") return null;
-
-    return reporte;
-  } catch {
-    return null;
   }
 }
 
@@ -49,7 +38,7 @@ export default function EvaluacionPaso1V2Page() {
 
   useEffect(() => {
     const frameId = window.requestAnimationFrame(() => {
-      const reporteActual = cargarReporteActual();
+      const reporteActual = leerReporteActualV2() as ReporteV2 | null;
       setReporte(reporteActual);
       setRespuestas(reporteActual?.evaluacion?.respuestas || {});
       setCargado(true);
@@ -87,7 +76,7 @@ export default function EvaluacionPaso1V2Page() {
       },
     };
 
-    localStorage.setItem(STORAGE_REPORTE_ACTUAL, JSON.stringify(actualizado));
+    guardarReporteActualV2(actualizado);
     setNavegando(true);
     vibrarOk();
     router.push("/evaluar-v2/evaluacion/paso2");

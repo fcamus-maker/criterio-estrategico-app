@@ -19,6 +19,8 @@ export type FotoReporteV2Central = {
   url?: string;
   storagePath?: string;
   fechaCarga?: string;
+  dataUrlOmitida?: boolean;
+  storagePendiente?: boolean;
 };
 
 export type GpsReporteV2Central = {
@@ -196,12 +198,14 @@ function evidenciasDesdeFotos(
       nombre: texto(foto.nombre, "fotografia-v2.jpg"),
       tipo: texto(foto.tipo, "image/jpeg"),
       url: texto(foto.url),
-      dataUrl: texto(foto.dataUrl),
       storagePath: texto(foto.storagePath),
+      descripcion: foto.dataUrl || foto.dataUrlOmitida || foto.storagePendiente
+        ? "Evidencia fotografica pendiente de carga a Storage."
+        : "",
       fechaCarga: texto(foto.fechaCarga),
       origen: "mobile-v2" as const,
     }))
-    .filter((foto) => foto.url || foto.dataUrl || foto.storagePath);
+    .filter((foto) => foto.url || foto.storagePath || foto.nombre);
 }
 
 function geolocalizacionDesdeGps(
@@ -254,13 +258,15 @@ function evidenciaRecibida(
         nombre: texto(item.nombre),
         tipo: texto(item.tipo),
         url: texto(item.url),
-        dataUrl: texto(item.dataUrl),
         storagePath: texto(item.storagePath),
+        descripcion: item.dataUrl
+          ? "Evidencia de cierre pendiente de carga a Storage."
+          : "",
         fechaCarga: texto(item.fechaCarga),
         origen: "mobile-v2" as const,
       };
     })
-    .filter((item) => item.descripcion || item.url || item.dataUrl || item.storagePath);
+    .filter((item) => item.descripcion || item.url || item.storagePath || item.nombre);
 }
 
 function seguimientoDesdeCierre(
@@ -361,7 +367,6 @@ export function adaptarReporteV2AHallazgoCentral(
       nombre: texto(reporte.supervisor, "Supervisor movil V2"),
       cargo: texto(reporte.cargo),
       empresa: texto(reporte.empresa),
-      fotoDataUrl: texto(reporte.supervisorFoto),
     },
     fechaReporte: texto(reporte.fecha || reporte.fechaGuardado, ""),
     horaReporte: texto(reporte.hora),

@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { leerReporteActualV2, type ReporteV2Storage } from "../storageReporteV2";
 
 type FotoV2 = {
   id: string;
@@ -18,7 +20,7 @@ type GpsV2 = {
   estadoGeolocalizacion: string;
 };
 
-type ReporteV2 = {
+type ReporteV2 = ReporteV2Storage & {
   codigo?: string;
   supervisor?: string;
   cargo?: string;
@@ -38,8 +40,6 @@ type ReporteV2 = {
     accionInmediata?: string;
   };
 };
-
-const STORAGE_REPORTE_ACTUAL = "ce_mobile_v2_reporte_actual";
 
 function vibrarOk() {
   if (typeof navigator !== "undefined" && "vibrate" in navigator) {
@@ -149,21 +149,8 @@ function obtenerEstiloCriticidad(criticidad: string) {
   };
 }
 
-function cargarReporteActual(): ReporteV2 | null {
-  try {
-    const guardado = localStorage.getItem(STORAGE_REPORTE_ACTUAL);
-    if (!guardado) return null;
-
-    const reporte = JSON.parse(guardado);
-    if (!reporte || typeof reporte !== "object") return null;
-
-    return reporte;
-  } catch {
-    return null;
-  }
-}
-
 export default function ResultadoV2Page() {
+  const router = useRouter();
   const [reporte, setReporte] = useState<ReporteV2 | null>(null);
   const [cargado, setCargado] = useState(false);
   const [botonActivo, setBotonActivo] = useState("");
@@ -174,7 +161,7 @@ export default function ResultadoV2Page() {
 
   useEffect(() => {
     const frameId = window.requestAnimationFrame(() => {
-      setReporte(cargarReporteActual());
+      setReporte(leerReporteActualV2() as ReporteV2 | null);
       setCargado(true);
     });
 
@@ -434,9 +421,12 @@ export default function ResultadoV2Page() {
               >
                 Volver a evaluación
               </a>
-              <a
-                href="/evaluar-v2/informe-final"
-                onClick={vibrarOk}
+              <button
+                type="button"
+                onClick={() => {
+                  vibrarOk();
+                  router.push("/evaluar-v2/informe-final");
+                }}
                 {...feedbackBoton("generar-informe")}
                 style={{
                   ...buttonStyle,
@@ -448,7 +438,7 @@ export default function ResultadoV2Page() {
                 }}
               >
                 Generar informe final
-              </a>
+              </button>
             </div>
           </>
         )}

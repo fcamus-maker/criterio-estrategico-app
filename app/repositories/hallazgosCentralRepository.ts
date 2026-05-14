@@ -13,6 +13,7 @@ import type {
 } from "../types/hallazgoCentral";
 
 const TABLA_HALLAZGOS_CENTRAL = "hallazgos_central";
+const TABLA_HALLAZGOS_CENTRAL_PUBLICA = "public.hallazgos_central";
 const BUCKET_EVIDENCIAS = "hallazgos-evidencias";
 
 export type OrigenRepositorioCentral = "central-disabled" | "supabase";
@@ -111,6 +112,10 @@ export function obtenerEstadoRepositorioCentral() {
   return obtenerEstadoSupabaseCliente();
 }
 
+export function obtenerTablaDestinoHallazgosCentral() {
+  return TABLA_HALLAZGOS_CENTRAL_PUBLICA;
+}
+
 function falloRepositorioDesactivado<T>(): ResultadoRepositorioCentral<T> {
   const estado = obtenerEstadoSupabaseCliente();
 
@@ -149,12 +154,70 @@ function texto(valor: unknown, fallback = "") {
   return limpio || fallback;
 }
 
-function fecha(valor: unknown) {
-  return texto(valor) || null;
+function fechaSoloSupabase(valor: unknown) {
+  const limpio = texto(valor);
+  if (!limpio) return null;
+
+  const fechaChile = limpio.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+  if (fechaChile) {
+    const [, dia, mes, anio] = fechaChile;
+    return `${anio}-${mes.padStart(2, "0")}-${dia.padStart(2, "0")}`;
+  }
+
+  const fechaParseada = new Date(limpio);
+  return Number.isNaN(fechaParseada.getTime())
+    ? null
+    : fechaParseada.toISOString().slice(0, 10);
+}
+
+function fechaHoraSupabase(valor: unknown) {
+  const limpio = texto(valor);
+  if (!limpio) return null;
+
+  const fechaParseada = new Date(limpio);
+  return Number.isNaN(fechaParseada.getTime())
+    ? null
+    : fechaParseada.toISOString();
+}
+
+function horaSupabase(valor: unknown) {
+  const limpio = texto(valor).toLowerCase();
+  if (!limpio) return null;
+
+  const match = limpio.match(/(\d{1,2}):(\d{2})/);
+  if (!match) return null;
+
+  let hora = Number(match[1]);
+  const minutos = match[2];
+  const esPm = limpio.includes("p.") || limpio.includes("pm");
+  const esAm = limpio.includes("a.") || limpio.includes("am");
+
+  if (esPm && hora < 12) hora += 12;
+  if (esAm && hora === 12) hora = 0;
+
+  return `${String(hora).padStart(2, "0")}:${minutos}:00`;
 }
 
 function json<T>(valor: T | undefined, fallback: T): T {
   return valor ?? fallback;
+}
+
+function quitarBase64Profundo(valor: unknown): unknown {
+  if (Array.isArray(valor)) return valor.map(quitarBase64Profundo);
+  if (!valor || typeof valor !== "object") return valor;
+
+  return Object.entries(valor as Record<string, unknown>).reduce<Record<string, unknown>>(
+    (salida, [clave, item]) => {
+      if (clave === "dataUrl" || clave === "supervisorFoto" || clave === "fotoDataUrl") {
+        salida[`${clave}Omitido`] = Boolean(item);
+        return salida;
+      }
+
+      salida[clave] = quitarBase64Profundo(item);
+      return salida;
+    },
+    {}
+  );
 }
 
 function evidenciasSinBase64(
@@ -168,23 +231,7 @@ function evidenciasSinBase64(
 
 function rawMobileV2SinBase64(rawMobileV2: Record<string, unknown> | undefined) {
   if (!rawMobileV2) return undefined;
-
-  const { fotos, supervisorFoto, ...resto } = rawMobileV2;
-  void supervisorFoto;
-
-  return {
-    ...resto,
-    fotos: Array.isArray(fotos)
-      ? fotos.map((foto) => {
-          if (!foto || typeof foto !== "object") return foto;
-          const { dataUrl, ...fotoSinBase64 } = foto as Record<string, unknown>;
-          void dataUrl;
-          return fotoSinBase64;
-        })
-      : fotos,
-    fotosBase64Omitidas: Array.isArray(fotos),
-    supervisorFotoBase64Omitida: Boolean(supervisorFoto),
-  };
+  return quitarBase64Profundo(rawMobileV2) as Record<string, unknown>;
 }
 
 function mapearHallazgoAFilaSupabase(hallazgo: HallazgoCentral) {
@@ -197,6 +244,7 @@ function mapearHallazgoAFilaSupabase(hallazgo: HallazgoCentral) {
   return {
     codigo: hallazgo.codigo,
     codigo_informe: hallazgo.codigoInforme || hallazgo.codigo,
+    codigo_local: hallazgo.codigo,
     origen: hallazgo.origen,
     estado_sincronizacion: "SINCRONIZADO",
     empresa: hallazgo.empresa,
@@ -213,10 +261,10 @@ function mapearHallazgoAFilaSupabase(hallazgo: HallazgoCentral) {
     reportante_foto_url: hallazgo.reportante.fotoUrl,
     supervisor_nombre: hallazgo.reportante.nombre,
     supervisor_cargo: hallazgo.reportante.cargo,
-    fecha_reporte: fecha(hallazgo.fechaReporte),
-    hora_reporte: texto(hallazgo.horaReporte) || null,
-    fecha_iso: fecha(hallazgo.fechaHoraReporteISO),
-    fecha_hora_reporte: fecha(hallazgo.fechaHoraReporteISO),
+    fecha_reporte: fechaSoloSupabase(hallazgo.fechaReporte),
+    hora_reporte: horaSupabase(hallazgo.horaReporte),
+    fecha_iso: fechaHoraSupabase(hallazgo.fechaHoraReporteISO),
+    fecha_hora_reporte: fechaHoraSupabase(hallazgo.fechaHoraReporteISO),
     descripcion: hallazgo.descripcion,
     tipo_hallazgo: hallazgo.tipoHallazgo,
     criticidad: hallazgo.criticidad,
@@ -244,7 +292,7 @@ function mapearHallazgoAFilaSupabase(hallazgo: HallazgoCentral) {
     gps_latitud: geo?.latitud,
     gps_longitud: geo?.longitud,
     gps_precision: geo?.precisionGps,
-    gps_fecha_hora: fecha(geo?.fechaHoraGeolocalizacion),
+    gps_fecha_hora: fechaHoraSupabase(geo?.fechaHoraGeolocalizacion),
     gps_estado: geo?.estadoGeolocalizacion,
     gps_direccion_referencial: geo?.direccionReferencial,
     gps_zona: geo?.zona,
@@ -257,14 +305,14 @@ function mapearHallazgoAFilaSupabase(hallazgo: HallazgoCentral) {
     responsable_cierre_empresa: responsable?.empresa,
     responsable_cierre_telefono: responsable?.telefono,
     responsable_cierre_email: responsable?.email,
-    fecha_compromiso: fecha(seguimiento?.fechaCompromiso),
-    fecha_compromiso_cierre: fecha(seguimiento?.fechaCompromiso),
-    fecha_maxima_permitida_cierre: fecha(seguimiento?.fechaMaximaPermitida),
+    fecha_compromiso: fechaSoloSupabase(seguimiento?.fechaCompromiso),
+    fecha_compromiso_cierre: fechaSoloSupabase(seguimiento?.fechaCompromiso),
+    fecha_maxima_permitida_cierre: fechaSoloSupabase(seguimiento?.fechaMaximaPermitida),
     observacion_inicial_cierre: seguimiento?.observacionInicial,
     accion_correctiva_requerida: seguimiento?.accionCorrectivaRequerida,
     evidencia_requerida: json(seguimiento?.evidenciaRequerida, []),
     evidencia_recibida: evidenciasSinBase64(seguimiento?.evidenciaRecibida),
-    fecha_cierre: fecha(seguimiento?.fechaCierre),
+    fecha_cierre: fechaHoraSupabase(seguimiento?.fechaCierre),
     seguimiento_cierre: seguimiento || {},
     radar_categoria_riesgo: radar?.categoriaRiesgo,
     radar_causa_dominante: radar?.causaDominante,
@@ -283,8 +331,8 @@ function mapearHallazgoAFilaSupabase(hallazgo: HallazgoCentral) {
     dispositivo_id: auditoria?.dispositivoId,
     version_app: auditoria?.versionApp,
     user_agent: auditoria?.userAgent,
-    created_at: fecha(hallazgo.createdAt || hallazgo.fechaCreacion),
-    updated_at: fecha(hallazgo.updatedAt || hallazgo.fechaActualizacion),
+    created_at: fechaHoraSupabase(hallazgo.createdAt || hallazgo.fechaCreacion),
+    updated_at: fechaHoraSupabase(hallazgo.updatedAt || hallazgo.fechaActualizacion),
     synced_at: new Date().toISOString(),
   };
 }
@@ -308,6 +356,7 @@ function mapearCambiosAFilaSupabase(cambios: Partial<HallazgoCentral>) {
 
   asignarSiDefinido(fila, "codigo", cambios.codigo);
   asignarSiDefinido(fila, "codigo_informe", cambios.codigoInforme);
+  asignarSiDefinido(fila, "codigo_local", cambios.codigo);
   asignarSiDefinido(fila, "origen", cambios.origen);
   asignarSiDefinido(fila, "estado_sincronizacion", cambios.estadoSincronizacion);
   asignarSiDefinido(fila, "empresa", cambios.empresa);
@@ -324,10 +373,18 @@ function mapearCambiosAFilaSupabase(cambios: Partial<HallazgoCentral>) {
   asignarSiDefinido(fila, "reportante_foto_url", cambios.reportante?.fotoUrl);
   asignarSiDefinido(fila, "supervisor_nombre", cambios.reportante?.nombre);
   asignarSiDefinido(fila, "supervisor_cargo", cambios.reportante?.cargo);
-  asignarSiDefinido(fila, "fecha_reporte", cambios.fechaReporte);
-  asignarSiDefinido(fila, "hora_reporte", cambios.horaReporte);
-  asignarSiDefinido(fila, "fecha_iso", cambios.fechaHoraReporteISO);
-  asignarSiDefinido(fila, "fecha_hora_reporte", cambios.fechaHoraReporteISO);
+  asignarSiDefinido(fila, "fecha_reporte", fechaSoloSupabase(cambios.fechaReporte));
+  asignarSiDefinido(fila, "hora_reporte", horaSupabase(cambios.horaReporte));
+  asignarSiDefinido(
+    fila,
+    "fecha_iso",
+    fechaHoraSupabase(cambios.fechaHoraReporteISO)
+  );
+  asignarSiDefinido(
+    fila,
+    "fecha_hora_reporte",
+    fechaHoraSupabase(cambios.fechaHoraReporteISO)
+  );
   asignarSiDefinido(fila, "descripcion", cambios.descripcion);
   asignarSiDefinido(fila, "tipo_hallazgo", cambios.tipoHallazgo);
   asignarSiDefinido(fila, "criticidad", cambios.criticidad);
@@ -349,7 +406,7 @@ function mapearCambiosAFilaSupabase(cambios: Partial<HallazgoCentral>) {
     fila.gps_latitud = geo.latitud;
     fila.gps_longitud = geo.longitud;
     fila.gps_precision = geo.precisionGps;
-    fila.gps_fecha_hora = geo.fechaHoraGeolocalizacion;
+    fila.gps_fecha_hora = fechaHoraSupabase(geo.fechaHoraGeolocalizacion);
     fila.gps_estado = geo.estadoGeolocalizacion;
     fila.gps_direccion_referencial = geo.direccionReferencial;
     fila.gps_zona = geo.zona;
@@ -366,15 +423,18 @@ function mapearCambiosAFilaSupabase(cambios: Partial<HallazgoCentral>) {
     fila.responsable_cierre_telefono = responsable?.telefono;
     fila.responsable_cierre_email = responsable?.email;
     fila.responsable_cierre_tipo = responsable?.tipoResponsable;
+    fila.estado_cierre = seguimiento.estadoCierre;
     fila.estado_seguimiento = seguimiento.estadoCierre;
-    fila.fecha_compromiso = seguimiento.fechaCompromiso;
-    fila.fecha_compromiso_cierre = seguimiento.fechaCompromiso;
-    fila.fecha_maxima_permitida_cierre = seguimiento.fechaMaximaPermitida;
+    fila.fecha_compromiso = fechaSoloSupabase(seguimiento.fechaCompromiso);
+    fila.fecha_compromiso_cierre = fechaSoloSupabase(seguimiento.fechaCompromiso);
+    fila.fecha_maxima_permitida_cierre = fechaSoloSupabase(
+      seguimiento.fechaMaximaPermitida
+    );
     fila.observacion_inicial_cierre = seguimiento.observacionInicial;
     fila.accion_correctiva_requerida = seguimiento.accionCorrectivaRequerida;
     fila.evidencia_requerida = seguimiento.evidenciaRequerida || [];
     fila.evidencia_recibida = evidenciasSinBase64(seguimiento.evidenciaRecibida);
-    fila.fecha_cierre = seguimiento.fechaCierre;
+    fila.fecha_cierre = fechaHoraSupabase(seguimiento.fechaCierre);
     fila.seguimiento_cierre = seguimiento;
   }
 
@@ -650,24 +710,69 @@ export async function crearHallazgoCentral(
   hallazgo: HallazgoCentral
 ): Promise<ResultadoRepositorioCentral<HallazgoCentral>> {
   const { cliente, habilitado } = await obtenerSupabaseDisponible();
-  if (!habilitado || !cliente) return falloRepositorioDesactivado();
+  if (!habilitado || !cliente) {
+    if (process.env.NODE_ENV !== "production") {
+      const estado = obtenerEstadoSupabaseCliente();
+      console.warn("[hallazgos_central] insert omitido", {
+        tabla: TABLA_HALLAZGOS_CENTRAL_PUBLICA,
+        habilitado: estado.habilitado,
+        configurado: estado.configurado,
+        banderaActiva: estado.banderaActiva,
+        motivo: estado.motivoDeshabilitado,
+      });
+    }
+
+    return falloRepositorioDesactivado();
+  }
 
   try {
     const fila = mapearHallazgoAFilaSupabase(hallazgo);
-    const { data, error } = await cliente
+    if (process.env.NODE_ENV !== "production") {
+      console.info("[hallazgos_central] insert inicio", {
+        tabla: TABLA_HALLAZGOS_CENTRAL_PUBLICA,
+        codigo: fila.codigo,
+        empresa: fila.empresa,
+        obra: fila.obra,
+        area: fila.area,
+        tieneGps: Boolean(fila.gps_latitud && fila.gps_longitud),
+        evidencias: Array.isArray(fila.evidencias) ? fila.evidencias.length : 0,
+      });
+    }
+    const { error } = await cliente
       .from(TABLA_HALLAZGOS_CENTRAL)
-      .insert(fila)
-      .select("*")
-      .single();
+      .insert(fila);
 
     if (error) {
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("[hallazgos_central] insert error", {
+          tabla: TABLA_HALLAZGOS_CENTRAL_PUBLICA,
+          codigo: fila.codigo,
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint,
+        });
+      }
       return falloSupabase(error, "No se pudo crear hallazgo en Supabase.");
+    }
+
+    if (process.env.NODE_ENV !== "production") {
+      console.info("[hallazgos_central] insert ok", {
+        tabla: TABLA_HALLAZGOS_CENTRAL_PUBLICA,
+        codigo: fila.codigo,
+        id: hallazgo.id || "sin-id-retornado",
+      });
     }
 
     return {
       ok: true,
-      data: mapearFilaSupabaseAHallazgo(data),
+      data: {
+        ...hallazgo,
+        estadoSincronizacion: "SINCRONIZADO",
+        syncedAt: new Date().toISOString(),
+      },
       origen: "supabase",
+      mensaje: "Insert aceptado por Supabase en public.hallazgos_central.",
     };
   } catch (error) {
     return falloSupabase(error, "Fallo inesperado creando hallazgo Supabase.");

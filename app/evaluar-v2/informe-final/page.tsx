@@ -1,12 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import {
+  guardarHistorialLivianoV2,
+  guardarReporteActualV2,
+  leerReporteActualV2,
+  type ReporteV2Storage,
+} from "../storageReporteV2";
 
 type FotoV2 = {
   id: string;
   nombre: string;
   tipo: string;
-  dataUrl: string;
+  dataUrl?: string;
+  url?: string;
+  storagePath?: string;
+  dataUrlOmitida?: boolean;
+  storagePendiente?: boolean;
   fechaCarga: string;
 };
 
@@ -18,7 +28,7 @@ type GpsV2 = {
   estadoGeolocalizacion: string;
 };
 
-type ReporteV2 = {
+type ReporteV2 = ReporteV2Storage & {
   codigo?: string;
   supervisor?: string;
   supervisorFoto?: string;
@@ -43,8 +53,17 @@ type ReporteV2 = {
   };
 };
 
-const STORAGE_REPORTE_ACTUAL = "ce_mobile_v2_reporte_actual";
-const STORAGE_HISTORIAL = "ce_mobile_v2_historial_reportes";
+type DetalleGuardadoV2 = {
+  localOk?: boolean;
+  centralOk?: boolean;
+  centralPendiente?: boolean;
+  errorCentral?: string;
+  codigo?: string;
+  tablaDestino?: string;
+  supabaseHabilitado?: boolean;
+  supabaseConfigurado?: boolean;
+  banderaSupabaseActiva?: boolean;
+};
 
 function vibrarOk() {
   if (typeof navigator !== "undefined" && "vibrate" in navigator) {
@@ -88,63 +107,23 @@ function obtenerEstiloCriticidad(criticidad?: string) {
   };
 }
 
-function cargarReporteActual(): ReporteV2 | null {
-  try {
-    const guardado = localStorage.getItem(STORAGE_REPORTE_ACTUAL);
-    if (!guardado) return null;
-
-    const reporte = JSON.parse(guardado);
-    if (!reporte || typeof reporte !== "object") return null;
-
-    return reporte;
-  } catch {
-    return null;
-  }
-}
-
-function cargarHistorial(): ReporteV2[] {
-  try {
-    const guardado = JSON.parse(localStorage.getItem(STORAGE_HISTORIAL) || "[]");
-    return Array.isArray(guardado) ? guardado : [];
-  } catch {
-    return [];
-  }
-}
-
-function guardarReporteEnHistorial(reporte: ReporteV2): ReporteV2 {
-  const historial = cargarHistorial();
-  const reporteGuardado = {
-    ...reporte,
-    estado: "abierto",
-    estadoCierre: "abierto",
-    fechaGuardado: new Date().toISOString(),
-  };
-  const indiceExistente = historial.findIndex(
-    (item) => item.codigo && item.codigo === reporte.codigo
-  );
-  const actualizado =
-    indiceExistente >= 0
-      ? historial.map((item, index) =>
-          index === indiceExistente ? { ...item, ...reporteGuardado } : item
-        )
-      : [...historial, reporteGuardado];
-
-  localStorage.setItem(STORAGE_HISTORIAL, JSON.stringify(actualizado));
-  localStorage.setItem(STORAGE_REPORTE_ACTUAL, JSON.stringify(reporteGuardado));
-
-  return reporteGuardado;
-}
-
 export default function InformeFinalV2Page() {
   const [reporte, setReporte] = useState<ReporteV2 | null>(null);
   const [cargado, setCargado] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [guardado, setGuardado] = useState(false);
+  const [estadoSincronizacion, setEstadoSincronizacion] = useState<
+    "idle" | "central-ok" | "central-error"
+  >("idle");
+  const [mensajeGuardado, setMensajeGuardado] = useState("");
+  const [detalleGuardado, setDetalleGuardado] =
+    useState<DetalleGuardadoV2 | null>(null);
   const [botonActivo, setBotonActivo] = useState("");
+  const guardandoRef = useRef(false);
 
   useEffect(() => {
     const frameId = window.requestAnimationFrame(() => {
-      setReporte(cargarReporteActual());
+      setReporte(leerReporteActualV2() as ReporteV2 | null);
       setCargado(true);
     });
 
@@ -225,6 +204,8 @@ export default function InformeFinalV2Page() {
   };
 
   const fotos = Array.isArray(reporte?.fotos) ? reporte.fotos : [];
+  const fotosVisibles = fotos.filter((foto) => foto.dataUrl || foto.url);
+  const fotosPendientes = Math.max(fotos.length - fotosVisibles.length, 0);
   const criticidad = reporte?.evaluacion?.criticidad || "BAJO";
   const estiloCriticidad = obtenerEstiloCriticidad(criticidad);
 
@@ -399,6 +380,12 @@ export default function InformeFinalV2Page() {
                 <div style={{ fontSize: "14px", opacity: 0.76 }}>
                   No hay fotografías cargadas.
                 </div>
+              ) : fotosVisibles.length === 0 ? (
+                <div style={{ fontSize: "14px", opacity: 0.76, lineHeight: 1.45 }}>
+                  Fotografía registrada como evidencia pendiente de sincronización.
+                  La imagen no se persiste en este dispositivo para evitar el límite
+                  de almacenamiento.
+                </div>
               ) : (
                 <div
                   style={{
@@ -407,23 +394,33 @@ export default function InformeFinalV2Page() {
                     gap: "8px",
                   }}
                 >
-                  {fotos.map((foto) => (
-                    <div
-                      key={foto.id}
-                      aria-label={foto.nombre}
-                      role="img"
-                      style={{
-                        width: "100%",
-                        height: "92px",
-                        borderRadius: "14px",
-                        border: "1px solid rgba(255,255,255,0.16)",
-                        backgroundImage: `url(${foto.dataUrl})`,
-                        backgroundPosition: "center",
-                        backgroundRepeat: "no-repeat",
-                        backgroundSize: "cover",
-                      }}
-                    />
-                  ))}
+                  {fotosVisibles.map((foto) => {
+                    const imagen = foto.dataUrl || foto.url || "";
+
+                    return (
+                      <div
+                        key={foto.id}
+                        aria-label={foto.nombre}
+                        role="img"
+                        style={{
+                          width: "100%",
+                          height: "92px",
+                          borderRadius: "14px",
+                          border: "1px solid rgba(255,255,255,0.16)",
+                          backgroundImage: `url(${imagen})`,
+                          backgroundPosition: "center",
+                          backgroundRepeat: "no-repeat",
+                          backgroundSize: "cover",
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+              )}
+              {fotosPendientes > 0 && fotosVisibles.length > 0 && (
+                <div style={{ marginTop: "8px", fontSize: "12px", opacity: 0.68 }}>
+                  {fotosPendientes} evidencia(s) quedaron como metadata pendiente
+                  de Storage.
                 </div>
               )}
             </section>
@@ -481,33 +478,92 @@ export default function InformeFinalV2Page() {
               <button
                 type="button"
                 {...feedbackBoton("guardar")}
-                onClick={() => {
-                  if (!reporte || guardando) return;
+                onClick={async () => {
+                  if (!reporte || guardandoRef.current || guardado) return;
 
+                  guardandoRef.current = true;
                   setGuardando(true);
-                  const reporteGuardado = guardarReporteEnHistorial(reporte);
-                  setReporte(reporteGuardado);
-                  void import("@/app/services/guardarReporteV2Central")
-                    .then(({ intentarGuardarReporteV2EnRepositorioCentral }) =>
-                      intentarGuardarReporteV2EnRepositorioCentral(reporteGuardado)
-                    )
-                    .then(({ resultado }) => {
-                      if (!resultado.ok) {
-                        console.info(
-                          "Escritura central V2 no activa. Se mantiene guardado local.",
-                          resultado.error
-                        );
-                      }
-                    })
-                    .catch((error) => {
-                      console.warn(
-                        "No se pudo preparar la escritura central V2. Se mantiene guardado local.",
-                        error
-                      );
+                  setMensajeGuardado("");
+                  setEstadoSincronizacion("idle");
+                  setDetalleGuardado(null);
+                  const reporteGuardado: ReporteV2 = {
+                    ...reporte,
+                    estado: "abierto",
+                    estadoCierre: "abierto",
+                    fechaGuardado: new Date().toISOString(),
+                  };
+
+                  try {
+                    if (process.env.NODE_ENV !== "production") {
+                      console.info("[guardar-v2] CLICK guardar y enviar", {
+                        reporteActualEncontrado: Boolean(reporte),
+                        codigo: reporteGuardado.codigo,
+                      });
+                    }
+                    const { guardarReporteV2Completo } = await import(
+                      "@/app/services/guardarReporteV2Completo"
+                    );
+                    if (process.env.NODE_ENV !== "production") {
+                      console.info("[guardar-v2] servicio completo llamado", {
+                        codigo: reporteGuardado.codigo,
+                      });
+                    }
+                    const resultadoGuardado =
+                      await guardarReporteV2Completo(reporteGuardado);
+                    const reporteConEstado: ReporteV2 = {
+                      ...reporteGuardado,
+                      sincronizacionCentral: {
+                        estado: resultadoGuardado.centralOk
+                          ? "sincronizado"
+                          : "pendiente",
+                        mensaje: resultadoGuardado.mensaje,
+                        fecha: new Date().toISOString(),
+                      },
+                    };
+
+                    setReporte(reporteConEstado);
+                    setEstadoSincronizacion(
+                      resultadoGuardado.centralOk ? "central-ok" : "central-error"
+                    );
+                    setMensajeGuardado(resultadoGuardado.mensaje);
+                    setDetalleGuardado(resultadoGuardado);
+                  } catch (error) {
+                    const mensajeCentral =
+                      "Guardado local. Sincronización central pendiente por error controlado.";
+                    console.warn(
+                      "No se pudo completar escritura central V2. Se mantiene respaldo local liviano.",
+                      error
+                    );
+                    const reporteConEstado: ReporteV2 = {
+                      ...reporteGuardado,
+                      sincronizacionCentral: {
+                        estado: "pendiente",
+                        mensaje: mensajeCentral,
+                        fecha: new Date().toISOString(),
+                      },
+                    };
+                    const historialOk = guardarHistorialLivianoV2(reporteConEstado);
+                    const actualOk = guardarReporteActualV2(reporteConEstado);
+                    const localOk = historialOk || actualOk;
+
+                    setReporte(reporteConEstado);
+                    setEstadoSincronizacion("central-error");
+                    setMensajeGuardado(mensajeCentral);
+                    setDetalleGuardado({
+                      localOk,
+                      centralOk: false,
+                      centralPendiente: true,
+                      errorCentral:
+                        error instanceof Error ? error.message : String(error),
+                      codigo: reporteGuardado.codigo,
+                      tablaDestino: "public.hallazgos_central",
                     });
-                  vibrarOk();
-                  setGuardado(true);
-                  setGuardando(false);
+                  } finally {
+                    vibrarOk();
+                    setGuardado(true);
+                    setGuardando(false);
+                    guardandoRef.current = false;
+                  }
                 }}
                 disabled={guardando || guardado}
                 style={{
@@ -515,10 +571,12 @@ export default function InformeFinalV2Page() {
                   color: guardado ? "white" : "#08172d",
                   background: guardando
                     ? "rgba(255,255,255,0.18)"
-                    : guardado
+                    : guardado && estadoSincronizacion === "central-ok"
                       ? "linear-gradient(135deg, #22c55e, #15803d)"
+                      : guardado
+                        ? "linear-gradient(135deg, #f59e0b, #c2410c)"
                       : "linear-gradient(135deg, #facc15, #f97316)",
-                  boxShadow: guardado
+                  boxShadow: guardado && estadoSincronizacion === "central-ok"
                     ? "0 14px 28px rgba(34,197,94,0.22)"
                     : "0 14px 28px rgba(249,115,22,0.22)",
                   opacity: guardando ? 0.72 : 1,
@@ -528,9 +586,65 @@ export default function InformeFinalV2Page() {
                 {guardando
                   ? "Guardando..."
                   : guardado
-                    ? "Guardado correctamente"
+                    ? estadoSincronizacion === "central-ok"
+                      ? "Sincronizado correctamente"
+                      : "Guardado local - sync pendiente"
                     : "Guardar y enviar"}
               </button>
+              {mensajeGuardado && (
+                <div
+                  style={{
+                    borderRadius: "14px",
+                    background:
+                      estadoSincronizacion === "central-ok"
+                        ? "rgba(34,197,94,0.14)"
+                        : "rgba(249,115,22,0.14)",
+                    border:
+                      estadoSincronizacion === "central-ok"
+                        ? "1px solid rgba(34,197,94,0.28)"
+                        : "1px solid rgba(249,115,22,0.28)",
+                    padding: "10px 12px",
+                    fontSize: "13px",
+                    fontWeight: 800,
+                    lineHeight: 1.35,
+                  }}
+                >
+                  {mensajeGuardado}
+                </div>
+              )}
+              {detalleGuardado && (
+                <div
+                  style={{
+                    borderRadius: "14px",
+                    background: "rgba(255,255,255,0.08)",
+                    border: "1px solid rgba(255,255,255,0.14)",
+                    padding: "10px 12px",
+                    fontSize: "12px",
+                    fontWeight: 800,
+                    lineHeight: 1.45,
+                  }}
+                >
+                  <div>Guardado local: {detalleGuardado.localOk ? "OK" : "ERROR"}</div>
+                  <div>
+                    Supabase:{" "}
+                    {detalleGuardado.centralOk
+                      ? `sincronizado OK: ${detalleGuardado.codigo || "sin codigo"}`
+                      : `pendiente/error: ${
+                          detalleGuardado.errorCentral || "sin detalle"
+                        }`}
+                  </div>
+                  <div>Tabla destino: {detalleGuardado.tablaDestino}</div>
+                  <div>Código para buscar: {detalleGuardado.codigo}</div>
+                  <div>
+                    Bandera Supabase:{" "}
+                    {detalleGuardado.banderaSupabaseActiva === undefined
+                      ? "sin lectura"
+                      : detalleGuardado.banderaSupabaseActiva
+                        ? "true"
+                        : "false"}
+                  </div>
+                </div>
+              )}
               <a
                 href="/evaluar-v2"
                 onClick={vibrarOk}

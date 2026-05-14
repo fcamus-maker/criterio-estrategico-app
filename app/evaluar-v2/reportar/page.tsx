@@ -2,6 +2,10 @@
 
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
+import {
+  cargarHistorialLivianoV2,
+  guardarReporteActualV2,
+} from "../storageReporteV2";
 
 type SupervisorV2 = {
   nombre: string;
@@ -30,8 +34,6 @@ type UbicacionV2 = {
 };
 
 const STORAGE_SUPERVISOR = "ce_mobile_v2_supervisor";
-const STORAGE_REPORTE_ACTUAL = "ce_mobile_v2_reporte_actual";
-const STORAGE_HISTORIAL = "ce_mobile_v2_historial_reportes";
 
 const SUPERVISOR_DEFAULT: SupervisorV2 = {
   nombre: "Freddy Camus",
@@ -78,12 +80,7 @@ function cargarSupervisor(): SupervisorV2 {
 }
 
 function obtenerTotalHistorial() {
-  try {
-    const historial = JSON.parse(localStorage.getItem(STORAGE_HISTORIAL) || "[]");
-    return Array.isArray(historial) ? historial.length : 0;
-  } catch {
-    return 0;
-  }
+  return cargarHistorialLivianoV2().length;
 }
 
 function comprimirFoto(file: File): Promise<FotoV2> {
@@ -303,7 +300,7 @@ export default function ReportarV2Page() {
       mensajeValidacion: "Reporte V2 válido para continuar.",
     };
 
-    localStorage.setItem(STORAGE_REPORTE_ACTUAL, JSON.stringify(reporteV2));
+    guardarReporteActualV2(reporteV2);
     setMensaje("Reporte V2 válido para continuar.");
     setNavegando(true);
     vibrarOk();
