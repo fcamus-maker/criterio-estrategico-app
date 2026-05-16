@@ -4,6 +4,10 @@ import type {
   EstadoHallazgoCentral,
   HallazgoCentral,
 } from "../types/hallazgoCentral";
+import {
+  normalizarEvidenciasPanel,
+  type EvidenciaPanel,
+} from "../panel/evidenciasPanel";
 
 export type HallazgoPanelDesdeCentral = HallazgoPanel & {
   origen?: HallazgoCentral["origen"];
@@ -35,6 +39,9 @@ export type HallazgoPanelDesdeCentral = HallazgoPanel & {
   validadorCierreObservacion?: string;
   evidenciaRequerida?: string;
   evidenciaRecibida?: string;
+  evidenciasPanel?: EvidenciaPanel[];
+  totalEvidencias?: number;
+  evidenciasPendientesVisualizacion?: number;
 };
 
 function texto(valor: unknown, fallback = "") {
@@ -86,9 +93,9 @@ function fechaISO(hallazgo: HallazgoCentral) {
   return Number.isNaN(fallback.getTime()) ? "" : fallback.toISOString();
 }
 
-function fotosPanel(hallazgo: HallazgoCentral) {
-  return (hallazgo.evidencias || [])
-    .map((evidencia) => texto(evidencia.url || evidencia.dataUrl))
+function fotosPanel(evidencias: EvidenciaPanel[]) {
+  return evidencias
+    .map((evidencia) => texto(evidencia.url))
     .filter(Boolean)
     .slice(0, 3);
 }
@@ -118,6 +125,10 @@ export function adaptarHallazgoCentralAHallazgoPanel(
   const responsable = seguimiento?.responsable;
   const evidenciaCierre = evidenciasRecibidasPanel(hallazgo);
   const responsableNombre = texto(responsable?.nombre, "Sin asignar");
+  const evidenciasPanel = normalizarEvidenciasPanel(hallazgo.evidencias);
+  const evidenciasVisibles = evidenciasPanel.filter(
+    (evidencia) => evidencia.disponibleVisualmente
+  ).length;
 
   return {
     id: texto(hallazgo.id, hallazgo.codigo),
@@ -139,7 +150,10 @@ export function adaptarHallazgoCentralAHallazgoPanel(
       hallazgo.accionInmediata,
       "Accion inmediata pendiente de definicion"
     ),
-    fotos: fotosPanel(hallazgo),
+    fotos: fotosPanel(evidenciasPanel),
+    evidenciasPanel,
+    totalEvidencias: evidenciasPanel.length,
+    evidenciasPendientesVisualizacion: evidenciasPanel.length - evidenciasVisibles,
     supervisorFoto: texto(
       hallazgo.reportante.fotoUrl || hallazgo.reportante.fotoDataUrl
     ),

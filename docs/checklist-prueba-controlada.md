@@ -13,6 +13,8 @@ produccion.
 - [ ] Usuario demo probado.
 - [ ] Insert Supabase probado.
 - [ ] Storage probado.
+- [ ] Si se requiere ver miniaturas en panel, policy temporal demo de lectura
+      Storage revisada y ejecutada manualmente por responsable autorizado.
 - [ ] RLS definitivo pendiente y riesgo entendido.
 - [ ] Testers conocen que es demo controlada.
 
@@ -25,6 +27,8 @@ produccion.
 - [ ] Confirmar mensaje final.
 - [ ] Revisar `public.hallazgos_central`.
 - [ ] Revisar bucket `hallazgos-evidencias`.
+- [ ] Confirmar que las evidencias se ven en panel o, si no hay permisos de
+      lectura, que aparece mensaje claro de evidencia registrada en Storage.
 - [ ] Revisar panel PC.
 
 ## Prueba PC
@@ -41,6 +45,8 @@ produccion.
 - Reporte aparece en panel.
 - Fotos aparecen en Storage.
 - Metadata aparece en `hallazgos_central`.
+- Panel/informe muestra miniatura de evidencia o estado claro de permiso
+  pendiente.
 - No se cae la app.
 - No se pierde el reporte.
 - Mensajes de error son claros.
@@ -55,5 +61,19 @@ produccion.
 - Datos duplicados masivos.
 - Panel no carga.
 - Evidencias no suben.
+- Evidencias suben pero panel no muestra ni miniatura ni mensaje de metadata.
 - Usuarios externos ven datos no esperados.
 
+## Nota sobre policy temporal de lectura Storage
+
+Archivo de referencia:
+
+- `docs/supabase/storage-select-policy-demo-propuesta.sql`
+
+Uso:
+
+- Solo demo controlada.
+- No produccion.
+- No hacer publico el bucket.
+- No usar `service_role` en frontend.
+- Reemplazar por Auth/RLS definitivo antes de clientes reales.

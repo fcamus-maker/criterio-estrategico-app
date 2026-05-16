@@ -55,6 +55,25 @@ Reglas:
 11. Probar `/panel`, Mapa GPS y KPI.
 12. Probar instalacion PWA en iPhone.
 
+## Evidencias en panel durante demo
+
+El panel genera visualizacion de evidencias mediante URLs firmadas de Storage.
+El bucket `hallazgos-evidencias` debe mantenerse privado.
+
+Si el panel muestra metadata como "evidencia registrada en Storage" pero no
+puede renderizar miniaturas, revisar la propuesta temporal:
+
+- `docs/supabase/storage-select-policy-demo-propuesta.sql`
+
+Advertencias:
+
+- TEMPORAL DEMO / NO PRODUCCION.
+- No hacer publico el bucket.
+- No usar `service_role` en frontend.
+- No subir datos sensibles reales.
+- Reemplazar por policy definitiva con Auth + empresa/obra antes de uso con
+  clientes reales.
+
 ## Links objetivo
 
 Subdominio ideal:
@@ -91,4 +110,4 @@ Si no hay dominio aun, usar la URL temporal del hosting:
 - No entregar como produccion final.
 - No activar RLS definitivo sin prueba separada.
 - No eliminar policy temporal Storage hasta tener reemplazo probado.
-
+- No mantener policy temporal de lectura Storage en produccion final.

@@ -9,6 +9,10 @@ import type {
   TipoHallazgoCentral,
 } from "../types/hallazgoCentral";
 import { hallazgosMock, notificacionesMock, usuarioMock, type HallazgoPanel } from "./mockdata";
+import {
+  obtenerEvidenciasPanel,
+  type EvidenciaPanel,
+} from "./evidenciasPanel";
 import { cargarHallazgosPanelConFuentesOpcionales } from "./sources/hallazgosPanelSource";
 
 type HallazgoPanelExtendido = HallazgoPanel & {
@@ -24,7 +28,61 @@ type HallazgoPanelExtendido = HallazgoPanel & {
   responsableCierreEmpresa?: string;
   responsableCierreTelefono?: string;
   evidenciaRequerida?: string;
+  evidenciasPanel?: EvidenciaPanel[];
+  totalEvidencias?: number;
+  evidenciasPendientesVisualizacion?: number;
 };
+
+function generarEvidenciasInformeHtml(
+  hallazgo: HallazgoPanelExtendido,
+  escapeHtml: (valor: unknown) => string
+) {
+  const evidencias = obtenerEvidenciasPanel(hallazgo);
+  const evidenciasVisibles = evidencias
+    .filter((evidencia) => evidencia.url)
+    .slice(0, 3);
+
+  if (evidenciasVisibles.length > 0) {
+    return `
+      <div style="margin-top:16px;">
+        <div class="label">Evidencias fotográficas</div>
+        <div class="evidence-grid">
+          ${evidenciasVisibles
+            .map(
+              (evidencia) => `
+                <div class="evidence-thumb">
+                  <img src="${escapeHtml(evidencia.url)}" alt="Evidencia fotográfica" />
+                </div>
+              `
+            )
+            .join("")}
+        </div>
+        <div class="evidence-note">
+          ${escapeHtml(
+            evidencias.length > evidenciasVisibles.length
+              ? `${evidencias.length} evidencia(s) registrada(s); se muestran las disponibles para visualización.`
+              : `${evidencias.length} evidencia(s) registrada(s).`
+          )}
+        </div>
+      </div>
+    `;
+  }
+
+  if (evidencias.length > 0) {
+    return `
+      <div style="margin-top:16px;">
+        <div class="label">Evidencias fotográficas</div>
+        <div class="evidence-pending">
+          ${escapeHtml(evidencias[0]?.mensajeVisualizacion)}
+          <br />
+          ${escapeHtml(`${evidencias.length} evidencia(s) registrada(s) en Storage.`)}
+        </div>
+      </div>
+    `;
+  }
+
+  return `<div class="text" style="color:#6b7280;">Sin evidencia fotográfica adjunta.</div>`;
+}
 
 function chipColor(tipo: string) {
   const valor = String(tipo).toUpperCase();
@@ -1115,6 +1173,10 @@ const generarInformeEmpresaObra = () => {
 
   const supervisorChunks = chunkArray(supervisoresPendientes, 8);
   const hallazgoChunks = chunkArray(filasFiltradas, 12);
+  const hallazgosConEvidencia = filasFiltradas.filter(
+    (item) => obtenerEvidenciasPanel(item).length > 0
+  );
+  const evidenciaChunks = chunkArray(hallazgosConEvidencia, 6);
 
   const pagina1Html = `
     <section class="sheet">
@@ -1435,6 +1497,49 @@ const generarInformeEmpresaObra = () => {
     `;
   }).join("");
 
+  const evidenciaPagesHtml = evidenciaChunks.length
+    ? evidenciaChunks
+        .map((chunk, index, arr) => {
+          const tarjetas = chunk
+            .map(
+              (hallazgo) => `
+                <div class="evidence-card avoid-break">
+                  <div class="evidence-card-head">
+                    <div>
+                      <div class="evidence-code">${escapeHtml(hallazgo.codigo)}</div>
+                      <div class="evidence-meta">
+                        ${escapeHtml(hallazgo.empresa)} · ${escapeHtml(hallazgo.obra)} · ${escapeHtml(hallazgo.fechaHora)}
+                      </div>
+                    </div>
+                    <div class="evidence-chip">${escapeHtml(hallazgo.criticidad)}</div>
+                  </div>
+                  ${generarEvidenciasInformeHtml(hallazgo, escapeHtml)}
+                </div>
+              `
+            )
+            .join("");
+
+          return `
+            <section class="sheet">
+              <div class="page-head">
+                <div>
+                  <h2 class="page-title">Anexo de evidencias fotográficas</h2>
+                  <div class="page-subtitle">
+                    Evidencias asociadas a los hallazgos filtrados. Si una imagen no puede visualizarse, se informa su registro en Storage para trazabilidad.
+                  </div>
+                </div>
+                <div class="page-counter">Página ${index + 1} de ${arr.length}</div>
+              </div>
+
+              <div class="evidence-list">
+                ${tarjetas}
+              </div>
+            </section>
+          `;
+        })
+        .join("")
+    : "";
+
   const html = `
     <!DOCTYPE html>
     <html lang="es">
@@ -1751,6 +1856,84 @@ const generarInformeEmpresaObra = () => {
             break-inside: avoid;
           }
 
+          .evidence-list {
+            display: grid;
+            gap: 14px;
+          }
+
+          .evidence-card {
+            border: 1px solid #d1d5db;
+            border-radius: 12px;
+            padding: 12px;
+            background: #ffffff;
+          }
+
+          .evidence-card-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 10px;
+          }
+
+          .evidence-code {
+            font-size: 14px;
+            font-weight: 900;
+            color: #111827;
+          }
+
+          .evidence-meta,
+          .evidence-note,
+          .evidence-pending {
+            color: #6b7280;
+            font-size: 12px;
+            line-height: 1.45;
+          }
+
+          .evidence-chip {
+            border-radius: 999px;
+            padding: 6px 10px;
+            background: #f3f4f6;
+            border: 1px solid #d1d5db;
+            font-size: 11px;
+            font-weight: 800;
+            white-space: nowrap;
+          }
+
+          .evidence-grid {
+            margin-top: 8px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+          }
+
+          .evidence-thumb {
+            width: 132px;
+            height: 132px;
+            border: 1px solid #d1d5db;
+            border-radius: 10px;
+            padding: 5px;
+            background: #f9fafb;
+            overflow: hidden;
+            flex: 0 0 auto;
+          }
+
+          .evidence-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 8px;
+            display: block;
+          }
+
+          .evidence-pending {
+            margin-top: 8px;
+            border: 1px solid #d1d5db;
+            border-radius: 10px;
+            padding: 10px;
+            background: #f9fafb;
+          }
+
           @media print {
             body {
               margin: 0;
@@ -1782,6 +1965,7 @@ const generarInformeEmpresaObra = () => {
         ${pagina1Html}
         ${supervisorPagesHtml}
         ${detallePagesHtml}
+        ${evidenciaPagesHtml}
       </body>
     </html>
   `;
@@ -2808,6 +2992,49 @@ const descargarPDFHallazgoActivo = async () => {
   font-weight: 700;
 }
 
+.evidence-grid {
+  margin-top: 8px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.evidence-thumb {
+  width: 190px;
+  height: 190px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  padding: 6px;
+  background: #f9fafb;
+  box-sizing: border-box;
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+
+.evidence-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 8px;
+  display: block;
+}
+
+.evidence-note,
+.evidence-pending {
+  margin-top: 8px;
+  color: #6b7280;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.evidence-pending {
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  padding: 12px;
+  background: #f9fafb;
+}
+
 @page {
   size: Letter;
   margin: 16mm;
@@ -2910,43 +3137,7 @@ const descargarPDFHallazgoActivo = async () => {
   <div class="text">${escapeHtml(h.descripcion)}</div>
 </div>
 
-${
-  h.fotos && h.fotos.length > 0
-    ? `
-      <div style="margin-top:16px; display:flex; gap:12px; flex-wrap:wrap; align-items:flex-start;">
-        ${h.fotos.slice(0, 3).map((foto) => `
-          <div
-            style="
-              width:190px;
-              height:190px;
-              border:1px solid #d1d5db;
-              border-radius:10px;
-              padding:6px;
-              background:#f9fafb;
-              box-sizing:border-box;
-              overflow:hidden;
-              flex:0 0 auto;
-            "
-          >
-            <img
-              src="${escapeHtml(foto)}"
-              alt="Evidencia fotográfica"
-              style="
-                width:100%;
-                height:100%;
-                object-fit:cover;
-                border-radius:8px;
-                display:block;
-              "
-            />
-          </div>
-        `).join("")}
-      </div>
-    `
-    : `
-      <div class="text" style="color:#6b7280;">Sin evidencia fotográfica adjunta.</div>
-    `
-}
+${generarEvidenciasInformeHtml(h, escapeHtml)}
 </div>
 
 <div class="card">
@@ -7597,41 +7788,71 @@ style={{
 	    {t("Evidencia fotográfica")}
   </div>
 
-  {hallazgoActivo.fotos && hallazgoActivo.fotos.length > 0 ? (
-    <div
-      style={{
-        display: "flex",
-        gap: "8px",
-        flexWrap: "wrap",
-      }}
-    >
-      {hallazgoActivo.fotos.slice(0, 3).map((foto, index) => (
-        <img
-          key={index}
-          src={foto}
-          alt={`Evidencia ${index + 1}`}
+  {(() => {
+    const evidencias = obtenerEvidenciasPanel(hallazgoActivo);
+    const visibles = evidencias.filter((evidencia) => evidencia.url).slice(0, 3);
+
+    if (visibles.length > 0) {
+      return (
+        <div
           style={{
-            width: "78px",
-            height: "78px",
-            objectFit: "cover",
-            borderRadius: "10px",
-	            border: tema.borde,
-	            background: tema.tarjetaSuave,
+            display: "flex",
+            gap: "8px",
+            flexWrap: "wrap",
           }}
-        />
-      ))}
-    </div>
-  ) : (
-    <div
-      style={{
-        fontSize: "13px",
-        lineHeight: 1.4,
-        opacity: 0.75,
-      }}
-    >
+        >
+          {visibles.map((evidencia, index) => (
+            <img
+              key={evidencia.url || evidencia.storagePath || index}
+              src={evidencia.url || ""}
+              alt={`Evidencia ${index + 1}`}
+              style={{
+                width: "78px",
+                height: "78px",
+                objectFit: "cover",
+                borderRadius: "10px",
+	              border: tema.borde,
+	              background: tema.tarjetaSuave,
+              }}
+            />
+          ))}
+        </div>
+      );
+    }
+
+    if (evidencias.length > 0) {
+      return (
+        <div
+          style={{
+            borderRadius: "12px",
+            border: tema.borde,
+            background: tema.tarjetaSuave,
+            padding: "10px",
+            fontSize: "12px",
+            lineHeight: 1.45,
+            color: tema.textoSuave,
+          }}
+        >
+          <div style={{ fontWeight: 800, color: tema.texto, marginBottom: "3px" }}>
+            {evidencias.length} evidencia(s) registrada(s)
+          </div>
+          <div>{evidencias[0]?.mensajeVisualizacion}</div>
+        </div>
+      );
+    }
+
+    return (
+      <div
+        style={{
+          fontSize: "13px",
+          lineHeight: 1.4,
+          opacity: 0.75,
+        }}
+      >
 	      {t("Sin evidencia fotográfica")}
-    </div>
-  )}
+      </div>
+    );
+  })()}
 </div>
     <div style={{ marginBottom: "12px" }}>
       <div

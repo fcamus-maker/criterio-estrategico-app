@@ -10,6 +10,10 @@ prueba controlada con usuarios reales.
 - Evidencias fotograficas suben al bucket privado `hallazgos-evidencias`.
 - Existe una policy temporal de desarrollo para permitir insert anon en
   `storage.objects`; debe eliminarse antes de produccion.
+- Para visualizar miniaturas en panel/informes durante demo controlada, existe
+  una propuesta separada de policy temporal de lectura:
+  `docs/supabase/storage-select-policy-demo-propuesta.sql`. No ejecutarla como
+  produccion.
 - `.env.local` es local, no versionado, y contiene Supabase activo.
 - El flujo V2 central no usa `public.hallazgos`.
 
@@ -24,6 +28,9 @@ prueba controlada con usuarios reales.
 - No existe tabla `profiles`/`perfiles`.
 - No existe tabla de asignaciones usuario-empresa-obra.
 - Storage esta validado con policy temporal anon, no con policy productiva.
+- La visualizacion de evidencias desde panel requiere `SELECT` temporal o policy
+  productiva equivalente sobre `storage.objects`; sin eso el panel solo muestra
+  metadata registrada en Storage.
 - La foto/perfil del supervisor aun depende de estado local del navegador.
 
 ## Arquitectura objetivo
@@ -133,6 +140,9 @@ Ventajas del enfoque hibrido:
 ## Riesgos actuales
 
 - Anon temporal en Storage permite pruebas, pero no separa clientes.
+- La policy demo de lectura Storage, si se ejecuta, permite visualizar objetos
+  bajo `hallazgos-evidencias/empresa/%/obra/%/hallazgo/%/%`; no es adecuada para
+  datos sensibles ni clientes reales.
 - Sin Auth, el panel no puede filtrar por usuario real.
 - Sin UUID poblados, RLS por empresa/obra no puede ser estricta.
 - Si se activa RLS antes de perfiles/asignaciones, la app puede quedar bloqueada.
@@ -154,6 +164,8 @@ No protegido aun:
 - `/panel` no exige login.
 - RLS definitivo aun no esta activo.
 - La policy temporal anon de Storage sigue vigente para pruebas.
+- La policy temporal demo de lectura Storage debe usarse solo si se necesita
+  mostrar evidencias en panel/informes antes de tener Auth/RLS definitivo.
 - El panel puede ver datos sin filtro obligatorio por usuario/empresa.
 
 Permitido solo para demo:
@@ -167,6 +179,8 @@ Debe resolverse antes de cliente real:
 
 - RLS definitivo por empresa/obra/rol.
 - Reemplazo de policy temporal anon de Storage.
+- Reemplazo de policy temporal de lectura Storage por control Auth + alcance
+  empresa/obra.
 - Login obligatorio por ruta o por entorno demo/produccion.
 - Signed URLs o acceso estricto a evidencias.
 - Auditoria de acciones por usuario.

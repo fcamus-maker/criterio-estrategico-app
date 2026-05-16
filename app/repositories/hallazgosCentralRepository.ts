@@ -2,6 +2,7 @@ import {
   obtenerEstadoSupabaseCliente,
   obtenerSupabaseCliente,
 } from "../../lib/supabaseClient";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   BitacoraHallazgoCentral,
   EstadoHallazgoCentral,
@@ -178,6 +179,149 @@ function numero(valor: unknown): number | undefined {
   }
 
   return undefined;
+}
+
+function registroJson(valor: unknown): Record<string, unknown> | null {
+  return valor && typeof valor === "object" && !Array.isArray(valor)
+    ? (valor as Record<string, unknown>)
+    : null;
+}
+
+function listaJson(valor: unknown): Record<string, unknown>[] {
+  return Array.isArray(valor)
+    ? valor
+        .map((item) => registroJson(item))
+        .filter((item): item is Record<string, unknown> => Boolean(item))
+    : [];
+}
+
+function evidenciaDesdeRegistro(
+  item: Record<string, unknown>
+): EvidenciaHallazgoCentral {
+  return {
+    id: texto(item.id),
+    nombre: texto(item.nombre || item.name || item.filename),
+    tipo: texto(item.tipo || item.contentType || item.content_type),
+    bucket: texto(item.bucket, BUCKET_EVIDENCIAS),
+    url: texto(item.url || item.signedUrl || item.signed_url),
+    storagePath: texto(
+      item.storagePath || item.storage_path || item.path || item.ruta_storage
+    ),
+    tamanoBytes: numero(item.tamanoBytes || item.size || item.size_bytes),
+    indice: numero(item.indice || item.index),
+    estadoSubida: texto(
+      item.estadoSubida || item.estado_subida,
+      "subida"
+    ) as EvidenciaHallazgoCentral["estadoSubida"],
+    descripcion: texto(item.descripcion || item.description),
+    fechaCarga: texto(item.fechaCarga || item.fecha_carga || item.created_at),
+    origen: texto(item.origen) as EvidenciaHallazgoCentral["origen"],
+    error: texto(item.error),
+  };
+}
+
+function evidenciasDesdeFilaSupabase(
+  fila: Record<string, unknown>
+): EvidenciaHallazgoCentral[] {
+  const rawMobile = registroJson(fila.raw_mobile_v2);
+  const candidatas = [
+    ...listaJson(fila.evidencias),
+    ...listaJson(fila.fotos),
+    ...listaJson(rawMobile?.evidencias),
+    ...listaJson(rawMobile?.fotos),
+  ];
+
+  const evidencias: EvidenciaHallazgoCentral[] = [];
+  const claves = new Set<string>();
+
+  for (const candidata of candidatas) {
+    const evidencia = evidenciaDesdeRegistro(candidata);
+    const clave =
+      evidencia.url ||
+      evidencia.storagePath ||
+      evidencia.nombre ||
+      evidencia.id ||
+      "";
+
+    if (!clave || claves.has(clave)) continue;
+    claves.add(clave);
+    evidencias.push(evidencia);
+  }
+
+  return evidencias;
+}
+
+async function resolverUrlsFirmadasEvidencias(
+  hallazgo: HallazgoCentral,
+  cliente: SupabaseClient
+): Promise<HallazgoCentral> {
+  if (!hallazgo.evidencias?.length) return hallazgo;
+
+  const evidencias = await Promise.all(
+    hallazgo.evidencias.map(async (evidencia) => {
+      const urlExistente = texto(evidencia.url || evidencia.dataUrl);
+      const storagePath = texto(evidencia.storagePath);
+
+      if (urlExistente || !storagePath) return evidencia;
+
+      const bucket = texto(evidencia.bucket, BUCKET_EVIDENCIAS);
+
+      try {
+        const { data, error } = await cliente.storage
+          .from(bucket)
+          .createSignedUrl(storagePath, 60 * 60);
+
+        if (error || !data?.signedUrl) {
+          if (process.env.NODE_ENV !== "production") {
+            console.warn("[hallazgos_central] evidencia sin url firmada", {
+              codigo: hallazgo.codigo,
+              bucket,
+              storagePath,
+              error: error?.message || "Sin URL firmada",
+            });
+          }
+
+          return {
+            ...evidencia,
+            bucket,
+            descripcion: texto(
+              evidencia.descripcion,
+              "Evidencia subida a Storage, pero no disponible para visualización por permisos actuales."
+            ),
+          };
+        }
+
+        return {
+          ...evidencia,
+          bucket,
+          url: data.signedUrl,
+        };
+      } catch (error) {
+        if (process.env.NODE_ENV !== "production") {
+          console.warn("[hallazgos_central] fallo creando url firmada", {
+            codigo: hallazgo.codigo,
+            bucket,
+            storagePath,
+            error: error instanceof Error ? error.message : "Error desconocido",
+          });
+        }
+
+        return {
+          ...evidencia,
+          bucket,
+          descripcion: texto(
+            evidencia.descripcion,
+            "Evidencia subida a Storage, pero no disponible para visualización por permisos actuales."
+          ),
+        };
+      }
+    })
+  );
+
+  return {
+    ...hallazgo,
+    evidencias,
+  };
 }
 
 function fechaSoloSupabase(valor: unknown) {
@@ -578,9 +722,7 @@ function mapearFilaSupabaseAHallazgo(fila: Record<string, unknown>): HallazgoCen
       fila.estado_cierre,
       "PENDIENTE"
     ) as HallazgoCentral["estadoCierre"],
-    evidencias: Array.isArray(fila.evidencias)
-      ? (fila.evidencias as EvidenciaHallazgoCentral[])
-      : [],
+    evidencias: evidenciasDesdeFilaSupabase(fila),
     geolocalizacion,
     mapaGps: geolocalizacion
       ? {
@@ -661,11 +803,18 @@ export async function listarHallazgosCentrales(
       return falloSupabase(error, "No se pudo leer hallazgos desde Supabase.");
     }
 
+    const hallazgos = await Promise.all(
+      (data || []).map((fila) =>
+        resolverUrlsFirmadasEvidencias(
+          mapearFilaSupabaseAHallazgo(fila as Record<string, unknown>),
+          cliente
+        )
+      )
+    );
+
     return {
       ok: true,
-      data: (data || []).map((fila) =>
-        mapearFilaSupabaseAHallazgo(fila as Record<string, unknown>)
-      ),
+      data: hallazgos,
       origen: "supabase",
     };
   } catch (error) {
@@ -690,9 +839,16 @@ export async function obtenerHallazgoCentralPorId(
       return falloSupabase(error, "No se pudo obtener hallazgo por id.");
     }
 
+    const hallazgo = data
+      ? await resolverUrlsFirmadasEvidencias(
+          mapearFilaSupabaseAHallazgo(data),
+          cliente
+        )
+      : null;
+
     return {
       ok: true,
-      data: data ? mapearFilaSupabaseAHallazgo(data) : null,
+      data: hallazgo,
       origen: "supabase",
     };
   } catch (error) {
@@ -717,9 +873,16 @@ export async function obtenerHallazgoCentralPorCodigo(
       return falloSupabase(error, "No se pudo obtener hallazgo por codigo.");
     }
 
+    const hallazgo = data
+      ? await resolverUrlsFirmadasEvidencias(
+          mapearFilaSupabaseAHallazgo(data),
+          cliente
+        )
+      : null;
+
     return {
       ok: true,
-      data: data ? mapearFilaSupabaseAHallazgo(data) : null,
+      data: hallazgo,
       origen: "supabase",
     };
   } catch (error) {
