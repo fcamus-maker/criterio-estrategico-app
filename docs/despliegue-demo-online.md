@@ -34,6 +34,28 @@ Reglas:
 - `/panel/mapa-gps`
 - `/panel/kpi-gerencial`
 
+## Login unico por rol
+
+Entrada oficial para testers:
+
+- `https://criterio-estrategico-app.vercel.app/login`
+
+Flujo esperado:
+
+- `supervisor_reportante` -> `/evaluar-v2`.
+- `super_admin_ce`, `admin_cliente`, `prevencionista_cliente`,
+  `visualizador_auditor` y `responsable_cierre` -> `/panel`.
+
+Usuarios demo documentados sin contrasenas:
+
+- `admin.ce.demo@criterioestrategico.cl`
+- `admin.cliente.demo@criterioestrategico.cl`
+- `supervisor.demo@criterioestrategico.cl`
+- `auditor.demo@criterioestrategico.cl`
+
+RLS definitivo sigue pendiente; esta fase protege rutas desde la interfaz y
+mantiene la demo controlada con usuarios conocidos.
+
 ## Local vs online
 
 - `localhost` sirve solo en la maquina local.
@@ -47,13 +69,14 @@ Reglas:
 3. Configurar variables de entorno del hosting.
 4. Crear deploy preview.
 5. Probar `/login`.
-6. Probar `/evaluar-v2`.
-7. Crear hallazgo demo con 1 foto.
-8. Crear hallazgo demo con 3 fotos.
-9. Confirmar insert en `public.hallazgos_central`.
-10. Confirmar subida a `hallazgos-evidencias`.
-11. Probar `/panel`, Mapa GPS y KPI.
-12. Probar instalacion PWA en iPhone.
+6. Probar redireccion por rol hacia `/evaluar-v2` o `/panel`.
+7. Probar `/evaluar-v2`.
+8. Crear hallazgo demo con 1 foto.
+9. Crear hallazgo demo con 3 fotos.
+10. Confirmar insert en `public.hallazgos_central`.
+11. Confirmar subida a `hallazgos-evidencias`.
+12. Probar `/panel`, Mapa GPS y KPI.
+13. Probar instalacion PWA en iPhone.
 
 ## Evidencias en panel durante demo
 
@@ -111,3 +134,4 @@ Si no hay dominio aun, usar la URL temporal del hosting:
 - No activar RLS definitivo sin prueba separada.
 - No eliminar policy temporal Storage hasta tener reemplazo probado.
 - No mantener policy temporal de lectura Storage en produccion final.
+- No versionar contrasenas demo.

@@ -2,29 +2,14 @@
 
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
+import {
+  cargarSupervisorV2UsuarioActual,
+  guardarSupervisorV2EnClave,
+  SUPERVISOR_V2_VACIO,
+  type SupervisorV2,
+} from "./supervisorProfileStorage";
 
-type SupervisorV2 = {
-  nombre: string;
-  cargo: string;
-  empresa: string;
-  obra: string;
-  siglaEmpresa: string;
-  siglaProyecto: string;
-  foto: string;
-};
-
-const STORAGE_SUPERVISOR = "ce_mobile_v2_supervisor";
 const STORAGE_HISTORIAL = "ce_mobile_v2_historial_reportes";
-
-const SUPERVISOR_DEFAULT: SupervisorV2 = {
-  nombre: "Freddy Camus",
-  cargo: "Ingeniero",
-  empresa: "TNT",
-  obra: "PEL",
-  siglaEmpresa: "TNT",
-  siglaProyecto: "PEL",
-  foto: "",
-};
 
 const FOTO_SUPERVISOR_MAX_PX = 320;
 const FOTO_SUPERVISOR_QUALITY = 0.64;
@@ -32,34 +17,6 @@ const FOTO_SUPERVISOR_QUALITY = 0.64;
 function vibrarOk() {
   if (typeof navigator !== "undefined" && "vibrate" in navigator) {
     navigator.vibrate(20);
-  }
-}
-
-function cargarSupervisor(): SupervisorV2 {
-  if (typeof window === "undefined") return SUPERVISOR_DEFAULT;
-
-  try {
-    const guardado = JSON.parse(
-      localStorage.getItem(STORAGE_SUPERVISOR) || "null"
-    );
-
-    if (!guardado || typeof guardado !== "object") return SUPERVISOR_DEFAULT;
-
-    return {
-      nombre: String(guardado.nombre || SUPERVISOR_DEFAULT.nombre),
-      cargo: String(guardado.cargo || SUPERVISOR_DEFAULT.cargo),
-      empresa: String(guardado.empresa || SUPERVISOR_DEFAULT.empresa),
-      obra: String(guardado.obra || SUPERVISOR_DEFAULT.obra),
-      siglaEmpresa: String(
-        guardado.siglaEmpresa || SUPERVISOR_DEFAULT.siglaEmpresa
-      ),
-      siglaProyecto: String(
-        guardado.siglaProyecto || SUPERVISOR_DEFAULT.siglaProyecto
-      ),
-      foto: String(guardado.foto || SUPERVISOR_DEFAULT.foto),
-    };
-  } catch {
-    return SUPERVISOR_DEFAULT;
   }
 }
 
@@ -71,20 +28,6 @@ function cargarHistorial(): Array<{ estado?: string; estadoCierre?: string }> {
     return Array.isArray(guardado) ? guardado : [];
   } catch {
     return [];
-  }
-}
-
-function existeSupervisorGuardado() {
-  if (typeof window === "undefined") return false;
-
-  try {
-    const guardado = JSON.parse(
-      localStorage.getItem(STORAGE_SUPERVISOR) || "null"
-    );
-
-    return Boolean(guardado && typeof guardado === "object");
-  } catch {
-    return false;
   }
 }
 
@@ -139,8 +82,9 @@ function comprimirFotoSupervisor(file: File): Promise<string> {
 export default function EvaluarV2HomePage() {
   const router = useRouter();
   const [supervisor, setSupervisor] =
-    useState<SupervisorV2>(SUPERVISOR_DEFAULT);
-  const [draft, setDraft] = useState<SupervisorV2>(SUPERVISOR_DEFAULT);
+    useState<SupervisorV2>(SUPERVISOR_V2_VACIO);
+  const [draft, setDraft] = useState<SupervisorV2>(SUPERVISOR_V2_VACIO);
+  const [claveSupervisor, setClaveSupervisor] = useState("");
   const [historial, setHistorial] = useState<
     Array<{ estado?: string; estadoCierre?: string }>
   >([]);
@@ -152,9 +96,14 @@ export default function EvaluarV2HomePage() {
   const [navegandoReporte, setNavegandoReporte] = useState(false);
 
   useEffect(() => {
-    const frameId = window.requestAnimationFrame(() => {
-      const supervisorGuardado = cargarSupervisor();
-      const tienePerfil = existeSupervisorGuardado();
+    let activo = true;
+    const frameId = window.requestAnimationFrame(async () => {
+      const contexto = await cargarSupervisorV2UsuarioActual();
+      if (!activo) return;
+
+      const supervisorGuardado = contexto.supervisor;
+      const tienePerfil = contexto.tienePerfilGuardado;
+      setClaveSupervisor(contexto.clave);
       setSupervisor(supervisorGuardado);
       setDraft(supervisorGuardado);
       setHistorial(cargarHistorial());
@@ -162,7 +111,10 @@ export default function EvaluarV2HomePage() {
       setEditorPerfilAbierto(!tienePerfil);
     });
 
-    return () => window.cancelAnimationFrame(frameId);
+    return () => {
+      activo = false;
+      window.cancelAnimationFrame(frameId);
+    };
   }, []);
 
   const contadores = useMemo(() => {
@@ -191,21 +143,19 @@ export default function EvaluarV2HomePage() {
 
   const guardarSupervisor = () => {
     const actualizado: SupervisorV2 = {
-      nombre: draft.nombre.trim() || SUPERVISOR_DEFAULT.nombre,
-      cargo: draft.cargo.trim() || SUPERVISOR_DEFAULT.cargo,
-      empresa: draft.empresa.trim() || SUPERVISOR_DEFAULT.empresa,
-      obra: draft.obra.trim() || SUPERVISOR_DEFAULT.obra,
+      nombre: draft.nombre.trim(),
+      cargo: draft.cargo.trim(),
+      empresa: draft.empresa.trim(),
+      obra: draft.obra.trim(),
       siglaEmpresa:
-        draft.siglaEmpresa.trim().toUpperCase() ||
-        SUPERVISOR_DEFAULT.siglaEmpresa,
+        draft.siglaEmpresa.trim().toUpperCase(),
       siglaProyecto:
-        draft.siglaProyecto.trim().toUpperCase() ||
-        SUPERVISOR_DEFAULT.siglaProyecto,
+        draft.siglaProyecto.trim().toUpperCase(),
       foto: draft.foto,
     };
 
     try {
-      localStorage.setItem(STORAGE_SUPERVISOR, JSON.stringify(actualizado));
+      guardarSupervisorV2EnClave(claveSupervisor, actualizado);
       setSupervisor(actualizado);
       setDraft(actualizado);
       setPerfilSupervisorGuardado(true);
@@ -219,7 +169,7 @@ export default function EvaluarV2HomePage() {
       };
 
       try {
-        localStorage.setItem(STORAGE_SUPERVISOR, JSON.stringify(sinFoto));
+        guardarSupervisorV2EnClave(claveSupervisor, sinFoto);
         setSupervisor(sinFoto);
         setDraft(sinFoto);
         setPerfilSupervisorGuardado(true);

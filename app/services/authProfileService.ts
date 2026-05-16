@@ -93,9 +93,33 @@ export async function obtenerAuthProfileActual(): Promise<EstadoAuthProfileCE> {
       };
     }
 
+    const filaPerfil = perfilData as FilaProfileCE;
+
+    if (!esRoleCE(filaPerfil.rol)) {
+      return {
+        usuario: usuarioData.user,
+        perfil: null,
+        autenticado: true,
+        perfilDisponible: false,
+        error:
+          "Usuario autenticado, pero con rol no reconocido. Contacte al administrador.",
+      };
+    }
+
+    if (filaPerfil.activo === false) {
+      return {
+        usuario: usuarioData.user,
+        perfil: null,
+        autenticado: true,
+        perfilDisponible: false,
+        error:
+          "Usuario autenticado, pero el perfil esta inactivo. Contacte al administrador.",
+      };
+    }
+
     return {
       usuario: usuarioData.user,
-      perfil: mapearProfile(perfilData as FilaProfileCE),
+      perfil: mapearProfile(filaPerfil),
       autenticado: true,
       perfilDisponible: true,
     };

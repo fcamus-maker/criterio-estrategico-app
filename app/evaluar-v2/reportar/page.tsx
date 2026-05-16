@@ -6,16 +6,11 @@ import {
   cargarHistorialLivianoV2,
   guardarReporteActualV2,
 } from "../storageReporteV2";
-
-type SupervisorV2 = {
-  nombre: string;
-  cargo: string;
-  empresa: string;
-  obra: string;
-  siglaEmpresa: string;
-  siglaProyecto: string;
-  foto: string;
-};
+import {
+  cargarSupervisorV2UsuarioActual,
+  SUPERVISOR_V2_VACIO,
+  type SupervisorV2,
+} from "../supervisorProfileStorage";
 
 type FotoV2 = {
   id: string;
@@ -33,49 +28,9 @@ type UbicacionV2 = {
   estadoGeolocalizacion: "real" | "simulada-desarrollo";
 };
 
-const STORAGE_SUPERVISOR = "ce_mobile_v2_supervisor";
-
-const SUPERVISOR_DEFAULT: SupervisorV2 = {
-  nombre: "Freddy Camus",
-  cargo: "Ingeniero",
-  empresa: "TNT",
-  obra: "PEL",
-  siglaEmpresa: "TNT",
-  siglaProyecto: "PEL",
-  foto: "",
-};
-
 function vibrarOk() {
   if (typeof navigator !== "undefined" && "vibrate" in navigator) {
     navigator.vibrate(20);
-  }
-}
-
-function cargarSupervisor(): SupervisorV2 {
-  if (typeof window === "undefined") return SUPERVISOR_DEFAULT;
-
-  try {
-    const guardado = JSON.parse(
-      localStorage.getItem(STORAGE_SUPERVISOR) || "null"
-    );
-
-    if (!guardado || typeof guardado !== "object") return SUPERVISOR_DEFAULT;
-
-    return {
-      nombre: String(guardado.nombre || SUPERVISOR_DEFAULT.nombre),
-      cargo: String(guardado.cargo || SUPERVISOR_DEFAULT.cargo),
-      empresa: String(guardado.empresa || SUPERVISOR_DEFAULT.empresa),
-      obra: String(guardado.obra || SUPERVISOR_DEFAULT.obra),
-      siglaEmpresa: String(
-        guardado.siglaEmpresa || SUPERVISOR_DEFAULT.siglaEmpresa
-      ),
-      siglaProyecto: String(
-        guardado.siglaProyecto || SUPERVISOR_DEFAULT.siglaProyecto
-      ),
-      foto: String(guardado.foto || SUPERVISOR_DEFAULT.foto),
-    };
-  } catch {
-    return SUPERVISOR_DEFAULT;
   }
 }
 
@@ -134,7 +89,7 @@ function comprimirFoto(file: File): Promise<FotoV2> {
 export default function ReportarV2Page() {
   const router = useRouter();
   const [supervisor, setSupervisor] =
-    useState<SupervisorV2>(SUPERVISOR_DEFAULT);
+    useState<SupervisorV2>(SUPERVISOR_V2_VACIO);
   const [fechaActual, setFechaActual] = useState("");
   const [horaActual, setHoraActual] = useState("");
   const [area, setArea] = useState("");
@@ -150,9 +105,13 @@ export default function ReportarV2Page() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    const frameId = window.requestAnimationFrame(() => {
+    let activo = true;
+    const frameId = window.requestAnimationFrame(async () => {
       const ahora = new Date();
-      setSupervisor(cargarSupervisor());
+      const contexto = await cargarSupervisorV2UsuarioActual();
+      if (!activo) return;
+
+      setSupervisor(contexto.supervisor);
       setFechaActual(ahora.toLocaleDateString("es-CL"));
       setHoraActual(
         ahora.toLocaleTimeString("es-CL", {
@@ -162,7 +121,10 @@ export default function ReportarV2Page() {
       );
     });
 
-    return () => window.cancelAnimationFrame(frameId);
+    return () => {
+      activo = false;
+      window.cancelAnimationFrame(frameId);
+    };
   }, []);
 
   const seleccionarFotos = async (event: ChangeEvent<HTMLInputElement>) => {

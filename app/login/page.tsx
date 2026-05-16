@@ -1,18 +1,71 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
-  enviarMagicLinkCE,
   iniciarSesionConPasswordCE,
   obtenerAuthProfileActual,
 } from "@/app/services/authProfileService";
+import {
+  destinoPorRolCE,
+  rolPuedeEntrarZonaCE,
+} from "@/app/services/authAccess";
+import type { ProfileCE } from "@/app/types/authRoles";
+
+function destinoSeguroDespuesLogin(perfil: ProfileCE) {
+  if (typeof window === "undefined") return destinoPorRolCE(perfil.rol);
+
+  const params = new URLSearchParams(window.location.search);
+  const redirectTo = params.get("redirectTo") || "";
+
+  if (redirectTo.startsWith("/panel") && rolPuedeEntrarZonaCE(perfil.rol, "panel")) {
+    return redirectTo;
+  }
+
+  if (
+    redirectTo.startsWith("/evaluar-v2") &&
+    rolPuedeEntrarZonaCE(perfil.rol, "evaluar-v2")
+  ) {
+    return redirectTo;
+  }
+
+  return destinoPorRolCE(perfil.rol);
+}
 
 export default function LoginPage() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mostrarPassword, setMostrarPassword] = useState(false);
   const [mensaje, setMensaje] = useState("");
   const [cargando, setCargando] = useState(false);
+
+  const redirigirDespuesLogin = useCallback((destino: string) => {
+    router.replace(destino);
+
+    window.setTimeout(() => {
+      const rutaDestino = destino.split("?")[0] || destino;
+      if (window.location.pathname !== rutaDestino) {
+        window.location.assign(destino);
+      }
+    }, 450);
+  }, [router]);
+
+  useEffect(() => {
+    let activo = true;
+
+    async function redirigirSiHaySesion() {
+      const estado = await obtenerAuthProfileActual();
+      if (!activo || !estado.perfil) return;
+      redirigirDespuesLogin(destinoSeguroDespuesLogin(estado.perfil));
+    }
+
+    redirigirSiHaySesion();
+
+    return () => {
+      activo = false;
+    };
+  }, [redirigirDespuesLogin]);
 
   const enviarPassword = async () => {
     if (cargando) return;
@@ -28,27 +81,17 @@ export default function LoginPage() {
     }
 
     const estado = await obtenerAuthProfileActual();
-    setMensaje(
-      estado.perfil
-        ? `Sesión iniciada: ${estado.perfil.nombre}`
-        : "Sesión iniciada. Perfil pendiente de crear en Supabase."
-    );
-    setCargando(false);
-  };
 
-  const enviarMagic = async () => {
-    if (cargando) return;
+    if (!estado.perfil) {
+      setMensaje(
+        "Usuario autenticado, pero sin perfil configurado. Contacte al administrador."
+      );
+      setCargando(false);
+      return;
+    }
 
-    setCargando(true);
-    setMensaje("");
-    const resultado = await enviarMagicLinkCE(email.trim());
-
-    setMensaje(
-      resultado.ok
-        ? "Magic link enviado si el correo está habilitado en Supabase Auth."
-        : `Magic link pendiente: ${resultado.error}`
-    );
-    setCargando(false);
+    setMensaje(`Sesión iniciada: ${estado.perfil.nombre}`);
+    redirigirDespuesLogin(destinoSeguroDespuesLogin(estado.perfil));
   };
 
   return (
@@ -76,7 +119,7 @@ export default function LoginPage() {
       >
         <h1 style={{ margin: "0 0 8px", fontSize: "24px" }}>Acceso CE</h1>
         <p style={{ margin: "0 0 18px", color: "rgba(255,255,255,0.72)" }}>
-          Login preparado para pruebas controladas. No bloquea app móvil ni panel.
+          Acceso único para demo controlada. El destino se asigna según rol.
         </p>
 
         <div style={{ display: "grid", gap: "12px" }}>
@@ -165,24 +208,6 @@ export default function LoginPage() {
             }}
           >
             {cargando ? "Validando..." : "Entrar"}
-          </button>
-
-          <button
-            type="button"
-            onClick={enviarMagic}
-            disabled={cargando}
-            style={{
-              border: "1px solid rgba(255,255,255,0.18)",
-              borderRadius: "12px",
-              background: "rgba(255,255,255,0.10)",
-              color: "white",
-              cursor: "pointer",
-              fontWeight: 900,
-              padding: "12px",
-              opacity: cargando ? 0.7 : 1,
-            }}
-          >
-            Enviar magic link
           </button>
         </div>
 

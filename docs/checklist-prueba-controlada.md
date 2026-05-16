@@ -10,7 +10,13 @@ produccion.
 - [ ] `/login` responde OK.
 - [ ] `/evaluar-v2` responde OK.
 - [ ] `/panel` responde OK.
+- [ ] `/` redirige a `/login`.
+- [ ] `/evaluar-v2` sin sesion redirige a `/login`.
+- [ ] `/panel`, `/panel/mapa-gps` y `/panel/kpi-gerencial` sin sesion redirigen
+      a `/login`.
 - [ ] Usuario demo probado.
+- [ ] Supervisor demo redirige a `/evaluar-v2`.
+- [ ] Admin/auditor demo redirige a `/panel`.
 - [ ] Insert Supabase probado.
 - [ ] Storage probado.
 - [ ] Si se requiere ver miniaturas en panel, policy temporal demo de lectura
@@ -20,7 +26,8 @@ produccion.
 
 ## Prueba celular
 
-- [ ] Abrir link en Safari iPhone.
+- [ ] Abrir link unico `/login` en Safari iPhone.
+- [ ] Iniciar sesion con usuario supervisor demo.
 - [ ] Agregar a pantalla de inicio.
 - [ ] Crear reporte con 1 foto.
 - [ ] Crear reporte con 3 fotos.
@@ -33,7 +40,9 @@ produccion.
 
 ## Prueba PC
 
-- [ ] Abrir `/panel`.
+- [ ] Abrir `/login`.
+- [ ] Iniciar sesion con usuario admin/auditor demo.
+- [ ] Confirmar redireccion a `/panel`.
 - [ ] Ver hallazgos nuevos.
 - [ ] Revisar KPI.
 - [ ] Revisar Mapa GPS.
@@ -47,6 +56,7 @@ produccion.
 - Metadata aparece en `hallazgos_central`.
 - Panel/informe muestra miniatura de evidencia o estado claro de permiso
   pendiente.
+- Login unico redirige por rol sin pantalla blanca.
 - No se cae la app.
 - No se pierde el reporte.
 - Mensajes de error son claros.

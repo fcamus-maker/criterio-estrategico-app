@@ -3,10 +3,28 @@
 Estado: instrucciones para demo interna controlada. No usar para operacion
 productiva real.
 
+## Link unico de entrada
+
+Usar siempre:
+
+- `https://criterio-estrategico-app.vercel.app/login`
+
+El sistema redirige segun el rol del usuario:
+
+- Supervisor reportante -> app movil `/evaluar-v2`.
+- Administrador, prevencionista o auditor -> panel PC `/panel`.
+
+Usuarios demo disponibles, sin versionar contrasenas:
+
+- `admin.ce.demo@criterioestrategico.cl`
+- `admin.cliente.demo@criterioestrategico.cl`
+- `supervisor.demo@criterioestrategico.cl`
+- `auditor.demo@criterioestrategico.cl`
+
 ## Usuario celular
 
-1. Abrir el link enviado de `/evaluar-v2`.
-2. Si se solicita, entrar con el usuario demo informado por el administrador.
+1. Abrir el link unico `/login`.
+2. Entrar con el usuario demo entregado por privado.
 3. Presionar `Reportar Hallazgo`.
 4. Completar area y descripcion.
 5. Cargar hasta 3 fotografias de prueba.
@@ -27,13 +45,15 @@ productiva real.
 
 ## Usuario PC
 
-1. Abrir el link de `/panel`.
-2. Revisar reportes recientes.
-3. Probar filtros.
-4. Abrir Mapa GPS.
-5. Abrir KPI Gerencial.
-6. Revisar seguimiento de cierre.
-7. Confirmar que aparecen los hallazgos creados desde celular.
+1. Abrir el link unico `/login`.
+2. Entrar con usuario administrador, prevencionista o auditor entregado por
+   privado.
+3. Revisar reportes recientes.
+4. Probar filtros.
+5. Abrir Mapa GPS.
+6. Abrir KPI Gerencial.
+7. Revisar seguimiento de cierre.
+8. Confirmar que aparecen los hallazgos creados desde celular.
 
 ## Advertencias
 
@@ -42,5 +62,6 @@ productiva real.
 - No subir imagenes personales sensibles.
 - No usar para operacion legal real todavia.
 - No compartir contrasenas en chats o capturas.
+- Login requerido para demo controlada, pero RLS definitivo aun esta pendiente.
+- Policy Storage temporal sigue siendo no produccion.
 - Reportar fallas con fecha, hora, ruta y descripcion breve.
-
