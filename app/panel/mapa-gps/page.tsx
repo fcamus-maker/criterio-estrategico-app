@@ -823,10 +823,6 @@ export default function MapaGpsHallazgosPage() {
   }, []);
 
   useEffect(() => {
-    if (!pantallaCompletaActiva) {
-      setGoogleMapsError(false);
-      return;
-    }
     if (!GOOGLE_MAPS_CONFIGURADO) {
       setGoogleMapsListo(false);
       setGoogleMapsError(false);
@@ -867,7 +863,7 @@ export default function MapaGpsHallazgosPage() {
     };
     script.onerror = () => setGoogleMapsError(true);
     document.head.appendChild(script);
-  }, [pantallaCompletaActiva]);
+  }, []);
 
   const opciones = useMemo(
     () => ({
@@ -901,12 +897,12 @@ export default function MapaGpsHallazgosPage() {
   );
   const puntosMapaActivos = usarVistaPreparada ? puntosPreparados : resumenMapa.puntos;
   const zonasMapaActivas = usarVistaPreparada ? zonasPreparadas : resumenMapa.mapaCalor;
-  const usarProveedorGoogle = pantallaCompletaActiva && GOOGLE_MAPS_CONFIGURADO;
+  const usarProveedorGoogle = GOOGLE_MAPS_CONFIGURADO;
   const usarMapaGoogleReal =
     usarProveedorGoogle &&
     googleMapsListo &&
     !googleMapsError;
-  const mostrarMapaPreparado = !pantallaCompletaActiva;
+  const mostrarMapaPreparado = !usarProveedorGoogle;
 
   const puntosVisibles = useMemo(() => {
     if (modoMapa === "zonas") {
@@ -1604,8 +1600,49 @@ export default function MapaGpsHallazgosPage() {
               ) : (
                 <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
                   {[
-                    ["Vista estandar", "#38bdf8"],
-                    ["Vista satelital real", "#a78bfa"],
+                    ["Vista estandar", "#38bdf8", "estandar"],
+                    ["Vista satelital real", "#a78bfa", "satelital"],
+                  ].map(([label, color, tipo]) => (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => cambiarTipoVistaMapa(tipo as TipoVistaMapa)}
+                      style={{
+                        minHeight: "34px",
+                        borderRadius: "999px",
+                        padding: "8px 10px",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "7px",
+                        background:
+                          tipoVistaMapa === tipo
+                            ? "linear-gradient(135deg, #2563eb, #38bdf8)"
+                            : temaClaro
+                              ? "rgba(248,250,252,0.86)"
+                              : "rgba(15,23,42,0.72)",
+                        border:
+                          tipoVistaMapa === tipo
+                            ? "1px solid rgba(125,211,252,0.62)"
+                            : bordeInterno,
+                        color: tipoVistaMapa === tipo ? "#ffffff" : textoMedio,
+                        fontSize: "11px",
+                        fontWeight: 900,
+                        cursor: "pointer",
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: "7px",
+                          height: "7px",
+                          borderRadius: "999px",
+                          background: color,
+                          boxShadow: `0 0 14px ${color}`,
+                        }}
+                      />
+                      {t(label)}
+                    </button>
+                  ))}
+                  {[
                     ["Clusters preparados", "#22c55e"],
                     ["Marcadores compactos", "#f97316"],
                   ].map(([label, color]) => (
@@ -1650,7 +1687,7 @@ export default function MapaGpsHallazgosPage() {
                 overflow: "hidden",
                 border: "1px solid rgba(125,211,252,0.18)",
                 backgroundColor:
-                  pantallaCompletaActiva
+                  usarProveedorGoogle
                     ? temaClaro
                       ? "#e2e8f0"
                       : "#0f172a"
@@ -1658,13 +1695,13 @@ export default function MapaGpsHallazgosPage() {
                       ? "#eef4fb"
                       : "#061126",
                 backgroundImage:
-                  pantallaCompletaActiva
+                  usarProveedorGoogle
                     ? "none"
                     : temaClaro
                     ? "linear-gradient(rgba(100,116,139,0.12) 1px, transparent 1px), linear-gradient(90deg, rgba(100,116,139,0.12) 1px, transparent 1px), radial-gradient(circle at 25% 35%, rgba(59,130,246,0.16), transparent 24%), radial-gradient(circle at 68% 46%, rgba(239,68,68,0.12), transparent 20%), linear-gradient(145deg, rgba(248,250,252,0.98), rgba(226,232,240,0.82))"
                     : "linear-gradient(rgba(148,163,184,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,0.08) 1px, transparent 1px), radial-gradient(circle at 25% 35%, rgba(59,130,246,0.20), transparent 24%), radial-gradient(circle at 68% 46%, rgba(239,68,68,0.16), transparent 20%), linear-gradient(145deg, rgba(2,6,23,0.94), rgba(15,23,42,0.82))",
                 backgroundSize:
-                  pantallaCompletaActiva
+                  usarProveedorGoogle
                     ? "auto, auto, auto, auto, auto"
                     : "48px 48px, 48px 48px, auto, auto, auto",
                 backgroundPosition: "center",
