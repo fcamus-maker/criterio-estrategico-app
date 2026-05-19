@@ -401,15 +401,16 @@ export default function KpiGerencialAvanzadoPage() {
   const bordeInterno = temaClaro
     ? "1px solid rgba(100,116,139,0.20)"
     : "1px solid rgba(148,163,184,0.18)";
-  const [hallazgos, setHallazgos] = useState<HallazgoKpiGerencial[]>([]);
-  const [cargando, setCargando] = useState(true);
+  const [hallazgos, setHallazgos] = useState<HallazgoKpiGerencial[]>(
+    () => hallazgosMock.map((hallazgo) => convertirHallazgoKpi(hallazgo))
+  );
+  const [cargando, setCargando] = useState(false);
   const [filtros, setFiltros] = useState<FiltrosVista>(filtrosIniciales);
   const [accionActiva, setAccionActiva] = useState("");
   const [modoAnalisis, setModoAnalisis] = useState("ranking-empresas");
   const [mensaje, setMensaje] = useState("Modulo gerencial preparado con fuente actual y fallback seguro.");
 
   async function cargarDatos() {
-    setCargando(true);
     try {
       const datosPanel = await cargarHallazgosPanelConFuentesOpcionales(hallazgosMock);
       setHallazgos(

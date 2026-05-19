@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from "react";
 import {
   analizarMapaGpsHallazgos,
   type CeldaMapaCalorHallazgo,
@@ -21,6 +21,36 @@ import {
   usePlatformPreferences,
 } from "../../services/platformPreferences";
 
+declare global {
+  interface Window {
+    google?: {
+      maps?: {
+        Map: new (
+          element: HTMLElement,
+          options: Record<string, unknown>
+        ) => GoogleMapInstance;
+        Marker: new (options: Record<string, unknown>) => GoogleMapMarker;
+        LatLngBounds: new () => GoogleLatLngBounds;
+      };
+    };
+  }
+}
+
+type GoogleMapInstance = {
+  setMapTypeId: (mapTypeId: string) => void;
+  setZoom: (zoom: number) => void;
+  fitBounds: (bounds: GoogleLatLngBounds) => void;
+  setCenter: (center: { lat: number; lng: number }) => void;
+};
+
+type GoogleMapMarker = {
+  setMap: (map: GoogleMapInstance | null) => void;
+};
+
+type GoogleLatLngBounds = {
+  extend: (point: { lat: number; lng: number }) => void;
+};
+
 type HallazgoPanelExtendido = HallazgoPanel & {
   area?: string;
   gps?: HallazgoCentral["geolocalizacion"];
@@ -29,6 +59,38 @@ type HallazgoPanelExtendido = HallazgoPanel & {
 
 type ModoMapa = "puntos" | "calor" | "zonas";
 type FiltroGps = "todos" | "con-gps" | "sin-gps";
+type TipoVistaMapa = "estandar" | "satelital";
+type AccionBarraMapa =
+  | "general"
+  | "criticidad"
+  | "mas-criticos"
+  | "menos-criticos"
+  | "cerrados"
+  | "empresas"
+  | "obras"
+  | "recientes"
+  | "vencidos"
+  | "capas"
+  | "estandar"
+  | "satelital"
+  | "zoom-mas"
+  | "zoom-menos"
+  | "salir";
+type IconoBarraMapa =
+  | "mapa"
+  | "filtro"
+  | "alerta"
+  | "bajo"
+  | "check"
+  | "empresa"
+  | "obra"
+  | "reciente"
+  | "vencido"
+  | "capas"
+  | "satelital"
+  | "zoomMas"
+  | "zoomMenos"
+  | "salir";
 
 type FiltrosVista = {
   empresa: string;
@@ -109,6 +171,12 @@ const inputStyle: CSSProperties = {
   outline: "none",
   colorScheme: "dark",
 };
+
+const GOOGLE_MAPS_SCRIPT_ID = "ce-google-maps-js-api";
+const GOOGLE_MAPS_API_KEY = (process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "").trim();
+const GOOGLE_MAPS_CONFIGURADO = /^AIza[0-9A-Za-z_-]{20,}$/.test(
+  GOOGLE_MAPS_API_KEY
+);
 
 function vibrarCorto() {
   if (typeof navigator !== "undefined" && "vibrate" in navigator) {
@@ -255,11 +323,31 @@ const textosMapaEn: Record<string, string> = {
   "Vista de puntos activa: lectura individual de reportes GPS.": "Points view active: individual GPS report review.",
   "Filtros limpiados. Vista territorial general restablecida.": "Filters cleared. General territorial view restored.",
   "Filtros aplicados sobre la vista territorial.": "Filters applied to territorial view.",
+  "Cargando lectura territorial...": "Loading territorial review...",
   "Plataforma Hallazgos": "Findings Platform",
   "Mapa GPS de Hallazgos": "GPS Findings Map",
   "Lectura preventiva territorial para identificar concentracion de hallazgos, zonas calientes, criticidad geografica y focos de accion en terreno.": "Preventive territorial review to identify finding concentration, hot zones, geographic severity and field action focus.",
   "Volver al panel ejecutivo": "Back to executive dashboard",
   "Actualizar vista": "Refresh view",
+  "Abrir pantalla completa": "Full screen map",
+  "Pantalla completa preparada. En la version futura se conectara a mapa operacional dedicado.": "Full screen ready. A dedicated operational map will be connected in a future version.",
+  "Pantalla completa no disponible en este navegador. La vista previa queda activa.": "Full screen is not available in this browser. The preview remains active.",
+  "Vista estandar": "Standard view",
+  "Vista satelital real": "Real satellite view",
+  "Proveedor Google Maps no configurado": "Google Maps provider not configured",
+  "Configura NEXT_PUBLIC_GOOGLE_MAPS_API_KEY para activar mapa estandar y satelital/hibrido real.": "Configure NEXT_PUBLIC_GOOGLE_MAPS_API_KEY to enable the real standard and satellite/hybrid map.",
+  "Proveedor real pendiente": "Real provider pending",
+  "La vista previa mantiene lectura ejecutiva preparada. Configura NEXT_PUBLIC_GOOGLE_MAPS_API_KEY para activar Google Maps real en pantalla completa.": "The preview keeps a prepared executive review. Configure NEXT_PUBLIC_GOOGLE_MAPS_API_KEY to enable real Google Maps in full screen.",
+  "Mapa real satelital listo para conectar": "Real satellite map ready to connect",
+  "Proveedor de mapa no disponible": "Map provider unavailable",
+  "No se pudo cargar Google Maps. Revisa la API key, dominios autorizados y facturacion.": "Google Maps could not be loaded. Check the API key, authorized domains and billing.",
+  "Clusters preparados": "Clusters ready",
+  "Marcadores compactos": "Compact markers",
+  "Vista preparada / simulacion visual": "Prepared view / visual simulation",
+  "Visualizacion preparada con datos disponibles; no representa coordenadas reales.": "Prepared visualization with available data; it does not represent real coordinates.",
+  "Simulacion visual territorial": "Territorial visual simulation",
+  "Mapa preparado": "Prepared map",
+  "Puntos preparados": "Prepared points",
   "Hallazgos con GPS": "Findings with GPS",
   "Puntos disponibles para lectura territorial": "Points available for territorial review",
   "Hallazgos sin GPS": "Findings without GPS",
@@ -324,7 +412,153 @@ const textosMapaEn: Record<string, string> = {
   hallazgos: "findings",
   "criticos/altos": "critical/high",
   "Foco aplicado: hallazgos criticos con trazabilidad GPS.": "Focus applied: critical findings with GPS traceability.",
+  "General map view": "General map view",
+  "Vista general del mapa": "General map view",
+  "Filtro por criticidad": "Filter by severity",
+  "Mas criticos": "Most critical",
+  "Menos criticos": "Least critical",
+  Cerrados: "Closed",
+  Empresas: "Companies",
+  "Obras/areas": "Sites/areas",
+  Recientes: "Recent",
+  Vencidos: "Overdue",
+  "Capas / visualizacion": "Layers / display",
+  "Salir de pantalla completa": "Exit full screen",
+  "Zoom mas": "Zoom in",
+  "Zoom menos": "Zoom out",
+  "Mapa operativo": "Operational map",
+  "Panel territorial": "Territorial panel",
+  "Vista mapa": "Map view",
+  "Hallazgos visibles": "Visible findings",
+  "Sin hallazgo seleccionado": "No finding selected",
+  "Selecciona un marcador para revisar detalle ejecutivo.": "Select a marker to review executive detail.",
+  "Filtros activos": "Active filters",
+  "Criticidad critica y alta": "Critical and high severity",
+  "Criticidad media y baja": "Medium and low severity",
+  "Concentracion por empresa": "Company concentration",
+  "Concentracion por obra y area": "Site and area concentration",
+  "Estados abiertos y en seguimiento": "Open and in-follow-up status",
+  "Reportes recientes": "Recent reports",
+  "Hallazgos vencidos": "Overdue findings",
+  "Capas territoriales alternadas.": "Territorial layers toggled.",
+  "Vista general del mapa restablecida.": "General map view restored.",
+  "Filtro rapido aplicado por criticidad critica y alta.": "Quick filter applied for critical and high severity.",
+  "Foco en puntos de mayor criticidad.": "Focus on highest-severity points.",
+  "Foco en hallazgos de menor criticidad.": "Focus on lower-severity findings.",
+  "Filtro aplicado a hallazgos cerrados.": "Filter applied to closed findings.",
+  "Lectura por empresas destacada.": "Company review highlighted.",
+  "Lectura por obras y areas destacada.": "Site and area review highlighted.",
+  "Filtro por estados activos aplicado.": "Active status filter applied.",
+  "Lectura de hallazgos recientes aplicada.": "Recent findings review applied.",
+  "Revision de vencidos aplicada.": "Overdue review applied.",
 };
+
+function IconoMapa({ tipo }: { tipo: IconoBarraMapa }) {
+  const trazo = "currentColor";
+  const iconos: Record<IconoBarraMapa, ReactElement> = {
+    mapa: (
+      <>
+        <path d="M4 6.5l5-2.2 6 2.2 5-2.2v13.2l-5 2.2-6-2.2-5 2.2V6.5z" />
+        <path d="M9 4.3v13.2M15 6.5v13.2" />
+      </>
+    ),
+    filtro: (
+      <>
+        <path d="M4 6h16M7 12h10M10 18h4" />
+      </>
+    ),
+    alerta: (
+      <>
+        <path d="M12 4l8 14H4L12 4z" />
+        <path d="M12 9v4M12 16h.01" />
+      </>
+    ),
+    bajo: (
+      <>
+        <path d="M5 7h14M5 12h10M5 17h6" />
+        <path d="M17 14l2 2 2-2M19 10v6" />
+      </>
+    ),
+    check: (
+      <>
+        <path d="M5 13l4 4L19 7" />
+        <path d="M4 20h16" />
+      </>
+    ),
+    empresa: (
+      <>
+        <path d="M5 20V5h10v15M15 10h4v10" />
+        <path d="M8 8h2M8 12h2M8 16h2" />
+      </>
+    ),
+    obra: (
+      <>
+        <path d="M4 19h16M6 19V9l6-4 6 4v10" />
+        <path d="M10 19v-5h4v5" />
+      </>
+    ),
+    reciente: (
+      <>
+        <path d="M12 6v6l4 2" />
+        <path d="M21 12a9 9 0 1 1-3-6.7" />
+        <path d="M21 4v5h-5" />
+      </>
+    ),
+    vencido: (
+      <>
+        <path d="M12 7v5l3 2" />
+        <path d="M12 21a9 9 0 1 0-9-9" />
+        <path d="M3 16v5h5" />
+      </>
+    ),
+    capas: (
+      <>
+        <path d="M12 4l9 5-9 5-9-5 9-5z" />
+        <path d="M5 13l7 4 7-4M5 17l7 4 7-4" />
+      </>
+    ),
+    satelital: (
+      <>
+        <path d="M4 7l8-4 8 4-8 4-8-4z" />
+        <path d="M4 12l8 4 8-4M4 17l8 4 8-4" />
+      </>
+    ),
+    zoomMas: (
+      <>
+        <circle cx="10.5" cy="10.5" r="6.5" />
+        <path d="M10.5 7.5v6M7.5 10.5h6M16 16l4 4" />
+      </>
+    ),
+    zoomMenos: (
+      <>
+        <circle cx="10.5" cy="10.5" r="6.5" />
+        <path d="M7.5 10.5h6M16 16l4 4" />
+      </>
+    ),
+    salir: (
+      <>
+        <path d="M19 12H5" />
+        <path d="M12 5l-7 7 7 7" />
+      </>
+    ),
+  };
+
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      width="21"
+      height="21"
+      fill="none"
+      stroke={trazo}
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {iconos[tipo]}
+    </svg>
+  );
+}
 
 function posicionNormalizada(
   latitud: number,
@@ -346,6 +580,110 @@ function posicionNormalizada(
     left: Math.min(92, Math.max(8, ((longitud - minLng) / rangoLng) * 78 + 11 + offset)),
     top: Math.min(88, Math.max(10, 88 - ((latitud - minLat) / rangoLat) * 76 - offset)),
   };
+}
+
+function resumirDescripcionMapa(descripcion: string) {
+  const limpia = descripcion.trim();
+  return limpia.length > 120 ? `${limpia.slice(0, 117)}...` : limpia;
+}
+
+function pesoCriticidadVisual(criticidad: CriticidadHallazgoCentral) {
+  if (criticidad === "CRITICO") return 4;
+  if (criticidad === "ALTO") return 3;
+  if (criticidad === "MEDIO") return 2;
+  return 1;
+}
+
+function prepararPuntosVisualesMapa(hallazgos: HallazgoCentral[]) {
+  const matrizBase = [
+    [104.2, 101.4],
+    [102.8, 103.8],
+    [105.9, 104.9],
+    [100.7, 106.2],
+    [103.6, 108.1],
+    [107.1, 102.8],
+    [101.6, 109.4],
+    [106.4, 107.3],
+    [108.0, 105.1],
+    [104.9, 110.2],
+  ];
+  const grupoPosicion = new Map<string, number>();
+
+  return hallazgos.map((hallazgo, index): PuntoMapaGpsHallazgo => {
+    const claveGrupo = `${hallazgo.empresa || "SIN_EMPRESA"}-${hallazgo.obra || "SIN_OBRA"}-${hallazgo.area || "SIN_AREA"}`;
+    const grupo = grupoPosicion.get(claveGrupo) ?? grupoPosicion.size;
+    grupoPosicion.set(claveGrupo, grupo);
+    const base = matrizBase[grupo % matrizBase.length];
+    const desplazamiento = ((index % 4) - 1.5) * 0.18;
+    const severidad = pesoCriticidadVisual(hallazgo.criticidad) * 0.08;
+
+    return {
+      id: hallazgo.id,
+      codigo: hallazgo.codigo,
+      latitud: base[0] + desplazamiento + severidad,
+      longitud: base[1] - desplazamiento - severidad,
+      estadoGeolocalizacion: "vista_preparada",
+      empresa: hallazgo.empresa,
+      obra: hallazgo.obra,
+      area: hallazgo.area,
+      criticidad: hallazgo.criticidad,
+      estado: hallazgo.estado,
+      descripcionResumen: resumirDescripcionMapa(hallazgo.descripcion),
+    };
+  });
+}
+
+function prepararZonasVisualesMapa(puntos: PuntoMapaGpsHallazgo[]) {
+  const zonas = new Map<
+    string,
+    {
+      latitudTotal: number;
+      longitudTotal: number;
+      total: number;
+      criticosAltos: number;
+      criticidadMaxima: CriticidadHallazgoCentral;
+      codigos: string[];
+    }
+  >();
+
+  for (const punto of puntos) {
+    const clave = `${punto.empresa || "Sin empresa"} · ${punto.area || punto.obra || "General"}`;
+    const actual =
+      zonas.get(clave) ||
+      {
+        latitudTotal: 0,
+        longitudTotal: 0,
+        total: 0,
+        criticosAltos: 0,
+        criticidadMaxima: "BAJO" as CriticidadHallazgoCentral,
+        codigos: [],
+      };
+
+    actual.latitudTotal += punto.latitud;
+    actual.longitudTotal += punto.longitud;
+    actual.total += 1;
+    actual.criticosAltos +=
+      punto.criticidad === "CRITICO" || punto.criticidad === "ALTO" ? 1 : 0;
+    actual.criticidadMaxima =
+      pesoCriticidadVisual(punto.criticidad) >
+      pesoCriticidadVisual(actual.criticidadMaxima)
+        ? punto.criticidad
+        : actual.criticidadMaxima;
+    actual.codigos.push(punto.codigo);
+    zonas.set(clave, actual);
+  }
+
+  return Array.from(zonas.entries())
+    .map(([clave, zona]): CeldaMapaCalorHallazgo => ({
+      clave,
+      latitudPromedio: zona.latitudTotal / zona.total,
+      longitudPromedio: zona.longitudTotal / zona.total,
+      total: zona.total,
+      criticosAltos: zona.criticosAltos,
+      criticidadMaxima: zona.criticidadMaxima,
+      codigos: zona.codigos,
+    }))
+    .sort((a, b) => b.total + b.criticosAltos - (a.total + a.criticosAltos));
 }
 
 function filtrarHallazgos(hallazgos: HallazgoCentral[], filtros: FiltrosVista) {
@@ -385,6 +723,10 @@ function filtrarHallazgos(hallazgos: HallazgoCentral[], filtros: FiltrosVista) {
 }
 
 export default function MapaGpsHallazgosPage() {
+  const mapaOperativoRef = useRef<HTMLElement | null>(null);
+  const googleMapContainerRef = useRef<HTMLDivElement | null>(null);
+  const googleMapInstanceRef = useRef<GoogleMapInstance | null>(null);
+  const googleMarkersRef = useRef<GoogleMapMarker[]>([]);
   const preferencias = usePlatformPreferences();
   const idiomaActivo = resolvePlatformLanguage(preferencias.language);
   const temaClaro = resolvePlatformTheme(preferencias.theme) === "light";
@@ -439,6 +781,12 @@ export default function MapaGpsHallazgosPage() {
   const [mensaje, setMensaje] = useState("Vista territorial preparada con fuente local y fallback seguro.");
   const [zonaSeleccionada, setZonaSeleccionada] = useState<CeldaMapaCalorHallazgo | null>(null);
   const [puntoSeleccionado, setPuntoSeleccionado] = useState<PuntoMapaGpsHallazgo | null>(null);
+  const [barraExpandida, setBarraExpandida] = useState(false);
+  const [tipoVistaMapa, setTipoVistaMapa] = useState<TipoVistaMapa>("estandar");
+  const [zoomMapa, setZoomMapa] = useState(1);
+  const [pantallaCompletaActiva, setPantallaCompletaActiva] = useState(false);
+  const [googleMapsListo, setGoogleMapsListo] = useState(false);
+  const [googleMapsError, setGoogleMapsError] = useState(false);
 
   async function cargarDatos() {
     setCargando(true);
@@ -462,6 +810,65 @@ export default function MapaGpsHallazgosPage() {
     cargarDatos();
   }, []);
 
+  useEffect(() => {
+    const sincronizarPantallaCompleta = () => {
+      setPantallaCompletaActiva(document.fullscreenElement === mapaOperativoRef.current);
+      if (document.fullscreenElement !== mapaOperativoRef.current) {
+        setBarraExpandida(false);
+      }
+    };
+
+    document.addEventListener("fullscreenchange", sincronizarPantallaCompleta);
+    return () => document.removeEventListener("fullscreenchange", sincronizarPantallaCompleta);
+  }, []);
+
+  useEffect(() => {
+    if (!pantallaCompletaActiva) {
+      setGoogleMapsError(false);
+      return;
+    }
+    if (!GOOGLE_MAPS_CONFIGURADO) {
+      setGoogleMapsListo(false);
+      setGoogleMapsError(false);
+      return;
+    }
+    if (window.google?.maps?.Map) {
+      setGoogleMapsListo(true);
+      setGoogleMapsError(false);
+      return;
+    }
+
+    const scriptExistente = document.getElementById(GOOGLE_MAPS_SCRIPT_ID) as
+      | HTMLScriptElement
+      | null;
+
+    if (scriptExistente) {
+      const resolverCarga = () => {
+        setGoogleMapsListo(Boolean(window.google?.maps?.Map));
+        setGoogleMapsError(!window.google?.maps?.Map);
+      };
+      scriptExistente.addEventListener("load", resolverCarga, { once: true });
+      scriptExistente.addEventListener("error", () => setGoogleMapsError(true), {
+        once: true,
+      });
+      return () => scriptExistente.removeEventListener("load", resolverCarga);
+    }
+
+    const script = document.createElement("script");
+    script.id = GOOGLE_MAPS_SCRIPT_ID;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(
+      GOOGLE_MAPS_API_KEY
+    )}&v=weekly`;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => {
+      setGoogleMapsListo(Boolean(window.google?.maps?.Map));
+      setGoogleMapsError(!window.google?.maps?.Map);
+    };
+    script.onerror = () => setGoogleMapsError(true);
+    document.head.appendChild(script);
+  }, [pantallaCompletaActiva]);
+
   const opciones = useMemo(
     () => ({
       empresas: valorUnico(hallazgos.map((hallazgo) => hallazgo.empresa)),
@@ -482,25 +889,101 @@ export default function MapaGpsHallazgosPage() {
     [hallazgosFiltrados]
   );
 
+  const usarVistaPreparada =
+    !cargando && hallazgosFiltrados.length > 0 && resumenMapa.totalConGps < 2;
+  const puntosPreparados = useMemo(
+    () => prepararPuntosVisualesMapa(hallazgosFiltrados),
+    [hallazgosFiltrados]
+  );
+  const zonasPreparadas = useMemo(
+    () => prepararZonasVisualesMapa(puntosPreparados),
+    [puntosPreparados]
+  );
+  const puntosMapaActivos = usarVistaPreparada ? puntosPreparados : resumenMapa.puntos;
+  const zonasMapaActivas = usarVistaPreparada ? zonasPreparadas : resumenMapa.mapaCalor;
+  const usarProveedorGoogle = pantallaCompletaActiva && GOOGLE_MAPS_CONFIGURADO;
+  const usarMapaGoogleReal =
+    usarProveedorGoogle &&
+    googleMapsListo &&
+    !googleMapsError;
+  const mostrarMapaPreparado = !pantallaCompletaActiva;
+
   const puntosVisibles = useMemo(() => {
     if (modoMapa === "zonas") {
-      return resumenMapa.puntos.filter(
+      return puntosMapaActivos.filter(
         (punto) => punto.criticidad === "CRITICO" || punto.criticidad === "ALTO"
       );
     }
 
-    return resumenMapa.puntos;
-  }, [modoMapa, resumenMapa.puntos]);
+    return puntosMapaActivos;
+  }, [modoMapa, puntosMapaActivos]);
 
-  const mayorConcentracion = resumenMapa.mapaCalor[0]
-    ? [...resumenMapa.mapaCalor].sort((a, b) => b.total - a.total)[0]
+  const mayorConcentracion = zonasMapaActivas[0]
+    ? [...zonasMapaActivas].sort((a, b) => b.total - a.total)[0]
     : null;
-  const zonasCriticas = resumenMapa.mapaCalor.filter(
+  const zonasCriticas = zonasMapaActivas.filter(
     (zona) => zona.criticidadMaxima === "CRITICO" || zona.criticosAltos > 0
   );
   const concentracionEmpresa = ordenarEntradas(resumenMapa.porEmpresa)[0];
   const concentracionObra = ordenarEntradas(resumenMapa.porObra)[0];
   const concentracionArea = ordenarEntradas(resumenMapa.porArea)[0];
+
+  useEffect(() => {
+    if (!usarMapaGoogleReal || !googleMapContainerRef.current || !window.google?.maps) {
+      return;
+    }
+
+    const maps = window.google.maps;
+    const puntosReales = resumenMapa.puntos;
+    const centroInicial = puntosReales[0]
+      ? { lat: puntosReales[0].latitud, lng: puntosReales[0].longitud }
+      : { lat: -30.5595, lng: -71.1791 };
+
+    if (!googleMapInstanceRef.current) {
+      googleMapInstanceRef.current = new maps.Map(googleMapContainerRef.current, {
+        center: centroInicial,
+        zoom: Math.round(9 + (zoomMapa - 1) * 4),
+        mapTypeId: tipoVistaMapa === "satelital" ? "hybrid" : "roadmap",
+        disableDefaultUI: true,
+        zoomControl: false,
+        streetViewControl: false,
+        fullscreenControl: false,
+        mapTypeControl: false,
+        gestureHandling: "greedy",
+      });
+    }
+
+    const mapa = googleMapInstanceRef.current;
+    mapa.setMapTypeId(tipoVistaMapa === "satelital" ? "hybrid" : "roadmap");
+    mapa.setZoom(Math.round(9 + (zoomMapa - 1) * 4));
+    googleMarkersRef.current.forEach((marker) => marker.setMap(null));
+    googleMarkersRef.current = [];
+
+    if (puntosReales.length === 0) {
+      mapa.setCenter(centroInicial);
+      return;
+    }
+
+    const limites = new maps.LatLngBounds();
+    googleMarkersRef.current = puntosReales.map((punto) => {
+      const posicion = { lat: punto.latitud, lng: punto.longitud };
+      limites.extend(posicion);
+      return new maps.Marker({
+        position: posicion,
+        map: mapa,
+        title: `${punto.codigo} · ${punto.empresa}`,
+        icon: {
+          path: "M 0,0 m -7,0 a 7,7 0 1,0 14,0 a 7,7 0 1,0 -14,0",
+          fillColor: colorCriticidad(punto.criticidad),
+          fillOpacity: 0.96,
+          strokeColor: "#ffffff",
+          strokeWeight: 1.6,
+          scale: punto.criticidad === "CRITICO" ? 1.12 : 0.9,
+        },
+      });
+    });
+    mapa.fitBounds(limites);
+  }, [usarMapaGoogleReal, resumenMapa.puntos, zoomMapa, tipoVistaMapa]);
 
   function botonStyle(id: string, destacado = false): CSSProperties {
     const activo = accionActiva === id;
@@ -559,6 +1042,166 @@ export default function MapaGpsHallazgosPage() {
     setZonaSeleccionada(null);
     setPuntoSeleccionado(null);
     setMensaje("Filtros limpiados. Vista territorial general restablecida.");
+  }
+
+  function cambiarTipoVistaMapa(tipo: TipoVistaMapa) {
+    activarBoton(tipo);
+    setTipoVistaMapa(tipo);
+    setMensaje(
+      tipo === "satelital"
+        ? "Vista satelital real"
+        : "Vista estandar"
+    );
+  }
+
+  function ajustarZoom(delta: number) {
+    activarBoton(delta > 0 ? "zoom-mas" : "zoom-menos");
+    setZoomMapa((actual) => Math.min(1.6, Math.max(0.75, Number((actual + delta).toFixed(2)))));
+  }
+
+  async function abrirPantallaCompleta() {
+    activarBoton("pantalla-completa");
+    const elemento = mapaOperativoRef.current;
+
+    if (elemento?.requestFullscreen) {
+      try {
+        await elemento.requestFullscreen();
+        setPantallaCompletaActiva(true);
+        setMensaje("Pantalla completa preparada. En la version futura se conectara a mapa operacional dedicado.");
+        return;
+      } catch {
+        setMensaje("Pantalla completa no disponible en este navegador. La vista previa queda activa.");
+        return;
+      }
+    }
+
+    setMensaje("Pantalla completa no disponible en este navegador. La vista previa queda activa.");
+  }
+
+  async function salirPantallaCompleta() {
+    activarBoton("salir");
+    if (document.fullscreenElement) {
+      await document.exitFullscreen();
+    }
+    setPantallaCompletaActiva(false);
+    setBarraExpandida(false);
+  }
+
+  const accionesBarra: Array<{
+    id: AccionBarraMapa;
+    icono: IconoBarraMapa;
+    etiqueta: string;
+    destacado?: boolean;
+  }> = [
+    { id: "general", icono: "mapa", etiqueta: "Ver todos los puntos", destacado: true },
+    { id: "criticidad", icono: "filtro", etiqueta: "Filtro por criticidad" },
+    { id: "mas-criticos", icono: "alerta", etiqueta: "Mas criticos" },
+    { id: "menos-criticos", icono: "bajo", etiqueta: "Menos criticos" },
+    { id: "cerrados", icono: "check", etiqueta: "Cerrados" },
+    { id: "empresas", icono: "empresa", etiqueta: "Empresas" },
+    { id: "obras", icono: "obra", etiqueta: "Obras/areas" },
+    { id: "recientes", icono: "reciente", etiqueta: "Recientes" },
+    { id: "vencidos", icono: "vencido", etiqueta: "Vencidos" },
+    { id: "capas", icono: "capas", etiqueta: "Capas / visualizacion" },
+    { id: "estandar", icono: "capas", etiqueta: "Vista estandar" },
+    { id: "satelital", icono: "satelital", etiqueta: "Vista satelital real" },
+    { id: "zoom-mas", icono: "zoomMas", etiqueta: "Zoom mas" },
+    { id: "zoom-menos", icono: "zoomMenos", etiqueta: "Zoom menos" },
+    { id: "salir", icono: "salir", etiqueta: "Salir de pantalla completa" },
+  ];
+
+  function ejecutarAccionBarra(id: AccionBarraMapa) {
+    activarBoton(id);
+
+    if (id === "general") {
+      setFiltros(filtrosIniciales);
+      setModoMapa("puntos");
+      setZonaSeleccionada(null);
+      setPuntoSeleccionado(null);
+      setMensaje("Vista general del mapa restablecida.");
+      return;
+    }
+
+    if (id === "criticidad" || id === "mas-criticos") {
+      setFiltros((actual) => ({ ...actual, criticidad: "CRITICO", gps: "todos" }));
+      setModoMapa("zonas");
+      setMensaje(id === "mas-criticos" ? "Foco en puntos de mayor criticidad." : "Filtro rapido aplicado por criticidad critica y alta.");
+      return;
+    }
+
+    if (id === "menos-criticos") {
+      setFiltros((actual) => ({ ...actual, criticidad: "BAJO", gps: "todos" }));
+      setModoMapa("puntos");
+      setMensaje("Foco en hallazgos de menor criticidad.");
+      return;
+    }
+
+    if (id === "cerrados") {
+      setFiltros((actual) => ({ ...actual, estado: "CERRADO", gps: "todos" }));
+      setModoMapa("puntos");
+      setMensaje("Filtro aplicado a hallazgos cerrados.");
+      return;
+    }
+
+    if (id === "empresas") {
+      setFiltros((actual) => ({ ...actual, empresa: concentracionEmpresa?.[0] || "", gps: "todos" }));
+      setModoMapa("calor");
+      setMensaje("Lectura por empresas destacada.");
+      return;
+    }
+
+    if (id === "obras") {
+      setFiltros((actual) => ({
+        ...actual,
+        obra: concentracionObra?.[0] || "",
+        area: concentracionArea?.[0] || "",
+        gps: "todos",
+      }));
+      setModoMapa("calor");
+      setMensaje("Lectura por obras y areas destacada.");
+      return;
+    }
+
+    if (id === "recientes") {
+      setFiltros((actual) => ({ ...actual, fechaDesde: "", fechaHasta: "", gps: "todos" }));
+      setModoMapa("puntos");
+      setMensaje("Lectura de hallazgos recientes aplicada.");
+      return;
+    }
+
+    if (id === "vencidos") {
+      setFiltros((actual) => ({ ...actual, estado: "ABIERTO", gps: "todos" }));
+      setModoMapa("zonas");
+      setMensaje("Revision de vencidos aplicada.");
+      return;
+    }
+
+    if (id === "capas") {
+      const siguiente: ModoMapa =
+        modoMapa === "calor" ? "puntos" : modoMapa === "puntos" ? "zonas" : "calor";
+      setModoMapa(siguiente);
+      setMensaje("Capas territoriales alternadas.");
+      return;
+    }
+
+    if (id === "estandar" || id === "satelital") {
+      cambiarTipoVistaMapa(id);
+      return;
+    }
+
+    if (id === "zoom-mas") {
+      ajustarZoom(0.15);
+      return;
+    }
+
+    if (id === "zoom-menos") {
+      ajustarZoom(-0.15);
+      return;
+    }
+
+    if (id === "salir") {
+      void salirPantallaCompleta();
+    }
   }
 
   return (
@@ -628,6 +1271,13 @@ export default function MapaGpsHallazgosPage() {
               style={botonStyle("actualizar", true)}
             >
               {t("Actualizar vista")}
+            </button>
+            <button
+              type="button"
+              onClick={abrirPantallaCompleta}
+              style={botonStyle("pantalla-completa", true)}
+            >
+              {t("Abrir pantalla completa")}
             </button>
           </div>
         </header>
@@ -717,173 +1367,174 @@ export default function MapaGpsHallazgosPage() {
 
         <section
           className="ce-panel-map-grid"
+          ref={mapaOperativoRef}
           style={{
             display: "grid",
             gridTemplateColumns:
-              "clamp(300px, 16vw, 390px) minmax(0, 1fr) clamp(330px, 18vw, 440px)",
-            gap: "clamp(16px, 1vw, 24px)",
+              pantallaCompletaActiva
+                ? "auto minmax(0, 1fr)"
+                : "minmax(0, 1fr) clamp(300px, 17vw, 390px)",
+            gap: "clamp(12px, 0.9vw, 18px)",
             alignItems: "stretch",
+            minHeight: pantallaCompletaActiva ? "100vh" : undefined,
+            padding: pantallaCompletaActiva ? "12px" : undefined,
+            background: pantallaCompletaActiva
+              ? temaClaro
+                ? "linear-gradient(135deg, #e2e8f0, #f8fafc)"
+                : "linear-gradient(135deg, #020617, #0f172a)"
+              : undefined,
           }}
         >
-          <aside className="ce-panel-map-filters" style={{ ...themedSurfaceStyle, padding: "18px", display: "grid", gap: "14px" }}>
-            <div>
-              <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 950 }}>
-                {t("Filtros territoriales")}
-              </h2>
-              <p
+          {pantallaCompletaActiva && (
+          <aside
+            className="ce-panel-map-rail"
+            onMouseEnter={() => setBarraExpandida(true)}
+            onMouseLeave={() => setBarraExpandida(false)}
+            style={{
+              ...themedSurfaceStyle,
+              width: barraExpandida ? "232px" : "66px",
+              padding: "12px",
+              display: "grid",
+              alignContent: "space-between",
+              gap: "12px",
+              overflow: "hidden",
+              transition: "width 180ms ease, box-shadow 180ms ease",
+              position: "sticky",
+              top: "16px",
+              minHeight: "calc(100vh - 24px)",
+              zIndex: 5,
+            }}
+          >
+            <div style={{ display: "grid", gap: "10px" }}>
+              <div
                 style={{
-                  margin: "6px 0 0",
-                  color: textoSuave,
+                  height: "42px",
+                  borderRadius: "17px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: barraExpandida ? "flex-start" : "center",
+                  padding: barraExpandida ? "0 13px" : 0,
+                  background: temaClaro
+                    ? "linear-gradient(135deg, rgba(219,234,254,0.92), rgba(255,255,255,0.84))"
+                    : "linear-gradient(135deg, rgba(37,99,235,0.28), rgba(14,165,233,0.12))",
+                  color: textoAzul,
+                  border: bordeInterno,
                   fontSize: "12px",
-                  lineHeight: 1.45,
-                  fontWeight: 700,
+                  fontWeight: 950,
+                  letterSpacing: "0.6px",
+                  textTransform: "uppercase",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
                 }}
               >
-                {t("Cruce rapido por empresa, obra, area, criticidad, estado, fecha y GPS.")}
-              </p>
+                <span
+                  style={{
+                    width: "10px",
+                    height: "10px",
+                    minWidth: "10px",
+                    borderRadius: "999px",
+                    background: "#38bdf8",
+                    boxShadow: "0 0 16px rgba(56,189,248,0.75)",
+                    marginRight: barraExpandida ? "10px" : 0,
+                  }}
+                />
+                {barraExpandida && t("Mapa operativo")}
+              </div>
+
+              {accionesBarra.map((accion) => {
+                const activo =
+                  accionActiva === accion.id ||
+                  (accion.id === "capas" && modoMapa !== "calor") ||
+                  (accion.id === "estandar" && tipoVistaMapa === "estandar") ||
+                  (accion.id === "satelital" && tipoVistaMapa === "satelital") ||
+                  (accion.id === "mas-criticos" && filtros.criticidad === "CRITICO") ||
+                  (accion.id === "menos-criticos" && filtros.criticidad === "BAJO") ||
+                  (accion.id === "cerrados" && filtros.estado === "CERRADO");
+                const contenido = (
+                  <>
+                    <span
+                      style={{
+                        width: "38px",
+                        minWidth: "38px",
+                        height: "38px",
+                        borderRadius: "14px",
+                        display: "grid",
+                        placeItems: "center",
+                        color: activo ? "#ffffff" : textoAzul,
+                        background: activo
+                          ? "linear-gradient(135deg, #2563eb, #38bdf8)"
+                          : temaClaro
+                            ? "rgba(241,245,249,0.94)"
+                            : "rgba(15,23,42,0.82)",
+                        border: activo ? "1px solid rgba(125,211,252,0.62)" : bordeInterno,
+                        boxShadow: activo ? "0 12px 26px rgba(37,99,235,0.24)" : "none",
+                      }}
+                    >
+                      <IconoMapa tipo={accion.icono} />
+                    </span>
+                    <span
+                      style={{
+                        opacity: barraExpandida ? 1 : 0,
+                        transform: barraExpandida ? "translateX(0)" : "translateX(-6px)",
+                        transition: "opacity 150ms ease, transform 150ms ease",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {t(accion.etiqueta)}
+                    </span>
+                  </>
+                );
+
+                return (
+                  <button
+                    key={accion.id}
+                    type="button"
+                    onClick={() => ejecutarAccionBarra(accion.id)}
+                    title={t(accion.etiqueta)}
+                    style={{
+                      minHeight: "44px",
+                      borderRadius: "16px",
+                      border: "none",
+                      background: "transparent",
+                      color: textoPrincipal,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      padding: "3px",
+                      cursor: "pointer",
+                      fontSize: "12px",
+                      fontWeight: 900,
+                      textAlign: "left",
+                    }}
+                  >
+                    {contenido}
+                  </button>
+                );
+              })}
             </div>
 
-            {[
-              ["Empresa", "empresa", opciones.empresas],
-              ["Obra / proyecto", "obra", opciones.obras],
-              ["Area", "area", opciones.areas],
-              ["Tipo de hallazgo", "tipoHallazgo", opciones.tipos],
-            ].map(([label, key, values]) => (
-              <label key={String(key)} style={{ display: "grid", gap: "6px" }}>
-                <span style={{ fontSize: "12px", fontWeight: 900, color: textoAzul }}>
-                  {t(label as string)}
+            <div
+              style={{
+                display: "grid",
+                gap: "8px",
+                padding: "10px 5px 4px",
+                color: textoSuave,
+                fontSize: "11px",
+                fontWeight: 900,
+                lineHeight: 1.25,
+              }}
+            >
+              <span>{barraExpandida ? t("Hallazgos visibles") : hallazgosFiltrados.length}</span>
+              {barraExpandida && (
+                <span style={{ color: textoAzul }}>
+                  {hallazgosFiltrados.length} · {usarVistaPreparada ? `${puntosPreparados.length} ${t("Puntos preparados")}` : `${resumenMapa.totalConGps} GPS`}
                 </span>
-                <select
-                  value={String(filtros[key as keyof FiltrosVista])}
-                  onChange={(event) =>
-                    setFiltros((actual) => ({
-                      ...actual,
-                      [key as keyof FiltrosVista]: event.target.value,
-                    }))
-                  }
-                  style={themedInputStyle}
-                >
-                  <option value="">{t("Todos")}</option>
-                  {(values as string[]).map((valor) => (
-                    <option key={valor} value={valor}>
-                      {valor}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ))}
-
-            <label style={{ display: "grid", gap: "6px" }}>
-              <span style={{ fontSize: "12px", fontWeight: 900, color: textoAzul }}>
-                {t("Criticidad")}
-              </span>
-              <select
-                value={filtros.criticidad}
-                onChange={(event) =>
-                  setFiltros((actual) => ({
-                    ...actual,
-                    criticidad: event.target.value as FiltrosVista["criticidad"],
-                  }))
-                }
-                style={themedInputStyle}
-              >
-                <option value="">{t("Todas")}</option>
-                {criticidades.map((criticidad) => (
-                  <option key={criticidad} value={criticidad}>
-                    {traducirCriticidad(criticidad)}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label style={{ display: "grid", gap: "6px" }}>
-              <span style={{ fontSize: "12px", fontWeight: 900, color: textoAzul }}>
-                {t("Estado")}
-              </span>
-              <select
-                value={filtros.estado}
-                onChange={(event) =>
-                  setFiltros((actual) => ({
-                    ...actual,
-                    estado: event.target.value as FiltrosVista["estado"],
-                  }))
-                }
-                style={themedInputStyle}
-              >
-                <option value="">{t("Todos")}</option>
-                {estados.map((estado) => (
-                  <option key={estado} value={estado}>
-                      {traducirEstado(estado)}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-              <label style={{ display: "grid", gap: "6px" }}>
-                <span style={{ fontSize: "12px", fontWeight: 900, color: textoAzul }}>
-                  {t("Desde")}
-                </span>
-                <input
-                  type="date"
-                  value={filtros.fechaDesde}
-                  onChange={(event) =>
-                    setFiltros((actual) => ({ ...actual, fechaDesde: event.target.value }))
-                  }
-                  style={themedInputStyle}
-                />
-              </label>
-              <label style={{ display: "grid", gap: "6px" }}>
-                <span style={{ fontSize: "12px", fontWeight: 900, color: textoAzul }}>
-                  {t("Hasta")}
-                </span>
-                <input
-                  type="date"
-                  value={filtros.fechaHasta}
-                  onChange={(event) =>
-                    setFiltros((actual) => ({ ...actual, fechaHasta: event.target.value }))
-                  }
-                  style={themedInputStyle}
-                />
-              </label>
-            </div>
-
-            <label style={{ display: "grid", gap: "6px" }}>
-              <span style={{ fontSize: "12px", fontWeight: 900, color: textoAzul }}>
-                {t("GPS")}
-              </span>
-              <select
-                value={filtros.gps}
-                onChange={(event) =>
-                  setFiltros((actual) => ({
-                    ...actual,
-                    gps: event.target.value as FiltroGps,
-                  }))
-                }
-                style={themedInputStyle}
-              >
-                <option value="todos">{t("Con GPS y sin GPS")}</option>
-                <option value="con-gps">{t("Solo con GPS")}</option>
-                <option value="sin-gps">{t("Solo sin GPS")}</option>
-              </select>
-            </label>
-
-            <div style={{ display: "grid", gap: "9px", marginTop: "4px" }}>
-              <button
-                type="button"
-                onClick={() => {
-                  activarBoton("aplicar");
-                  setMensaje("Filtros aplicados sobre la vista territorial.");
-                }}
-                style={botonStyle("aplicar", true)}
-              >
-                {t("Aplicar filtros")}
-              </button>
-              <button type="button" onClick={limpiarFiltros} style={botonStyle("limpiar")}>
-                {t("Limpiar filtros")}
-              </button>
+              )}
             </div>
           </aside>
+          )}
 
           <section
             className="ce-panel-map-canvas-card"
@@ -913,17 +1564,81 @@ export default function MapaGpsHallazgosPage() {
                   {t(mensaje)}
                 </p>
               </div>
-              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
-                <button type="button" onClick={() => cambiarModo("puntos")} style={botonStyle("puntos")}>
-                  {t("Ver todos los puntos")}
-                </button>
-                <button type="button" onClick={() => cambiarModo("calor")} style={botonStyle("calor", modoMapa === "calor")}>
-                  {t("Ver concentracion / mapa caliente")}
-                </button>
-                <button type="button" onClick={() => cambiarModo("zonas")} style={botonStyle("zonas")}>
-                  {t("Ver zonas criticas")}
-                </button>
-              </div>
+              {pantallaCompletaActiva ? (
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                  <span
+                    style={{
+                      minHeight: "34px",
+                      borderRadius: "999px",
+                      padding: "8px 10px",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background: temaClaro ? "rgba(248,250,252,0.88)" : "rgba(15,23,42,0.78)",
+                      border: bordeInterno,
+                      color: textoAzul,
+                      fontSize: "12px",
+                      fontWeight: 950,
+                    }}
+                  >
+                    {tipoVistaMapa === "satelital" ? t("Vista satelital real") : t("Vista estandar")}
+                  </span>
+                  <span
+                    style={{
+                      minHeight: "34px",
+                      minWidth: "58px",
+                      borderRadius: "14px",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background: temaClaro ? "rgba(248,250,252,0.88)" : "rgba(15,23,42,0.78)",
+                      border: bordeInterno,
+                      color: textoAzul,
+                      fontSize: "13px",
+                      fontWeight: 950,
+                    }}
+                  >
+                    {Math.round(zoomMapa * 100)}%
+                  </span>
+                </div>
+              ) : (
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                  {[
+                    ["Vista estandar", "#38bdf8"],
+                    ["Vista satelital real", "#a78bfa"],
+                    ["Clusters preparados", "#22c55e"],
+                    ["Marcadores compactos", "#f97316"],
+                  ].map(([label, color]) => (
+                    <span
+                      key={label}
+                      style={{
+                        minHeight: "34px",
+                        borderRadius: "999px",
+                        padding: "8px 10px",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "7px",
+                        background: temaClaro ? "rgba(248,250,252,0.86)" : "rgba(15,23,42,0.72)",
+                        border: bordeInterno,
+                        color: textoMedio,
+                        fontSize: "11px",
+                        fontWeight: 900,
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: "7px",
+                          height: "7px",
+                          borderRadius: "999px",
+                          background: color,
+                          boxShadow: `0 0 14px ${color}`,
+                        }}
+                      />
+                      {t(label)}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div
@@ -934,11 +1649,25 @@ export default function MapaGpsHallazgosPage() {
                 minHeight: "clamp(520px, 38vw, 720px)",
                 overflow: "hidden",
                 border: "1px solid rgba(125,211,252,0.18)",
-                background:
-                  temaClaro
+                backgroundColor:
+                  pantallaCompletaActiva
+                    ? temaClaro
+                      ? "#e2e8f0"
+                      : "#0f172a"
+                    : temaClaro
+                      ? "#eef4fb"
+                      : "#061126",
+                backgroundImage:
+                  pantallaCompletaActiva
+                    ? "none"
+                    : temaClaro
                     ? "linear-gradient(rgba(100,116,139,0.12) 1px, transparent 1px), linear-gradient(90deg, rgba(100,116,139,0.12) 1px, transparent 1px), radial-gradient(circle at 25% 35%, rgba(59,130,246,0.16), transparent 24%), radial-gradient(circle at 68% 46%, rgba(239,68,68,0.12), transparent 20%), linear-gradient(145deg, rgba(248,250,252,0.98), rgba(226,232,240,0.82))"
                     : "linear-gradient(rgba(148,163,184,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,0.08) 1px, transparent 1px), radial-gradient(circle at 25% 35%, rgba(59,130,246,0.20), transparent 24%), radial-gradient(circle at 68% 46%, rgba(239,68,68,0.16), transparent 20%), linear-gradient(145deg, rgba(2,6,23,0.94), rgba(15,23,42,0.82))",
-                backgroundSize: "48px 48px, 48px 48px, auto, auto, auto",
+                backgroundSize:
+                  pantallaCompletaActiva
+                    ? "auto, auto, auto, auto, auto"
+                    : "48px 48px, 48px 48px, auto, auto, auto",
+                backgroundPosition: "center",
                 boxShadow: "inset 0 0 80px rgba(14,165,233,0.10)",
               }}
             >
@@ -952,7 +1681,116 @@ export default function MapaGpsHallazgosPage() {
                 }}
               />
 
-              {cargando && (
+              {usarProveedorGoogle && (
+                <div
+                  ref={googleMapContainerRef}
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    zIndex: 0,
+                    background: temaClaro ? "#e2e8f0" : "#0f172a",
+                  }}
+                />
+              )}
+
+              {mostrarMapaPreparado && !GOOGLE_MAPS_CONFIGURADO && (
+                <div
+                  style={{
+                    position: "absolute",
+                    left: "18px",
+                    top: "18px",
+                    zIndex: 4,
+                    maxWidth: "360px",
+                    borderRadius: "18px",
+                    background: temaClaro
+                      ? "rgba(255,255,255,0.90)"
+                      : "rgba(15,23,42,0.82)",
+                    border: "1px solid rgba(96,165,250,0.30)",
+                    boxShadow: "0 18px 42px rgba(15,23,42,0.14)",
+                    padding: "12px 14px",
+                    backdropFilter: "blur(10px)",
+                    color: textoPrincipal,
+                  }}
+                >
+                  <div style={{ color: textoAzul, fontSize: "12px", fontWeight: 950 }}>
+                    {t("Proveedor real pendiente")}
+                  </div>
+                  <div style={{ marginTop: "5px", color: textoMedio, fontSize: "12px", lineHeight: 1.35, fontWeight: 750 }}>
+                    {t("La vista previa mantiene lectura ejecutiva preparada. Configura NEXT_PUBLIC_GOOGLE_MAPS_API_KEY para activar Google Maps real en pantalla completa.")}
+                  </div>
+                </div>
+              )}
+
+              {pantallaCompletaActiva && !GOOGLE_MAPS_CONFIGURADO && (
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: "56px",
+                    zIndex: 2,
+                    borderRadius: "26px",
+                    background: fondoInterno,
+                    border: "1px solid rgba(148,163,184,0.22)",
+                    display: "grid",
+                    placeItems: "center",
+                    textAlign: "center",
+                    padding: "28px",
+                  }}
+                >
+                  <div>
+                    <div style={{ color: textoAzul, fontSize: "24px", fontWeight: 950 }}>
+                      {t("Proveedor Google Maps no configurado")}
+                    </div>
+                    <p style={{ maxWidth: "560px", margin: "12px auto 0", color: textoMedio, fontSize: "14px", lineHeight: 1.5, fontWeight: 750 }}>
+                      {t("Configura NEXT_PUBLIC_GOOGLE_MAPS_API_KEY para activar mapa estandar y satelital/hibrido real.")}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {usarProveedorGoogle && googleMapsError && (
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: "56px",
+                    zIndex: 2,
+                    borderRadius: "26px",
+                    background: fondoInterno,
+                    border: "1px solid rgba(248,113,113,0.32)",
+                    display: "grid",
+                    placeItems: "center",
+                    textAlign: "center",
+                    padding: "28px",
+                  }}
+                >
+                  <div>
+                    <div style={{ color: "#f87171", fontSize: "24px", fontWeight: 950 }}>
+                      {t("Proveedor de mapa no disponible")}
+                    </div>
+                    <p style={{ maxWidth: "560px", margin: "12px auto 0", color: textoMedio, fontSize: "14px", lineHeight: 1.5, fontWeight: 750 }}>
+                      {t("No se pudo cargar Google Maps. Revisa la API key, dominios autorizados y facturacion.")}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {usarProveedorGoogle && !googleMapsListo && !googleMapsError && (
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    zIndex: 2,
+                    display: "grid",
+                    placeItems: "center",
+                    color: textoAzul,
+                    fontWeight: 900,
+                    background: temaClaro ? "rgba(255,255,255,0.68)" : "rgba(2,6,23,0.52)",
+                  }}
+                >
+                  {t("Cargando lectura territorial...")}
+                </div>
+              )}
+
+              {cargando && mostrarMapaPreparado && (
                 <div
                   style={{
                     position: "absolute",
@@ -964,11 +1802,39 @@ export default function MapaGpsHallazgosPage() {
                     background: temaClaro ? "rgba(255,255,255,0.68)" : "rgba(2,6,23,0.52)",
                   }}
                 >
-                  Cargando lectura territorial...
+                  {t("Cargando lectura territorial...")}
                 </div>
               )}
 
-              {!cargando && resumenMapa.totalConGps === 0 && (
+              {usarVistaPreparada && mostrarMapaPreparado && (
+                <div
+                  style={{
+                    position: "absolute",
+                    right: "18px",
+                    top: "18px",
+                    zIndex: 3,
+                    maxWidth: pantallaCompletaActiva ? "320px" : "380px",
+                    borderRadius: "18px",
+                    background: temaClaro
+                      ? "rgba(255,255,255,0.88)"
+                      : "rgba(15,23,42,0.78)",
+                    border: "1px solid rgba(56,189,248,0.28)",
+                    boxShadow: "0 18px 42px rgba(15,23,42,0.18)",
+                    padding: "12px 14px",
+                    backdropFilter: "blur(10px)",
+                    color: textoPrincipal,
+                  }}
+                >
+                  <div style={{ color: textoAzul, fontSize: "12px", fontWeight: 950 }}>
+                    {t("Vista preparada / simulacion visual")}
+                  </div>
+                  <div style={{ marginTop: "5px", color: textoMedio, fontSize: "12px", lineHeight: 1.35, fontWeight: 750 }}>
+                    {t("Visualizacion preparada con datos disponibles; no representa coordenadas reales.")}
+                  </div>
+                </div>
+              )}
+
+              {!cargando && mostrarMapaPreparado && puntosMapaActivos.length === 0 && (
                 <div
                   style={{
                     position: "absolute",
@@ -984,7 +1850,7 @@ export default function MapaGpsHallazgosPage() {
                 >
                   <div>
                     <div style={{ fontSize: "46px", fontWeight: 950, color: "#38bdf8" }}>
-                      {t("GPS preparado")}
+                      {t("Mapa preparado")}
                     </div>
                     <p
                       style={{
@@ -1002,16 +1868,16 @@ export default function MapaGpsHallazgosPage() {
                 </div>
               )}
 
-              {modoMapa !== "puntos" &&
-                resumenMapa.mapaCalor.map((zona, index) => {
+              {mostrarMapaPreparado && modoMapa !== "puntos" &&
+                zonasMapaActivas.map((zona, index) => {
                   const posicion = posicionNormalizada(
                     zona.latitudPromedio,
                     zona.longitudPromedio,
-                    resumenMapa.puntos,
+                    puntosMapaActivos,
                     index
                   );
                   const color = colorCriticidad(zona.criticidadMaxima);
-                  const tamano = Math.min(180, 72 + zona.total * 22 + zona.criticosAltos * 16);
+                  const tamano = Math.min(210, (72 + zona.total * 22 + zona.criticosAltos * 16) * zoomMapa);
 
                   return (
                     <button
@@ -1034,20 +1900,29 @@ export default function MapaGpsHallazgosPage() {
                         background: `radial-gradient(circle, ${color}66 0%, ${color}22 42%, transparent 72%)`,
                         boxShadow: `0 0 ${36 + zona.total * 6}px ${color}55`,
                         cursor: "pointer",
+                        color: "#ffffff",
+                        display: "grid",
+                        placeItems: "center",
+                        fontSize: "13px",
+                        fontWeight: 950,
+                        textShadow: "0 1px 8px rgba(0,0,0,0.55)",
                       }}
                       aria-label={`Zona ${zona.clave}`}
-                    />
+                    >
+                      {zona.total > 1 ? zona.total : ""}
+                    </button>
                   );
                 })}
 
-              {puntosVisibles.map((punto, index) => {
+              {mostrarMapaPreparado && puntosVisibles.map((punto, index) => {
                 const posicion = posicionNormalizada(
                   punto.latitud,
                   punto.longitud,
-                  resumenMapa.puntos,
+                  puntosMapaActivos,
                   index
                 );
                 const color = colorCriticidad(punto.criticidad);
+                const tamanoPunto = (punto.criticidad === "CRITICO" ? 22 : 17) * zoomMapa;
 
                 return (
                   <button
@@ -1062,13 +1937,13 @@ export default function MapaGpsHallazgosPage() {
                       position: "absolute",
                       left: `${posicion.left}%`,
                       top: `${posicion.top}%`,
-                      width: punto.criticidad === "CRITICO" ? "28px" : "22px",
-                      height: punto.criticidad === "CRITICO" ? "28px" : "22px",
+                      width: `${tamanoPunto}px`,
+                      height: `${tamanoPunto}px`,
                       transform: "translate(-50%, -50%)",
                       borderRadius: "999px",
-                      border: "2px solid rgba(255,255,255,0.88)",
+                      border: "1.5px solid rgba(255,255,255,0.86)",
                       background: color,
-                      boxShadow: `0 0 0 9px ${color}22, 0 0 28px ${color}AA`,
+                      boxShadow: `0 0 0 6px ${color}1f, 0 0 18px ${color}88`,
                       cursor: "pointer",
                     }}
                     aria-label={`Hallazgo ${punto.codigo}`}
@@ -1116,61 +1991,9 @@ export default function MapaGpsHallazgosPage() {
               </div>
             </div>
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-                gap: "10px",
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => {
-                  activarBoton("criticos");
-                  setFiltros((actual) => ({ ...actual, criticidad: "CRITICO", gps: "con-gps" }));
-                  setModoMapa("zonas");
-                  setMensaje("Foco aplicado: hallazgos criticos con trazabilidad GPS.");
-                }}
-                style={botonStyle("criticos")}
-              >
-                {t("Ver hallazgos criticos")}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  activarBoton("detalle-zona");
-                  setZonaSeleccionada(mayorConcentracion);
-                  setMensaje("Detalle de mayor concentracion territorial seleccionado.");
-                }}
-                style={botonStyle("detalle-zona")}
-              >
-                {t("Detalle de zona")}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  activarBoton("exportar");
-                  setMensaje("Exportacion preparada visualmente. La salida PDF/Excel se conectara en una etapa posterior.");
-                }}
-                style={botonStyle("exportar")}
-              >
-                {t("Exportar vista")}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  activarBoton("todos");
-                  setFiltros((actual) => ({ ...actual, gps: "todos", criticidad: "" }));
-                  setModoMapa("puntos");
-                  setMensaje("Vista de todos los puntos y registros disponible.");
-                }}
-                style={botonStyle("todos", true)}
-              >
-                {t("Ver todos los registros")}
-              </button>
-            </div>
           </section>
 
+          {!pantallaCompletaActiva && (
           <aside className="ce-panel-map-insights" style={{ ...themedSurfaceStyle, padding: "18px", display: "grid", gap: "14px" }}>
             <div>
               <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 950 }}>
@@ -1194,7 +2017,7 @@ export default function MapaGpsHallazgosPage() {
                 {t("Mensaje preventivo")}
               </div>
               <div style={{ marginTop: "8px", fontSize: "14px", lineHeight: 1.45, fontWeight: 800 }}>
-                {resumenMapa.totalConGps > 0
+                {puntosMapaActivos.length > 0
                   ? t("Priorizar recorridos en zonas con acumulacion critica o alta. El mapa identifica patrones preventivos; no predice accidentes.")
                   : t("Activar captura GPS en reportes de terreno para habilitar analisis territorial y mapas de calor reales.")}
               </div>
@@ -1275,7 +2098,7 @@ export default function MapaGpsHallazgosPage() {
               <div style={{ fontSize: "12px", color: textoAzul, fontWeight: 950 }}>
                 {t("Zonas relevantes")}
               </div>
-              {(zonasCriticas.length ? zonasCriticas : resumenMapa.mapaCalor)
+              {(zonasCriticas.length ? zonasCriticas : zonasMapaActivas)
                 .slice(0, 5)
                 .map((zona) => (
                   <button
@@ -1298,13 +2121,14 @@ export default function MapaGpsHallazgosPage() {
                     </span>
                   </button>
                 ))}
-              {resumenMapa.mapaCalor.length === 0 && (
+              {zonasMapaActivas.length === 0 && (
                 <div style={{ color: textoSuave, fontSize: "13px", fontWeight: 750 }}>
                   {t("Sin zonas GPS suficientes para listar.")}
                 </div>
               )}
             </div>
           </aside>
+          )}
         </section>
       </div>
     </main>
