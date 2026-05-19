@@ -6,8 +6,31 @@ import {
   iniciarSesionConPasswordCE,
   obtenerAuthProfileActual,
 } from "@/app/services/authProfileService";
+import {
+  resolvePlatformLanguage,
+  resolvePlatformTheme,
+  usePlatformPreferences,
+} from "@/app/services/platformPreferences";
+
+const loginTextsEn: Record<string, string> = {
+  "Acceso CE": "CE Access",
+  "Login preparado para pruebas controladas. No bloquea app móvil ni panel.": "Login ready for controlled testing. It does not block the mobile app or dashboard.",
+  Contraseña: "Password",
+  "Ocultar contraseña": "Hide password",
+  "Mostrar contraseña": "Show password",
+  Ocultar: "Hide",
+  Ver: "Show",
+  "Validando...": "Validating...",
+  Entrar: "Enter",
+  "Enviar magic link": "Send magic link",
+};
 
 export default function LoginPage() {
+  const preferencias = usePlatformPreferences();
+  const temaClaro = resolvePlatformTheme(preferencias.theme) === "light";
+  const idiomaActivo = resolvePlatformLanguage(preferencias.language);
+  const t = (texto: string) =>
+    idiomaActivo === "en" ? loginTextsEn[texto] || texto : texto;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mostrarPassword, setMostrarPassword] = useState(false);
@@ -57,8 +80,10 @@ export default function LoginPage() {
         minHeight: "100vh",
         display: "grid",
         placeItems: "center",
-        background: "#07111f",
-        color: "white",
+        background: temaClaro
+          ? "linear-gradient(135deg, #f8fafc 0%, #eaf2ff 100%)"
+          : "#07111f",
+        color: temaClaro ? "#0f172a" : "white",
         fontFamily: "Arial, sans-serif",
         padding: "24px",
       }}
@@ -67,16 +92,20 @@ export default function LoginPage() {
         style={{
           width: "100%",
           maxWidth: "420px",
-          border: "1px solid rgba(255,255,255,0.14)",
+          border: temaClaro
+            ? "1px solid rgba(100,116,139,0.22)"
+            : "1px solid rgba(255,255,255,0.14)",
           borderRadius: "18px",
-          background: "rgba(255,255,255,0.08)",
-          boxShadow: "0 24px 48px rgba(0,0,0,0.28)",
+          background: temaClaro ? "rgba(255,255,255,0.88)" : "rgba(255,255,255,0.08)",
+          boxShadow: temaClaro
+            ? "0 24px 48px rgba(15,23,42,0.12)"
+            : "0 24px 48px rgba(0,0,0,0.28)",
           padding: "22px",
         }}
       >
-        <h1 style={{ margin: "0 0 8px", fontSize: "24px" }}>Acceso CE</h1>
-        <p style={{ margin: "0 0 18px", color: "rgba(255,255,255,0.72)" }}>
-          Login preparado para pruebas controladas. No bloquea app móvil ni panel.
+        <h1 style={{ margin: "0 0 8px", fontSize: "24px" }}>{t("Acceso CE")}</h1>
+        <p style={{ margin: "0 0 18px", color: temaClaro ? "#475569" : "rgba(255,255,255,0.72)" }}>
+          {t("Login preparado para pruebas controladas. No bloquea app móvil ni panel.")}
         </p>
 
         <div style={{ display: "grid", gap: "12px" }}>
@@ -89,9 +118,9 @@ export default function LoginPage() {
               onChange={(event) => setEmail(event.target.value)}
               style={{
                 borderRadius: "12px",
-                border: "1px solid rgba(255,255,255,0.18)",
-                background: "rgba(255,255,255,0.10)",
-                color: "white",
+                border: temaClaro ? "1px solid rgba(100,116,139,0.26)" : "1px solid rgba(255,255,255,0.18)",
+                background: temaClaro ? "#f8fafc" : "rgba(255,255,255,0.10)",
+                color: temaClaro ? "#0f172a" : "white",
                 padding: "12px",
                 fontSize: "15px",
               }}
@@ -99,15 +128,15 @@ export default function LoginPage() {
           </label>
 
           <label style={{ display: "grid", gap: "6px", fontWeight: 800 }}>
-            Contraseña
+            {t("Contraseña")}
             <div
               style={{
                 display: "grid",
                 gridTemplateColumns: "1fr auto",
                 alignItems: "stretch",
                 borderRadius: "12px",
-                border: "1px solid rgba(255,255,255,0.18)",
-                background: "rgba(255,255,255,0.10)",
+                border: temaClaro ? "1px solid rgba(100,116,139,0.26)" : "1px solid rgba(255,255,255,0.18)",
+                background: temaClaro ? "#f8fafc" : "rgba(255,255,255,0.10)",
                 overflow: "hidden",
               }}
             >
@@ -121,7 +150,7 @@ export default function LoginPage() {
                   border: "none",
                   outline: "none",
                   background: "transparent",
-                  color: "white",
+                  color: temaClaro ? "#0f172a" : "white",
                   padding: "12px",
                   fontSize: "15px",
                 }}
@@ -129,14 +158,14 @@ export default function LoginPage() {
               <button
                 type="button"
                 aria-label={
-                  mostrarPassword ? "Ocultar contraseña" : "Mostrar contraseña"
+                  mostrarPassword ? t("Ocultar contraseña") : t("Mostrar contraseña")
                 }
                 onClick={() => setMostrarPassword((actual) => !actual)}
                 style={{
                   border: "none",
-                  borderLeft: "1px solid rgba(255,255,255,0.14)",
-                  background: "rgba(255,255,255,0.10)",
-                  color: "white",
+                  borderLeft: temaClaro ? "1px solid rgba(100,116,139,0.22)" : "1px solid rgba(255,255,255,0.14)",
+                  background: temaClaro ? "#e2e8f0" : "rgba(255,255,255,0.10)",
+                  color: temaClaro ? "#0f172a" : "white",
                   cursor: "pointer",
                   fontSize: "12px",
                   fontWeight: 900,
@@ -144,7 +173,7 @@ export default function LoginPage() {
                   minWidth: "74px",
                 }}
               >
-                {mostrarPassword ? "Ocultar" : "Ver"}
+                {mostrarPassword ? t("Ocultar") : t("Ver")}
               </button>
             </div>
           </label>
@@ -164,7 +193,7 @@ export default function LoginPage() {
               opacity: cargando ? 0.7 : 1,
             }}
           >
-            {cargando ? "Validando..." : "Entrar"}
+            {cargando ? t("Validando...") : t("Entrar")}
           </button>
 
           <button
@@ -172,17 +201,17 @@ export default function LoginPage() {
             onClick={enviarMagic}
             disabled={cargando}
             style={{
-              border: "1px solid rgba(255,255,255,0.18)",
+              border: temaClaro ? "1px solid rgba(100,116,139,0.24)" : "1px solid rgba(255,255,255,0.18)",
               borderRadius: "12px",
-              background: "rgba(255,255,255,0.10)",
-              color: "white",
+              background: temaClaro ? "#f8fafc" : "rgba(255,255,255,0.10)",
+              color: temaClaro ? "#0f172a" : "white",
               cursor: "pointer",
               fontWeight: 900,
               padding: "12px",
               opacity: cargando ? 0.7 : 1,
             }}
           >
-            Enviar magic link
+            {t("Enviar magic link")}
           </button>
         </div>
 

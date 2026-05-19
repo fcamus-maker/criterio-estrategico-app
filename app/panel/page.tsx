@@ -14,6 +14,10 @@ import {
   type EvidenciaPanel,
 } from "./evidenciasPanel";
 import { cargarHallazgosPanelConFuentesOpcionales } from "./sources/hallazgosPanelSource";
+import {
+  readPlatformPreferences,
+  savePlatformPreferences,
+} from "../services/platformPreferences";
 
 type HallazgoPanelExtendido = HallazgoPanel & {
   area?: string;
@@ -273,8 +277,12 @@ const perfilesActivosPorDefecto: Record<PerfilPermiso, boolean> = {
 export default function PanelEjecutivoPage() {
   const [vistaDerecha, setVistaDerecha] = useState<"informe" | "configuracion" | "seguimiento">("informe");
   const [vistaPrincipal, setVistaPrincipal] = useState<"panel" | "configuracion" | "seguimiento">("panel");
-  const [modoSistema, setModoSistema] = useState<"claro" | "oscuro" | "automatico">("oscuro");
-const [idiomaSistema, setIdiomaSistema] = useState<"es" | "en" | "auto">("es");
+  const [modoSistema, setModoSistema] = useState<"claro" | "oscuro" | "automatico">(
+    () => readPlatformPreferences().theme
+  );
+const [idiomaSistema, setIdiomaSistema] = useState<"es" | "en" | "auto">(
+  () => readPlatformPreferences().language
+);
 const [nombreEmpresaConfig, setNombreEmpresaConfig] = useState("Cliente corporativo");
 const [logoEmpresaConfig, setLogoEmpresaConfig] = useState("");
 const [logoInputKey, setLogoInputKey] = useState(0);
@@ -287,6 +295,14 @@ const [guardadoConfig, setGuardadoConfig] = useState(false);
 const [fechaActualizacion, setFechaActualizacion] = useState<Date | null>(null);
 const [filasPanel, setFilasPanel] = useState<HallazgoPanelExtendido[]>(hallazgosMock);
   const idiomaActivo = idiomaSistema === "en" ? "en" : "es";
+  const cambiarModoSistema = (modo: "claro" | "oscuro" | "automatico") => {
+    setModoSistema(modo);
+    savePlatformPreferences({ theme: modo });
+  };
+  const cambiarIdiomaSistema = (idioma: "es" | "en" | "auto") => {
+    setIdiomaSistema(idioma);
+    savePlatformPreferences({ language: idioma });
+  };
   const textosEn: Record<string, string> = {
     "Plataforma Ejecutiva de Hallazgos": "Executive Findings Platform",
     "Sistema activo": "System active",
@@ -331,6 +347,8 @@ const [filasPanel, setFilasPanel] = useState<HallazgoPanelExtendido[]>(hallazgos
     "Acceso rápido": "Quick access",
     "Exportar a Excel": "Export to Excel",
     "Generar informe empresa/obra": "Generate company/site report",
+    "KPI Gerencial Avanzado": "Advanced Management KPI",
+    "Mapa GPS de Hallazgos": "GPS Findings Map",
     Configuración: "Settings",
     "Seguimiento de cierre": "Closure follow-up",
     "Control de responsables, plazos, evidencias y estado de corrección.": "Control of responsible parties, deadlines, evidence and correction status.",
@@ -437,6 +455,23 @@ const [filasPanel, setFilasPanel] = useState<HallazgoPanelExtendido[]>(hallazgos
     "Sin datos por empresa para el filtro activo.": "No company data for the active filter.",
     "Sin evolución diaria para el filtro activo.": "No daily trend for the active filter.",
     "Estado general": "General status",
+    "Radar Preventivo": "Preventive Radar",
+    "Patrones preventivos": "Preventive patterns",
+    "Críticos abiertos": "Open critical findings",
+    "Altos abiertos": "Open high findings",
+    Alertas: "Alerts",
+    "Riesgo operativo principal": "Main operational risk",
+    "Concentración / reincidencia": "Concentration / recurrence",
+    "Sin patrones críticos suficientes para alerta ejecutiva.": "No critical patterns sufficient for executive alert.",
+    BAJO: "LOW",
+    MEDIO: "MEDIUM",
+    ALTO: "HIGH",
+    "CRÍTICO": "CRITICAL",
+    "Mantener seguimiento preventivo y verificar cierre oportuno.": "Maintain preventive follow-up and verify timely closure.",
+    "Revisar focos repetidos y priorizar controles de cierre.": "Review repeated focus areas and prioritize closure controls.",
+    "Priorizar empresas, areas o causas repetidas antes de nuevas faenas.": "Prioritize repeated companies, areas or causes before new work fronts.",
+    "Priorizar empresas, áreas o causas repetidas antes de nuevas faenas.": "Prioritize repeated companies, areas or causes before new work fronts.",
+    "Revisar de inmediato criticidad abierta, reincidencias y compromisos vencidos.": "Immediately review open critical findings, recurrences and overdue commitments.",
     "Distribución de abiertos, cerrados y críticos": "Open, closed and critical distribution",
     "Sin datos para criticidad en el filtro activo.": "No severity data for the active filter.",
     Total: "Total",
@@ -543,6 +578,75 @@ const [filasPanel, setFilasPanel] = useState<HallazgoPanelExtendido[]>(hallazgos
     "EN PLAZO": "ON TIME",
   };
   const t = (texto: string) => (idiomaActivo === "en" ? textosEn[texto] || texto : texto);
+  const pluralEn = (count: number, singular: string, plural: string) =>
+    count === 1 ? singular : plural;
+  const traducirRadarResumen = () => {
+    if (idiomaActivo !== "en") return radarPreventivo.resumenEjecutivo;
+    const total = hallazgosRadar.length;
+    const criticosAltos = radarPreventivo.criticosAbiertos + altosAbiertosRadar;
+    const sinCierre = hallazgosRadar.filter(
+      (hallazgo) => hallazgo.estado !== "CERRADO" && hallazgo.estado !== "ANULADO"
+    ).length;
+
+    if (total === 0) {
+      return "No findings available for preventive analysis in the selected period.";
+    }
+    if (radarPreventivo.alertas.some((item) => item.nivel === "critica")) {
+      return `Preventive Radar identifies critical concentration: ${criticosAltos} critical/high ${pluralEn(criticosAltos, "finding", "findings")} and ${sinCierre} pending closure ${pluralEn(sinCierre, "item", "items")}.`;
+    }
+    if (radarPreventivo.alertas.some((item) => item.nivel === "alerta")) {
+      return `Preventive Radar detects relevant recurrence or criticality patterns: ${criticosAltos} critical/high ${pluralEn(criticosAltos, "finding", "findings")}.`;
+    }
+    return `Preventive Radar shows no major alerts; maintain follow-up on ${sinCierre} pending ${pluralEn(sinCierre, "finding", "findings")}.`;
+  };
+  const traducirAlertaRadarDetalle = (detalle: string) => {
+    if (idiomaActivo !== "en") return detalle;
+    const detalleNormalizado = detalle
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+    const criticosAbiertosMatch = detalleNormalizado.match(/^(\d+)\s*hallazgo\(s\) criticos permanecen abiertos\.$/);
+    if (criticosAbiertosMatch) {
+      const cantidad = Number(criticosAbiertosMatch[1]);
+      return `${cantidad} critical ${pluralEn(cantidad, "finding remains", "findings remain")} open.`;
+    }
+
+    const criticosAltosMatch = detalleNormalizado.match(/^(\d+)\s*hallazgo\(s\) criticos o altos requieren atencion prioritaria\.$/);
+    if (criticosAltosMatch) {
+      const cantidad = Number(criticosAltosMatch[1]);
+      return `${cantidad} critical or high ${pluralEn(cantidad, "finding requires", "findings require")} priority attention.`;
+    }
+
+    const vencidosMatch = detalleNormalizado.match(/^(\d+)\s*hallazgo\(s\) abiertos superan su fecha compromiso\.$/);
+    if (vencidosMatch) {
+      const cantidad = Number(vencidosMatch[1]);
+      return `${cantidad} open ${pluralEn(cantidad, "finding is", "findings are")} past the commitment date.`;
+    }
+
+    const reincidenciaMatch = detalle.match(/^(.*):\s*(\d+)\s*hallazgo\(s\) registrados\.$/i);
+    if (!reincidenciaMatch) return detalle;
+    const [, clave, total] = reincidenciaMatch;
+    const cantidad = Number(total);
+    return `${clave}: ${cantidad} ${pluralEn(cantidad, "finding", "findings")} registered.`;
+  };
+  const traducirRadarNivel = (nivel: string) => t(nivel);
+  const traducirRiesgoOperativo = (riesgo: string) => {
+    const normalizado = riesgo.replace(/_/g, " ");
+    if (idiomaActivo !== "en") return normalizado;
+
+    const traducciones: Record<string, string> = {
+      ALTURA: "HEIGHT",
+      ENERGIA: "ENERGY",
+      TRANSITO: "TRAFFIC",
+      MAQUINARIA: "MACHINERY",
+      SEGREGACION: "SEGREGATION",
+      DOCUMENTAL: "DOCUMENTATION",
+      GENERAL: "GENERAL",
+      SIN_DATOS: "NO DATA",
+    };
+
+    return traducciones[riesgo] || normalizado;
+  };
   const textoOpcion = (texto: string) => {
     if (texto === "TODAS") return t("Todas");
     if (texto === "TODOS") return t("Todos");
@@ -613,6 +717,10 @@ const [filasPanel, setFilasPanel] = useState<HallazgoPanelExtendido[]>(hallazgos
         PANEL_CONFIG_STORAGE_KEY,
         JSON.stringify(configuracion)
       );
+      savePlatformPreferences({
+        theme: modoSistema,
+        language: idiomaSistema,
+      });
     }
 
     setNombreEmpresaConfig(nombreEmpresaVisible);
@@ -621,6 +729,10 @@ const [filasPanel, setFilasPanel] = useState<HallazgoPanelExtendido[]>(hallazgos
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+
+    const preferenciasGlobales = readPlatformPreferences();
+    setModoSistema(preferenciasGlobales.theme);
+    setIdiomaSistema(preferenciasGlobales.language);
 
     const configuracionGuardada = window.localStorage.getItem(PANEL_CONFIG_STORAGE_KEY);
     if (!configuracionGuardada) return;
@@ -675,21 +787,8 @@ const [filasPanel, setFilasPanel] = useState<HallazgoPanelExtendido[]>(hallazgos
         );
       }
 
-      if (
-        configuracion.modoSistema === "claro" ||
-        configuracion.modoSistema === "oscuro" ||
-        configuracion.modoSistema === "automatico"
-      ) {
-        setModoSistema(configuracion.modoSistema);
-      }
-
-      if (
-        configuracion.idiomaSistema === "es" ||
-        configuracion.idiomaSistema === "en" ||
-        configuracion.idiomaSistema === "auto"
-      ) {
-        setIdiomaSistema(configuracion.idiomaSistema);
-      }
+      setModoSistema(preferenciasGlobales.theme);
+      setIdiomaSistema(preferenciasGlobales.language);
     } catch {
       window.localStorage.removeItem(PANEL_CONFIG_STORAGE_KEY);
     }
@@ -5239,7 +5338,7 @@ style={{
           e.currentTarget.style.boxShadow = "0 12px 26px rgba(124,58,237,0.30)";
         }}
       >
-        <span>KPI Gerencial Avanzado</span>
+        <span>{t("KPI Gerencial Avanzado")}</span>
         <span
           style={{
             fontSize: "14px",
@@ -5291,7 +5390,7 @@ style={{
           e.currentTarget.style.boxShadow = "0 12px 26px rgba(14,165,233,0.30)";
         }}
       >
-        <span>Mapa GPS de Hallazgos</span>
+        <span>{t("Mapa GPS de Hallazgos")}</span>
         <span
           style={{
             fontSize: "14px",
@@ -5495,7 +5594,7 @@ style={{
                       textTransform: "uppercase",
                     }}
                   >
-                    Radar Preventivo
+                    {t("Radar Preventivo")}
                   </div>
                   <div
                     style={{
@@ -5506,7 +5605,7 @@ style={{
                       color: radarVisual.color,
                     }}
                   >
-                    {radarVisual.label}
+                    {traducirRadarNivel(radarVisual.label)}
                   </div>
                 </div>
                 <div
@@ -5532,7 +5631,7 @@ style={{
                       boxShadow: `0 0 18px ${radarVisual.color}`,
                     }}
                   />
-                  Patrones preventivos
+                  {t("Patrones preventivos")}
                 </div>
               </div>
 
@@ -5550,7 +5649,7 @@ style={{
                     color: tema.texto,
                   }}
                 >
-                  {radarPreventivo.resumenEjecutivo}
+                  {traducirRadarResumen()}
                 </div>
                 <div
                   style={{
@@ -5560,9 +5659,9 @@ style={{
                   }}
                 >
                   {[
-                    { label: "Críticos abiertos", value: radarPreventivo.criticosAbiertos, color: "#ef4444" },
-                    { label: "Altos abiertos", value: altosAbiertosRadar, color: "#f59e0b" },
-                    { label: "Alertas", value: radarPreventivo.alertas.length, color: radarVisual.color },
+                    { label: t("Críticos abiertos"), value: radarPreventivo.criticosAbiertos, color: "#ef4444" },
+                    { label: t("Altos abiertos"), value: altosAbiertosRadar, color: "#f59e0b" },
+                    { label: t("Alertas"), value: radarPreventivo.alertas.length, color: radarVisual.color },
                   ].map(({ label, value, color }) => (
                     <div
                       key={label}
@@ -5603,20 +5702,20 @@ style={{
               >
                 <div>
                   <div style={{ fontSize: "11px", opacity: 0.68, fontWeight: 800 }}>
-                    Riesgo operativo principal
+                    {t("Riesgo operativo principal")}
                   </div>
                   <div style={{ fontSize: "15px", fontWeight: 950, marginTop: "4px" }}>
-                    {riesgoOperativoPrincipal.replace(/_/g, " ")}
+                    {traducirRiesgoOperativo(riesgoOperativoPrincipal)}
                   </div>
                 </div>
                 <div>
                   <div style={{ fontSize: "11px", opacity: 0.68, fontWeight: 800 }}>
-                    Concentración / reincidencia
+                    {t("Concentración / reincidencia")}
                   </div>
                   <div style={{ fontSize: "13px", fontWeight: 800, marginTop: "4px", lineHeight: 1.35 }}>
                     {alertaRadarPrincipal
-                      ? alertaRadarPrincipal.detalle
-                      : "Sin patrones críticos suficientes para alerta ejecutiva."}
+                      ? traducirAlertaRadarDetalle(alertaRadarPrincipal.detalle)
+                      : t("Sin patrones críticos suficientes para alerta ejecutiva.")}
                   </div>
                 </div>
                 <div
@@ -5629,7 +5728,7 @@ style={{
                     fontWeight: 750,
                   }}
                 >
-                  {radarVisual.recomendacion}
+                  {t(radarVisual.recomendacion)}
                 </div>
               </div>
             </section>
@@ -7143,7 +7242,7 @@ style={{
     }}
   >
     <button
-      onClick={() => setModoSistema("claro")}
+      onClick={() => cambiarModoSistema("claro")}
       style={
 	        modoSistema === "claro"
 	          ? {
@@ -7168,7 +7267,7 @@ style={{
     </button>
 
     <button
-      onClick={() => setModoSistema("oscuro")}
+      onClick={() => cambiarModoSistema("oscuro")}
       style={
 	        modoSistema === "oscuro"
 	          ? {
@@ -7193,7 +7292,7 @@ style={{
     </button>
 
     <button
-      onClick={() => setModoSistema("automatico")}
+      onClick={() => cambiarModoSistema("automatico")}
       style={
 	        modoSistema === "automatico"
 	          ? {
@@ -7254,7 +7353,7 @@ style={{
     }}
   >
     <button
-      onClick={() => setIdiomaSistema("es")}
+      onClick={() => cambiarIdiomaSistema("es")}
       style={
 	        idiomaSistema === "es"
 	          ? {
@@ -7279,7 +7378,7 @@ style={{
     </button>
 
     <button
-      onClick={() => setIdiomaSistema("en")}
+      onClick={() => cambiarIdiomaSistema("en")}
       style={
 	        idiomaSistema === "en"
 	          ? {
@@ -7304,7 +7403,7 @@ style={{
     </button>
 
     <button
-      onClick={() => setIdiomaSistema("auto")}
+      onClick={() => cambiarIdiomaSistema("auto")}
       style={
 	        idiomaSistema === "auto"
 	          ? {

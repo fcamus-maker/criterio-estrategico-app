@@ -15,6 +15,11 @@ import type {
 } from "../../types/hallazgoCentral";
 import { hallazgosMock, type HallazgoPanel } from "../mockdata";
 import { cargarHallazgosPanelConFuentesOpcionales } from "../sources/hallazgosPanelSource";
+import {
+  resolvePlatformLanguage,
+  resolvePlatformTheme,
+  usePlatformPreferences,
+} from "../../services/platformPreferences";
 
 type HallazgoPanelExtendido = HallazgoPanel & {
   area?: string;
@@ -241,6 +246,86 @@ function valorUnico<T extends string>(items: T[]) {
   );
 }
 
+const textosMapaEn: Record<string, string> = {
+  "Vista territorial preparada con fuente local y fallback seguro.": "Territorial view ready with local source and safe fallback.",
+  "Vista actualizada con hallazgos disponibles para analisis territorial.": "View updated with findings available for territorial analysis.",
+  "Se uso fallback local para mantener disponible el mapa ejecutivo.": "Local fallback was used to keep the executive map available.",
+  "Mapa caliente activo: intensidad por concentracion y criticidad.": "Heat map active: intensity by concentration and severity.",
+  "Vista de zonas criticas activa: foco en criticidad alta y abierta.": "Critical zones view active: focus on high/open severity.",
+  "Vista de puntos activa: lectura individual de reportes GPS.": "Points view active: individual GPS report review.",
+  "Filtros limpiados. Vista territorial general restablecida.": "Filters cleared. General territorial view restored.",
+  "Filtros aplicados sobre la vista territorial.": "Filters applied to territorial view.",
+  "Plataforma Hallazgos": "Findings Platform",
+  "Mapa GPS de Hallazgos": "GPS Findings Map",
+  "Lectura preventiva territorial para identificar concentracion de hallazgos, zonas calientes, criticidad geografica y focos de accion en terreno.": "Preventive territorial review to identify finding concentration, hot zones, geographic severity and field action focus.",
+  "Volver al panel ejecutivo": "Back to executive dashboard",
+  "Actualizar vista": "Refresh view",
+  "Hallazgos con GPS": "Findings with GPS",
+  "Puntos disponibles para lectura territorial": "Points available for territorial review",
+  "Hallazgos sin GPS": "Findings without GPS",
+  "Registros que requieren trazabilidad futura": "Records requiring future traceability",
+  "Zonas criticas": "Critical zones",
+  "Celdas con criticidad alta o critica": "Cells with high or critical severity",
+  "Mayor concentracion": "Highest concentration",
+  "Sin celda territorial dominante": "No dominant territorial cell",
+  "Filtros territoriales": "Territorial filters",
+  "Cruce rapido por empresa, obra, area, criticidad, estado, fecha y GPS.": "Quick cross-filter by company, site, area, severity, status, date and GPS.",
+  Empresa: "Company",
+  "Obra / proyecto": "Site / project",
+  Area: "Area",
+  "Tipo de hallazgo": "Finding type",
+  Criticidad: "Severity",
+  Estado: "Status",
+  Desde: "From",
+  Hasta: "To",
+  GPS: "GPS",
+  Todos: "All",
+  Todas: "All",
+  "Con GPS y sin GPS": "With and without GPS",
+  "Solo con GPS": "GPS only",
+  "Solo sin GPS": "Without GPS only",
+  "Aplicar filtros": "Apply filters",
+  "Limpiar filtros": "Clear filters",
+  "Lectura territorial preventiva": "Preventive territorial review",
+  "Ver todos los puntos": "View all points",
+  "Ver concentracion / mapa caliente": "View concentration / heat map",
+  "Ver zonas criticas": "View critical zones",
+  "GPS preparado": "GPS ready",
+  "Aun no existen coordenadas suficientes para mostrar puntos reales. La vista queda preparada para reportes con GPS desde terreno.": "There are not enough coordinates yet to show real points. The view is ready for field reports with GPS.",
+  "Zonas y lectura ejecutiva": "Zones and executive review",
+  "Detalle seleccionado": "Selected detail",
+  "Empresa dominante": "Dominant company",
+  "Obra dominante": "Dominant site",
+  "Area dominante": "Dominant area",
+  "Sin datos suficientes": "Not enough data",
+  "Mensaje preventivo": "Preventive message",
+  "Priorizar revision territorial donde se concentran criticidades altas o repetidas. El mapa apoya la toma de decisiones; no predice accidentes.": "Prioritize territorial review where high or repeated severities concentrate. The map supports decision-making; it does not predict accidents.",
+  "Concentracion territorial para priorizar verificacion en terreno.": "Territorial concentration to prioritize field verification.",
+  "Priorizar recorridos en zonas con acumulacion critica o alta. El mapa identifica patrones preventivos; no predice accidentes.": "Prioritize walkthroughs in zones with critical or high accumulation. The map identifies preventive patterns; it does not predict accidents.",
+  "Activar captura GPS en reportes de terreno para habilitar analisis territorial y mapas de calor reales.": "Enable GPS capture in field reports to unlock territorial analysis and real heat maps.",
+  "Ver hallazgos criticos": "View critical findings",
+  "Detalle de zona": "Zone detail",
+  "Exportar vista": "Export view",
+  "Ver todos los registros": "View all records",
+  "Selecciona un punto o zona caliente para revisar informacion territorial.": "Select a point or hot zone to review territorial information.",
+  "Zonas relevantes": "Relevant zones",
+  "Sin zonas GPS suficientes para listar.": "Not enough GPS zones to list.",
+  CRITICO: "CRITICAL",
+  ALTO: "HIGH",
+  MEDIO: "MEDIUM",
+  BAJO: "LOW",
+  REPORTADO: "REPORTED",
+  ABIERTO: "OPEN",
+  EN_SEGUIMIENTO: "IN FOLLOW-UP",
+  CERRADO: "CLOSED",
+  ANULADO: "VOIDED",
+  Zona: "Zone",
+  Codigos: "Codes",
+  hallazgos: "findings",
+  "criticos/altos": "critical/high",
+  "Foco aplicado: hallazgos criticos con trazabilidad GPS.": "Focus applied: critical findings with GPS traceability.",
+};
+
 function posicionNormalizada(
   latitud: number,
   longitud: number,
@@ -300,6 +385,52 @@ function filtrarHallazgos(hallazgos: HallazgoCentral[], filtros: FiltrosVista) {
 }
 
 export default function MapaGpsHallazgosPage() {
+  const preferencias = usePlatformPreferences();
+  const idiomaActivo = resolvePlatformLanguage(preferencias.language);
+  const temaClaro = resolvePlatformTheme(preferencias.theme) === "light";
+  const t = (texto: string) =>
+    idiomaActivo === "en" ? textosMapaEn[texto] || texto : texto;
+  const traducirCriticidad = (criticidad: CriticidadHallazgoCentral) =>
+    idiomaActivo === "en" ? t(criticidad) : etiquetaCriticidad(criticidad);
+  const traducirEstado = (estado: EstadoHallazgoCentral) =>
+    idiomaActivo === "en" ? t(estado) : estado.replace("_", " ");
+  const pageThemeStyle: CSSProperties = {
+    ...pageStyle,
+    background: temaClaro
+      ? "radial-gradient(circle at 18% 10%, rgba(59,130,246,0.12), transparent 30%), radial-gradient(circle at 78% 0%, rgba(239,68,68,0.10), transparent 26%), linear-gradient(135deg, #f8fafc 0%, #eef6ff 45%, #f7fbff 100%)"
+      : pageStyle.background,
+    color: temaClaro ? "#0f172a" : "#f8fafc",
+  };
+  const themedSurfaceStyle: CSSProperties = {
+    ...surfaceStyle,
+    background: temaClaro ? "rgba(255,255,255,0.88)" : surfaceStyle.background,
+    border: temaClaro
+      ? "1px solid rgba(100,116,139,0.22)"
+      : surfaceStyle.border,
+    boxShadow: temaClaro
+      ? "0 22px 54px rgba(15,23,42,0.10)"
+      : surfaceStyle.boxShadow,
+  };
+  const themedInputStyle: CSSProperties = {
+    ...inputStyle,
+    background: temaClaro ? "rgba(248,250,252,0.96)" : inputStyle.background,
+    color: temaClaro ? "#0f172a" : "#e5e7eb",
+    border: temaClaro
+      ? "1px solid rgba(100,116,139,0.28)"
+      : inputStyle.border,
+    colorScheme: temaClaro ? "light" : "dark",
+  };
+  const textoPrincipal = temaClaro ? "#0f172a" : "#f8fafc";
+  const textoSuave = temaClaro ? "#475569" : "#94a3b8";
+  const textoMedio = temaClaro ? "#334155" : "#cbd5e1";
+  const textoAzul = temaClaro ? "#1d4ed8" : "#bfdbfe";
+  const fondoTarjeta = temaClaro
+    ? "linear-gradient(145deg, rgba(255,255,255,0.96), rgba(241,245,249,0.78))"
+    : "linear-gradient(145deg, rgba(15,23,42,0.82), rgba(30,41,59,0.56))";
+  const fondoInterno = temaClaro ? "rgba(248,250,252,0.92)" : "rgba(15,23,42,0.72)";
+  const bordeInterno = temaClaro
+    ? "1px solid rgba(100,116,139,0.20)"
+    : "1px solid rgba(148,163,184,0.18)";
   const [hallazgos, setHallazgos] = useState<HallazgoCentral[]>([]);
   const [cargando, setCargando] = useState(true);
   const [filtros, setFiltros] = useState<FiltrosVista>(filtrosIniciales);
@@ -379,8 +510,10 @@ export default function MapaGpsHallazgosPage() {
       border: destacado ? "1px solid rgba(96,165,250,0.56)" : "1px solid rgba(148,163,184,0.22)",
       background: destacado
         ? "linear-gradient(135deg, #2563eb 0%, #38bdf8 100%)"
-        : "rgba(15,23,42,0.78)",
-      color: destacado ? "#ffffff" : "#dbeafe",
+        : temaClaro
+          ? "rgba(255,255,255,0.88)"
+          : "rgba(15,23,42,0.78)",
+      color: destacado ? "#ffffff" : textoAzul,
       padding: "11px 14px",
       fontSize: "13px",
       fontWeight: 900,
@@ -429,12 +562,12 @@ export default function MapaGpsHallazgosPage() {
   }
 
   return (
-    <main className="ce-panel-page ce-panel-map-page" style={pageStyle}>
+    <main className="ce-panel-page ce-panel-map-page" style={pageThemeStyle}>
       <div className="ce-panel-shell ce-panel-map-shell" style={shellStyle}>
         <header
           className="ce-panel-header"
           style={{
-            ...surfaceStyle,
+            ...themedSurfaceStyle,
             padding: "22px",
             display: "grid",
             gridTemplateColumns: "minmax(0, 1fr) auto",
@@ -448,11 +581,11 @@ export default function MapaGpsHallazgosPage() {
                 fontSize: "12px",
                 letterSpacing: "1.2px",
                 textTransform: "uppercase",
-                color: "#93c5fd",
+                color: textoAzul,
                 fontWeight: 950,
               }}
             >
-              Plataforma Hallazgos
+              {t("Plataforma Hallazgos")}
             </div>
             <h1
               style={{
@@ -462,21 +595,19 @@ export default function MapaGpsHallazgosPage() {
                 fontWeight: 950,
               }}
             >
-              Mapa GPS de Hallazgos
+              {t("Mapa GPS de Hallazgos")}
             </h1>
             <p
               style={{
                 margin: 0,
                 maxWidth: "820px",
-                color: "#cbd5e1",
+                color: textoMedio,
                 fontSize: "15px",
                 lineHeight: 1.5,
                 fontWeight: 650,
               }}
             >
-              Lectura preventiva territorial para identificar concentracion de
-              hallazgos, zonas calientes, criticidad geografica y focos de accion
-              en terreno.
+              {t("Lectura preventiva territorial para identificar concentracion de hallazgos, zonas calientes, criticidad geografica y focos de accion en terreno.")}
             </p>
           </div>
 
@@ -486,7 +617,7 @@ export default function MapaGpsHallazgosPage() {
               onMouseDown={() => activarBoton("volver")}
               style={botonStyle("volver")}
             >
-              Volver al panel ejecutivo
+              {t("Volver al panel ejecutivo")}
             </Link>
             <button
               type="button"
@@ -496,7 +627,7 @@ export default function MapaGpsHallazgosPage() {
               }}
               style={botonStyle("actualizar", true)}
             >
-              Actualizar vista
+              {t("Actualizar vista")}
             </button>
           </div>
         </header>
@@ -511,46 +642,45 @@ export default function MapaGpsHallazgosPage() {
         >
           {[
             {
-              titulo: "Hallazgos con GPS",
+              titulo: t("Hallazgos con GPS"),
               valor: resumenMapa.totalConGps,
               color: "#38bdf8",
-              detalle: "Puntos disponibles para lectura territorial",
+              detalle: t("Puntos disponibles para lectura territorial"),
             },
             {
-              titulo: "Hallazgos sin GPS",
+              titulo: t("Hallazgos sin GPS"),
               valor: resumenMapa.totalSinGps,
               color: "#f97316",
-              detalle: "Registros que requieren trazabilidad futura",
+              detalle: t("Registros que requieren trazabilidad futura"),
             },
             {
-              titulo: "Zonas criticas",
+              titulo: t("Zonas criticas"),
               valor: zonasCriticas.length,
               color: "#ef4444",
-              detalle: "Celdas con criticidad alta o critica",
+              detalle: t("Celdas con criticidad alta o critica"),
             },
             {
-              titulo: "Mayor concentracion",
+              titulo: t("Mayor concentracion"),
               valor: mayorConcentracion?.total || 0,
               color: "#a78bfa",
               detalle: mayorConcentracion
                 ? mayorConcentracion.clave
-                : "Sin celda territorial dominante",
+                : t("Sin celda territorial dominante"),
             },
           ].map((tarjeta) => (
             <article
               key={tarjeta.titulo}
               style={{
-                ...surfaceStyle,
+                ...themedSurfaceStyle,
                 padding: "18px",
                 minHeight: "132px",
-                background:
-                  "linear-gradient(145deg, rgba(15,23,42,0.82), rgba(30,41,59,0.56))",
+                background: fondoTarjeta,
               }}
             >
               <div
                 style={{
                   fontSize: "12px",
-                  color: "#cbd5e1",
+                  color: textoMedio,
                   fontWeight: 900,
                   textTransform: "uppercase",
                   letterSpacing: "0.7px",
@@ -573,7 +703,7 @@ export default function MapaGpsHallazgosPage() {
               <div
                 style={{
                   marginTop: "9px",
-                  color: "#94a3b8",
+                  color: textoSuave,
                   fontSize: "12px",
                   lineHeight: 1.35,
                   fontWeight: 750,
@@ -595,21 +725,21 @@ export default function MapaGpsHallazgosPage() {
             alignItems: "stretch",
           }}
         >
-          <aside className="ce-panel-map-filters" style={{ ...surfaceStyle, padding: "18px", display: "grid", gap: "14px" }}>
+          <aside className="ce-panel-map-filters" style={{ ...themedSurfaceStyle, padding: "18px", display: "grid", gap: "14px" }}>
             <div>
               <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 950 }}>
-                Filtros territoriales
+                {t("Filtros territoriales")}
               </h2>
               <p
                 style={{
                   margin: "6px 0 0",
-                  color: "#94a3b8",
+                  color: textoSuave,
                   fontSize: "12px",
                   lineHeight: 1.45,
                   fontWeight: 700,
                 }}
               >
-                Cruce rapido por empresa, obra, area, criticidad, estado, fecha y GPS.
+                {t("Cruce rapido por empresa, obra, area, criticidad, estado, fecha y GPS.")}
               </p>
             </div>
 
@@ -620,8 +750,8 @@ export default function MapaGpsHallazgosPage() {
               ["Tipo de hallazgo", "tipoHallazgo", opciones.tipos],
             ].map(([label, key, values]) => (
               <label key={String(key)} style={{ display: "grid", gap: "6px" }}>
-                <span style={{ fontSize: "12px", fontWeight: 900, color: "#bfdbfe" }}>
-                  {label as string}
+                <span style={{ fontSize: "12px", fontWeight: 900, color: textoAzul }}>
+                  {t(label as string)}
                 </span>
                 <select
                   value={String(filtros[key as keyof FiltrosVista])}
@@ -631,9 +761,9 @@ export default function MapaGpsHallazgosPage() {
                       [key as keyof FiltrosVista]: event.target.value,
                     }))
                   }
-                  style={inputStyle}
+                  style={themedInputStyle}
                 >
-                  <option value="">Todos</option>
+                  <option value="">{t("Todos")}</option>
                   {(values as string[]).map((valor) => (
                     <option key={valor} value={valor}>
                       {valor}
@@ -644,8 +774,8 @@ export default function MapaGpsHallazgosPage() {
             ))}
 
             <label style={{ display: "grid", gap: "6px" }}>
-              <span style={{ fontSize: "12px", fontWeight: 900, color: "#bfdbfe" }}>
-                Criticidad
+              <span style={{ fontSize: "12px", fontWeight: 900, color: textoAzul }}>
+                {t("Criticidad")}
               </span>
               <select
                 value={filtros.criticidad}
@@ -655,20 +785,20 @@ export default function MapaGpsHallazgosPage() {
                     criticidad: event.target.value as FiltrosVista["criticidad"],
                   }))
                 }
-                style={inputStyle}
+                style={themedInputStyle}
               >
-                <option value="">Todas</option>
+                <option value="">{t("Todas")}</option>
                 {criticidades.map((criticidad) => (
                   <option key={criticidad} value={criticidad}>
-                    {etiquetaCriticidad(criticidad)}
+                    {traducirCriticidad(criticidad)}
                   </option>
                 ))}
               </select>
             </label>
 
             <label style={{ display: "grid", gap: "6px" }}>
-              <span style={{ fontSize: "12px", fontWeight: 900, color: "#bfdbfe" }}>
-                Estado
+              <span style={{ fontSize: "12px", fontWeight: 900, color: textoAzul }}>
+                {t("Estado")}
               </span>
               <select
                 value={filtros.estado}
@@ -678,12 +808,12 @@ export default function MapaGpsHallazgosPage() {
                     estado: event.target.value as FiltrosVista["estado"],
                   }))
                 }
-                style={inputStyle}
+                style={themedInputStyle}
               >
-                <option value="">Todos</option>
+                <option value="">{t("Todos")}</option>
                 {estados.map((estado) => (
                   <option key={estado} value={estado}>
-                    {estado.replace("_", " ")}
+                      {traducirEstado(estado)}
                   </option>
                 ))}
               </select>
@@ -691,8 +821,8 @@ export default function MapaGpsHallazgosPage() {
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
               <label style={{ display: "grid", gap: "6px" }}>
-                <span style={{ fontSize: "12px", fontWeight: 900, color: "#bfdbfe" }}>
-                  Desde
+                <span style={{ fontSize: "12px", fontWeight: 900, color: textoAzul }}>
+                  {t("Desde")}
                 </span>
                 <input
                   type="date"
@@ -700,12 +830,12 @@ export default function MapaGpsHallazgosPage() {
                   onChange={(event) =>
                     setFiltros((actual) => ({ ...actual, fechaDesde: event.target.value }))
                   }
-                  style={inputStyle}
+                  style={themedInputStyle}
                 />
               </label>
               <label style={{ display: "grid", gap: "6px" }}>
-                <span style={{ fontSize: "12px", fontWeight: 900, color: "#bfdbfe" }}>
-                  Hasta
+                <span style={{ fontSize: "12px", fontWeight: 900, color: textoAzul }}>
+                  {t("Hasta")}
                 </span>
                 <input
                   type="date"
@@ -713,14 +843,14 @@ export default function MapaGpsHallazgosPage() {
                   onChange={(event) =>
                     setFiltros((actual) => ({ ...actual, fechaHasta: event.target.value }))
                   }
-                  style={inputStyle}
+                  style={themedInputStyle}
                 />
               </label>
             </div>
 
             <label style={{ display: "grid", gap: "6px" }}>
-              <span style={{ fontSize: "12px", fontWeight: 900, color: "#bfdbfe" }}>
-                GPS
+              <span style={{ fontSize: "12px", fontWeight: 900, color: textoAzul }}>
+                {t("GPS")}
               </span>
               <select
                 value={filtros.gps}
@@ -730,11 +860,11 @@ export default function MapaGpsHallazgosPage() {
                     gps: event.target.value as FiltroGps,
                   }))
                 }
-                style={inputStyle}
+                style={themedInputStyle}
               >
-                <option value="todos">Con GPS y sin GPS</option>
-                <option value="con-gps">Solo con GPS</option>
-                <option value="sin-gps">Solo sin GPS</option>
+                <option value="todos">{t("Con GPS y sin GPS")}</option>
+                <option value="con-gps">{t("Solo con GPS")}</option>
+                <option value="sin-gps">{t("Solo sin GPS")}</option>
               </select>
             </label>
 
@@ -747,10 +877,10 @@ export default function MapaGpsHallazgosPage() {
                 }}
                 style={botonStyle("aplicar", true)}
               >
-                Aplicar filtros
+                {t("Aplicar filtros")}
               </button>
               <button type="button" onClick={limpiarFiltros} style={botonStyle("limpiar")}>
-                Limpiar filtros
+                {t("Limpiar filtros")}
               </button>
             </div>
           </aside>
@@ -758,7 +888,7 @@ export default function MapaGpsHallazgosPage() {
           <section
             className="ce-panel-map-canvas-card"
             style={{
-              ...surfaceStyle,
+              ...themedSurfaceStyle,
               minHeight: "clamp(680px, 50vw, 880px)",
               padding: "18px",
               display: "grid",
@@ -777,21 +907,21 @@ export default function MapaGpsHallazgosPage() {
             >
               <div>
                 <h2 style={{ margin: 0, fontSize: "22px", fontWeight: 950 }}>
-                  Lectura territorial preventiva
+                  {t("Lectura territorial preventiva")}
                 </h2>
-                <p style={{ margin: "5px 0 0", color: "#94a3b8", fontSize: "13px", fontWeight: 700 }}>
-                  {mensaje}
+                <p style={{ margin: "5px 0 0", color: textoSuave, fontSize: "13px", fontWeight: 700 }}>
+                  {t(mensaje)}
                 </p>
               </div>
               <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
                 <button type="button" onClick={() => cambiarModo("puntos")} style={botonStyle("puntos")}>
-                  Ver todos los puntos
+                  {t("Ver todos los puntos")}
                 </button>
                 <button type="button" onClick={() => cambiarModo("calor")} style={botonStyle("calor", modoMapa === "calor")}>
-                  Ver concentracion
+                  {t("Ver concentracion / mapa caliente")}
                 </button>
                 <button type="button" onClick={() => cambiarModo("zonas")} style={botonStyle("zonas")}>
-                  Ver zonas criticas
+                  {t("Ver zonas criticas")}
                 </button>
               </div>
             </div>
@@ -805,7 +935,9 @@ export default function MapaGpsHallazgosPage() {
                 overflow: "hidden",
                 border: "1px solid rgba(125,211,252,0.18)",
                 background:
-                  "linear-gradient(rgba(148,163,184,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,0.08) 1px, transparent 1px), radial-gradient(circle at 25% 35%, rgba(59,130,246,0.20), transparent 24%), radial-gradient(circle at 68% 46%, rgba(239,68,68,0.16), transparent 20%), linear-gradient(145deg, rgba(2,6,23,0.94), rgba(15,23,42,0.82))",
+                  temaClaro
+                    ? "linear-gradient(rgba(100,116,139,0.12) 1px, transparent 1px), linear-gradient(90deg, rgba(100,116,139,0.12) 1px, transparent 1px), radial-gradient(circle at 25% 35%, rgba(59,130,246,0.16), transparent 24%), radial-gradient(circle at 68% 46%, rgba(239,68,68,0.12), transparent 20%), linear-gradient(145deg, rgba(248,250,252,0.98), rgba(226,232,240,0.82))"
+                    : "linear-gradient(rgba(148,163,184,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,0.08) 1px, transparent 1px), radial-gradient(circle at 25% 35%, rgba(59,130,246,0.20), transparent 24%), radial-gradient(circle at 68% 46%, rgba(239,68,68,0.16), transparent 20%), linear-gradient(145deg, rgba(2,6,23,0.94), rgba(15,23,42,0.82))",
                 backgroundSize: "48px 48px, 48px 48px, auto, auto, auto",
                 boxShadow: "inset 0 0 80px rgba(14,165,233,0.10)",
               }}
@@ -827,9 +959,9 @@ export default function MapaGpsHallazgosPage() {
                     inset: 0,
                     display: "grid",
                     placeItems: "center",
-                    color: "#bfdbfe",
+                    color: textoAzul,
                     fontWeight: 900,
-                    background: "rgba(2,6,23,0.52)",
+                    background: temaClaro ? "rgba(255,255,255,0.68)" : "rgba(2,6,23,0.52)",
                   }}
                 >
                   Cargando lectura territorial...
@@ -842,7 +974,7 @@ export default function MapaGpsHallazgosPage() {
                     position: "absolute",
                     inset: "56px",
                     borderRadius: "26px",
-                    background: "rgba(15,23,42,0.76)",
+                    background: fondoInterno,
                     border: "1px solid rgba(148,163,184,0.20)",
                     display: "grid",
                     placeItems: "center",
@@ -852,21 +984,19 @@ export default function MapaGpsHallazgosPage() {
                 >
                   <div>
                     <div style={{ fontSize: "46px", fontWeight: 950, color: "#38bdf8" }}>
-                      GPS preparado
+                      {t("GPS preparado")}
                     </div>
                     <p
                       style={{
                         maxWidth: "560px",
                         margin: "14px auto 0",
-                        color: "#cbd5e1",
+                        color: textoMedio,
                         fontSize: "15px",
                         lineHeight: 1.5,
                         fontWeight: 700,
                       }}
                     >
-                      No hay coordenadas suficientes en la fuente actual. Cuando
-                      ingresen reportes V2 con GPS o datos centrales, esta vista
-                      mostrara puntos, zonas calientes y concentracion territorial.
+                      {t("Aun no existen coordenadas suficientes para mostrar puntos reales. La vista queda preparada para reportes con GPS desde terreno.")}
                     </p>
                   </div>
                 </div>
@@ -965,11 +1095,11 @@ export default function MapaGpsHallazgosPage() {
                       gap: "7px",
                       borderRadius: "999px",
                       padding: "8px 10px",
-                      background: "rgba(15,23,42,0.76)",
+                      background: fondoInterno,
                       border: "1px solid rgba(148,163,184,0.20)",
                       fontSize: "11px",
                       fontWeight: 900,
-                      color: "#e2e8f0",
+                      color: textoPrincipal,
                     }}
                   >
                     <span
@@ -980,7 +1110,7 @@ export default function MapaGpsHallazgosPage() {
                         background: colorCriticidad(criticidad),
                       }}
                     />
-                    {etiquetaCriticidad(criticidad)}
+                    {traducirCriticidad(criticidad)}
                   </span>
                 ))}
               </div>
@@ -1003,7 +1133,7 @@ export default function MapaGpsHallazgosPage() {
                 }}
                 style={botonStyle("criticos")}
               >
-                Ver hallazgos criticos
+                {t("Ver hallazgos criticos")}
               </button>
               <button
                 type="button"
@@ -1014,7 +1144,7 @@ export default function MapaGpsHallazgosPage() {
                 }}
                 style={botonStyle("detalle-zona")}
               >
-                Detalle de zona
+                {t("Detalle de zona")}
               </button>
               <button
                 type="button"
@@ -1024,7 +1154,7 @@ export default function MapaGpsHallazgosPage() {
                 }}
                 style={botonStyle("exportar")}
               >
-                Exportar vista
+                {t("Exportar vista")}
               </button>
               <button
                 type="button"
@@ -1036,18 +1166,18 @@ export default function MapaGpsHallazgosPage() {
                 }}
                 style={botonStyle("todos", true)}
               >
-                Ver todos los registros
+                {t("Ver todos los registros")}
               </button>
             </div>
           </section>
 
-          <aside className="ce-panel-map-insights" style={{ ...surfaceStyle, padding: "18px", display: "grid", gap: "14px" }}>
+          <aside className="ce-panel-map-insights" style={{ ...themedSurfaceStyle, padding: "18px", display: "grid", gap: "14px" }}>
             <div>
               <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 950 }}>
-                Zonas y lectura ejecutiva
+                {t("Zonas y lectura ejecutiva")}
               </h2>
-              <p style={{ margin: "6px 0 0", color: "#94a3b8", fontSize: "12px", lineHeight: 1.45, fontWeight: 700 }}>
-                Concentracion territorial para priorizar verificacion en terreno.
+              <p style={{ margin: "6px 0 0", color: textoSuave, fontSize: "12px", lineHeight: 1.45, fontWeight: 700 }}>
+                {t("Concentracion territorial para priorizar verificacion en terreno.")}
               </p>
             </div>
 
@@ -1056,43 +1186,43 @@ export default function MapaGpsHallazgosPage() {
                 borderRadius: "20px",
                 padding: "15px",
                 background:
-                  "linear-gradient(145deg, rgba(239,68,68,0.18), rgba(15,23,42,0.82))",
+                  temaClaro ? "rgba(254,226,226,0.72)" : "linear-gradient(145deg, rgba(239,68,68,0.18), rgba(15,23,42,0.82))",
                 border: "1px solid rgba(239,68,68,0.28)",
               }}
             >
-              <div style={{ fontSize: "12px", color: "#fecaca", fontWeight: 900 }}>
-                Mensaje preventivo
+              <div style={{ fontSize: "12px", color: temaClaro ? "#991b1b" : "#fecaca", fontWeight: 900 }}>
+                {t("Mensaje preventivo")}
               </div>
               <div style={{ marginTop: "8px", fontSize: "14px", lineHeight: 1.45, fontWeight: 800 }}>
                 {resumenMapa.totalConGps > 0
-                  ? "Priorizar recorridos en zonas con acumulacion critica o alta. El mapa identifica patrones preventivos; no predice accidentes."
-                  : "Activar captura GPS en reportes de terreno para habilitar analisis territorial y mapas de calor reales."}
+                  ? t("Priorizar recorridos en zonas con acumulacion critica o alta. El mapa identifica patrones preventivos; no predice accidentes.")
+                  : t("Activar captura GPS en reportes de terreno para habilitar analisis territorial y mapas de calor reales.")}
               </div>
             </div>
 
             <div style={{ display: "grid", gap: "10px" }}>
               {[
-                ["Empresa dominante", concentracionEmpresa?.[0] || "Sin datos", concentracionEmpresa?.[1] || 0],
-                ["Obra dominante", concentracionObra?.[0] || "Sin datos", concentracionObra?.[1] || 0],
-                ["Area dominante", concentracionArea?.[0] || "Sin datos", concentracionArea?.[1] || 0],
+                ["Empresa dominante", concentracionEmpresa?.[0] || t("Sin datos"), concentracionEmpresa?.[1] || 0],
+                ["Obra dominante", concentracionObra?.[0] || t("Sin datos"), concentracionObra?.[1] || 0],
+                ["Area dominante", concentracionArea?.[0] || t("Sin datos"), concentracionArea?.[1] || 0],
               ].map(([label, value, count]) => (
                 <div
                   key={String(label)}
                   style={{
                     borderRadius: "18px",
                     padding: "13px",
-                    background: "rgba(15,23,42,0.72)",
-                    border: "1px solid rgba(148,163,184,0.18)",
+                    background: fondoInterno,
+                    border: bordeInterno,
                   }}
                 >
-                  <div style={{ fontSize: "11px", color: "#94a3b8", fontWeight: 900 }}>
-                    {label}
+                  <div style={{ fontSize: "11px", color: textoSuave, fontWeight: 900 }}>
+                    {t(label as string)}
                   </div>
                   <div style={{ marginTop: "5px", fontSize: "15px", fontWeight: 950 }}>
                     {value}
                   </div>
                   <div style={{ marginTop: "3px", color: "#38bdf8", fontSize: "12px", fontWeight: 900 }}>
-                    {count} hallazgos
+                    {count} {t("hallazgos")}
                   </div>
                 </div>
               ))}
@@ -1102,48 +1232,48 @@ export default function MapaGpsHallazgosPage() {
               style={{
                 borderRadius: "20px",
                 padding: "14px",
-                background: "rgba(15,23,42,0.72)",
-                border: "1px solid rgba(148,163,184,0.18)",
+                background: fondoInterno,
+                border: bordeInterno,
                 minHeight: "160px",
               }}
             >
-              <div style={{ fontSize: "12px", color: "#bfdbfe", fontWeight: 950 }}>
-                Detalle seleccionado
+              <div style={{ fontSize: "12px", color: textoAzul, fontWeight: 950 }}>
+                {t("Detalle seleccionado")}
               </div>
               {puntoSeleccionado ? (
                 <div style={{ marginTop: "10px", display: "grid", gap: "7px" }}>
                   <strong style={{ color: colorCriticidad(puntoSeleccionado.criticidad) }}>
-                    {puntoSeleccionado.codigo} · {etiquetaCriticidad(puntoSeleccionado.criticidad)}
+                    {puntoSeleccionado.codigo} · {traducirCriticidad(puntoSeleccionado.criticidad)}
                   </strong>
-                  <span style={{ color: "#cbd5e1", fontSize: "13px", lineHeight: 1.4 }}>
+                  <span style={{ color: textoMedio, fontSize: "13px", lineHeight: 1.4 }}>
                     {puntoSeleccionado.descripcionResumen}
                   </span>
-                  <span style={{ color: "#94a3b8", fontSize: "12px", fontWeight: 800 }}>
+                  <span style={{ color: textoSuave, fontSize: "12px", fontWeight: 800 }}>
                     {puntoSeleccionado.empresa} · {puntoSeleccionado.obra} · {puntoSeleccionado.area}
                   </span>
                 </div>
               ) : zonaSeleccionada ? (
                 <div style={{ marginTop: "10px", display: "grid", gap: "7px" }}>
                   <strong style={{ color: colorCriticidad(zonaSeleccionada.criticidadMaxima) }}>
-                    Zona {zonaSeleccionada.clave}
+                    {t("Zona")} {zonaSeleccionada.clave}
                   </strong>
-                  <span style={{ color: "#cbd5e1", fontSize: "13px", lineHeight: 1.4 }}>
-                    {zonaSeleccionada.total} hallazgos, {zonaSeleccionada.criticosAltos} criticos/altos.
+                  <span style={{ color: textoMedio, fontSize: "13px", lineHeight: 1.4 }}>
+                    {zonaSeleccionada.total} {t("hallazgos")}, {zonaSeleccionada.criticosAltos} {t("criticos/altos")}.
                   </span>
-                  <span style={{ color: "#94a3b8", fontSize: "12px", fontWeight: 800 }}>
-                    Codigos: {zonaSeleccionada.codigos.slice(0, 4).join(", ")}
+                  <span style={{ color: textoSuave, fontSize: "12px", fontWeight: 800 }}>
+                    {t("Codigos")}: {zonaSeleccionada.codigos.slice(0, 4).join(", ")}
                   </span>
                 </div>
               ) : (
-                <p style={{ margin: "10px 0 0", color: "#94a3b8", fontSize: "13px", lineHeight: 1.45, fontWeight: 700 }}>
-                  Selecciona un punto o zona caliente para revisar informacion territorial.
+                <p style={{ margin: "10px 0 0", color: textoSuave, fontSize: "13px", lineHeight: 1.45, fontWeight: 700 }}>
+                  {t("Selecciona un punto o zona caliente para revisar informacion territorial.")}
                 </p>
               )}
             </div>
 
             <div style={{ display: "grid", gap: "9px" }}>
-              <div style={{ fontSize: "12px", color: "#bfdbfe", fontWeight: 950 }}>
-                Zonas relevantes
+              <div style={{ fontSize: "12px", color: textoAzul, fontWeight: 950 }}>
+                {t("Zonas relevantes")}
               </div>
               {(zonasCriticas.length ? zonasCriticas : resumenMapa.mapaCalor)
                 .slice(0, 5)
@@ -1169,8 +1299,8 @@ export default function MapaGpsHallazgosPage() {
                   </button>
                 ))}
               {resumenMapa.mapaCalor.length === 0 && (
-                <div style={{ color: "#94a3b8", fontSize: "13px", fontWeight: 750 }}>
-                  Sin zonas GPS suficientes para listar.
+                <div style={{ color: textoSuave, fontSize: "13px", fontWeight: 750 }}>
+                  {t("Sin zonas GPS suficientes para listar.")}
                 </div>
               )}
             </div>
