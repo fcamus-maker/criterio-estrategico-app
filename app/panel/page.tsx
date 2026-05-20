@@ -216,8 +216,14 @@ type PanelConfigPersistida = {
 type PanelProfilePersistido = {
   nombrePerfil: string;
   cargoPerfil: string;
+  empresaPerfil: string;
+  rolPerfil: string;
+  telefonoPerfil: string;
+  correoPerfil: string;
   fotoPerfil: string | null;
 };
+
+type NotificacionPanel = (typeof notificacionesMock)[number];
 
 type BitacoraCierreLocal = {
   fechaHora: string;
@@ -321,6 +327,8 @@ const [filasPanel, setFilasPanel] = useState<HallazgoPanelExtendido[]>(hallazgos
     Salir: "Exit",
     Nombre: "Name",
     Cargo: "Role",
+    Rol: "Role",
+    Correo: "Email",
     "Foto de perfil": "Profile photo",
     "Seleccionar foto": "Select photo",
     "Quitar foto": "Remove photo",
@@ -332,6 +340,10 @@ const [filasPanel, setFilasPanel] = useState<HallazgoPanelExtendido[]>(hallazgos
     "Actualiza los datos visibles del usuario en el panel lateral": "Update the user details visible in the side panel",
     Notificaciones: "Notifications",
     "Sin notificaciones por ahora": "No notifications for now",
+    "Detalle de notificación": "Notification detail",
+    "Sin notificaciones pendientes": "No pending notifications",
+    "Acción recomendada": "Recommended action",
+    "Abrir detalle de notificación": "Open notification detail",
     "Reportes rápidos": "Quick reports",
     Filtros: "Filters",
     Empresa: "Company",
@@ -2141,30 +2153,49 @@ const [gestionCierreDraft, setGestionCierreDraft] = useState<GestionCierreDraft>
 });
 const [errorGestionCierre, setErrorGestionCierre] = useState("");
 const [mostrarNotificaciones, setMostrarNotificaciones] = useState(false);
+const [notificacionActiva, setNotificacionActiva] = useState<NotificacionPanel | null>(null);
 const [usuario, setUsuario] = useState({
   ...usuarioMock,
   nombre: usuarioMock.nombre || "Freddy Camus",
   cargo: usuarioMock.cargo || "Ingeniero en Prevención de Riesgos",
+  empresa: usuarioMock.empresa || "Criterio Estratégico",
+  rol: usuarioMock.rol || "Administrador ejecutivo",
+  telefono: usuarioMock.telefono || "+56 9 1234 5678",
+  correo: usuarioMock.correo || "freddy.camus@criterioestrategico.cl",
   foto: usuarioMock.foto || "",
 });
 const [mostrarEditorPerfil, setMostrarEditorPerfil] = useState(false);
 const [nombrePerfil, setNombrePerfil] = useState(usuarioMock.nombre || "Freddy Camus");
 const [cargoPerfil, setCargoPerfil] = useState(usuarioMock.cargo || "Ingeniero en Prevención de Riesgos");
+const [empresaPerfil, setEmpresaPerfil] = useState(usuarioMock.empresa || "Criterio Estratégico");
+const [rolPerfil, setRolPerfil] = useState(usuarioMock.rol || "Administrador ejecutivo");
+const [telefonoPerfil, setTelefonoPerfil] = useState(usuarioMock.telefono || "+56 9 1234 5678");
+const [correoPerfil, setCorreoPerfil] = useState(usuarioMock.correo || "freddy.camus@criterioestrategico.cl");
 const [fotoPerfil, setFotoPerfil] = useState(usuarioMock.foto || "");
 const [nombrePerfilDraft, setNombrePerfilDraft] = useState(usuarioMock.nombre || "Freddy Camus");
 const [cargoPerfilDraft, setCargoPerfilDraft] = useState(usuarioMock.cargo || "Ingeniero en Prevención de Riesgos");
+const [empresaPerfilDraft, setEmpresaPerfilDraft] = useState(usuarioMock.empresa || "Criterio Estratégico");
+const [rolPerfilDraft, setRolPerfilDraft] = useState(usuarioMock.rol || "Administrador ejecutivo");
+const [telefonoPerfilDraft, setTelefonoPerfilDraft] = useState(usuarioMock.telefono || "+56 9 1234 5678");
+const [correoPerfilDraft, setCorreoPerfilDraft] = useState(usuarioMock.correo || "freddy.camus@criterioestrategico.cl");
 const [fotoPerfilDraft, setFotoPerfilDraft] = useState<string | null>(usuarioMock.foto || null);
 const [fotoPerfilInputKey, setFotoPerfilInputKey] = useState(0);
 const [guardadoPerfil, setGuardadoPerfil] = useState(false);
 const [fotoPerfilCargada, setFotoPerfilCargada] = useState(false);
 const [errorPerfil, setErrorPerfil] = useState("");
-const [campoPerfilActivo, setCampoPerfilActivo] = useState<"nombre" | "cargo" | null>(null);
+const [campoPerfilActivo, setCampoPerfilActivo] = useState<
+  "nombre" | "cargo" | "empresa" | "rol" | "telefono" | "correo" | null
+>(null);
 const [controlPerfilActivo, setControlPerfilActivo] = useState<string | null>(null);
 const inicialUsuario = (usuario.nombre.trim() || "Freddy Camus").charAt(0).toUpperCase();
 const inicialPerfil = (nombrePerfilDraft.trim() || "Freddy Camus").charAt(0).toUpperCase();
 const abrirEditorPerfil = () => {
   setNombrePerfilDraft(nombrePerfil || "Freddy Camus");
   setCargoPerfilDraft(cargoPerfil || "Ingeniero en Prevención de Riesgos");
+  setEmpresaPerfilDraft(empresaPerfil || "Criterio Estratégico");
+  setRolPerfilDraft(rolPerfil || "Administrador ejecutivo");
+  setTelefonoPerfilDraft(telefonoPerfil || "+56 9 1234 5678");
+  setCorreoPerfilDraft(correoPerfil || "freddy.camus@criterioestrategico.cl");
   setFotoPerfilDraft(fotoPerfil || null);
   setGuardadoPerfil(false);
   setErrorPerfil("");
@@ -2201,6 +2232,10 @@ const quitarFotoPerfil = () => {
 const guardarPerfil = () => {
   const nombreFinal = nombrePerfilDraft.trim() || "Freddy Camus";
   const cargoFinal = cargoPerfilDraft.trim() || "Ingeniero en Prevención de Riesgos";
+  const empresaFinal = empresaPerfilDraft.trim() || "Criterio Estratégico";
+  const rolFinal = rolPerfilDraft.trim() || "Administrador ejecutivo";
+  const telefonoFinal = telefonoPerfilDraft.trim() || "+56 9 1234 5678";
+  const correoFinal = correoPerfilDraft.trim() || "freddy.camus@criterioestrategico.cl";
   const fotoFinal = fotoPerfilDraft || null;
   const limiteFotoPerfil = 1.5 * 1024 * 1024;
 
@@ -2213,6 +2248,10 @@ const guardarPerfil = () => {
   const profileToSave: PanelProfilePersistido = {
     nombrePerfil: nombreFinal,
     cargoPerfil: cargoFinal,
+    empresaPerfil: empresaFinal,
+    rolPerfil: rolFinal,
+    telefonoPerfil: telefonoFinal,
+    correoPerfil: correoFinal,
     fotoPerfil: fotoFinal,
   };
 
@@ -2241,10 +2280,18 @@ const guardarPerfil = () => {
     ...actual,
     nombre: nombreFinal,
     cargo: cargoFinal,
+    empresa: empresaFinal,
+    rol: rolFinal,
+    telefono: telefonoFinal,
+    correo: correoFinal,
     foto: fotoFinal || "",
   }));
   setNombrePerfil(nombreFinal);
   setCargoPerfil(cargoFinal);
+  setEmpresaPerfil(empresaFinal);
+  setRolPerfil(rolFinal);
+  setTelefonoPerfil(telefonoFinal);
+  setCorreoPerfil(correoFinal);
   setFotoPerfil(fotoFinal || "");
 
   setErrorPerfil("");
@@ -2264,19 +2311,35 @@ useEffect(() => {
     const perfil = JSON.parse(perfilGuardado) as Partial<PanelProfilePersistido>;
     const nombreGuardado = perfil.nombrePerfil?.trim() || "Freddy Camus";
     const cargoGuardado = perfil.cargoPerfil?.trim() || "Ingeniero en Prevención de Riesgos";
+    const empresaGuardada = perfil.empresaPerfil?.trim() || "Criterio Estratégico";
+    const rolGuardado = perfil.rolPerfil?.trim() || "Administrador ejecutivo";
+    const telefonoGuardado = perfil.telefonoPerfil?.trim() || "+56 9 1234 5678";
+    const correoGuardado = perfil.correoPerfil?.trim() || "freddy.camus@criterioestrategico.cl";
     const fotoGuardada = typeof perfil.fotoPerfil === "string" ? perfil.fotoPerfil : "";
 
     setUsuario((actual) => ({
       ...actual,
       nombre: nombreGuardado,
       cargo: cargoGuardado,
+      empresa: empresaGuardada,
+      rol: rolGuardado,
+      telefono: telefonoGuardado,
+      correo: correoGuardado,
       foto: fotoGuardada,
     }));
     setNombrePerfil(nombreGuardado);
     setCargoPerfil(cargoGuardado);
+    setEmpresaPerfil(empresaGuardada);
+    setRolPerfil(rolGuardado);
+    setTelefonoPerfil(telefonoGuardado);
+    setCorreoPerfil(correoGuardado);
     setFotoPerfil(fotoGuardada);
     setNombrePerfilDraft(nombreGuardado);
     setCargoPerfilDraft(cargoGuardado);
+    setEmpresaPerfilDraft(empresaGuardada);
+    setRolPerfilDraft(rolGuardado);
+    setTelefonoPerfilDraft(telefonoGuardado);
+    setCorreoPerfilDraft(correoGuardado);
     setFotoPerfilDraft(fotoGuardada || null);
   } catch {
     console.warn("No se pudo leer ce_panel_profile desde localStorage.");
@@ -2302,22 +2365,21 @@ const limpiarFiltros = () => {
   setFiltroFechaHasta("");
   setFiltroTipoHallazgo("TODOS");
 };
-const abrirNotificacion = (hallazgoId: string) => {
-  const hallazgoRelacionado = filas.find((item) => item.id === hallazgoId);
+const abrirNotificacion = (notificacion: NotificacionPanel) => {
+  if (notificacion.hallazgoId) {
+    const hallazgoRelacionado = filas.find((item) => item.id === notificacion.hallazgoId);
 
-  if (!hallazgoRelacionado) {
-    return;
+    if (hallazgoRelacionado) {
+      setHallazgoActivo(hallazgoRelacionado);
+    }
   }
 
-  setHallazgoActivo(hallazgoRelacionado);
-
+  setNotificacionActiva(notificacion);
   setNotificaciones((prev) =>
-    prev.map((item) => {
-      const notificacion = item as typeof item & { hallazgoId?: string };
-      return notificacion.hallazgoId === hallazgoId ? { ...item, leida: true } : item;
-    })
+    prev.map((item) =>
+      item.id === notificacion.id ? { ...item, leida: true } : item
+    )
   );
-
   setMostrarNotificaciones(false);
 };
 const quitarFiltro = (filtro: string) => {
@@ -3626,7 +3688,9 @@ const riesgoOperativoPrincipal =
   const salmonSombra = temaClaro
     ? "0 0 0 3px rgba(251,146,124,0.14), 0 10px 24px rgba(190,99,83,0.10)"
     : "0 0 0 3px rgba(251,146,124,0.13), 0 10px 24px rgba(0,0,0,0.22)";
-  const perfilInputStyle = (campo: "nombre" | "cargo"): React.CSSProperties => {
+  const perfilInputStyle = (
+    campo: "nombre" | "cargo" | "empresa" | "rol" | "telefono" | "correo"
+  ): React.CSSProperties => {
     const activo = campoPerfilActivo === campo;
 
     return {
@@ -3683,15 +3747,15 @@ const riesgoOperativoPrincipal =
     width: "fit-content",
     display: "inline-flex",
     alignItems: "center",
-    padding: "4px 8px",
-    borderRadius: "8px",
-    border: temaClaro ? "1px solid rgba(37,99,235,0.30)" : "1px solid rgba(96,165,250,0.35)",
-    background: temaClaro ? "rgba(219,234,254,0.84)" : "rgba(37,99,235,0.28)",
-    color: temaClaro ? "#1e3a8a" : "#ffffff",
-    fontSize: "11px",
-    fontWeight: 850,
-    letterSpacing: "0.04em",
-    textTransform: "uppercase",
+    padding: "0",
+    borderRadius: 0,
+    border: "none",
+    background: "transparent",
+    color: temaClaro ? "#1d4ed8" : "#bfdbfe",
+    fontSize: "12px",
+    fontWeight: 900,
+    letterSpacing: 0,
+    textTransform: "none",
     lineHeight: 1,
   };
   const seguimientoChipStyle = (estado: string): React.CSSProperties => {
@@ -3756,6 +3820,103 @@ const riesgoOperativoPrincipal =
       border: "1px solid rgba(245,158,11,0.30)",
       color: temaClaro ? "#92400e" : "#fde68a",
     };
+  };
+  const premiumHeroSurfaceStyle: React.CSSProperties = {
+    borderRadius: "28px",
+    background: temaClaro ? "rgba(255,255,255,0.88)" : "rgba(15,23,42,0.76)",
+    border: temaClaro
+      ? "1px solid rgba(100,116,139,0.22)"
+      : "1px solid rgba(148,163,184,0.18)",
+    boxShadow: temaClaro
+      ? "0 22px 54px rgba(15,23,42,0.10)"
+      : "0 24px 70px rgba(0,0,0,0.34)",
+    backdropFilter: "blur(14px)",
+  };
+  const premiumPanelStyle: React.CSSProperties = {
+    borderRadius: "28px",
+    background: temaClaro ? "rgba(255,255,255,0.88)" : "rgba(15,23,42,0.76)",
+    border: temaClaro
+      ? "1px solid rgba(100,116,139,0.22)"
+      : "1px solid rgba(148,163,184,0.18)",
+    boxShadow: temaClaro
+      ? "0 22px 54px rgba(15,23,42,0.10)"
+      : "0 24px 70px rgba(0,0,0,0.34)",
+    backdropFilter: "blur(14px)",
+  };
+  const premiumCardFillStyle: React.CSSProperties = {
+    background: temaClaro
+      ? "linear-gradient(145deg, rgba(255,255,255,0.96), rgba(241,245,249,0.78))"
+      : "linear-gradient(145deg, rgba(15,23,42,0.84), rgba(30,41,59,0.56))",
+  };
+  const tableHeaderStyle: React.CSSProperties = {
+    background: temaClaro ? "rgba(248,250,252,0.92)" : "rgba(15,23,42,0.72)",
+    color: temaClaro ? "#334155" : "#cbd5e1",
+    borderBottom: temaClaro
+      ? "1px solid rgba(100,116,139,0.20)"
+      : "1px solid rgba(148,163,184,0.18)",
+  };
+  const premiumPageBackground = temaClaro
+    ? "radial-gradient(circle at 18% 0%, rgba(37,99,235,0.12), transparent 30%), radial-gradient(circle at 80% 12%, rgba(168,85,247,0.10), transparent 28%), linear-gradient(135deg, #f8fafc 0%, #eef4ff 48%, #f7fbff 100%)"
+    : "radial-gradient(circle at 18% 0%, rgba(37,99,235,0.28), transparent 32%), radial-gradient(circle at 80% 12%, rgba(168,85,247,0.18), transparent 28%), radial-gradient(circle at 52% 88%, rgba(20,184,166,0.14), transparent 30%), linear-gradient(135deg, #07111f 0%, #0f172a 48%, #111827 100%)";
+  const premiumTextoAzul = temaClaro ? "#1d4ed8" : "#bfdbfe";
+  const premiumTextoSuave = temaClaro ? "#475569" : "#94a3b8";
+  const premiumInnerStyle: React.CSSProperties = {
+    borderRadius: "24px",
+    border: temaClaro
+      ? "1px solid rgba(100,116,139,0.20)"
+      : "1px solid rgba(148,163,184,0.18)",
+    background: temaClaro ? "rgba(248,250,252,0.92)" : "rgba(15,23,42,0.72)",
+  };
+  const premiumInputStyle: React.CSSProperties = {
+    width: "100%",
+    minHeight: "43px",
+    borderRadius: "14px",
+    border: temaClaro
+      ? "1px solid rgba(100,116,139,0.28)"
+      : "1px solid rgba(148,163,184,0.24)",
+    background: temaClaro ? "rgba(248,250,252,0.96)" : "rgba(15,23,42,0.78)",
+    color: temaClaro ? "#0f172a" : "#e5e7eb",
+    padding: "0 12px",
+    fontSize: "13px",
+    fontWeight: 750,
+    outline: "none",
+    colorScheme: tema.inputScheme,
+  };
+  const premiumPrimaryButtonStyle: React.CSSProperties = {
+    minHeight: "44px",
+    borderRadius: "14px",
+    border: "1px solid rgba(96,165,250,0.58)",
+    background: "linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)",
+    color: "#ffffff",
+    padding: "11px 14px",
+    fontSize: "13px",
+    fontWeight: 900,
+    cursor: "pointer",
+    boxShadow: "0 12px 26px rgba(99,102,241,0.28)",
+  };
+  const premiumSecondaryButtonStyle: React.CSSProperties = {
+    minHeight: "44px",
+    borderRadius: "14px",
+    border: "1px solid rgba(148,163,184,0.22)",
+    background: temaClaro ? "rgba(255,255,255,0.88)" : "rgba(15,23,42,0.78)",
+    color: premiumTextoAzul,
+    padding: "11px 14px",
+    fontSize: "13px",
+    fontWeight: 900,
+    cursor: "pointer",
+    boxShadow: "0 10px 24px rgba(0,0,0,0.18)",
+  };
+  const premiumActiveToggleStyle: React.CSSProperties = {
+    border: "1px solid rgba(96,165,250,0.58)",
+    background: "linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)",
+    color: "#ffffff",
+    boxShadow: "0 12px 26px rgba(99,102,241,0.28)",
+  };
+  const premiumInactiveToggleStyle: React.CSSProperties = {
+    border: "1px solid rgba(148,163,184,0.22)",
+    background: temaClaro ? "rgba(255,255,255,0.88)" : "rgba(15,23,42,0.78)",
+    color: premiumTextoAzul,
+    boxShadow: "0 10px 24px rgba(0,0,0,0.18)",
   };
 
 	  return (
@@ -4174,6 +4335,67 @@ const riesgoOperativoPrincipal =
             placeholder="Ingeniero en Prevención de Riesgos"
           />
         </label>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+            gap: "14px",
+          }}
+        >
+          {[
+            {
+              campo: "empresa" as const,
+              label: t("Empresa"),
+              value: empresaPerfilDraft,
+              setValue: setEmpresaPerfilDraft,
+              placeholder: "Criterio Estratégico",
+            },
+            {
+              campo: "rol" as const,
+              label: t("Rol"),
+              value: rolPerfilDraft,
+              setValue: setRolPerfilDraft,
+              placeholder: "Administrador ejecutivo",
+            },
+            {
+              campo: "telefono" as const,
+              label: t("Teléfono"),
+              value: telefonoPerfilDraft,
+              setValue: setTelefonoPerfilDraft,
+              placeholder: "+56 9 1234 5678",
+            },
+            {
+              campo: "correo" as const,
+              label: t("Correo"),
+              value: correoPerfilDraft,
+              setValue: setCorreoPerfilDraft,
+              placeholder: "correo@empresa.cl",
+            },
+          ].map((campo) => (
+            <label key={campo.campo} style={{ display: "grid", gap: "7px" }}>
+              <span
+                style={{
+                  fontSize: "12px",
+                  color: tema.textoSuave,
+                  fontWeight: 900,
+                }}
+              >
+                {campo.label}
+              </span>
+              <input
+                value={campo.value}
+                onChange={(e) => campo.setValue(e.target.value)}
+                onFocus={() => setCampoPerfilActivo(campo.campo)}
+                onBlur={() => setCampoPerfilActivo(null)}
+                onMouseEnter={() => setCampoPerfilActivo(campo.campo)}
+                onMouseLeave={() => setCampoPerfilActivo(null)}
+                style={perfilInputStyle(campo.campo)}
+                placeholder={campo.placeholder}
+              />
+            </label>
+          ))}
+        </div>
       </div>
 
       {guardadoPerfil && (
@@ -4240,6 +4462,137 @@ const riesgoOperativoPrincipal =
         >
           {t("Guardar perfil")}
         </button>
+      </div>
+    </div>
+  </div>
+)}
+
+{notificacionActiva && (
+  <div
+    style={{
+      position: "fixed",
+      inset: 0,
+      zIndex: 82,
+      background: temaClaro ? "rgba(15,23,42,0.18)" : "rgba(2,6,23,0.62)",
+      backdropFilter: "blur(8px)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "24px",
+    }}
+  >
+    <div
+      style={{
+        width: "min(620px, calc(100vw - 32px))",
+        borderRadius: "24px",
+        border: temaClaro ? "1px solid rgba(37,99,235,0.20)" : "1px solid rgba(147,197,253,0.16)",
+        background: temaClaro
+          ? "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(239,246,255,0.95))"
+          : "linear-gradient(180deg, rgba(15,23,42,0.97), rgba(8,19,36,0.97))",
+        boxShadow: temaClaro
+          ? "0 28px 70px rgba(15,23,42,0.20)"
+          : "0 28px 80px rgba(0,0,0,0.48)",
+        padding: "22px",
+        display: "grid",
+        gap: "16px",
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", gap: "16px" }}>
+        <div>
+          <div
+            style={{
+              fontSize: "12px",
+              color: tema.textoSuave,
+              fontWeight: 900,
+              textTransform: "uppercase",
+              marginBottom: "6px",
+            }}
+          >
+            {t("Detalle de notificación")}
+          </div>
+          <div style={{ fontSize: "22px", fontWeight: 900, color: tema.texto }}>
+            {t(notificacionActiva.titulo)}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => setNotificacionActiva(null)}
+          style={{
+            ...secondaryButtonStyle,
+            width: "42px",
+            height: "42px",
+            borderRadius: "14px",
+            fontSize: "20px",
+            fontWeight: 900,
+            cursor: "pointer",
+          }}
+          aria-label={t("Cerrar")}
+        >
+          ×
+        </button>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+          gap: "10px",
+        }}
+      >
+        {[
+          [t("Fecha"), notificacionActiva.fechaHora],
+          [t("Criticidad"), t(notificacionActiva.criticidad)],
+          [t("Estado"), t(notificacionActiva.estado)],
+          [t("Empresa"), `${notificacionActiva.empresa} / ${notificacionActiva.obra}`],
+        ].map(([label, value]) => (
+          <div
+            key={label}
+            style={{
+              padding: "12px",
+              borderRadius: "14px",
+              border: tema.borde,
+              background: tema.tarjetaSuave,
+            }}
+          >
+            <div style={{ fontSize: "11px", color: tema.textoSuave, fontWeight: 900, marginBottom: "5px" }}>
+              {label}
+            </div>
+            <div style={{ fontSize: "13px", color: tema.texto, fontWeight: 850 }}>{value}</div>
+          </div>
+        ))}
+      </div>
+
+      <div
+        style={{
+          padding: "14px",
+          borderRadius: "16px",
+          border: tema.borde,
+          background: temaClaro ? "rgba(248,250,252,0.88)" : "rgba(255,255,255,0.045)",
+          color: tema.texto,
+          fontSize: "13px",
+          lineHeight: 1.55,
+          fontWeight: 700,
+        }}
+      >
+        {t(notificacionActiva.descripcion)}
+      </div>
+
+      <div
+        style={{
+          padding: "14px",
+          borderRadius: "16px",
+          border: "1px solid rgba(34,197,94,0.34)",
+          background: temaClaro ? "rgba(220,252,231,0.68)" : "rgba(34,197,94,0.12)",
+          color: temaClaro ? "#14532d" : "#dcfce7",
+          fontSize: "13px",
+          lineHeight: 1.5,
+          fontWeight: 800,
+        }}
+      >
+        <div style={{ fontSize: "11px", fontWeight: 950, textTransform: "uppercase", marginBottom: "6px" }}>
+          {t("Acción recomendada")}
+        </div>
+        {t(notificacionActiva.accionRecomendada)}
       </div>
     </div>
   </div>
@@ -4774,6 +5127,25 @@ const riesgoOperativoPrincipal =
       >
         {usuario.cargo}
       </div>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          gap: "6px",
+          flexWrap: "wrap",
+          marginTop: "4px",
+        }}
+      >
+        <span style={smallStatusStyle(true)}>{usuario.rol}</span>
+        <span
+          style={{
+            ...smallStatusStyle(false),
+            alignSelf: "center",
+          }}
+        >
+          {usuario.empresa}
+        </span>
+      </div>
     </div>
 
     <div
@@ -4948,11 +5320,17 @@ const riesgoOperativoPrincipal =
         {notificaciones.length === 0 ? (
           <div
             style={{
+              padding: "16px 12px",
+              borderRadius: "14px",
+              border: tema.borde,
+              background: tema.tarjetaElevada,
               fontSize: "12px",
-              opacity: 0.72,
+              color: tema.textoSuave,
+              fontWeight: 800,
+              textAlign: "center",
             }}
           >
-	            {t("Sin notificaciones por ahora")}
+	            {t("Sin notificaciones pendientes")}
           </div>
         ) : (
           <div
@@ -4965,11 +5343,13 @@ const riesgoOperativoPrincipal =
               <button
                 key={index}
                 type="button"
+                onClick={() => abrirNotificacion(item)}
+                aria-label={`${t("Abrir detalle de notificación")}: ${t(item.titulo)}`}
                 style={{
                   padding: "12px",
                   borderRadius: "14px",
 	                  background: tema.tarjetaElevada,
-	                  border: tema.borde,
+	                  border: item.leida ? tema.borde : "1px solid rgba(239,68,68,0.36)",
                   display: "grid",
                   gap: "6px",
                   cursor: "pointer",
@@ -4978,8 +5358,17 @@ const riesgoOperativoPrincipal =
                   MozAppearance: "none",
 	                  color: tema.texto,
                   textAlign: "left",
+                  boxShadow: item.leida ? "none" : "0 8px 18px rgba(239,68,68,0.10)",
                 }}
               >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: "8px",
+                    alignItems: "center",
+                  }}
+                >
                 <div
                   style={{
                     fontSize: "12px",
@@ -4989,6 +5378,18 @@ const riesgoOperativoPrincipal =
                 >
                   {item.mensaje}
                 </div>
+                  {!item.leida && (
+                    <span
+                      style={{
+                        width: "8px",
+                        height: "8px",
+                        borderRadius: "999px",
+                        background: "#ef4444",
+                        flexShrink: 0,
+                      }}
+                    />
+                  )}
+                </div>
 
                 <div
                   style={{
@@ -4997,6 +5398,38 @@ const riesgoOperativoPrincipal =
                   }}
                 >
                   {item.fechaHora}
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "6px",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <span
+                    style={{
+                      padding: "5px 7px",
+                      borderRadius: "999px",
+                      fontSize: "10px",
+                      fontWeight: 900,
+                      ...seguimientoChipStyle(item.estado),
+                    }}
+                  >
+                    {t(item.estado)}
+                  </span>
+                  <span
+                    style={{
+                      padding: "5px 7px",
+                      borderRadius: "999px",
+                      fontSize: "10px",
+                      fontWeight: 900,
+                      background: chipColor(item.criticidad).fondo,
+                      border: chipColor(item.criticidad).borde,
+                      color: chipColor(item.criticidad).texto,
+                    }}
+                  >
+                    {t(item.criticidad)}
+                  </span>
                 </div>
               </button>
             ))}
@@ -6321,6 +6754,19 @@ style={{
             className="ce-panel-right-rail"
             style={{
               ...panelSurfaceStyle,
+              ...(vistaDerecha !== "informe"
+                ? {
+                    borderRadius: "28px",
+                    background: premiumPageBackground,
+                    border: temaClaro
+                      ? "1px solid rgba(100,116,139,0.22)"
+                      : "1px solid rgba(148,163,184,0.18)",
+                    boxShadow: temaClaro
+                      ? "0 22px 54px rgba(15,23,42,0.10)"
+                      : "0 24px 70px rgba(0,0,0,0.34)",
+                    backdropFilter: "blur(14px)",
+                  }
+                : {}),
               padding: vistaPrincipal === "panel" ? "16px" : "24px",
               minHeight: "760px",
               display: "flex",
@@ -6350,7 +6796,7 @@ style={{
   >
     <div
       style={{
-        ...panelSurfaceStyle,
+        ...premiumHeroSurfaceStyle,
         padding: "20px 22px",
         display: "flex",
         justifyContent: "space-between",
@@ -6361,8 +6807,9 @@ style={{
       <div>
         <div
           style={{
-            fontSize: "24px",
-            fontWeight: 900,
+            fontSize: "28px",
+            lineHeight: 1,
+            fontWeight: 950,
             color: tema.texto,
             marginBottom: "6px",
           }}
@@ -6371,9 +6818,10 @@ style={{
         </div>
         <div
           style={{
-            fontSize: "13px",
-            color: tema.textoSuave,
+            fontSize: "14px",
+            color: premiumTextoSuave,
             lineHeight: 1.5,
+            fontWeight: 700,
           }}
         >
           {t("Control de responsables, plazos, evidencias y estado de corrección.")}
@@ -6386,13 +6834,8 @@ style={{
           setVistaDerecha("informe");
         }}
         style={{
+          ...premiumSecondaryButtonStyle,
           padding: "12px 18px",
-          borderRadius: "14px",
-          ...secondaryButtonStyle,
-          fontSize: "13px",
-          fontWeight: 800,
-          cursor: "pointer",
-          boxShadow: "0 8px 18px rgba(0,0,0,0.14)",
         }}
       >
         {t("Volver al panel")}
@@ -6410,9 +6853,10 @@ style={{
         <div
           key={kpi.id}
           style={{
-            ...panelSurfaceStyle,
+            ...premiumPanelStyle,
             padding: "16px",
-            minHeight: "92px",
+            minHeight: "126px",
+            ...premiumCardFillStyle,
             display: "flex",
             flexDirection: "column",
             justifyContent: "space-between",
@@ -6421,9 +6865,10 @@ style={{
           <div
             style={{
               fontSize: "11px",
-              color: tema.textoSuave,
+              color: premiumTextoSuave,
               fontWeight: 900,
               textTransform: "uppercase",
+              letterSpacing: "0.7px",
               lineHeight: 1.25,
             }}
           >
@@ -6432,8 +6877,9 @@ style={{
           <div
             style={{
               fontSize: "34px",
-              fontWeight: 900,
+              fontWeight: 950,
               color: kpi.color,
+              textShadow: `0 0 20px ${kpi.color}66`,
               lineHeight: 1,
             }}
           >
@@ -6445,7 +6891,7 @@ style={{
 
     <div
       style={{
-        ...panelSurfaceStyle,
+        ...premiumPanelStyle,
         padding: "16px",
         display: "grid",
         gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
@@ -6459,7 +6905,7 @@ style={{
         <select
           value={filtroSeguimientoEstado}
           onChange={(e) => setFiltroSeguimientoEstado(e.target.value)}
-          style={{ ...controlStyle, cursor: "pointer" }}
+          style={{ ...premiumInputStyle, cursor: "pointer" }}
         >
           {opcionesSeguimientoEstado.map((estado) => (
             <option key={estado} value={estado} style={optionStyle}>
@@ -6475,7 +6921,7 @@ style={{
         <select
           value={filtroSeguimientoEmpresa}
           onChange={(e) => setFiltroSeguimientoEmpresa(e.target.value)}
-          style={{ ...controlStyle, cursor: "pointer" }}
+          style={{ ...premiumInputStyle, cursor: "pointer" }}
         >
           {opcionesSeguimientoEmpresa.map((empresa) => (
             <option key={empresa} value={empresa} style={optionStyle}>
@@ -6491,7 +6937,7 @@ style={{
         <select
           value={filtroSeguimientoCriticidad}
           onChange={(e) => setFiltroSeguimientoCriticidad(e.target.value)}
-          style={{ ...controlStyle, cursor: "pointer" }}
+          style={{ ...premiumInputStyle, cursor: "pointer" }}
         >
           {opcionesCriticidad.map((criticidad) => (
             <option key={criticidad} value={criticidad} style={optionStyle}>
@@ -6508,7 +6954,7 @@ style={{
           type="date"
           value={filtroSeguimientoFecha}
           onChange={(e) => setFiltroSeguimientoFecha(e.target.value)}
-          style={{ ...controlStyle, colorScheme: tema.inputScheme }}
+          style={premiumInputStyle}
           aria-label={t("Fecha")}
         />
       </label>
@@ -6531,7 +6977,7 @@ style={{
                 ejecutarBusquedaResponsableSeguimiento();
               }
             }}
-            style={controlStyle}
+            style={premiumInputStyle}
             placeholder={t("Buscar por nombre de responsable")}
           />
           <button
@@ -6540,10 +6986,9 @@ style={{
             style={{
               padding: "0 13px",
               borderRadius: "13px",
-              ...selectedButtonStyle,
+              ...premiumPrimaryButtonStyle,
+              minHeight: "43px",
               fontSize: "12px",
-              fontWeight: 900,
-              cursor: "pointer",
             }}
           >
             {t("Buscar")}
@@ -6554,10 +6999,10 @@ style={{
             style={{
               width: "40px",
               borderRadius: "13px",
-              ...secondaryButtonStyle,
+              ...premiumSecondaryButtonStyle,
+              minHeight: "43px",
+              padding: 0,
               fontSize: "15px",
-              fontWeight: 900,
-              cursor: "pointer",
             }}
             aria-label={t("Limpiar filtros")}
           >
@@ -6577,7 +7022,7 @@ style={{
     >
       <div
         style={{
-          ...panelSurfaceStyle,
+          ...premiumPanelStyle,
           overflow: "hidden",
         }}
       >
@@ -6587,8 +7032,7 @@ style={{
             gridTemplateColumns: "0.85fr 1.15fr 1.15fr 0.9fr 1.25fr 1.15fr 1fr 1fr 1fr 0.85fr",
             gap: "10px",
             padding: "13px 14px",
-            background: tema.tarjetaSuave,
-            color: tema.textoSuave,
+            ...tableHeaderStyle,
             fontSize: "10px",
             fontWeight: 900,
             textTransform: "uppercase",
@@ -6634,7 +7078,7 @@ style={{
                 alignItems: "center",
                 fontSize: "12px",
                 background: activo
-                  ? (temaClaro ? "rgba(219,234,254,0.46)" : "rgba(59,130,246,0.09)")
+                  ? (temaClaro ? "rgba(226,232,240,0.82)" : "rgba(30,41,59,0.62)")
                   : "transparent",
               }}
             >
@@ -6681,10 +7125,11 @@ style={{
                 style={{
                   padding: "9px 10px",
                   borderRadius: "12px",
-                  ...secondaryButtonStyle,
+                  ...premiumSecondaryButtonStyle,
+                  minHeight: "36px",
                   fontSize: "11px",
-                  fontWeight: 900,
-                  cursor: "pointer",
+                  paddingTop: "8px",
+                  paddingBottom: "8px",
                 }}
               >
                 {t("Ver detalle")}
@@ -6697,7 +7142,7 @@ style={{
       {hallazgoSeguimientoActivo && (
         <div
           style={{
-            ...panelSurfaceStyle,
+            ...premiumPanelStyle,
             padding: "18px",
             display: "grid",
             gap: "14px",
@@ -6728,9 +7173,7 @@ style={{
               key={label}
               style={{
                 padding: "12px",
-                borderRadius: "14px",
-                border: tema.borde,
-                background: tema.tarjetaSuave,
+                ...premiumInnerStyle,
               }}
             >
               <div style={{ fontSize: "11px", color: tema.textoSuave, fontWeight: 900, marginBottom: "5px" }}>
@@ -6746,10 +7189,8 @@ style={{
               width: "100%",
               padding: "13px 14px",
               borderRadius: "14px",
-              ...selectedButtonStyle,
+              ...premiumPrimaryButtonStyle,
               fontSize: "13px",
-              fontWeight: 900,
-              cursor: "pointer",
             }}
           >
             {t("Gestionar cierre")}
@@ -6784,7 +7225,7 @@ style={{
   >
     <div
       style={{
-        ...panelSurfaceStyle,
+        ...premiumHeroSurfaceStyle,
         padding: "20px 22px",
         display: "flex",
         justifyContent: "space-between",
@@ -6795,8 +7236,9 @@ style={{
       <div>
         <div
           style={{
-            fontSize: "24px",
-            fontWeight: 900,
+            fontSize: "28px",
+            lineHeight: 1,
+            fontWeight: 950,
 	            color: tema.texto,
             marginBottom: "6px",
           }}
@@ -6806,9 +7248,10 @@ style={{
 
         <div
           style={{
-            fontSize: "13px",
-	            color: tema.textoSuave,
+            fontSize: "14px",
+	            color: premiumTextoSuave,
             lineHeight: 1.5,
+            fontWeight: 700,
           }}
         >
 	          {t("Administra identidad corporativa, apariencia y parámetros generales de la plataforma.")}
@@ -6829,15 +7272,8 @@ style={{
             setVistaDerecha("informe");
           }}
          style={{
+  ...premiumSecondaryButtonStyle,
   padding: "12px 18px",
-  borderRadius: "14px",
-	  border: tema.bordeFuerte,
-	  background: tema.tarjetaElevada,
-	  color: tema.texto,
-  fontSize: "13px",
-  fontWeight: 800,
-  cursor: "pointer",
-  boxShadow: "0 8px 18px rgba(0,0,0,0.14)",
 }}
         >
 	          {t("Volver al panel")}
@@ -6846,15 +7282,8 @@ style={{
         <button
           onClick={guardarConfiguracionPanel}
           style={{
+  ...premiumPrimaryButtonStyle,
   padding: "12px 18px",
-  borderRadius: "14px",
-  border: "1px solid rgba(132,204,22,0.24)",
-  background: "linear-gradient(135deg, #84cc16, #22c55e)",
-  color: "#052e16",
-  fontSize: "13px",
-  fontWeight: 900,
-  cursor: "pointer",
-  boxShadow: "0 10px 22px rgba(132,204,22,0.24)",
 }}
         >
 	          {t("Guardar cambios")}
@@ -6881,14 +7310,14 @@ style={{
 
    <div
   style={{
-    ...panelSurfaceStyle,
+    ...premiumPanelStyle,
     padding: "20px",
   }}
 >
   <div
     style={{
       fontSize: "16px",
-      fontWeight: 800,
+      fontWeight: 950,
 	      color: tema.texto,
       marginBottom: "14px",
     }}
@@ -6907,9 +7336,7 @@ style={{
     <div
   style={{
     minHeight: "140px",
-    borderRadius: "18px",
-	    border: tema.borde,
-	    background: temaClaro ? "#f8fafc" : "linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03))",
+    ...premiumInnerStyle,
 	    boxShadow: temaClaro ? "inset 0 1px 0 rgba(255,255,255,0.9)" : "inset 0 1px 0 rgba(255,255,255,0.05)",
     display: "flex",
     flexDirection: "column",
@@ -6992,14 +7419,9 @@ style={{
           onChange={(e) => setNombreEmpresaConfig(e.target.value)}
           style={{
             minHeight: "46px",
-            padding: "12px 14px",
-            borderRadius: "14px",
-	            border: tema.borde,
-	            background: tema.tarjetaSuave,
-	            color: tema.texto,
+            ...premiumInputStyle,
             fontSize: "14px",
             fontWeight: 800,
-            outline: "none",
           }}
 	          placeholder={t("Nombre de la empresa")}
         />
@@ -7026,10 +7448,8 @@ style={{
           style={{
             padding: "11px 14px",
             borderRadius: "14px",
-            ...selectedButtonStyle,
+            ...premiumPrimaryButtonStyle,
             fontSize: "12px",
-            fontWeight: 900,
-            cursor: "pointer",
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
@@ -7043,10 +7463,8 @@ style={{
           style={{
             padding: "11px 14px",
             borderRadius: "14px",
-            ...secondaryButtonStyle,
+            ...premiumSecondaryButtonStyle,
             fontSize: "12px",
-            fontWeight: 800,
-            cursor: "pointer",
           }}
         >
           {t("Quitar logo")}
@@ -7076,7 +7494,7 @@ style={{
             padding: "12px",
             minHeight: "74px",
             borderRadius: "14px",
-	            ...(brandingPC ? activeToggleStyle : inactiveToggleStyle),
+	            ...(brandingPC ? premiumActiveToggleStyle : premiumInactiveToggleStyle),
             display: "flex",
             flexDirection: "column",
             justifyContent: "center",
@@ -7106,7 +7524,7 @@ style={{
             padding: "12px",
             minHeight: "74px",
             borderRadius: "14px",
-	            ...(brandingPDF ? activeToggleStyle : inactiveToggleStyle),
+	            ...(brandingPDF ? premiumActiveToggleStyle : premiumInactiveToggleStyle),
             display: "flex",
             flexDirection: "column",
             justifyContent: "center",
@@ -7134,8 +7552,7 @@ style={{
             padding: "12px",
             minHeight: "74px",
             borderRadius: "14px",
-	            border: tema.borde,
-	            background: tema.tarjetaSuave,
+	            ...premiumInnerStyle,
 	            color: tema.texto,
             display: "flex",
             flexDirection: "column",
@@ -7167,7 +7584,7 @@ style={{
                 style={{
                   padding: "7px 9px",
                   borderRadius: "999px",
-                  ...(formatosExportacion[formato] ? activeToggleStyle : inactiveToggleStyle),
+                  ...(formatosExportacion[formato] ? premiumActiveToggleStyle : premiumInactiveToggleStyle),
                   fontSize: "11px",
                   fontWeight: 900,
                   cursor: "pointer",
@@ -7208,14 +7625,14 @@ style={{
 </div>
     <div
   style={{
-  ...panelSurfaceStyle,
+  ...premiumPanelStyle,
     padding: "18px",
   }}
 >
   <div
     style={{
       fontSize: "15px",
-      fontWeight: 800,
+      fontWeight: 950,
 	      color: tema.texto,
       marginBottom: "14px",
     }}
@@ -7248,18 +7665,14 @@ style={{
 	          ? {
 	              padding: "14px 12px",
 	              borderRadius: "14px",
-	              ...selectedButtonStyle,
+	              ...premiumPrimaryButtonStyle,
 	              fontSize: "13px",
-	              fontWeight: 800,
-	              cursor: "pointer",
 	            }
 	          : {
 	              padding: "14px 12px",
 	              borderRadius: "14px",
-	              ...secondaryButtonStyle,
+	              ...premiumSecondaryButtonStyle,
 	              fontSize: "13px",
-	              fontWeight: 700,
-	              cursor: "pointer",
             }
       }
     >
@@ -7273,18 +7686,14 @@ style={{
 	          ? {
 	              padding: "14px 12px",
 	              borderRadius: "14px",
-	              ...selectedButtonStyle,
+	              ...premiumPrimaryButtonStyle,
 	              fontSize: "13px",
-	              fontWeight: 800,
-	              cursor: "pointer",
 	            }
 	          : {
 	              padding: "14px 12px",
 	              borderRadius: "14px",
-	              ...secondaryButtonStyle,
+	              ...premiumSecondaryButtonStyle,
 	              fontSize: "13px",
-	              fontWeight: 700,
-	              cursor: "pointer",
             }
       }
     >
@@ -7298,18 +7707,14 @@ style={{
 	          ? {
 	              padding: "14px 12px",
 	              borderRadius: "14px",
-	              ...selectedButtonStyle,
+	              ...premiumPrimaryButtonStyle,
 	              fontSize: "13px",
-	              fontWeight: 800,
-	              cursor: "pointer",
 	            }
 	          : {
 	              padding: "14px 12px",
 	              borderRadius: "14px",
-	              ...secondaryButtonStyle,
+	              ...premiumSecondaryButtonStyle,
 	              fontSize: "13px",
-	              fontWeight: 700,
-	              cursor: "pointer",
             }
       }
     >
@@ -7319,14 +7724,14 @@ style={{
 </div>
 <div
   style={{
-    ...panelSurfaceStyle,
+    ...premiumPanelStyle,
     padding: "18px",
   }}
 >
   <div
     style={{
       fontSize: "15px",
-      fontWeight: 800,
+      fontWeight: 950,
 	      color: tema.texto,
       marginBottom: "14px",
     }}
@@ -7359,18 +7764,14 @@ style={{
 	          ? {
 	              padding: "14px 12px",
 	              borderRadius: "14px",
-	              ...selectedButtonStyle,
+	              ...premiumPrimaryButtonStyle,
 	              fontSize: "13px",
-	              fontWeight: 800,
-	              cursor: "pointer",
 	            }
 	          : {
 	              padding: "14px 12px",
 	              borderRadius: "14px",
-	              ...secondaryButtonStyle,
+	              ...premiumSecondaryButtonStyle,
 	              fontSize: "13px",
-	              fontWeight: 700,
-	              cursor: "pointer",
             }
       }
     >
@@ -7384,18 +7785,14 @@ style={{
 	          ? {
 	              padding: "14px 12px",
 	              borderRadius: "14px",
-	              ...selectedButtonStyle,
+	              ...premiumPrimaryButtonStyle,
 	              fontSize: "13px",
-	              fontWeight: 800,
-	              cursor: "pointer",
 	            }
 	          : {
 	              padding: "14px 12px",
 	              borderRadius: "14px",
-	              ...secondaryButtonStyle,
+	              ...premiumSecondaryButtonStyle,
 	              fontSize: "13px",
-	              fontWeight: 700,
-	              cursor: "pointer",
             }
       }
     >
@@ -7409,18 +7806,14 @@ style={{
 	          ? {
 	              padding: "14px 12px",
 	              borderRadius: "14px",
-	              ...selectedButtonStyle,
+	              ...premiumPrimaryButtonStyle,
 	              fontSize: "13px",
-	              fontWeight: 800,
-	              cursor: "pointer",
 	            }
 	          : {
 	              padding: "14px 12px",
 	              borderRadius: "14px",
-	              ...secondaryButtonStyle,
+	              ...premiumSecondaryButtonStyle,
 	              fontSize: "13px",
-	              fontWeight: 700,
-	              cursor: "pointer",
             }
       }
     >
@@ -7430,14 +7823,14 @@ style={{
 </div>
 <div
   style={{
-    ...panelSurfaceStyle,
+    ...premiumPanelStyle,
     padding: "18px",
   }}
 >
   <div
     style={{
       fontSize: "15px",
-      fontWeight: 800,
+      fontWeight: 950,
 	      color: tema.texto,
       marginBottom: "14px",
     }}
@@ -7509,7 +7902,7 @@ style={{
         padding: "16px",
         minHeight: "88px",
         borderRadius: "14px",
-        ...(item.activo ? activeToggleStyle : inactiveToggleStyle),
+        ...(item.activo ? premiumActiveToggleStyle : premiumInactiveToggleStyle),
         display: "flex",
         flexDirection: "column",
         justifyContent: "space-between",
@@ -7537,8 +7930,7 @@ style={{
       padding: "16px",
       minHeight: "88px",
       borderRadius: "14px",
-      border: tema.borde,
-      background: tema.tarjetaSuave,
+      ...premiumInnerStyle,
       color: tema.texto,
       display: "grid",
       gap: "10px",
@@ -7561,7 +7953,7 @@ style={{
           style={{
             padding: "9px 11px",
             borderRadius: "999px",
-            ...(opcionesPDF.formatoHoja === formato ? activeToggleStyle : inactiveToggleStyle),
+            ...(opcionesPDF.formatoHoja === formato ? premiumActiveToggleStyle : premiumInactiveToggleStyle),
             fontSize: "12px",
             fontWeight: 900,
             cursor: "pointer",
@@ -7578,8 +7970,7 @@ style={{
       padding: "16px",
       minHeight: "88px",
       borderRadius: "14px",
-      border: tema.borde,
-      background: tema.tarjetaSuave,
+      ...premiumInnerStyle,
       color: tema.texto,
       display: "grid",
       gap: "10px",
@@ -7602,7 +7993,7 @@ style={{
           style={{
             padding: "9px 11px",
             borderRadius: "999px",
-            ...(opcionesPDF.orientacion === orientacion ? activeToggleStyle : inactiveToggleStyle),
+            ...(opcionesPDF.orientacion === orientacion ? premiumActiveToggleStyle : premiumInactiveToggleStyle),
             fontSize: "12px",
             fontWeight: 900,
             cursor: "pointer",
@@ -7618,14 +8009,14 @@ style={{
 </div>
 <div
   style={{
-    ...panelSurfaceStyle,
+    ...premiumPanelStyle,
     padding: "18px",
   }}
 >
   <div
     style={{
       fontSize: "15px",
-      fontWeight: 800,
+      fontWeight: 950,
 	      color: tema.texto,
       marginBottom: "14px",
     }}
@@ -7688,7 +8079,7 @@ style={{
             padding: "16px",
             minHeight: "118px",
             borderRadius: "14px",
-            ...(activo ? activeToggleStyle : inactiveToggleStyle),
+            ...(activo ? premiumActiveToggleStyle : premiumInactiveToggleStyle),
             color: activo ? undefined : tema.texto,
             display: "grid",
             gap: "8px",
@@ -7718,7 +8109,7 @@ style={{
             style={{
               fontSize: "12px",
               lineHeight: 1.45,
-              color: activo ? (temaClaro ? "#166534" : "#dcfce7") : tema.textoSuave,
+              color: activo ? premiumTextoAzul : premiumTextoSuave,
               fontWeight: 700,
             }}
           >
