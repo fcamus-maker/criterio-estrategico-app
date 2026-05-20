@@ -21,11 +21,12 @@ type FotoV2 = {
 };
 
 type GpsV2 = {
-  latitud: number;
-  longitud: number;
-  precisionGps: number;
+  latitud?: number;
+  longitud?: number;
+  precisionGps?: number;
   fechaHoraGeolocalizacion: string;
   estadoGeolocalizacion: string;
+  motivoGeolocalizacion?: string;
 };
 
 type ReporteV2 = ReporteV2Storage & {
@@ -441,19 +442,33 @@ export default function InformeFinalV2Page() {
               </div>
               {reporte.gps ? (
                 <div style={{ display: "grid", gap: "8px" }}>
-                  <div>
-                    <strong>Latitud:</strong> {reporte.gps.latitud}
-                  </div>
-                  <div>
-                    <strong>Longitud:</strong> {reporte.gps.longitud}
-                  </div>
-                  <div>
-                    <strong>Precisión:</strong> {reporte.gps.precisionGps} m
-                  </div>
+                  {typeof reporte.gps.latitud === "number" &&
+                    typeof reporte.gps.longitud === "number" && (
+                      <>
+                        <div>
+                          <strong>Latitud:</strong> {reporte.gps.latitud}
+                        </div>
+                        <div>
+                          <strong>Longitud:</strong> {reporte.gps.longitud}
+                        </div>
+                        <div>
+                          <strong>Precisión:</strong>{" "}
+                          {typeof reporte.gps.precisionGps === "number"
+                            ? `${reporte.gps.precisionGps} m`
+                            : "No informada"}
+                        </div>
+                      </>
+                    )}
                   <div>
                     <strong>Estado:</strong>{" "}
                     {reporte.gps.estadoGeolocalizacion}
                   </div>
+                  {reporte.gps.motivoGeolocalizacion && (
+                    <div>
+                      <strong>Motivo:</strong>{" "}
+                      {reporte.gps.motivoGeolocalizacion}
+                    </div>
+                  )}
                   <div>
                     <strong>Fecha/hora:</strong>{" "}
                     {reporte.gps.fechaHoraGeolocalizacion}

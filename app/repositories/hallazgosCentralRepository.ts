@@ -462,8 +462,10 @@ function mapearHallazgoAFilaSupabase(hallazgo: HallazgoCentral) {
     gps_latitud: geo?.latitud,
     gps_longitud: geo?.longitud,
     gps_precision: geo?.precisionGps,
-    gps_fecha_hora: fechaHoraSupabase(geo?.fechaHoraGeolocalizacion),
-    gps_estado: geo?.estadoGeolocalizacion,
+    gps_fecha_hora: fechaHoraSupabase(
+      geo?.fechaHoraGeolocalizacion || hallazgo.gpsFechaHoraGeolocalizacion
+    ),
+    gps_estado: geo?.estadoGeolocalizacion || hallazgo.gpsEstadoGeolocalizacion,
     gps_direccion_referencial: geo?.direccionReferencial,
     gps_zona: geo?.zona,
     gps_sector: geo?.sector,

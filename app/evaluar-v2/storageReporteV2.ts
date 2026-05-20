@@ -45,7 +45,8 @@ export type ReporteV2Storage = {
     longitud?: number;
     precisionGps?: number;
     fechaHoraGeolocalizacion?: string;
-    estadoGeolocalizacion?: string;
+    estadoGeolocalizacion?: "obtenido" | "pendiente" | "denegado" | "error" | string;
+    motivoGeolocalizacion?: string;
   };
   evaluacion?: {
     respuestas?: Record<string, string>;

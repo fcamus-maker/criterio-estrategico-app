@@ -34,6 +34,7 @@ export type GpsReporteV2Central = {
   precisionGps?: number;
   fechaHoraGeolocalizacion?: string;
   estadoGeolocalizacion?: string;
+  motivoGeolocalizacion?: string;
 };
 
 export type EvaluacionReporteV2Central = {
@@ -237,10 +238,30 @@ function geolocalizacionDesdeGps(
     precisionGps: gps.precisionGps,
     fechaHoraGeolocalizacion: texto(gps.fechaHoraGeolocalizacion),
     estadoGeolocalizacion:
-      gps.estadoGeolocalizacion === "simulada-desarrollo"
-        ? "simulada-desarrollo"
-        : "real",
+      gps.estadoGeolocalizacion === "obtenido"
+        ? "obtenido"
+        : gps.estadoGeolocalizacion === "real"
+          ? "real"
+          : "capturada",
   };
+}
+
+function estadoGpsReporte(
+  gps: GpsReporteV2Central | undefined
+): GeolocalizacionHallazgoCentral["estadoGeolocalizacion"] | undefined {
+  const estado = texto(gps?.estadoGeolocalizacion);
+
+  if (estado === "obtenido") return "obtenido";
+  if (estado === "pendiente") return "pendiente";
+  if (estado === "denegado") return "denegado";
+  if (estado === "error") return "error";
+  if (estado === "real") return "real";
+  if (estado === "capturada") return "capturada";
+  if (estado === "rechazada") return "rechazada";
+  if (estado === "no_disponible") return "no_disponible";
+  if (estado === "simulada-desarrollo") return "simulada-desarrollo";
+
+  return gps ? "pendiente" : undefined;
 }
 
 function listaTexto(valor: string[] | string | undefined): string[] {
@@ -340,7 +361,9 @@ function radarPreventivoDesdeReporte(
     indicadores: {
       puntaje: reporte.evaluacion?.puntaje || 0,
       totalPalabrasClave: palabrasClave.length,
-      tieneGps: Boolean(reporte.gps),
+      tieneGps:
+        typeof reporte.gps?.latitud === "number" &&
+        typeof reporte.gps.longitud === "number",
       totalFotos: Array.isArray(reporte.fotos) ? reporte.fotos.length : 0,
     },
   };
@@ -357,6 +380,7 @@ export function adaptarReporteV2AHallazgoCentral(
   );
   const estado = normalizarEstadoHallazgoCentral(reporte);
   const geolocalizacion = geolocalizacionDesdeGps(reporte.gps);
+  const gpsEstadoGeolocalizacion = estadoGpsReporte(reporte.gps);
   const codigo = texto(
     reporte.codigo,
     `MOBILE-V2-${String(indice + 1).padStart(4, "0")}`
@@ -396,6 +420,9 @@ export function adaptarReporteV2AHallazgoCentral(
     estadoCierre: normalizarEstadoCierreCentral(reporte.estadoCierre),
     evidencias: evidenciasDesdeFotos(reporte.fotos),
     geolocalizacion,
+    gpsEstadoGeolocalizacion,
+    gpsFechaHoraGeolocalizacion: texto(reporte.gps?.fechaHoraGeolocalizacion),
+    gpsMotivoGeolocalizacion: texto(reporte.gps?.motivoGeolocalizacion),
     mapaGps: geolocalizacion
       ? {
           latitud: geolocalizacion.latitud,
