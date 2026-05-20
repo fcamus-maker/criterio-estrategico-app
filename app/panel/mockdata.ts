@@ -97,28 +97,74 @@ fotos: [],
 export const usuarioMock = {
   nombre: "Freddy Camus",
   cargo: "Ingeniero en Prevención de Riesgos",
+  empresa: "Criterio Estratégico",
+  rol: "Administrador ejecutivo",
   telefono: "+56 9 1234 5678",
+  correo: "freddy.camus@criterioestrategico.cl",
   foto: "",
 };
 export const notificacionesMock = [
   {
+    id: "notif-critico-00031",
+    hallazgoId: "1",
     mensaje: "Hallazgo crítico pendiente de revisión",
+    titulo: "Hallazgo crítico pendiente de revisión",
     fechaHora: "22-04-2026 14:32",
+    criticidad: "CRÍTICO",
+    estado: "Pendiente de revisión",
+    empresa: "Grúa Bustamante",
+    obra: "PEPM",
+    descripcion:
+      "El hallazgo crítico CE-PEPM-GB/00031 requiere validación ejecutiva y definición de responsable de cierre.",
+    accionRecomendada:
+      "Revisar evidencia, confirmar segregación del área y asignar responsable de corrección antes de liberar la actividad.",
     leida: false,
   },
   {
+    id: "notif-nuevo-reporte-00034",
+    hallazgoId: "4",
     mensaje: "Nuevo reporte ingresado desde terreno",
+    titulo: "Nuevo reporte ingresado desde terreno",
     fechaHora: "22-04-2026 13:10",
+    criticidad: "CRÍTICO",
+    estado: "Nuevo reporte",
+    empresa: "Grúa Bustamante",
+    obra: "PEPM",
+    descripcion:
+      "Se registró un nuevo reporte desde terreno con exposición potencial alta en zona operacional crítica.",
+    accionRecomendada:
+      "Validar controles inmediatos, revisar fotografías disponibles y priorizar revisión del supervisor de área.",
     leida: false,
   },
   {
+    id: "notif-informe-ejecutivo",
     mensaje: "Informe ejecutivo actualizado",
+    titulo: "Informe ejecutivo actualizado",
     fechaHora: "22-04-2026 11:45",
+    criticidad: "MEDIO",
+    estado: "Actualizado",
+    empresa: "Cliente corporativo",
+    obra: "Panel ejecutivo",
+    descripcion:
+      "Los indicadores ejecutivos fueron recalculados con el último set de hallazgos disponible en el panel.",
+    accionRecomendada:
+      "Revisar variaciones de criticidad, cierres y tendencias antes de compartir el informe con gerencia.",
     leida: false,
   },
   {
+    id: "notif-seguimiento-00032",
+    hallazgoId: "2",
     mensaje: "Seguimiento pendiente en hallazgo abierto",
+    titulo: "Seguimiento pendiente en hallazgo abierto",
     fechaHora: "22-04-2026 09:20",
+    criticidad: "ALTO",
+    estado: "En seguimiento",
+    empresa: "TN",
+    obra: "PEPM",
+    descripcion:
+      "El hallazgo CE-PEPM-TN/00032 mantiene acciones en curso y requiere consolidar evidencia de corrección.",
+    accionRecomendada:
+      "Solicitar evidencia fotográfica/documental y registrar observación de validación para avanzar el cierre.",
     leida: false,
   },
 ];

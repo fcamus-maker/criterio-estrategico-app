@@ -70,8 +70,11 @@ export type GeolocalizacionHallazgoCentral = {
   estadoGeolocalizacion?:
     | "real"
     | "capturada"
+    | "obtenido"
     | "simulada-desarrollo"
     | "pendiente"
+    | "denegado"
+    | "error"
     | "rechazada"
     | "no_disponible";
   direccionReferencial?: string;
@@ -189,6 +192,9 @@ export type HallazgoCentral = {
   // Evidencias, mapa GPS y trazabilidad territorial.
   evidencias?: EvidenciaHallazgoCentral[];
   geolocalizacion?: GeolocalizacionHallazgoCentral;
+  gpsEstadoGeolocalizacion?: GeolocalizacionHallazgoCentral["estadoGeolocalizacion"];
+  gpsFechaHoraGeolocalizacion?: string;
+  gpsMotivoGeolocalizacion?: string;
   mapaGps?: {
     latitud?: number;
     longitud?: number;

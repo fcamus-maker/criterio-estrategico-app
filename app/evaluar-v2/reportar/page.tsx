@@ -21,11 +21,12 @@ type FotoV2 = {
 };
 
 type UbicacionV2 = {
-  latitud: number;
-  longitud: number;
-  precisionGps: number;
+  latitud?: number;
+  longitud?: number;
+  precisionGps?: number;
   fechaHoraGeolocalizacion: string;
-  estadoGeolocalizacion: "real" | "simulada-desarrollo";
+  estadoGeolocalizacion: "obtenido" | "pendiente" | "denegado" | "error";
+  motivoGeolocalizacion?: string;
 };
 
 function vibrarOk() {
@@ -169,16 +170,25 @@ export default function ReportarV2Page() {
 
   const capturarGps = () => {
     setError("");
-    setMensaje("");
+    setMensaje("Se solicitará permiso de ubicación del dispositivo para adjuntar GPS real al reporte.");
 
     if (!navigator.geolocation) {
-      setError(
-        "GPS no disponible en este origen. Para GPS real se requiere HTTPS o despliegue seguro."
-      );
+      setUbicacion({
+        fechaHoraGeolocalizacion: new Date().toISOString(),
+        estadoGeolocalizacion: "error",
+        motivoGeolocalizacion:
+          "Geolocalización no disponible en este navegador u origen.",
+      });
+      setError("No se pudo obtener GPS real en este dispositivo. Puedes continuar sin coordenadas.");
       return;
     }
 
     setCapturandoGps(true);
+    setUbicacion({
+      fechaHoraGeolocalizacion: new Date().toISOString(),
+      estadoGeolocalizacion: "pendiente",
+      motivoGeolocalizacion: "Solicitud de permiso de ubicación enviada al navegador.",
+    });
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
@@ -187,15 +197,25 @@ export default function ReportarV2Page() {
           longitud: position.coords.longitude,
           precisionGps: position.coords.accuracy,
           fechaHoraGeolocalizacion: new Date().toISOString(),
-          estadoGeolocalizacion: "real",
+          estadoGeolocalizacion: "obtenido",
         });
-        setMensaje("Ubicación GPS capturada.");
+        setMensaje("Ubicación GPS real capturada correctamente.");
         setCapturandoGps(false);
         vibrarOk();
       },
-      () => {
+      (geolocationError) => {
+        const permisoDenegado = geolocationError.code === geolocationError.PERMISSION_DENIED;
+        setUbicacion({
+          fechaHoraGeolocalizacion: new Date().toISOString(),
+          estadoGeolocalizacion: permisoDenegado ? "denegado" : "error",
+          motivoGeolocalizacion: permisoDenegado
+            ? "El usuario denegó el permiso de ubicación."
+            : geolocationError.message || "No se pudo obtener la ubicación del dispositivo.",
+        });
         setError(
-          "GPS no disponible en este origen. Para GPS real se requiere HTTPS o despliegue seguro."
+          permisoDenegado
+            ? "Permiso de ubicación denegado. Puedes continuar; el reporte quedará sin coordenadas GPS."
+            : "No se pudo obtener GPS real. Puedes continuar; el reporte quedará marcado con error GPS."
         );
         setCapturandoGps(false);
       },
@@ -205,19 +225,6 @@ export default function ReportarV2Page() {
         maximumAge: 0,
       }
     );
-  };
-
-  const usarUbicacionSimulada = () => {
-    setUbicacion({
-      latitud: -29.982379,
-      longitud: -71.348969,
-      precisionGps: 35,
-      fechaHoraGeolocalizacion: new Date().toISOString(),
-      estadoGeolocalizacion: "simulada-desarrollo",
-    });
-    setError("");
-    setMensaje("Ubicación simulada cargada para desarrollo local.");
-    vibrarOk();
   };
 
   const validarReporte = () => {
@@ -236,10 +243,12 @@ export default function ReportarV2Page() {
       return;
     }
 
-    if (!ubicacion) {
-      setError("Captura una ubicación GPS real o usa la ubicación simulada.");
-      return;
-    }
+    const gpsReporte = ubicacion || {
+      fechaHoraGeolocalizacion: new Date().toISOString(),
+      estadoGeolocalizacion: "pendiente" as const,
+      motivoGeolocalizacion:
+        "El reporte fue validado sin captura GPS previa. No se registraron coordenadas.",
+    };
 
     const reporteV2 = {
       codigo: `CE-${supervisor.siglaProyecto || "PEL"}/${
@@ -257,7 +266,7 @@ export default function ReportarV2Page() {
       area: area.trim(),
       descripcion: descripcion.trim(),
       fotos,
-      gps: ubicacion,
+      gps: gpsReporte,
       estadoValidacion: "validado",
       mensajeValidacion: "Reporte V2 válido para continuar.",
     };
@@ -624,20 +633,17 @@ export default function ReportarV2Page() {
                 ? "Capturando ubicación..."
                 : "Capturar ubicación GPS"}
             </button>
-
-            <button
-              type="button"
-              onClick={usarUbicacionSimulada}
-              {...feedbackBoton("gps-simulado")}
+            <div
               style={{
-                ...buttonStyle,
-                color: "#08172d",
-                background: "linear-gradient(135deg, #67ef48 0%, #d7ff39 100%)",
-                ...estiloFeedback("gps-simulado"),
+                fontSize: "12px",
+                lineHeight: 1.45,
+                opacity: 0.76,
+                fontWeight: 700,
               }}
             >
-              Usar ubicación simulada
-            </button>
+              El navegador solicitará permiso para usar la ubicación real del dispositivo.
+              Si rechazas el permiso, podrás continuar sin coordenadas.
+            </div>
           </div>
 
           <div
@@ -652,25 +658,38 @@ export default function ReportarV2Page() {
           >
             {ubicacion ? (
               <>
-                <div>
-                  <strong>Latitud:</strong> {ubicacion.latitud}
-                </div>
-                <div>
-                  <strong>Longitud:</strong> {ubicacion.longitud}
-                </div>
-                <div>
-                  <strong>Precisión:</strong> {ubicacion.precisionGps} m
-                </div>
+                {typeof ubicacion.latitud === "number" &&
+                  typeof ubicacion.longitud === "number" && (
+                    <>
+                      <div>
+                        <strong>Latitud:</strong> {ubicacion.latitud}
+                      </div>
+                      <div>
+                        <strong>Longitud:</strong> {ubicacion.longitud}
+                      </div>
+                      <div>
+                        <strong>Precisión:</strong>{" "}
+                        {typeof ubicacion.precisionGps === "number"
+                          ? `${ubicacion.precisionGps} m`
+                          : "No informada"}
+                      </div>
+                    </>
+                  )}
                 <div>
                   <strong>Estado:</strong> {ubicacion.estadoGeolocalizacion}
                 </div>
+                {ubicacion.motivoGeolocalizacion && (
+                  <div>
+                    <strong>Motivo:</strong> {ubicacion.motivoGeolocalizacion}
+                  </div>
+                )}
                 <div>
                   <strong>Fecha/hora:</strong>{" "}
                   {ubicacion.fechaHoraGeolocalizacion}
                 </div>
               </>
             ) : (
-              "Sin ubicación capturada."
+              "GPS pendiente. Puedes solicitar ubicación real o continuar sin coordenadas."
             )}
           </div>
         </section>

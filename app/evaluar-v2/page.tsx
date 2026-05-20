@@ -3,20 +3,103 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
-  cargarSupervisorV2UsuarioActual,
-  guardarSupervisorV2EnClave,
-  SUPERVISOR_V2_VACIO,
-  type SupervisorV2,
-} from "./supervisorProfileStorage";
+  resolvePlatformLanguage,
+  resolvePlatformTheme,
+  usePlatformPreferences,
+} from "../services/platformPreferences";
+import { cerrarSesionCE } from "../services/authProfileService";
 
+type SupervisorV2 = {
+  nombre: string;
+  cargo: string;
+  empresa: string;
+  obra: string;
+  siglaEmpresa: string;
+  siglaProyecto: string;
+  foto: string;
+};
+
+const STORAGE_SUPERVISOR = "ce_mobile_v2_supervisor";
 const STORAGE_HISTORIAL = "ce_mobile_v2_historial_reportes";
+
+const SUPERVISOR_DEFAULT: SupervisorV2 = {
+  nombre: "Freddy Camus",
+  cargo: "Ingeniero",
+  empresa: "TNT",
+  obra: "PEL",
+  siglaEmpresa: "TNT",
+  siglaProyecto: "PEL",
+  foto: "",
+};
 
 const FOTO_SUPERVISOR_MAX_PX = 320;
 const FOTO_SUPERVISOR_QUALITY = 0.64;
 
+const textosMobileEn: Record<string, string> = {
+  "Supervisor activo": "Active supervisor",
+  "Reportar Hallazgo": "Report Finding",
+  "Contadores locales": "Local counters",
+  Empresa: "Company",
+  Obra: "Site",
+  "Sigla empresa": "Company code",
+  "Sigla proyecto": "Project code",
+  "Próximo código": "Next code",
+  "Editar perfil del supervisor": "Edit supervisor profile",
+  "Crear perfil del supervisor": "Create supervisor profile",
+  "Completar perfil": "Complete profile",
+  "Editar datos del supervisor": "Edit supervisor data",
+  "Actualiza el perfil usado en nuevos reportes V2.": "Update the profile used in new V2 reports.",
+  Nombre: "Name",
+  Cargo: "Role",
+  "Fotografía del supervisor": "Supervisor photo",
+  "Fotografía cargada y optimizada": "Photo loaded and optimized",
+  "Fotografía quitada. Presiona guardar.": "Photo removed. Press save.",
+  "Quitar foto": "Remove photo",
+  "Sin fotografía cargada. Usa el selector para agregar una imagen.": "No photo loaded. Use the selector to add an image.",
+  "Guardar supervisor": "Save supervisor",
+  Reportados: "Reported",
+  Abiertos: "Open",
+  Cerrados: "Closed",
+  "Supervisor V2 guardado.": "V2 supervisor saved.",
+  "Procesando fotografía del supervisor...": "Processing supervisor photo...",
+  "Fotografía del supervisor cargada. Presiona guardar.": "Supervisor photo loaded. Press save.",
+  "Cerrar sesión": "Sign out",
+  "Cerrando sesión...": "Signing out...",
+  "Cierra la sesión actual y vuelve al acceso seguro.": "End the current session and return to secure access.",
+  "No se pudo cerrar la sesión. Intenta nuevamente.": "The session could not be closed. Please try again.",
+};
+
 function vibrarOk() {
   if (typeof navigator !== "undefined" && "vibrate" in navigator) {
     navigator.vibrate(20);
+  }
+}
+
+function cargarSupervisor(): SupervisorV2 {
+  if (typeof window === "undefined") return SUPERVISOR_DEFAULT;
+
+  try {
+    const guardado = JSON.parse(
+      localStorage.getItem(STORAGE_SUPERVISOR) || "null"
+    );
+
+    if (!guardado || typeof guardado !== "object") return SUPERVISOR_DEFAULT;
+
+    return {
+      nombre: String(guardado.nombre || SUPERVISOR_DEFAULT.nombre),
+      cargo: String(guardado.cargo || SUPERVISOR_DEFAULT.cargo),
+      empresa: String(guardado.empresa || SUPERVISOR_DEFAULT.empresa),
+      obra: String(guardado.obra || SUPERVISOR_DEFAULT.obra),
+      siglaEmpresa: String(
+        guardado.siglaEmpresa || SUPERVISOR_DEFAULT.siglaEmpresa
+      ),
+      siglaProyecto: String(
+        guardado.siglaProyecto || SUPERVISOR_DEFAULT.siglaProyecto
+      ),
+      foto: String(guardado.foto || SUPERVISOR_DEFAULT.foto),
+    };
+  } catch {
+    return SUPERVISOR_DEFAULT;
   }
 }
 
@@ -28,6 +111,20 @@ function cargarHistorial(): Array<{ estado?: string; estadoCierre?: string }> {
     return Array.isArray(guardado) ? guardado : [];
   } catch {
     return [];
+  }
+}
+
+function existeSupervisorGuardado() {
+  if (typeof window === "undefined") return false;
+
+  try {
+    const guardado = JSON.parse(
+      localStorage.getItem(STORAGE_SUPERVISOR) || "null"
+    );
+
+    return Boolean(guardado && typeof guardado === "object");
+  } catch {
+    return false;
   }
 }
 
@@ -81,10 +178,14 @@ function comprimirFotoSupervisor(file: File): Promise<string> {
 
 export default function EvaluarV2HomePage() {
   const router = useRouter();
+  const preferencias = usePlatformPreferences();
+  const temaClaro = resolvePlatformTheme(preferencias.theme) === "light";
+  const idiomaActivo = resolvePlatformLanguage(preferencias.language);
+  const t = (texto: string) =>
+    idiomaActivo === "en" ? textosMobileEn[texto] || texto : texto;
   const [supervisor, setSupervisor] =
-    useState<SupervisorV2>(SUPERVISOR_V2_VACIO);
-  const [draft, setDraft] = useState<SupervisorV2>(SUPERVISOR_V2_VACIO);
-  const [claveSupervisor, setClaveSupervisor] = useState("");
+    useState<SupervisorV2>(SUPERVISOR_DEFAULT);
+  const [draft, setDraft] = useState<SupervisorV2>(SUPERVISOR_DEFAULT);
   const [historial, setHistorial] = useState<
     Array<{ estado?: string; estadoCierre?: string }>
   >([]);
@@ -94,27 +195,20 @@ export default function EvaluarV2HomePage() {
   const [perfilSupervisorGuardado, setPerfilSupervisorGuardado] =
     useState(false);
   const [navegandoReporte, setNavegandoReporte] = useState(false);
+  const [cerrandoSesion, setCerrandoSesion] = useState(false);
 
   useEffect(() => {
-    let activo = true;
-    const frameId = window.requestAnimationFrame(async () => {
-      const contexto = await cargarSupervisorV2UsuarioActual();
-      if (!activo) return;
-
-      const supervisorGuardado = contexto.supervisor;
-      const tienePerfil = contexto.tienePerfilGuardado;
-      setClaveSupervisor(contexto.clave);
+    const frameId = window.requestAnimationFrame(() => {
+      const supervisorGuardado = cargarSupervisor();
+      const tienePerfil = existeSupervisorGuardado();
       setSupervisor(supervisorGuardado);
       setDraft(supervisorGuardado);
       setHistorial(cargarHistorial());
       setPerfilSupervisorGuardado(tienePerfil);
-      setEditorPerfilAbierto(!tienePerfil);
+      setEditorPerfilAbierto(false);
     });
 
-    return () => {
-      activo = false;
-      window.cancelAnimationFrame(frameId);
-    };
+    return () => window.cancelAnimationFrame(frameId);
   }, []);
 
   const contadores = useMemo(() => {
@@ -143,19 +237,21 @@ export default function EvaluarV2HomePage() {
 
   const guardarSupervisor = () => {
     const actualizado: SupervisorV2 = {
-      nombre: draft.nombre.trim(),
-      cargo: draft.cargo.trim(),
-      empresa: draft.empresa.trim(),
-      obra: draft.obra.trim(),
+      nombre: draft.nombre.trim() || SUPERVISOR_DEFAULT.nombre,
+      cargo: draft.cargo.trim() || SUPERVISOR_DEFAULT.cargo,
+      empresa: draft.empresa.trim() || SUPERVISOR_DEFAULT.empresa,
+      obra: draft.obra.trim() || SUPERVISOR_DEFAULT.obra,
       siglaEmpresa:
-        draft.siglaEmpresa.trim().toUpperCase(),
+        draft.siglaEmpresa.trim().toUpperCase() ||
+        SUPERVISOR_DEFAULT.siglaEmpresa,
       siglaProyecto:
-        draft.siglaProyecto.trim().toUpperCase(),
+        draft.siglaProyecto.trim().toUpperCase() ||
+        SUPERVISOR_DEFAULT.siglaProyecto,
       foto: draft.foto,
     };
 
     try {
-      guardarSupervisorV2EnClave(claveSupervisor, actualizado);
+      localStorage.setItem(STORAGE_SUPERVISOR, JSON.stringify(actualizado));
       setSupervisor(actualizado);
       setDraft(actualizado);
       setPerfilSupervisorGuardado(true);
@@ -169,7 +265,7 @@ export default function EvaluarV2HomePage() {
       };
 
       try {
-        guardarSupervisorV2EnClave(claveSupervisor, sinFoto);
+        localStorage.setItem(STORAGE_SUPERVISOR, JSON.stringify(sinFoto));
         setSupervisor(sinFoto);
         setDraft(sinFoto);
         setPerfilSupervisorGuardado(true);
@@ -231,6 +327,24 @@ export default function EvaluarV2HomePage() {
     router.push("/evaluar-v2/reportar");
   };
 
+  const cerrarSesionSupervisor = async () => {
+    if (cerrandoSesion) return;
+
+    setCerrandoSesion(true);
+    setMensaje("");
+
+    const resultado = await cerrarSesionCE();
+
+    if (!resultado.ok) {
+      setMensaje("No se pudo cerrar la sesión. Intenta nuevamente.");
+      setCerrandoSesion(false);
+      return;
+    }
+
+    vibrarOk();
+    router.replace("/login");
+  };
+
   const feedbackBoton = (id: string) => ({
     onPointerDown: () => setBotonActivo(id),
     onPointerUp: () => setBotonActivo(""),
@@ -250,8 +364,10 @@ export default function EvaluarV2HomePage() {
   const pageStyle = {
     minHeight: "100vh",
     background:
-      "radial-gradient(circle at 50% 0%, #2563eb 0%, #0b1f3a 42%, #061327 100%)",
-    color: "white",
+      temaClaro
+        ? "radial-gradient(circle at 50% 0%, rgba(37,99,235,0.16) 0%, #f8fafc 42%, #eaf2ff 100%)"
+        : "radial-gradient(circle at 50% 0%, #2563eb 0%, #0b1f3a 42%, #061327 100%)",
+    color: temaClaro ? "#0f172a" : "white",
     fontFamily: "Arial, sans-serif",
     overflowX: "hidden" as const,
     touchAction: "pan-y" as const,
@@ -270,9 +386,11 @@ export default function EvaluarV2HomePage() {
   const cardStyle = {
     borderRadius: "22px",
     background:
-      "linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.07))",
-    border: "1px solid rgba(255,255,255,0.16)",
-    boxShadow: "0 18px 36px rgba(0,0,0,0.28)",
+      temaClaro
+        ? "linear-gradient(180deg, rgba(255,255,255,0.94), rgba(241,245,249,0.86))"
+        : "linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.07))",
+    border: temaClaro ? "1px solid rgba(100,116,139,0.22)" : "1px solid rgba(255,255,255,0.16)",
+    boxShadow: temaClaro ? "0 18px 36px rgba(15,23,42,0.12)" : "0 18px 36px rgba(0,0,0,0.28)",
     padding: "16px",
     boxSizing: "border-box" as const,
     maxWidth: "100%",
@@ -284,10 +402,10 @@ export default function EvaluarV2HomePage() {
     maxWidth: "100%",
     fontSize: "16px",
     boxSizing: "border-box" as const,
-    border: "1px solid rgba(255,255,255,0.14)",
+    border: temaClaro ? "1px solid rgba(100,116,139,0.26)" : "1px solid rgba(255,255,255,0.14)",
     borderRadius: "14px",
-    background: "rgba(255,255,255,0.10)",
-    color: "white",
+    background: temaClaro ? "#f8fafc" : "rgba(255,255,255,0.10)",
+    color: temaClaro ? "#0f172a" : "white",
     padding: "12px 13px",
     outline: "none",
     touchAction: "manipulation" as const,
@@ -380,7 +498,7 @@ export default function EvaluarV2HomePage() {
             </div>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: "12px", fontWeight: 900, opacity: 0.7 }}>
-                Supervisor activo
+                {t("Supervisor activo")}
               </div>
               <div style={{ fontSize: "22px", fontWeight: 900, marginTop: "6px" }}>
                 {supervisor.nombre}
@@ -399,22 +517,22 @@ export default function EvaluarV2HomePage() {
             }}
           >
             <div>
-              <div style={{ fontSize: "11px", opacity: 0.62 }}>Empresa</div>
+              <div style={{ fontSize: "11px", opacity: 0.62 }}>{t("Empresa")}</div>
               <div style={{ fontWeight: 800 }}>{supervisor.empresa}</div>
             </div>
             <div>
-              <div style={{ fontSize: "11px", opacity: 0.62 }}>Obra</div>
+              <div style={{ fontSize: "11px", opacity: 0.62 }}>{t("Obra")}</div>
               <div style={{ fontWeight: 800 }}>{supervisor.obra}</div>
             </div>
             <div>
               <div style={{ fontSize: "11px", opacity: 0.62 }}>
-                Sigla empresa
+                {t("Sigla empresa")}
               </div>
               <div style={{ fontWeight: 800 }}>{supervisor.siglaEmpresa}</div>
             </div>
             <div>
               <div style={{ fontSize: "11px", opacity: 0.62 }}>
-                Sigla proyecto
+                {t("Sigla proyecto")}
               </div>
               <div style={{ fontWeight: 800 }}>{supervisor.siglaProyecto}</div>
             </div>
@@ -429,7 +547,7 @@ export default function EvaluarV2HomePage() {
               fontWeight: 800,
             }}
           >
-            Próximo código: {codigoPreview}
+            {t("Próximo código")}: {codigoPreview}
           </div>
           <button
             type="button"
@@ -450,8 +568,8 @@ export default function EvaluarV2HomePage() {
             }}
           >
             {perfilSupervisorGuardado
-              ? "Editar perfil del supervisor"
-              : "Crear perfil del supervisor"}
+              ? t("Editar perfil del supervisor")
+              : t("Completar perfil")}
           </button>
         </section>
 
@@ -473,7 +591,7 @@ export default function EvaluarV2HomePage() {
             ...estiloFeedback("reportar"),
           }}
         >
-          Reportar Hallazgo
+          {t("Reportar Hallazgo")}
         </button>
 
         {mensaje && (
@@ -488,7 +606,7 @@ export default function EvaluarV2HomePage() {
               marginBottom: "14px",
             }}
           >
-            {mensaje}
+            {t(mensaje)}
           </div>
         )}
 
@@ -502,10 +620,10 @@ export default function EvaluarV2HomePage() {
               marginBottom: "12px",
             }}
           >
-            Editar datos del supervisor
+            {t("Editar datos del supervisor")}
           </div>
           <p style={{ margin: "0 0 12px", fontSize: "13px", opacity: 0.76 }}>
-            Actualiza el perfil usado en nuevos reportes V2.
+            {t("Actualiza el perfil usado en nuevos reportes V2.")}
           </p>
 
           <div style={{ display: "grid", gap: "11px" }}>
@@ -527,7 +645,7 @@ export default function EvaluarV2HomePage() {
                     marginBottom: "6px",
                   }}
                 >
-                  {label}
+                  {t(label)}
                 </span>
                 <input
                   type="text"
@@ -550,7 +668,7 @@ export default function EvaluarV2HomePage() {
                   marginBottom: "6px",
                 }}
               >
-                Fotografía del supervisor
+                {t("Fotografía del supervisor")}
               </span>
               <input
                 type="file"
@@ -587,7 +705,7 @@ export default function EvaluarV2HomePage() {
                 />
                 <div>
                   <div style={{ fontSize: "13px", fontWeight: 800 }}>
-                    Fotografía cargada y optimizada
+                    {t("Fotografía cargada y optimizada")}
                   </div>
                   <button
                     type="button"
@@ -602,7 +720,7 @@ export default function EvaluarV2HomePage() {
                       border: "1px solid rgba(255,255,255,0.18)",
                       borderRadius: "12px",
                       background: "rgba(255,255,255,0.10)",
-                      color: "white",
+                      color: temaClaro ? "#0f172a" : "white",
                       padding: "9px 10px",
                       fontSize: "13px",
                       fontWeight: 900,
@@ -610,7 +728,7 @@ export default function EvaluarV2HomePage() {
                       ...estiloFeedback("quitar-foto-supervisor"),
                     }}
                   >
-                    Quitar foto
+                    {t("Quitar foto")}
                   </button>
                 </div>
               </div>
@@ -626,7 +744,7 @@ export default function EvaluarV2HomePage() {
                   opacity: 0.86,
                 }}
               >
-                Sin fotografía cargada. Usa el selector para agregar una imagen.
+                {t("Sin fotografía cargada. Usa el selector para agregar una imagen.")}
               </div>
             )}
 
@@ -641,8 +759,51 @@ export default function EvaluarV2HomePage() {
                 ...estiloFeedback("guardar-supervisor"),
               }}
             >
-              Guardar supervisor
+              {t("Guardar supervisor")}
             </button>
+
+            <div
+              style={{
+                display: "grid",
+                gap: "9px",
+                padding: "12px",
+                borderRadius: "16px",
+                background: temaClaro ? "rgba(248,250,252,0.72)" : "rgba(255,255,255,0.06)",
+                border: temaClaro
+                  ? "1px solid rgba(100,116,139,0.18)"
+                  : "1px solid rgba(255,255,255,0.12)",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "12px",
+                  lineHeight: 1.4,
+                  fontWeight: 800,
+                  opacity: 0.72,
+                }}
+              >
+                {t("Cierra la sesión actual y vuelve al acceso seguro.")}
+              </div>
+              <button
+                type="button"
+                onClick={cerrarSesionSupervisor}
+                disabled={cerrandoSesion}
+                {...feedbackBoton("cerrar-sesion-supervisor")}
+                style={{
+                  ...buttonStyle,
+                  color: temaClaro ? "#0f172a" : "white",
+                  background: temaClaro ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.10)",
+                  border: temaClaro
+                    ? "1px solid rgba(100,116,139,0.24)"
+                    : "1px solid rgba(255,255,255,0.18)",
+                  boxShadow: "none",
+                  opacity: cerrandoSesion ? 0.72 : 1,
+                  ...estiloFeedback("cerrar-sesion-supervisor"),
+                }}
+              >
+                {cerrandoSesion ? t("Cerrando sesión...") : t("Cerrar sesión")}
+              </button>
+            </div>
 
           </div>
           </section>
@@ -658,7 +819,7 @@ export default function EvaluarV2HomePage() {
               marginBottom: "10px",
             }}
           >
-            Contadores locales
+            {t("Contadores locales")}
           </div>
 
           <div
@@ -670,21 +831,21 @@ export default function EvaluarV2HomePage() {
           >
             {[
               [
-                "Reportados",
+                t("Reportados"),
                 `${contadores.reportados}`,
                 "linear-gradient(180deg, rgba(59,130,246,0.98), rgba(29,78,216,0.90))",
                 "1px solid rgba(147,197,253,0.65)",
                 "0 16px 30px rgba(37,99,235,0.34)",
               ],
               [
-                "Abiertos",
+                t("Abiertos"),
                 `${contadores.abiertos}`,
                 "linear-gradient(180deg, rgba(248,113,113,0.98), rgba(220,38,38,0.90))",
                 "1px solid rgba(252,165,165,0.65)",
                 "0 16px 30px rgba(220,38,38,0.34)",
               ],
               [
-                "Cerrados",
+                t("Cerrados"),
                 `${contadores.cerrados}`,
                 "linear-gradient(180deg, rgba(34,197,94,0.98), rgba(21,128,61,0.90))",
                 "1px solid rgba(134,239,172,0.65)",

@@ -1,71 +1,37 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   iniciarSesionConPasswordCE,
   obtenerAuthProfileActual,
 } from "@/app/services/authProfileService";
-import {
-  destinoPorRolCE,
-  rolPuedeEntrarZonaCE,
-} from "@/app/services/authAccess";
-import type { ProfileCE } from "@/app/types/authRoles";
+import type { RoleCE } from "@/app/types/authRoles";
 
-function destinoSeguroDespuesLogin(perfil: ProfileCE) {
-  if (typeof window === "undefined") return destinoPorRolCE(perfil.rol);
-
-  const params = new URLSearchParams(window.location.search);
-  const redirectTo = params.get("redirectTo") || "";
-
-  if (redirectTo.startsWith("/panel") && rolPuedeEntrarZonaCE(perfil.rol, "panel")) {
-    return redirectTo;
+function rutaPorRol(rol?: RoleCE | null) {
+  switch (rol) {
+    case "supervisor_reportante":
+    case "prevencionista_cliente":
+      return "/evaluar-v2";
+    case "super_admin_ce":
+    case "admin_cliente":
+    case "admin_mandante":
+    case "responsable_cierre":
+    case "visualizador_auditor":
+      return "/panel";
+    default:
+      return "";
   }
-
-  if (
-    redirectTo.startsWith("/evaluar-v2") &&
-    rolPuedeEntrarZonaCE(perfil.rol, "evaluar-v2")
-  ) {
-    return redirectTo;
-  }
-
-  return destinoPorRolCE(perfil.rol);
 }
 
 export default function LoginPage() {
   const router = useRouter();
+  const t = (texto: string) => texto;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mostrarPassword, setMostrarPassword] = useState(false);
   const [mensaje, setMensaje] = useState("");
   const [cargando, setCargando] = useState(false);
-
-  const redirigirDespuesLogin = useCallback((destino: string) => {
-    router.replace(destino);
-
-    window.setTimeout(() => {
-      const rutaDestino = destino.split("?")[0] || destino;
-      if (window.location.pathname !== rutaDestino) {
-        window.location.assign(destino);
-      }
-    }, 450);
-  }, [router]);
-
-  useEffect(() => {
-    let activo = true;
-
-    async function redirigirSiHaySesion() {
-      const estado = await obtenerAuthProfileActual();
-      if (!activo || !estado.perfil) return;
-      redirigirDespuesLogin(destinoSeguroDespuesLogin(estado.perfil));
-    }
-
-    redirigirSiHaySesion();
-
-    return () => {
-      activo = false;
-    };
-  }, [redirigirDespuesLogin]);
 
   const enviarPassword = async () => {
     if (cargando) return;
@@ -81,17 +47,20 @@ export default function LoginPage() {
     }
 
     const estado = await obtenerAuthProfileActual();
+    const ruta = rutaPorRol(estado.perfil?.rol);
 
-    if (!estado.perfil) {
-      setMensaje(
-        "Usuario autenticado, pero sin perfil configurado. Contacte al administrador."
-      );
-      setCargando(false);
+    if (estado.perfil?.activo && ruta) {
+      setMensaje(`Sesión iniciada: ${estado.perfil.nombre}. Redirigiendo...`);
+      router.replace(ruta);
       return;
     }
 
-    setMensaje(`Sesión iniciada: ${estado.perfil.nombre}`);
-    redirigirDespuesLogin(destinoSeguroDespuesLogin(estado.perfil));
+    setMensaje(
+      estado.perfil
+        ? "Sesión iniciada, pero el rol no tiene una ruta asignada. Contacte al administrador."
+        : "Sesión iniciada. Perfil pendiente de configurar."
+    );
+    setCargando(false);
   };
 
   return (
@@ -117,9 +86,9 @@ export default function LoginPage() {
           padding: "22px",
         }}
       >
-        <h1 style={{ margin: "0 0 8px", fontSize: "24px" }}>Acceso CE</h1>
+        <h1 style={{ margin: "0 0 8px", fontSize: "24px" }}>{t("Acceso CE")}</h1>
         <p style={{ margin: "0 0 18px", color: "rgba(255,255,255,0.72)" }}>
-          Acceso único para demo controlada. El destino se asigna según rol.
+          {t("Login preparado para pruebas controladas. No bloquea app móvil ni panel.")}
         </p>
 
         <div style={{ display: "grid", gap: "12px" }}>
@@ -142,7 +111,7 @@ export default function LoginPage() {
           </label>
 
           <label style={{ display: "grid", gap: "6px", fontWeight: 800 }}>
-            Contraseña
+            {t("Contraseña")}
             <div
               style={{
                 display: "grid",
@@ -172,7 +141,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 aria-label={
-                  mostrarPassword ? "Ocultar contraseña" : "Mostrar contraseña"
+                  mostrarPassword ? t("Ocultar contraseña") : t("Mostrar contraseña")
                 }
                 onClick={() => setMostrarPassword((actual) => !actual)}
                 style={{
@@ -187,7 +156,7 @@ export default function LoginPage() {
                   minWidth: "74px",
                 }}
               >
-                {mostrarPassword ? "Ocultar" : "Ver"}
+                {mostrarPassword ? t("Ocultar") : t("Ver")}
               </button>
             </div>
           </label>
@@ -207,7 +176,7 @@ export default function LoginPage() {
               opacity: cargando ? 0.7 : 1,
             }}
           >
-            {cargando ? "Validando..." : "Entrar"}
+            {cargando ? t("Validando...") : t("Entrar")}
           </button>
         </div>
 

@@ -13,11 +13,12 @@ type FotoV2 = {
 };
 
 type GpsV2 = {
-  latitud: number;
-  longitud: number;
-  precisionGps: number;
+  latitud?: number;
+  longitud?: number;
+  precisionGps?: number;
   fechaHoraGeolocalizacion: string;
   estadoGeolocalizacion: string;
+  motivoGeolocalizacion?: string;
 };
 
 type ReporteV2 = ReporteV2Storage & {
@@ -389,9 +390,13 @@ export default function ResultadoV2Page() {
                   ],
                   [
                     "GPS",
-                    reporte.gps
+                    reporte.gps &&
+                    typeof reporte.gps.latitud === "number" &&
+                    typeof reporte.gps.longitud === "number"
                       ? `${reporte.gps.latitud}, ${reporte.gps.longitud}`
-                      : "Sin GPS",
+                      : reporte.gps?.estadoGeolocalizacion
+                        ? `Sin coordenadas · ${reporte.gps.estadoGeolocalizacion}`
+                        : "Sin GPS",
                   ],
                 ].map(([label, valor]) => (
                   <div key={label} style={datoStyle}>
