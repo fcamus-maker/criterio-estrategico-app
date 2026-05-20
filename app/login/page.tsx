@@ -1,36 +1,32 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
-  enviarMagicLinkCE,
   iniciarSesionConPasswordCE,
   obtenerAuthProfileActual,
 } from "@/app/services/authProfileService";
-import {
-  resolvePlatformLanguage,
-  resolvePlatformTheme,
-  usePlatformPreferences,
-} from "@/app/services/platformPreferences";
+import type { RoleCE } from "@/app/types/authRoles";
 
-const loginTextsEn: Record<string, string> = {
-  "Acceso CE": "CE Access",
-  "Login preparado para pruebas controladas. No bloquea app móvil ni panel.": "Login ready for controlled testing. It does not block the mobile app or dashboard.",
-  Contraseña: "Password",
-  "Ocultar contraseña": "Hide password",
-  "Mostrar contraseña": "Show password",
-  Ocultar: "Hide",
-  Ver: "Show",
-  "Validando...": "Validating...",
-  Entrar: "Enter",
-  "Enviar magic link": "Send magic link",
-};
+function rutaPorRol(rol?: RoleCE | null) {
+  switch (rol) {
+    case "supervisor_reportante":
+    case "prevencionista_cliente":
+      return "/evaluar-v2";
+    case "super_admin_ce":
+    case "admin_cliente":
+    case "admin_mandante":
+    case "responsable_cierre":
+    case "visualizador_auditor":
+      return "/panel";
+    default:
+      return "";
+  }
+}
 
 export default function LoginPage() {
-  const preferencias = usePlatformPreferences();
-  const temaClaro = resolvePlatformTheme(preferencias.theme) === "light";
-  const idiomaActivo = resolvePlatformLanguage(preferencias.language);
-  const t = (texto: string) =>
-    idiomaActivo === "en" ? loginTextsEn[texto] || texto : texto;
+  const router = useRouter();
+  const t = (texto: string) => texto;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mostrarPassword, setMostrarPassword] = useState(false);
@@ -51,25 +47,18 @@ export default function LoginPage() {
     }
 
     const estado = await obtenerAuthProfileActual();
+    const ruta = rutaPorRol(estado.perfil?.rol);
+
+    if (estado.perfil?.activo && ruta) {
+      setMensaje(`Sesión iniciada: ${estado.perfil.nombre}. Redirigiendo...`);
+      router.replace(ruta);
+      return;
+    }
+
     setMensaje(
       estado.perfil
-        ? `Sesión iniciada: ${estado.perfil.nombre}`
-        : "Sesión iniciada. Perfil pendiente de crear en Supabase."
-    );
-    setCargando(false);
-  };
-
-  const enviarMagic = async () => {
-    if (cargando) return;
-
-    setCargando(true);
-    setMensaje("");
-    const resultado = await enviarMagicLinkCE(email.trim());
-
-    setMensaje(
-      resultado.ok
-        ? "Magic link enviado si el correo está habilitado en Supabase Auth."
-        : `Magic link pendiente: ${resultado.error}`
+        ? "Sesión iniciada, pero el rol no tiene una ruta asignada. Contacte al administrador."
+        : "Sesión iniciada. Perfil pendiente de configurar."
     );
     setCargando(false);
   };
@@ -80,10 +69,8 @@ export default function LoginPage() {
         minHeight: "100vh",
         display: "grid",
         placeItems: "center",
-        background: temaClaro
-          ? "linear-gradient(135deg, #f8fafc 0%, #eaf2ff 100%)"
-          : "#07111f",
-        color: temaClaro ? "#0f172a" : "white",
+        background: "#07111f",
+        color: "white",
         fontFamily: "Arial, sans-serif",
         padding: "24px",
       }}
@@ -92,19 +79,15 @@ export default function LoginPage() {
         style={{
           width: "100%",
           maxWidth: "420px",
-          border: temaClaro
-            ? "1px solid rgba(100,116,139,0.22)"
-            : "1px solid rgba(255,255,255,0.14)",
+          border: "1px solid rgba(255,255,255,0.14)",
           borderRadius: "18px",
-          background: temaClaro ? "rgba(255,255,255,0.88)" : "rgba(255,255,255,0.08)",
-          boxShadow: temaClaro
-            ? "0 24px 48px rgba(15,23,42,0.12)"
-            : "0 24px 48px rgba(0,0,0,0.28)",
+          background: "rgba(255,255,255,0.08)",
+          boxShadow: "0 24px 48px rgba(0,0,0,0.28)",
           padding: "22px",
         }}
       >
         <h1 style={{ margin: "0 0 8px", fontSize: "24px" }}>{t("Acceso CE")}</h1>
-        <p style={{ margin: "0 0 18px", color: temaClaro ? "#475569" : "rgba(255,255,255,0.72)" }}>
+        <p style={{ margin: "0 0 18px", color: "rgba(255,255,255,0.72)" }}>
           {t("Login preparado para pruebas controladas. No bloquea app móvil ni panel.")}
         </p>
 
@@ -118,9 +101,9 @@ export default function LoginPage() {
               onChange={(event) => setEmail(event.target.value)}
               style={{
                 borderRadius: "12px",
-                border: temaClaro ? "1px solid rgba(100,116,139,0.26)" : "1px solid rgba(255,255,255,0.18)",
-                background: temaClaro ? "#f8fafc" : "rgba(255,255,255,0.10)",
-                color: temaClaro ? "#0f172a" : "white",
+                border: "1px solid rgba(255,255,255,0.18)",
+                background: "rgba(255,255,255,0.10)",
+                color: "white",
                 padding: "12px",
                 fontSize: "15px",
               }}
@@ -135,8 +118,8 @@ export default function LoginPage() {
                 gridTemplateColumns: "1fr auto",
                 alignItems: "stretch",
                 borderRadius: "12px",
-                border: temaClaro ? "1px solid rgba(100,116,139,0.26)" : "1px solid rgba(255,255,255,0.18)",
-                background: temaClaro ? "#f8fafc" : "rgba(255,255,255,0.10)",
+                border: "1px solid rgba(255,255,255,0.18)",
+                background: "rgba(255,255,255,0.10)",
                 overflow: "hidden",
               }}
             >
@@ -150,7 +133,7 @@ export default function LoginPage() {
                   border: "none",
                   outline: "none",
                   background: "transparent",
-                  color: temaClaro ? "#0f172a" : "white",
+                  color: "white",
                   padding: "12px",
                   fontSize: "15px",
                 }}
@@ -163,9 +146,9 @@ export default function LoginPage() {
                 onClick={() => setMostrarPassword((actual) => !actual)}
                 style={{
                   border: "none",
-                  borderLeft: temaClaro ? "1px solid rgba(100,116,139,0.22)" : "1px solid rgba(255,255,255,0.14)",
-                  background: temaClaro ? "#e2e8f0" : "rgba(255,255,255,0.10)",
-                  color: temaClaro ? "#0f172a" : "white",
+                  borderLeft: "1px solid rgba(255,255,255,0.14)",
+                  background: "rgba(255,255,255,0.10)",
+                  color: "white",
                   cursor: "pointer",
                   fontSize: "12px",
                   fontWeight: 900,
@@ -194,24 +177,6 @@ export default function LoginPage() {
             }}
           >
             {cargando ? t("Validando...") : t("Entrar")}
-          </button>
-
-          <button
-            type="button"
-            onClick={enviarMagic}
-            disabled={cargando}
-            style={{
-              border: temaClaro ? "1px solid rgba(100,116,139,0.24)" : "1px solid rgba(255,255,255,0.18)",
-              borderRadius: "12px",
-              background: temaClaro ? "#f8fafc" : "rgba(255,255,255,0.10)",
-              color: temaClaro ? "#0f172a" : "white",
-              cursor: "pointer",
-              fontWeight: 900,
-              padding: "12px",
-              opacity: cargando ? 0.7 : 1,
-            }}
-          >
-            {t("Enviar magic link")}
           </button>
         </div>
 

@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { analizarRadarPreventivo } from "../analytics/radarPreventivo";
 import type {
   CriticidadHallazgoCentral,
@@ -18,6 +19,7 @@ import {
   readPlatformPreferences,
   savePlatformPreferences,
 } from "../services/platformPreferences";
+import { cerrarSesionCE } from "../services/authProfileService";
 
 type HallazgoPanelExtendido = HallazgoPanel & {
   area?: string;
@@ -281,6 +283,7 @@ const perfilesActivosPorDefecto: Record<PerfilPermiso, boolean> = {
 };
 
 export default function PanelEjecutivoPage() {
+  const router = useRouter();
   const [vistaDerecha, setVistaDerecha] = useState<"informe" | "configuracion" | "seguimiento">("informe");
   const [vistaPrincipal, setVistaPrincipal] = useState<"panel" | "configuracion" | "seguimiento">("panel");
   const [modoSistema, setModoSistema] = useState<"claro" | "oscuro" | "automatico">(
@@ -338,6 +341,10 @@ const [filasPanel, setFilasPanel] = useState<HallazgoPanelExtendido[]>(hallazgos
     "No se pudo guardar el perfil en este navegador": "The profile could not be saved in this browser",
     "La foto es demasiado pesada. Selecciona una imagen más liviana.": "The photo is too large. Select a smaller image.",
     "Actualiza los datos visibles del usuario en el panel lateral": "Update the user details visible in the side panel",
+    "Cerrar sesión": "Sign out",
+    "Cerrando sesión...": "Signing out...",
+    "Termina la sesión actual y vuelve al acceso seguro": "End the current session and return to secure access",
+    "No se pudo cerrar la sesión. Inténtalo nuevamente.": "The session could not be closed. Please try again.",
     Notificaciones: "Notifications",
     "Sin notificaciones por ahora": "No notifications for now",
     "Detalle de notificación": "Notification detail",
@@ -2183,6 +2190,7 @@ const [fotoPerfilInputKey, setFotoPerfilInputKey] = useState(0);
 const [guardadoPerfil, setGuardadoPerfil] = useState(false);
 const [fotoPerfilCargada, setFotoPerfilCargada] = useState(false);
 const [errorPerfil, setErrorPerfil] = useState("");
+const [cerrandoSesionPerfil, setCerrandoSesionPerfil] = useState(false);
 const [campoPerfilActivo, setCampoPerfilActivo] = useState<
   "nombre" | "cargo" | "empresa" | "rol" | "telefono" | "correo" | null
 >(null);
@@ -2300,6 +2308,23 @@ const guardarPerfil = () => {
   setCampoPerfilActivo(null);
   setControlPerfilActivo(null);
   setMostrarEditorPerfil(false);
+};
+const cerrarSesionDesdePerfil = async () => {
+  if (cerrandoSesionPerfil) return;
+
+  setCerrandoSesionPerfil(true);
+  setErrorPerfil("");
+
+  const resultado = await cerrarSesionCE();
+
+  if (!resultado.ok) {
+    setErrorPerfil("No se pudo cerrar la sesión. Inténtalo nuevamente.");
+    setCerrandoSesionPerfil(false);
+    return;
+  }
+
+  setMostrarEditorPerfil(false);
+  router.replace("/login");
 };
 useEffect(() => {
   if (typeof window === "undefined") return;
@@ -4431,6 +4456,47 @@ const riesgoOperativoPrincipal =
           {t(errorPerfil)}
         </div>
       )}
+
+      <div
+        style={{
+          display: "grid",
+          gap: "10px",
+          padding: "14px",
+          borderRadius: "18px",
+          border: tema.borde,
+          background: temaClaro ? "rgba(248,250,252,0.72)" : "rgba(255,255,255,0.035)",
+        }}
+      >
+        <div
+          style={{
+            fontSize: "12px",
+            color: tema.textoSuave,
+            fontWeight: 800,
+            lineHeight: 1.45,
+          }}
+        >
+          {t("Termina la sesión actual y vuelve al acceso seguro")}
+        </div>
+        <button
+          type="button"
+          onClick={cerrarSesionDesdePerfil}
+          disabled={cerrandoSesionPerfil}
+          onMouseEnter={() => activarControlPerfil("cerrar-sesion")}
+          onMouseLeave={desactivarControlPerfil}
+          onFocus={() => activarControlPerfil("cerrar-sesion")}
+          onBlur={desactivarControlPerfil}
+          style={{
+            ...perfilButtonStyle("cerrar-sesion", "neutral"),
+            justifySelf: "start",
+            minWidth: "150px",
+            color: temaClaro ? "#334155" : "#e2e8f0",
+            cursor: cerrandoSesionPerfil ? "default" : "pointer",
+            opacity: cerrandoSesionPerfil ? 0.72 : 1,
+          }}
+        >
+          {cerrandoSesionPerfil ? t("Cerrando sesión...") : t("Cerrar sesión")}
+        </button>
+      </div>
 
       <div
         style={{

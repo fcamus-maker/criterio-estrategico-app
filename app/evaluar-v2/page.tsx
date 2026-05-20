@@ -7,6 +7,7 @@ import {
   resolvePlatformTheme,
   usePlatformPreferences,
 } from "../services/platformPreferences";
+import { cerrarSesionCE } from "../services/authProfileService";
 
 type SupervisorV2 = {
   nombre: string;
@@ -45,6 +46,7 @@ const textosMobileEn: Record<string, string> = {
   "Próximo código": "Next code",
   "Editar perfil del supervisor": "Edit supervisor profile",
   "Crear perfil del supervisor": "Create supervisor profile",
+  "Completar perfil": "Complete profile",
   "Editar datos del supervisor": "Edit supervisor data",
   "Actualiza el perfil usado en nuevos reportes V2.": "Update the profile used in new V2 reports.",
   Nombre: "Name",
@@ -61,6 +63,10 @@ const textosMobileEn: Record<string, string> = {
   "Supervisor V2 guardado.": "V2 supervisor saved.",
   "Procesando fotografía del supervisor...": "Processing supervisor photo...",
   "Fotografía del supervisor cargada. Presiona guardar.": "Supervisor photo loaded. Press save.",
+  "Cerrar sesión": "Sign out",
+  "Cerrando sesión...": "Signing out...",
+  "Cierra la sesión actual y vuelve al acceso seguro.": "End the current session and return to secure access.",
+  "No se pudo cerrar la sesión. Intenta nuevamente.": "The session could not be closed. Please try again.",
 };
 
 function vibrarOk() {
@@ -189,6 +195,7 @@ export default function EvaluarV2HomePage() {
   const [perfilSupervisorGuardado, setPerfilSupervisorGuardado] =
     useState(false);
   const [navegandoReporte, setNavegandoReporte] = useState(false);
+  const [cerrandoSesion, setCerrandoSesion] = useState(false);
 
   useEffect(() => {
     const frameId = window.requestAnimationFrame(() => {
@@ -198,7 +205,7 @@ export default function EvaluarV2HomePage() {
       setDraft(supervisorGuardado);
       setHistorial(cargarHistorial());
       setPerfilSupervisorGuardado(tienePerfil);
-      setEditorPerfilAbierto(!tienePerfil);
+      setEditorPerfilAbierto(false);
     });
 
     return () => window.cancelAnimationFrame(frameId);
@@ -318,6 +325,24 @@ export default function EvaluarV2HomePage() {
     setMensaje("");
     vibrarOk();
     router.push("/evaluar-v2/reportar");
+  };
+
+  const cerrarSesionSupervisor = async () => {
+    if (cerrandoSesion) return;
+
+    setCerrandoSesion(true);
+    setMensaje("");
+
+    const resultado = await cerrarSesionCE();
+
+    if (!resultado.ok) {
+      setMensaje("No se pudo cerrar la sesión. Intenta nuevamente.");
+      setCerrandoSesion(false);
+      return;
+    }
+
+    vibrarOk();
+    router.replace("/login");
   };
 
   const feedbackBoton = (id: string) => ({
@@ -544,7 +569,7 @@ export default function EvaluarV2HomePage() {
           >
             {perfilSupervisorGuardado
               ? t("Editar perfil del supervisor")
-              : t("Crear perfil del supervisor")}
+              : t("Completar perfil")}
           </button>
         </section>
 
@@ -736,6 +761,49 @@ export default function EvaluarV2HomePage() {
             >
               {t("Guardar supervisor")}
             </button>
+
+            <div
+              style={{
+                display: "grid",
+                gap: "9px",
+                padding: "12px",
+                borderRadius: "16px",
+                background: temaClaro ? "rgba(248,250,252,0.72)" : "rgba(255,255,255,0.06)",
+                border: temaClaro
+                  ? "1px solid rgba(100,116,139,0.18)"
+                  : "1px solid rgba(255,255,255,0.12)",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "12px",
+                  lineHeight: 1.4,
+                  fontWeight: 800,
+                  opacity: 0.72,
+                }}
+              >
+                {t("Cierra la sesión actual y vuelve al acceso seguro.")}
+              </div>
+              <button
+                type="button"
+                onClick={cerrarSesionSupervisor}
+                disabled={cerrandoSesion}
+                {...feedbackBoton("cerrar-sesion-supervisor")}
+                style={{
+                  ...buttonStyle,
+                  color: temaClaro ? "#0f172a" : "white",
+                  background: temaClaro ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.10)",
+                  border: temaClaro
+                    ? "1px solid rgba(100,116,139,0.24)"
+                    : "1px solid rgba(255,255,255,0.18)",
+                  boxShadow: "none",
+                  opacity: cerrandoSesion ? 0.72 : 1,
+                  ...estiloFeedback("cerrar-sesion-supervisor"),
+                }}
+              >
+                {cerrandoSesion ? t("Cerrando sesión...") : t("Cerrar sesión")}
+              </button>
+            </div>
 
           </div>
           </section>
