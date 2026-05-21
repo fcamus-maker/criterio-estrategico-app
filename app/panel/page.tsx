@@ -354,6 +354,20 @@ const [filasPanel, setFilasPanel] = useState<HallazgoPanelExtendido[]>(hallazgos
     "Reportes rápidos": "Quick reports",
     Filtros: "Filters",
     Empresa: "Company",
+    "Empresa reportante": "Reporting company",
+    "Empresa responsable del cierre": "Company responsible for closure",
+    "Empresa reportante / Obra": "Reporting company / Site",
+    "Supervisor reportante": "Reporting supervisor",
+    "Responsable de la empresa": "Company responsible person",
+    "Centro de control PC": "PC control center",
+    "Operación diaria": "Daily operation",
+    "Análisis gerencial": "Management analysis",
+    "Territorio": "Territory",
+    "Informes / Exportación": "Reports / Export",
+    "Responsables, plazos, evidencias y cierre operativo.": "Responsible parties, deadlines, evidence and operational closure.",
+    "Comparación ejecutiva, criticidad y desempeño por empresa.": "Executive comparison, severity and company performance.",
+    "Lectura territorial con puntos GPS, criticidad y estado.": "Territorial view with GPS points, severity and status.",
+    "Salida operativa para reuniones y gestión con empresas.": "Operational output for meetings and company management.",
     "Obra / Proyecto": "Site / Project",
     "Fecha desde": "Start date",
     "Fecha hasta": "End date",
@@ -365,12 +379,17 @@ const [filasPanel, setFilasPanel] = useState<HallazgoPanelExtendido[]>(hallazgos
     "Limpiar filtros": "Clear filters",
     "Acceso rápido": "Quick access",
     "Exportar a Excel": "Export to Excel",
+    "Exportar Excel": "Export Excel",
     "Generar informe empresa/obra": "Generate company/site report",
+    "Informe empresa/obra": "Company/site report",
     "KPI Gerencial Avanzado": "Advanced Management KPI",
+    "KPI Gerencial": "Management KPI",
     "Mapa GPS de Hallazgos": "GPS Findings Map",
+    "Mapa GPS": "GPS Map",
     Configuración: "Settings",
     "Seguimiento de cierre": "Closure follow-up",
     "Control de responsables, plazos, evidencias y estado de corrección.": "Control of responsible parties, deadlines, evidence and correction status.",
+    "Centro operativo para revisar hallazgos abiertos, empresas responsables, compromisos, evidencia y cierre.": "Operational center to review open findings, responsible companies, commitments, evidence and closure.",
     "Responsable de cierre": "Closure responsible",
     "Responsable de corrección": "Correction responsible",
     "Encargado de seguimiento": "Follow-up owner",
@@ -2408,7 +2427,7 @@ const abrirNotificacion = (notificacion: NotificacionPanel) => {
   setMostrarNotificaciones(false);
 };
 const quitarFiltro = (filtro: string) => {
-  if (filtro.startsWith("Empresa:")) {
+  if (filtro.startsWith("Empresa:") || filtro.startsWith("Empresa reportante:")) {
     setFiltroEmpresa("TODAS");
     return;
   }
@@ -2999,7 +3018,7 @@ const kpisSeguimiento = [
 ];
 const ultimaActualizacion = formatearUltimaActualizacion(fechaActualizacion);
     const filtrosActivos = [
-  filtroEmpresa !== "TODAS" ? `Empresa: ${filtroEmpresa}` : null,
+  filtroEmpresa !== "TODAS" ? `Empresa reportante: ${filtroEmpresa}` : null,
   filtroObra !== "TODAS" ? `Obra: ${filtroObra}` : null,
   filtroEstado !== "TODOS" ? `Estado: ${filtroEstado}` : null,
   filtroCriticidad !== "TODAS" ? `Criticidad: ${filtroCriticidad}` : null,
@@ -5584,7 +5603,7 @@ style={{
     </div>
 
     {[
-	      "Empresa",
+	      "Empresa reportante",
 	      "Obra / Proyecto",
 	      "Fecha desde",
 	      "Fecha hasta",
@@ -5604,7 +5623,7 @@ style={{
 	      {t(label)}
     </div>
 
-   {label === "Empresa" ? (
+   {label === "Empresa reportante" ? (
   <select
     value={filtroEmpresa}
     onChange={(e) => setFiltroEmpresa(e.target.value)}
@@ -5792,10 +5811,75 @@ style={{
         marginBottom: "12px",
       }}
     >
-	      {t("Acceso rápido")}
+	      {t("Centro de control PC")}
     </div>
 
     <div style={{ display: "grid", gap: "8px" }}>
+      <div
+        style={{
+          fontSize: "10px",
+          color: tema.textoSuave,
+          fontWeight: 900,
+          letterSpacing: "0.7px",
+          textTransform: "uppercase",
+          marginTop: "2px",
+        }}
+      >
+        {t("Operación diaria")}
+      </div>
+      <button
+        type="button"
+        onClick={() => {
+          setVistaPrincipal("seguimiento");
+          setVistaDerecha("seguimiento");
+        }}
+        style={{
+          width: "100%",
+          minHeight: "64px",
+          padding: "13px 14px",
+          borderRadius: "14px",
+          border: "1px solid rgba(251,146,124,0.42)",
+          background: "linear-gradient(135deg, rgba(190,99,83,0.94), rgba(127,29,29,0.84))",
+          color: "#fff7ed",
+          fontSize: "13px",
+          fontWeight: 900,
+          textAlign: "left",
+          cursor: "pointer",
+          display: "grid",
+          gap: "4px",
+          boxShadow: "0 10px 22px rgba(190,99,83,0.20)",
+          transition: "background 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = "linear-gradient(135deg, rgba(220,110,92,0.98), rgba(153,45,34,0.90))";
+          e.currentTarget.style.boxShadow = "0 12px 26px rgba(220,110,92,0.26)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = "linear-gradient(135deg, rgba(190,99,83,0.94), rgba(127,29,29,0.84))";
+          e.currentTarget.style.boxShadow = "0 10px 22px rgba(190,99,83,0.20)";
+        }}
+      >
+        <span style={{ display: "flex", justifyContent: "space-between", gap: "10px" }}>
+          <span>{t("Seguimiento de cierre")}</span>
+          <span style={{ fontSize: "14px", lineHeight: 1, opacity: 0.92 }}>↗</span>
+        </span>
+        <span style={{ fontSize: "11px", fontWeight: 750, opacity: 0.86, lineHeight: 1.35 }}>
+          {t("Responsables, plazos, evidencias y cierre operativo.")}
+        </span>
+      </button>
+
+      <div
+        style={{
+          fontSize: "10px",
+          color: tema.textoSuave,
+          fontWeight: 900,
+          letterSpacing: "0.7px",
+          textTransform: "uppercase",
+          marginTop: "8px",
+        }}
+      >
+        {t("Análisis gerencial")} / {t("Territorio")}
+      </div>
       <Link
         href="/panel/kpi-gerencial"
         style={{
@@ -5837,7 +5921,7 @@ style={{
           e.currentTarget.style.boxShadow = "0 12px 26px rgba(124,58,237,0.30)";
         }}
       >
-        <span>{t("KPI Gerencial Avanzado")}</span>
+        <span>{t("KPI Gerencial")}</span>
         <span
           style={{
             fontSize: "14px",
@@ -5889,7 +5973,7 @@ style={{
           e.currentTarget.style.boxShadow = "0 12px 26px rgba(14,165,233,0.30)";
         }}
       >
-        <span>{t("Mapa GPS de Hallazgos")}</span>
+        <span>{t("Mapa GPS")}</span>
         <span
           style={{
             fontSize: "14px",
@@ -5900,96 +5984,123 @@ style={{
           ↗
         </span>
       </Link>
-	     {["Exportar a Excel", "Generar informe empresa/obra", "Seguimiento de cierre", "Configuración"].map((item) => (
+      <div
+        style={{
+          fontSize: "10px",
+          color: tema.textoSuave,
+          fontWeight: 900,
+          letterSpacing: "0.7px",
+          textTransform: "uppercase",
+          marginTop: "8px",
+        }}
+      >
+        {t("Informes / Exportación")}
+      </div>
+	     {["Exportar Excel", "Informe empresa/obra"].map((item) => (
      <button
   key={item}
   onClick={() => {
-   if (item === "Exportar a Excel") {
+   if (item === "Exportar Excel") {
   exportarExcel();
   return;
 }
 
-if (item === "Generar informe empresa/obra") {
+if (item === "Informe empresa/obra") {
   generarInformeEmpresaObra();
   return;
 }
 
-if (item === "Seguimiento de cierre") {
-  setVistaPrincipal("seguimiento");
-  setVistaDerecha("seguimiento");
-  return;
-}
-
-if (item === "Configuración") {
-  if (vistaPrincipal === "configuracion") {
-    setVistaPrincipal("panel");
-    setVistaDerecha("informe");
-  } else {
-    setVistaPrincipal("configuracion");
-    setVistaDerecha("configuracion");
-  }
-  return;
-}
 }}
 style={{
     width: "100%",
     minHeight: "50px",
     padding: "14px 14px",
     borderRadius: "14px",
-	    border: item === "Seguimiento de cierre"
-	      ? "1px solid rgba(251,146,124,0.42)"
-	      : tema.borde,
-	    background: item === "Seguimiento de cierre"
-	      ? "linear-gradient(135deg, rgba(190,99,83,0.94), rgba(127,29,29,0.84))"
-	      : tema.tarjetaElevada,
-	    color: item === "Seguimiento de cierre" ? "#fff7ed" : tema.texto,
+	    border: tema.borde,
+	    background: tema.tarjetaElevada,
+	    color: tema.texto,
     fontSize: "13px",
-    fontWeight: item === "Seguimiento de cierre" ? 900 : 700,
+    fontWeight: 700,
     textAlign: "left",
     cursor: "pointer",
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    boxShadow: item === "Seguimiento de cierre"
-      ? "0 10px 22px rgba(190,99,83,0.20)"
-      : "none",
+    boxShadow: "none",
     transition: "background 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease",
   }}
   onMouseEnter={(e) => {
-    if (item !== "Seguimiento de cierre") return;
-    e.currentTarget.style.background = "linear-gradient(135deg, rgba(220,110,92,0.98), rgba(153,45,34,0.90))";
-    e.currentTarget.style.boxShadow = "0 12px 26px rgba(220,110,92,0.26)";
+    e.currentTarget.style.borderColor = temaClaro ? "rgba(37,99,235,0.32)" : "rgba(96,165,250,0.34)";
+    e.currentTarget.style.boxShadow = temaClaro ? "0 10px 22px rgba(15,23,42,0.08)" : "0 10px 22px rgba(0,0,0,0.18)";
   }}
   onMouseLeave={(e) => {
-    if (item !== "Seguimiento de cierre") return;
-    e.currentTarget.style.background = "linear-gradient(135deg, rgba(190,99,83,0.94), rgba(127,29,29,0.84))";
-    e.currentTarget.style.boxShadow = "0 10px 22px rgba(190,99,83,0.20)";
+    e.currentTarget.style.border = tema.borde;
+    e.currentTarget.style.boxShadow = "none";
   }}
   onFocus={(e) => {
-    if (item !== "Seguimiento de cierre") return;
-    e.currentTarget.style.borderColor = "rgba(253,186,116,0.70)";
-    e.currentTarget.style.boxShadow = "0 0 0 3px rgba(251,146,124,0.18), 0 12px 26px rgba(220,110,92,0.24)";
+    e.currentTarget.style.borderColor = temaClaro ? "rgba(37,99,235,0.42)" : "rgba(96,165,250,0.42)";
+    e.currentTarget.style.boxShadow = "0 0 0 3px rgba(59,130,246,0.14)";
   }}
   onBlur={(e) => {
-    if (item !== "Seguimiento de cierre") return;
-    e.currentTarget.style.borderColor = "rgba(251,146,124,0.42)";
-    e.currentTarget.style.boxShadow = "0 10px 22px rgba(190,99,83,0.20)";
+    e.currentTarget.style.border = tema.borde;
+    e.currentTarget.style.boxShadow = "none";
   }}
 >
 	  <span>{t(item)}</span>
-    {item === "Seguimiento de cierre" && (
-      <span
-        style={{
-          fontSize: "14px",
-          lineHeight: 1,
-          opacity: 0.92,
-        }}
-      >
-        ↗
-      </span>
-    )}
 </button>
       ))}
+      <div
+        style={{
+          fontSize: "10px",
+          color: tema.textoSuave,
+          fontWeight: 900,
+          letterSpacing: "0.7px",
+          textTransform: "uppercase",
+          marginTop: "8px",
+        }}
+      >
+        {t("Configuración")}
+      </div>
+      <button
+        type="button"
+        onClick={() => {
+          if (vistaPrincipal === "configuracion") {
+            setVistaPrincipal("panel");
+            setVistaDerecha("informe");
+          } else {
+            setVistaPrincipal("configuracion");
+            setVistaDerecha("configuracion");
+          }
+        }}
+        style={{
+          width: "100%",
+          minHeight: "50px",
+          padding: "14px 14px",
+          borderRadius: "14px",
+          border: tema.borde,
+          background: tema.tarjetaElevada,
+          color: tema.texto,
+          fontSize: "13px",
+          fontWeight: 700,
+          textAlign: "left",
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          boxShadow: "none",
+          transition: "background 160ms ease, border-color 160ms ease, box-shadow 160ms ease",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.borderColor = temaClaro ? "rgba(37,99,235,0.32)" : "rgba(96,165,250,0.34)";
+          e.currentTarget.style.boxShadow = temaClaro ? "0 10px 22px rgba(15,23,42,0.08)" : "0 10px 22px rgba(0,0,0,0.18)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.border = tema.borde;
+          e.currentTarget.style.boxShadow = "none";
+        }}
+      >
+        <span>{t("Configuración")}</span>
+      </button>
     </div>
   </div>
 </aside>
@@ -6698,7 +6809,7 @@ style={{
                 }}
               >
 	                <div>{t("Código")}</div>
-	                <div>{t("Empresa")}</div>
+	                <div>{t("Empresa reportante")}</div>
 	                <div>{t("Tipo de hallazgo")}</div>
 	                <div>{t("Criticidad")}</div>
 	                <div>{t("Estado")}</div>
@@ -6890,7 +7001,7 @@ style={{
             fontWeight: 700,
           }}
         >
-          {t("Control de responsables, plazos, evidencias y estado de corrección.")}
+          {t("Centro operativo para revisar hallazgos abiertos, empresas responsables, compromisos, evidencia y cierre.")}
         </div>
       </div>
       <button
@@ -6982,7 +7093,7 @@ style={{
       </label>
       <label style={{ display: "grid", gap: "7px" }}>
         <span style={seguimientoFilterLabelStyle}>
-          {t("Empresa").toUpperCase()}
+          {t("Empresa responsable del cierre").toUpperCase()}
         </span>
         <select
           value={filtroSeguimientoEmpresa}
@@ -7026,7 +7137,7 @@ style={{
       </label>
       <label style={{ display: "grid", gap: "7px" }}>
         <span style={seguimientoFilterLabelStyle}>
-          {t("Responsable de corrección").toUpperCase()}
+          {t("Responsable de la empresa").toUpperCase()}
         </span>
         <div
           style={{
@@ -7105,10 +7216,10 @@ style={{
           }}
         >
           <div>{t("Código")}</div>
-          <div>{t("Empresa")}</div>
+          <div>{t("Empresa reportante / Obra")}</div>
           <div>{t("Tipo de hallazgo")}</div>
           <div>{t("Criticidad")}</div>
-          <div>{t("Responsable de corrección")}</div>
+          <div>{t("Responsable de la empresa")}</div>
           <div>{t("Empresa responsable")}</div>
           <div>{t("Fecha compromiso")}</div>
           <div>{t("Estado seguimiento")}</div>
@@ -7224,8 +7335,10 @@ style={{
             </div>
           </div>
           {[
-            [t("Reportante"), hallazgoSeguimientoActivo.reportante],
-            [t("Responsable de corrección"), t(hallazgoSeguimientoActivo.responsableCorreccionNombre)],
+            [t("Supervisor reportante"), hallazgoSeguimientoActivo.reportante],
+            [t("Empresa reportante"), `${hallazgoSeguimientoActivo.empresa} / ${hallazgoSeguimientoActivo.obra}`],
+            [t("Responsable de la empresa"), t(hallazgoSeguimientoActivo.responsableCorreccionNombre)],
+            [t("Empresa responsable"), t(hallazgoSeguimientoActivo.responsableCorreccionEmpresa)],
             [t("Encargado de seguimiento"), t(hallazgoSeguimientoActivo.encargadoSeguimientoNombre)],
             [t("Validador de cierre"), t(hallazgoSeguimientoActivo.validadorCierreNombre)],
             [t("Fecha compromiso"), t(hallazgoSeguimientoActivo.responsableCierreFechaCompromiso)],
