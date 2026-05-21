@@ -151,6 +151,22 @@ function sugerirFechaCompromisoPorCriticidad(criticidad: string) {
   return sumarDiasFechaISO(diasPlazoPorCriticidad(criticidad));
 }
 
+function fechaMaximaCompromisoPorCriticidad(criticidad: string) {
+  return sugerirFechaCompromisoPorCriticidad(criticidad);
+}
+
+function validarFechaCompromisoPorCriticidad(fechaCompromiso: string, criticidad: string) {
+  const fechaNormalizada = normalizarFechaCompromiso(fechaCompromiso);
+  if (!fechaNormalizada) return { ok: true, tipo: "" };
+
+  const hoy = sumarDiasFechaISO(0);
+  const maxima = fechaMaximaCompromisoPorCriticidad(criticidad);
+
+  if (fechaNormalizada < hoy) return { ok: false, tipo: "anterior" };
+  if (fechaNormalizada > maxima) return { ok: false, tipo: "excede" };
+  return { ok: true, tipo: "" };
+}
+
 function semaforoVencimiento(fechaCompromiso: string, estado: string) {
   void estado;
   const fechaNormalizada = normalizarFechaCompromiso(fechaCompromiso);
@@ -291,6 +307,8 @@ type GestionCierreLocal = Partial<GestionCierreDraft> & {
   responsableCierreObservacion?: string;
   bitacoraCierre?: BitacoraCierreLocal[];
 };
+
+type AccionSeguimientoActiva = "" | "imprimir" | "correo" | "resumen";
 
 const formatosExportacionPorDefecto: FormatosExportacionConfig = {
   pdf: true,
@@ -628,6 +646,10 @@ const [filasPanel, setFilasPanel] = useState<HallazgoPanelExtendido[]>(hallazgos
     "Vence mañana": "Due tomorrow",
     "Vence hoy": "Due today",
     "Fecha sugerida por criticidad": "Suggested date by severity",
+    "Rango permitido": "Allowed range",
+    "La fecha compromiso excede el plazo máximo permitido para esta criticidad.": "The commitment date exceeds the maximum allowed deadline for this severity.",
+    "La fecha compromiso no puede ser anterior a hoy.": "The commitment date cannot be earlier than today.",
+    "La fecha compromiso existente está fuera del rango permitido. Sugiere corregirla antes de guardar.": "The existing commitment date is outside the allowed range. Consider correcting it before saving.",
     "Crítico": "Critical",
     "Alto": "High",
     "Medio": "Medium",
@@ -642,6 +664,22 @@ const [filasPanel, setFilasPanel] = useState<HallazgoPanelExtendido[]>(hallazgos
     "Generar resumen": "Generate summary",
     "Acciones operativas": "Operational actions",
     "Resumen operativo": "Operational summary",
+    "Correo destinatario": "Recipient email",
+    "Destinatario opcional": "Optional recipient",
+    "Cuerpo del correo": "Email body",
+    "Copiar correo": "Copy email",
+    "Abrir en cliente de correo": "Open in email client",
+    "Copiar resumen": "Copy summary",
+    "Correo copiado al portapapeles.": "Email copied to clipboard.",
+    "Resumen copiado al portapapeles.": "Summary copied to clipboard.",
+    "No se pudo copiar automáticamente. Selecciona el texto y cópialo manualmente.": "Could not copy automatically. Select the text and copy it manually.",
+    "Informe preparado en una nueva ventana para imprimir.": "Report prepared in a new print window.",
+    "Usa este correo como borrador para solicitar gestión de cierre a la empresa responsable.": "Use this email as a draft to request closure management from the responsible company.",
+    "Resumen breve para WhatsApp, reunión o acta.": "Short summary for WhatsApp, meeting or minutes.",
+    "Solicitud de gestión de cierre": "Closure management request",
+    "Sin información": "No information",
+    Área: "Area",
+    Prioridad: "Priority",
     Asunto: "Subject",
     "Plantilla de correo preparada y copiada al portapapeles.": "Email template prepared and copied to clipboard.",
     "Resumen generado. Puedes revisarlo antes de compartirlo.": "Summary generated. You can review it before sharing.",
@@ -2217,7 +2255,9 @@ const [filtroSeguimientoFecha, setFiltroSeguimientoFecha] = useState("");
 const [busquedaResponsableSeguimiento, setBusquedaResponsableSeguimiento] = useState("");
 const [busquedaResponsableSeguimientoDraft, setBusquedaResponsableSeguimientoDraft] = useState("");
 const [codigoSeguimientoActivo, setCodigoSeguimientoActivo] = useState("");
-const [resultadoAccionSeguimiento, setResultadoAccionSeguimiento] = useState("");
+const [accionSeguimientoActiva, setAccionSeguimientoActiva] = useState<AccionSeguimientoActiva>("");
+const [destinatarioCorreoSeguimiento, setDestinatarioCorreoSeguimiento] = useState("");
+const [mensajeAccionSeguimiento, setMensajeAccionSeguimiento] = useState("");
 const [mostrarGestionCierre, setMostrarGestionCierre] = useState(false);
 const [gestionCierreLocal, setGestionCierreLocal] = useState<Record<string, GestionCierreLocal>>({});
 const [gestionCierreDraft, setGestionCierreDraft] = useState<GestionCierreDraft>({
@@ -2811,7 +2851,9 @@ const hallazgoSeguimientoActivo =
   hallazgosSeguimiento[0];
 
 useEffect(() => {
-  setResultadoAccionSeguimiento("");
+  setAccionSeguimientoActiva("");
+  setMensajeAccionSeguimiento("");
+  setDestinatarioCorreoSeguimiento("");
 }, [hallazgoSeguimientoActivo?.codigo]);
 
 const textoPlazoCriticidad = (criticidad: string) => {
@@ -2822,63 +2864,89 @@ const textoPlazoCriticidad = (criticidad: string) => {
   return t("máximo 5 días");
 };
 
-const construirResumenSeguimiento = (item: HallazgoSeguimiento) => {
+const valorInformeSeguimiento = (valor: unknown) => {
+  const limpio = String(valor ?? "").trim();
+  return limpio && limpio !== "Sin definir" ? limpio : t("Sin información");
+};
+
+const obtenerCampoOpcionalSeguimiento = (item: HallazgoSeguimiento, campo: string) => {
+  const valor = (item as unknown as Record<string, unknown>)[campo];
+  return typeof valor === "string" && valor.trim() ? valor.trim() : "";
+};
+
+const asuntoCorreoSeguimiento = (item: HallazgoSeguimiento) =>
+  `${t("Solicitud de gestión de cierre")} ${item.codigo} - ${t(item.criticidad)}`;
+
+const cuerpoCorreoSeguimiento = (item: HallazgoSeguimiento) => {
   const plazo = semaforoVencimiento(item.responsableCierreFechaCompromiso, item.estado).etiqueta;
 
   return [
-    `${t("Informe de seguimiento de cierre")} - ${item.codigo}`,
-    `${t("Criticidad")}: ${t(item.criticidad)} (${t("Plazo sugerido")}: ${textoPlazoCriticidad(item.criticidad)})`,
-    `${t("Empresa reportante")}: ${item.empresa} / ${item.obra}`,
-    `${t("Supervisor reportante")}: ${item.reportante}`,
+    "Estimados,",
+    "",
+    "Solicitamos gestionar el cierre del siguiente hallazgo dentro del plazo preventivo definido:",
+    "",
+    `${t("Código")}: ${item.codigo}`,
+    `${t("Criticidad")}: ${t(item.criticidad)}`,
     `${t("Empresa involucrada / responsable")}: ${item.responsableCorreccionEmpresa}`,
     `${t("Responsable de la empresa")}: ${t(item.responsableCorreccionNombre)}`,
     `${t("Fecha compromiso")}: ${t(item.responsableCierreFechaCompromiso)}`,
     `${t("Plazo de cierre")}: ${t(plazo)}`,
-    `${t("Estado seguimiento")}: ${t(estadoSeguimientoVisual(item))}`,
     `${t("Acción correctiva requerida")}: ${t(item.accionCorrectivaRequerida)}`,
     `${t("Evidencia requerida")}: ${t(item.evidenciaRequerida)}`,
-    `${t("Evidencia recibida")}: ${t(item.evidenciaRecibida)}`,
-    `${t("Observación de seguimiento")}: ${t(item.responsableCierreObservacion)}`,
+    "",
+    "Favor remitir evidencia de cierre y observaciones de avance para revisión del equipo responsable.",
   ].join("\n");
+};
+
+const resumenEjecutivoSeguimiento = (item: HallazgoSeguimiento) => {
+  const plazo = semaforoVencimiento(item.responsableCierreFechaCompromiso, item.estado).etiqueta;
+
+  return [
+    `${item.codigo} · ${item.responsableCorreccionEmpresa}`,
+    `${t("Criticidad")}: ${t(item.criticidad)} · ${t("Estado")}: ${t(estadoSeguimientoVisual(item))}`,
+    `${t("Fecha compromiso")}: ${t(item.responsableCierreFechaCompromiso)} · ${t("Plazo de cierre")}: ${t(plazo)}`,
+    `${t("Acción correctiva requerida")}: ${t(item.accionCorrectivaRequerida)}`,
+    `${t("Evidencia requerida")}: ${t(item.evidenciaRequerida)}`,
+    "Recomendación: mantener seguimiento diario hasta recibir evidencia verificable y validar cierre.",
+  ].join("\n");
+};
+
+const copiarTextoAccionSeguimiento = async (texto: string, mensajeOk: string) => {
+  try {
+    await navigator.clipboard.writeText(texto);
+    setMensajeAccionSeguimiento(mensajeOk);
+  } catch {
+    setMensajeAccionSeguimiento("No se pudo copiar automáticamente. Selecciona el texto y cópialo manualmente.");
+  }
+};
+
+const prepararCorreoSeguimiento = () => {
+  if (!hallazgoSeguimientoActivo) return;
+  setAccionSeguimientoActiva("correo");
+  setMensajeAccionSeguimiento("");
 };
 
 const generarResumenSeguimiento = () => {
   if (!hallazgoSeguimientoActivo) return;
-  setResultadoAccionSeguimiento(
-    `${t("Resumen generado. Puedes revisarlo antes de compartirlo.")}\n\n${construirResumenSeguimiento(
-      hallazgoSeguimientoActivo
-    )}`
-  );
+  setAccionSeguimientoActiva("resumen");
+  setMensajeAccionSeguimiento("");
 };
 
-const prepararCorreoSeguimiento = async () => {
+const abrirClienteCorreoSeguimiento = () => {
   if (!hallazgoSeguimientoActivo) return;
-
-  const asunto = `${t("Seguimiento de cierre")} ${hallazgoSeguimientoActivo.codigo} - ${t(
-    hallazgoSeguimientoActivo.criticidad
-  )}`;
-  const cuerpo = [
-    `${t("Asunto")}: ${asunto}`,
-    "",
-    "Estimados,",
-    "",
-    "Se comparte resumen operativo para gestionar el cierre del hallazgo indicado:",
-    "",
-    construirResumenSeguimiento(hallazgoSeguimientoActivo),
-    "",
-    "Favor revisar acción correctiva, evidencia requerida y fecha compromiso.",
-  ].join("\n");
-
-  try {
-    await navigator.clipboard.writeText(cuerpo);
-    setResultadoAccionSeguimiento(`${t("Plantilla de correo preparada y copiada al portapapeles.")}\n\n${cuerpo}`);
-  } catch {
-    setResultadoAccionSeguimiento(`${t("No se pudo copiar automáticamente; el texto quedó visible para revisión.")}\n\n${cuerpo}`);
-  }
+  const asunto = asuntoCorreoSeguimiento(hallazgoSeguimientoActivo);
+  const cuerpo = cuerpoCorreoSeguimiento(hallazgoSeguimientoActivo);
+  const destinatario = destinatarioCorreoSeguimiento.trim();
+  const mailto = `mailto:${encodeURIComponent(destinatario)}?subject=${encodeURIComponent(
+    asunto
+  )}&body=${encodeURIComponent(cuerpo)}`;
+  window.open(mailto, "_blank", "noopener,noreferrer");
 };
 
 const imprimirInformeSeguimiento = () => {
   if (!hallazgoSeguimientoActivo) return;
+  setAccionSeguimientoActiva("imprimir");
+  setMensajeAccionSeguimiento("Informe preparado en una nueva ventana para imprimir.");
 
   const escapeHtml = (valor: unknown) =>
     String(valor ?? "")
@@ -2888,6 +2956,57 @@ const imprimirInformeSeguimiento = () => {
       .replace(/"/g, "&quot;");
   const item = hallazgoSeguimientoActivo;
   const plazo = semaforoVencimiento(item.responsableCierreFechaCompromiso, item.estado).etiqueta;
+  const evidencias = obtenerEvidenciasPanel(item);
+  const evidenciasVisibles = evidencias.filter((evidencia) => evidencia.url).slice(0, 4);
+  const prioridad = obtenerCampoOpcionalSeguimiento(item, "prioridad");
+  const area = obtenerCampoOpcionalSeguimiento(item, "area");
+  const filasInforme = [
+    [t("Código"), item.codigo],
+    [t("Fecha / Hora"), item.fechaHora],
+    [t("Supervisor reportante"), item.reportante],
+    [t("Empresa reportante"), item.empresa],
+    [t("Obra / Proyecto"), item.obra],
+    area ? [t("Área"), area] : null,
+    [t("Tipo de hallazgo"), item.tipoHallazgo],
+    prioridad ? [t("Prioridad"), prioridad] : null,
+    [t("Criticidad"), t(item.criticidad)],
+    [t("Estado"), t(item.estado)],
+    [t("Estado seguimiento"), t(estadoSeguimientoVisual(item))],
+    [t("Empresa involucrada / responsable"), item.responsableCorreccionEmpresa],
+    [t("Responsable de la empresa"), t(item.responsableCorreccionNombre)],
+    [t("Cargo"), t(item.responsableCorreccionCargo)],
+    [t("Fecha compromiso"), t(item.responsableCierreFechaCompromiso)],
+    [t("Plazo de cierre"), t(plazo)],
+  ].filter(Boolean) as string[][];
+  const bloquesInforme = [
+    [t("Descripción"), item.descripcion],
+    [t("Medida inmediata"), item.medidaInmediata],
+    [t("Acción correctiva requerida"), item.accionCorrectivaRequerida],
+    [t("Evidencia requerida"), item.evidenciaRequerida],
+    [t("Evidencia recibida"), item.evidenciaRecibida],
+    [t("Observación de seguimiento"), item.responsableCierreObservacion],
+  ];
+  const evidenciasHtml = evidenciasVisibles.length > 0
+    ? `
+      <div class="evidence-grid">
+        ${evidenciasVisibles
+          .map(
+            (evidencia) => `
+              <figure class="evidence-thumb">
+                <img src="${escapeHtml(evidencia.url)}" alt="Evidencia del hallazgo" />
+                <figcaption>${escapeHtml(evidencia.nombre || evidencia.descripcion || "Evidencia fotográfica")}</figcaption>
+              </figure>
+            `
+          )
+          .join("")}
+      </div>
+      <div class="note">${escapeHtml(`${evidencias.length} evidencia(s) registrada(s).`)}</div>
+    `
+    : `<div class="empty">${escapeHtml(
+        evidencias.length > 0
+          ? evidencias[0]?.mensajeVisualizacion || "Evidencia registrada, pendiente de visualización."
+          : "Sin evidencia fotográfica disponible."
+      )}</div>`;
   const html = `
     <!DOCTYPE html>
     <html lang="es">
@@ -2895,46 +3014,141 @@ const imprimirInformeSeguimiento = () => {
         <meta charset="UTF-8" />
         <title>${escapeHtml(item.codigo)} - Seguimiento de cierre</title>
         <style>
-          body { font-family: Arial, sans-serif; margin: 0; padding: 32px; color: #111827; background: #ffffff; }
-          .wrap { max-width: 900px; margin: 0 auto; }
-          h1 { font-size: 24px; margin: 0 0 6px; }
-          .sub { color: #4b5563; margin-bottom: 22px; font-size: 13px; }
-          .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-          .card { border: 1px solid #d1d5db; border-radius: 12px; padding: 14px; }
-          .label { font-size: 11px; color: #6b7280; font-weight: 800; text-transform: uppercase; margin-bottom: 5px; }
-          .value { font-size: 14px; line-height: 1.45; font-weight: 700; white-space: pre-wrap; }
-          .wide { grid-column: 1 / -1; }
-          @media print { body { padding: 0; } }
+          @page { size: Letter; margin: 14mm; }
+          * { box-sizing: border-box; }
+          body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 28px 0 56px;
+            color: #111827;
+            background: #e5e7eb;
+          }
+          .sheet {
+            width: 216mm;
+            min-height: 279mm;
+            margin: 0 auto;
+            padding: 18mm;
+            background: #ffffff;
+            border: 1px solid #d1d5db;
+            box-shadow: 0 18px 44px rgba(15, 23, 42, 0.18);
+          }
+          .head {
+            display: flex;
+            justify-content: space-between;
+            gap: 24px;
+            align-items: flex-start;
+            border-bottom: 2px solid #111827;
+            padding-bottom: 16px;
+            margin-bottom: 18px;
+          }
+          .brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 12px;
+            font-weight: 900;
+            color: #1f2937;
+            text-transform: uppercase;
+          }
+          .brand img { width: 34px; height: 34px; object-fit: contain; }
+          h1 { font-size: 22px; margin: 0 0 8px; line-height: 1.12; }
+          .sub { color: #4b5563; font-size: 12px; line-height: 1.45; font-weight: 700; }
+          .badge {
+            display: inline-flex;
+            padding: 7px 10px;
+            border-radius: 999px;
+            border: 1px solid #d1d5db;
+            background: #f9fafb;
+            font-size: 11px;
+            font-weight: 900;
+            white-space: nowrap;
+          }
+          .section { margin-top: 18px; break-inside: avoid; }
+          .section-title {
+            font-size: 12px;
+            font-weight: 900;
+            text-transform: uppercase;
+            color: #111827;
+            border-bottom: 1px solid #d1d5db;
+            padding-bottom: 6px;
+            margin-bottom: 10px;
+          }
+          .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
+          .field {
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            padding: 10px;
+            background: #fbfdff;
+          }
+          .label { font-size: 10px; color: #6b7280; font-weight: 900; text-transform: uppercase; margin-bottom: 4px; }
+          .value { font-size: 13px; line-height: 1.4; font-weight: 750; white-space: pre-wrap; }
+          .block {
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            padding: 12px;
+            margin-top: 9px;
+            break-inside: avoid;
+          }
+          .text { font-size: 13px; line-height: 1.5; white-space: pre-wrap; }
+          .evidence-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+          .evidence-thumb { margin: 0; border: 1px solid #d1d5db; border-radius: 10px; padding: 8px; }
+          .evidence-thumb img { width: 100%; height: 150px; object-fit: cover; border-radius: 8px; display: block; }
+          .evidence-thumb figcaption { margin-top: 6px; color: #6b7280; font-size: 11px; line-height: 1.35; }
+          .note, .empty { color: #6b7280; font-size: 12px; line-height: 1.45; margin-top: 8px; }
+          @media print {
+            body { padding: 0; background: #ffffff; }
+            .sheet { width: auto; min-height: auto; border: none; box-shadow: none; padding: 0; }
+          }
         </style>
       </head>
       <body>
-        <div class="wrap">
-          <h1>${escapeHtml(t("Informe de seguimiento de cierre"))}</h1>
-          <div class="sub">${escapeHtml(item.codigo)} · ${escapeHtml(t(item.criticidad))} · ${escapeHtml(t(plazo))}</div>
-          <div class="grid">
-            ${[
-              [t("Empresa reportante"), `${item.empresa} / ${item.obra}`],
-              [t("Supervisor reportante"), item.reportante],
-              [t("Empresa involucrada / responsable"), item.responsableCorreccionEmpresa],
-              [t("Responsable de la empresa"), t(item.responsableCorreccionNombre)],
-              [t("Fecha compromiso"), t(item.responsableCierreFechaCompromiso)],
-              [t("Estado seguimiento"), t(estadoSeguimientoVisual(item))],
-              [t("Acción correctiva requerida"), t(item.accionCorrectivaRequerida)],
-              [t("Evidencia requerida"), t(item.evidenciaRequerida)],
-              [t("Evidencia recibida"), t(item.evidenciaRecibida)],
-              [t("Observación de seguimiento"), t(item.responsableCierreObservacion)],
-            ]
+        <div class="sheet">
+          <header class="head">
+            <div>
+              <h1>${escapeHtml(t("Informe de seguimiento de cierre"))}</h1>
+              <div class="sub">${escapeHtml(item.codigo)} · ${escapeHtml(t(item.criticidad))} · ${escapeHtml(t(plazo))}</div>
+            </div>
+            <div>
+              <div class="brand"><img src="/logo.png" alt="Criterio Estratégico" /> Criterio Estratégico</div>
+              <div style="margin-top:10px; text-align:right;"><span class="badge">${escapeHtml(t(estadoSeguimientoVisual(item)))}</span></div>
+            </div>
+          </header>
+
+          <section class="section">
+            <div class="section-title">Datos del hallazgo</div>
+            <div class="grid">
+              ${filasInforme
+                .map(
+                  ([label, value]) => `
+                    <div class="field">
+                      <div class="label">${escapeHtml(label)}</div>
+                      <div class="value">${escapeHtml(valorInformeSeguimiento(value))}</div>
+                    </div>
+                  `
+                )
+                .join("")}
+            </div>
+          </section>
+
+          <section class="section">
+            <div class="section-title">Detalle y seguimiento</div>
+            ${bloquesInforme
               .map(
                 ([label, value]) => `
-                  <div class="card ${String(value).length > 90 ? "wide" : ""}">
+                  <div class="block">
                     <div class="label">${escapeHtml(label)}</div>
-                    <div class="value">${escapeHtml(value)}</div>
+                    <div class="text">${escapeHtml(valorInformeSeguimiento(value))}</div>
                   </div>
                 `
               )
               .join("")}
+          </section>
+
+          <section class="section">
+            <div class="section-title">Evidencias</div>
+            ${evidenciasHtml}
+          </section>
           </div>
-        </div>
       </body>
     </html>
   `;
@@ -3105,6 +3319,20 @@ const guardarGestionCierre = () => {
 
   const estadoAnterior = estadoSeguimientoVisual(hallazgoSeguimientoActivo);
   const estadoSeguimiento = estadoSeguimientoDesdeGestion(gestionCierreDraft);
+  const validacionFechaCompromiso = validarFechaCompromisoPorCriticidad(
+    gestionCierreDraft.responsableCierreFechaCompromiso,
+    hallazgoSeguimientoActivo.criticidad
+  );
+
+  if (!validacionFechaCompromiso.ok) {
+    setErrorGestionCierre(
+      validacionFechaCompromiso.tipo === "anterior"
+        ? "La fecha compromiso no puede ser anterior a hoy."
+        : "La fecha compromiso excede el plazo máximo permitido para esta criticidad."
+    );
+    return;
+  }
+
   const camposModificados = [
     gestionCierreDraft.responsableCorreccionTipo !== hallazgoSeguimientoActivo.responsableCorreccionTipo
       ? t("Tipo de responsable de corrección")
@@ -4218,6 +4446,50 @@ const riesgoOperativoPrincipal =
     textAlign: "left",
     boxShadow: temaClaro ? "0 8px 18px rgba(15,23,42,0.08)" : "0 10px 22px rgba(0,0,0,0.22)",
   };
+  const accionSeguimientoButtonEstadoStyle = (
+    accion: AccionSeguimientoActiva
+  ): React.CSSProperties => {
+    const activo = accionSeguimientoActiva === accion;
+
+    return {
+      ...accionSeguimientoButtonStyle,
+      ...(activo
+        ? {
+            border: temaClaro
+              ? "1px solid rgba(37,99,235,0.58)"
+              : "1px solid rgba(147,197,253,0.58)",
+            background: temaClaro
+              ? "linear-gradient(135deg, rgba(239,246,255,0.98), rgba(219,234,254,0.92))"
+              : "linear-gradient(135deg, rgba(37,99,235,0.34), rgba(14,165,233,0.18))",
+            color: temaClaro ? "#1e3a8a" : "#eff6ff",
+            boxShadow: temaClaro
+              ? "0 12px 26px rgba(37,99,235,0.16)"
+              : "0 14px 30px rgba(37,99,235,0.28)",
+          }
+        : {}),
+    };
+  };
+  const fechaMinimaGestionCierre = sumarDiasFechaISO(0);
+  const fechaMaximaGestionCierre = hallazgoSeguimientoActivo
+    ? fechaMaximaCompromisoPorCriticidad(hallazgoSeguimientoActivo.criticidad)
+    : fechaMinimaGestionCierre;
+  const validacionFechaGestionCierre = hallazgoSeguimientoActivo
+    ? validarFechaCompromisoPorCriticidad(
+        gestionCierreDraft.responsableCierreFechaCompromiso,
+        hallazgoSeguimientoActivo.criticidad
+      )
+    : { ok: true, tipo: "" };
+  const fechaExistenteGestionFueraRango = Boolean(
+    hallazgoSeguimientoActivo &&
+      !validacionFechaGestionCierre.ok &&
+      normalizarFechaCompromiso(gestionCierreDraft.responsableCierreFechaCompromiso) ===
+        normalizarFechaCompromiso(hallazgoSeguimientoActivo.responsableCierreFechaCompromiso)
+  );
+  const mensajeFechaGestionCierre = !validacionFechaGestionCierre.ok
+    ? validacionFechaGestionCierre.tipo === "anterior"
+      ? t("La fecha compromiso no puede ser anterior a hoy.")
+      : t("La fecha compromiso excede el plazo máximo permitido para esta criticidad.")
+    : "";
   const premiumActiveToggleStyle: React.CSSProperties = {
     border: "1px solid rgba(96,165,250,0.58)",
     background: "linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)",
@@ -5198,6 +5470,8 @@ const riesgoOperativoPrincipal =
           </span>
           <input
             type="date"
+            min={fechaMinimaGestionCierre}
+            max={fechaMaximaGestionCierre}
             value={gestionCierreDraft.responsableCierreFechaCompromiso}
             onChange={(e) =>
               setGestionCierreDraft((actual) => ({
@@ -5205,7 +5479,16 @@ const riesgoOperativoPrincipal =
                 responsableCierreFechaCompromiso: e.target.value,
               }))
             }
-            style={{ ...controlStyle, colorScheme: tema.inputScheme }}
+            style={{
+              ...controlStyle,
+              colorScheme: tema.inputScheme,
+              border: !validacionFechaGestionCierre.ok
+                ? "1px solid rgba(239,68,68,0.58)"
+                : controlStyle.border,
+              boxShadow: !validacionFechaGestionCierre.ok
+                ? "0 0 0 3px rgba(239,68,68,0.10)"
+                : controlStyle.boxShadow,
+            }}
           />
           <span
             style={{
@@ -5224,11 +5507,32 @@ const riesgoOperativoPrincipal =
               {t("Fecha sugerida por criticidad")}:{" "}
               {sugerirFechaCompromisoPorCriticidad(hallazgoSeguimientoActivo.criticidad)} ·{" "}
               {textoPlazoCriticidad(hallazgoSeguimientoActivo.criticidad)}
+              <br />
+              {t("Rango permitido")}: {fechaMinimaGestionCierre} / {fechaMaximaGestionCierre}
             </span>
             <span style={seguimientoSemaforoStyle(gestionCierreDraft.responsableCierreFechaCompromiso)}>
               {t(semaforoVencimiento(gestionCierreDraft.responsableCierreFechaCompromiso, hallazgoSeguimientoActivo.estado).etiqueta)}
             </span>
           </span>
+          {mensajeFechaGestionCierre && (
+            <span
+              style={{
+                padding: "9px 10px",
+                borderRadius: "12px",
+                border: "1px solid rgba(239,68,68,0.34)",
+                background: temaClaro ? "rgba(254,242,242,0.82)" : "rgba(239,68,68,0.12)",
+                color: temaClaro ? "#991b1b" : "#fecaca",
+                fontSize: "12px",
+                fontWeight: 850,
+                lineHeight: 1.35,
+              }}
+            >
+              {mensajeFechaGestionCierre}
+              {fechaExistenteGestionFueraRango
+                ? ` ${t("La fecha compromiso existente está fuera del rango permitido. Sugiere corregirla antes de guardar.")}`
+                : ""}
+            </span>
+          )}
         </label>
         <label style={{ display: "grid", gap: "6px" }}>
           <span style={{ fontSize: "11px", color: tema.textoSuave, fontWeight: 900 }}>
@@ -7747,35 +8051,179 @@ style={{
                 gap: "8px",
               }}
             >
-              <button type="button" onClick={imprimirInformeSeguimiento} style={accionSeguimientoButtonStyle}>
+              <button type="button" onClick={imprimirInformeSeguimiento} style={accionSeguimientoButtonEstadoStyle("imprimir")}>
                 {t("Imprimir informe")}
               </button>
-              <button type="button" onClick={prepararCorreoSeguimiento} style={accionSeguimientoButtonStyle}>
+              <button type="button" onClick={prepararCorreoSeguimiento} style={accionSeguimientoButtonEstadoStyle("correo")}>
                 {t("Preparar correo")}
               </button>
-              <button type="button" onClick={generarResumenSeguimiento} style={accionSeguimientoButtonStyle}>
+              <button type="button" onClick={generarResumenSeguimiento} style={accionSeguimientoButtonEstadoStyle("resumen")}>
                 {t("Generar resumen")}
               </button>
             </div>
-            {resultadoAccionSeguimiento && (
+            {accionSeguimientoActiva === "imprimir" && (
               <div
                 style={{
-                  padding: "11px",
+                  padding: "12px",
                   borderRadius: "13px",
                   border: temaClaro
-                    ? "1px solid rgba(37,99,235,0.22)"
-                    : "1px solid rgba(96,165,250,0.22)",
-                  background: temaClaro ? "rgba(239,246,255,0.78)" : "rgba(37,99,235,0.10)",
-                  color: temaClaro ? "#1e3a8a" : "#dbeafe",
+                    ? "1px solid rgba(34,197,94,0.26)"
+                    : "1px solid rgba(74,222,128,0.24)",
+                  background: temaClaro ? "rgba(240,253,244,0.78)" : "rgba(34,197,94,0.10)",
+                  color: temaClaro ? "#166534" : "#dcfce7",
                   fontSize: "12px",
                   fontWeight: 780,
                   lineHeight: 1.45,
-                  whiteSpace: "pre-wrap",
-                  maxHeight: "220px",
-                  overflow: "auto",
                 }}
               >
-                {resultadoAccionSeguimiento}
+                {t(mensajeAccionSeguimiento || "Informe preparado en una nueva ventana para imprimir.")}
+              </div>
+            )}
+            {accionSeguimientoActiva === "correo" && (
+              <div
+                style={{
+                  padding: "13px",
+                  borderRadius: "16px",
+                  border: temaClaro
+                    ? "1px solid rgba(37,99,235,0.24)"
+                    : "1px solid rgba(96,165,250,0.22)",
+                  background: temaClaro ? "rgba(239,246,255,0.78)" : "rgba(37,99,235,0.10)",
+                  display: "grid",
+                  gap: "10px",
+                }}
+              >
+                <div style={{ fontSize: "12px", color: temaClaro ? "#1e3a8a" : "#dbeafe", fontWeight: 850, lineHeight: 1.4 }}>
+                  {t("Usa este correo como borrador para solicitar gestión de cierre a la empresa responsable.")}
+                </div>
+                <label style={{ display: "grid", gap: "6px" }}>
+                  <span style={{ fontSize: "11px", color: tema.textoSuave, fontWeight: 900 }}>
+                    {t("Correo destinatario")}
+                  </span>
+                  <input
+                    type="email"
+                    value={destinatarioCorreoSeguimiento}
+                    onChange={(e) => setDestinatarioCorreoSeguimiento(e.target.value)}
+                    placeholder={t("Destinatario opcional")}
+                    style={premiumInputStyle}
+                  />
+                </label>
+                <div style={{ display: "grid", gap: "6px" }}>
+                  <div style={{ fontSize: "11px", color: tema.textoSuave, fontWeight: 900 }}>
+                    {t("Asunto")}
+                  </div>
+                  <div
+                    style={{
+                      padding: "10px 11px",
+                      borderRadius: "12px",
+                      ...premiumInnerStyle,
+                      fontSize: "12px",
+                      fontWeight: 850,
+                      lineHeight: 1.35,
+                    }}
+                  >
+                    {asuntoCorreoSeguimiento(hallazgoSeguimientoActivo)}
+                  </div>
+                </div>
+                <label style={{ display: "grid", gap: "6px" }}>
+                  <span style={{ fontSize: "11px", color: tema.textoSuave, fontWeight: 900 }}>
+                    {t("Cuerpo del correo")}
+                  </span>
+                  <textarea
+                    readOnly
+                    value={cuerpoCorreoSeguimiento(hallazgoSeguimientoActivo)}
+                    style={{
+                      ...premiumInputStyle,
+                      minHeight: "176px",
+                      padding: "11px",
+                      resize: "vertical",
+                      lineHeight: 1.45,
+                      whiteSpace: "pre-wrap",
+                    }}
+                  />
+                </label>
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      copiarTextoAccionSeguimiento(
+                        `${t("Asunto")}: ${asuntoCorreoSeguimiento(hallazgoSeguimientoActivo)}\n\n${cuerpoCorreoSeguimiento(hallazgoSeguimientoActivo)}`,
+                        "Correo copiado al portapapeles."
+                      )
+                    }
+                    style={{ ...premiumPrimaryButtonStyle, minHeight: "40px", fontSize: "12px" }}
+                  >
+                    {t("Copiar correo")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={abrirClienteCorreoSeguimiento}
+                    style={{ ...premiumSecondaryButtonStyle, minHeight: "40px", fontSize: "12px" }}
+                  >
+                    {t("Abrir en cliente de correo")}
+                  </button>
+                </div>
+              </div>
+            )}
+            {accionSeguimientoActiva === "resumen" && (
+              <div
+                style={{
+                  padding: "13px",
+                  borderRadius: "16px",
+                  border: temaClaro
+                    ? "1px solid rgba(20,184,166,0.24)"
+                    : "1px solid rgba(45,212,191,0.22)",
+                  background: temaClaro ? "rgba(240,253,250,0.78)" : "rgba(20,184,166,0.10)",
+                  display: "grid",
+                  gap: "10px",
+                }}
+              >
+                <div style={{ fontSize: "12px", color: temaClaro ? "#0f766e" : "#ccfbf1", fontWeight: 850, lineHeight: 1.4 }}>
+                  {t("Resumen breve para WhatsApp, reunión o acta.")}
+                </div>
+                <textarea
+                  readOnly
+                  value={resumenEjecutivoSeguimiento(hallazgoSeguimientoActivo)}
+                  style={{
+                    ...premiumInputStyle,
+                    minHeight: "152px",
+                    padding: "11px",
+                    resize: "vertical",
+                    lineHeight: 1.45,
+                    whiteSpace: "pre-wrap",
+                  }}
+                />
+                <div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      copiarTextoAccionSeguimiento(
+                        resumenEjecutivoSeguimiento(hallazgoSeguimientoActivo),
+                        "Resumen copiado al portapapeles."
+                      )
+                    }
+                    style={{ ...premiumPrimaryButtonStyle, minHeight: "40px", fontSize: "12px" }}
+                  >
+                    {t("Copiar resumen")}
+                  </button>
+                </div>
+              </div>
+            )}
+            {mensajeAccionSeguimiento && accionSeguimientoActiva !== "imprimir" && (
+              <div
+                style={{
+                  padding: "10px 11px",
+                  borderRadius: "13px",
+                  border: temaClaro
+                    ? "1px solid rgba(34,197,94,0.26)"
+                    : "1px solid rgba(74,222,128,0.24)",
+                  background: temaClaro ? "rgba(240,253,244,0.78)" : "rgba(34,197,94,0.10)",
+                  color: temaClaro ? "#166534" : "#dcfce7",
+                  fontSize: "12px",
+                  fontWeight: 850,
+                  lineHeight: 1.35,
+                }}
+              >
+                {t(mensajeAccionSeguimiento)}
               </div>
             )}
           </div>
