@@ -156,15 +156,20 @@ function fechaMaximaCompromisoPorCriticidad(criticidad: string) {
 }
 
 function validarFechaCompromisoPorCriticidad(fechaCompromiso: string, criticidad: string) {
+  void criticidad;
   const fechaNormalizada = normalizarFechaCompromiso(fechaCompromiso);
   if (!fechaNormalizada) return { ok: true, tipo: "" };
 
   const hoy = sumarDiasFechaISO(0);
-  const maxima = fechaMaximaCompromisoPorCriticidad(criticidad);
 
   if (fechaNormalizada < hoy) return { ok: false, tipo: "anterior" };
-  if (fechaNormalizada > maxima) return { ok: false, tipo: "excede" };
   return { ok: true, tipo: "" };
+}
+
+function fechaExcedePlazoRecomendado(fechaCompromiso: string, criticidad: string) {
+  const fechaNormalizada = normalizarFechaCompromiso(fechaCompromiso);
+  if (!fechaNormalizada) return false;
+  return fechaNormalizada > fechaMaximaCompromisoPorCriticidad(criticidad);
 }
 
 function semaforoVencimiento(fechaCompromiso: string, estado: string) {
@@ -295,6 +300,7 @@ type GestionCierreDraft = {
   accionCorrectivaRequerida: string;
   evidenciaRequerida: string[];
   responsableCierreFechaCompromiso: string;
+  justificacionExtensionPlazo: string;
   validadorCierreNombre: string;
   validadorCierreEstado: string;
   validadorCierreObservacion: string;
@@ -647,9 +653,15 @@ const [filasPanel, setFilasPanel] = useState<HallazgoPanelExtendido[]>(hallazgos
     "Vence hoy": "Due today",
     "Fecha sugerida por criticidad": "Suggested date by severity",
     "Rango permitido": "Allowed range",
+    "Plazo recomendado": "Recommended deadline",
     "La fecha compromiso excede el plazo máximo permitido para esta criticidad.": "The commitment date exceeds the maximum allowed deadline for this severity.",
     "La fecha compromiso no puede ser anterior a hoy.": "The commitment date cannot be earlier than today.",
     "La fecha compromiso existente está fuera del rango permitido. Sugiere corregirla antes de guardar.": "The existing commitment date is outside the allowed range. Consider correcting it before saving.",
+    "Fecha máxima recomendada": "Maximum recommended date",
+    "La fecha seleccionada excede el plazo recomendado para esta criticidad.": "The selected date exceeds the recommended deadline for this severity.",
+    "Justificación de extensión de plazo": "Deadline extension justification",
+    "Para extender el plazo recomendado, agrega una justificación de extensión.": "To extend the recommended deadline, add an extension justification.",
+    "Plazo extendido": "Deadline extended",
     "Crítico": "Critical",
     "Alto": "High",
     "Medio": "Medium",
@@ -2270,6 +2282,7 @@ const [gestionCierreDraft, setGestionCierreDraft] = useState<GestionCierreDraft>
   accionCorrectivaRequerida: "",
   evidenciaRequerida: [],
   responsableCierreFechaCompromiso: "",
+  justificacionExtensionPlazo: "",
   validadorCierreNombre: "",
   estadoSeguimiento: "Sin asignar",
   validadorCierreEstado: "Pendiente de revisión",
@@ -2697,6 +2710,7 @@ type HallazgoSeguimiento = (typeof filas)[number] & {
   accionCorrectivaRequerida: string;
   evidenciaRequerida: string;
   evidenciaRecibida: string;
+  justificacionExtensionPlazo: string;
 };
 
 const obtenerCampoSeguimiento = (
@@ -2774,6 +2788,7 @@ const hallazgosSeguimiento: HallazgoSeguimiento[] = filas.map((item) => {
       "Registro fotográfico y documentación de corrección"
     ),
     evidenciaRecibida: evidenciaReal || "Pendiente de evidencia",
+    justificacionExtensionPlazo: obtenerCampoSeguimiento(item, "justificacionExtensionPlazo", ""),
   };
 
   const responsableCorreccionNombre =
@@ -2810,6 +2825,22 @@ const estadoSeguimientoVisual = (item: HallazgoSeguimiento) => {
   if (vencimiento === "Vencido" && item.estado !== "CERRADO") return "Vencido";
   if (item.responsableCierreEstadoSeguimiento === "En seguimiento") return "En seguimiento";
   return "Asignado";
+};
+
+const hallazgoTieneExtensionPlazo = (item: HallazgoSeguimiento) =>
+  fechaExcedePlazoRecomendado(item.responsableCierreFechaCompromiso, item.criticidad) &&
+  Boolean(item.justificacionExtensionPlazo?.trim());
+
+const estadoPlazoCierre = (item: HallazgoSeguimiento) => {
+  const fechaCompromiso = item.responsableCierreFechaCompromiso;
+  const vencimiento = semaforoVencimiento(fechaCompromiso, item.estado).etiqueta;
+
+  if (vencimiento === "Sin fecha compromiso") return vencimiento;
+  if (vencimiento === "Vencido") return vencimiento;
+  if (vencimiento === "Vence hoy") return vencimiento;
+  if (vencimiento === "Vence mañana") return vencimiento;
+  if (hallazgoTieneExtensionPlazo(item)) return "Plazo extendido";
+  return "Dentro de plazo";
 };
 
 const opcionesSeguimientoEstado = [
@@ -2864,6 +2895,13 @@ const textoPlazoCriticidad = (criticidad: string) => {
   return t("máximo 5 días");
 };
 
+const formatearFechaCompromisoVisual = (fecha: string) => {
+  const fechaNormalizada = normalizarFechaCompromiso(fecha);
+  if (!fechaNormalizada) return t("Sin información");
+  const [anio, mes, dia] = fechaNormalizada.split("-");
+  return `${dia}/${mes}/${anio}`;
+};
+
 const valorInformeSeguimiento = (valor: unknown) => {
   const limpio = String(valor ?? "").trim();
   return limpio && limpio !== "Sin definir" ? limpio : t("Sin información");
@@ -2878,7 +2916,7 @@ const asuntoCorreoSeguimiento = (item: HallazgoSeguimiento) =>
   `${t("Solicitud de gestión de cierre")} ${item.codigo} - ${t(item.criticidad)}`;
 
 const cuerpoCorreoSeguimiento = (item: HallazgoSeguimiento) => {
-  const plazo = semaforoVencimiento(item.responsableCierreFechaCompromiso, item.estado).etiqueta;
+  const plazo = estadoPlazoCierre(item);
 
   return [
     "Estimados,",
@@ -2891,6 +2929,9 @@ const cuerpoCorreoSeguimiento = (item: HallazgoSeguimiento) => {
     `${t("Responsable de la empresa")}: ${t(item.responsableCorreccionNombre)}`,
     `${t("Fecha compromiso")}: ${t(item.responsableCierreFechaCompromiso)}`,
     `${t("Plazo de cierre")}: ${t(plazo)}`,
+    ...(hallazgoTieneExtensionPlazo(item)
+      ? [`${t("Justificación de extensión de plazo")}: ${item.justificacionExtensionPlazo}`]
+      : []),
     `${t("Acción correctiva requerida")}: ${t(item.accionCorrectivaRequerida)}`,
     `${t("Evidencia requerida")}: ${t(item.evidenciaRequerida)}`,
     "",
@@ -2899,12 +2940,15 @@ const cuerpoCorreoSeguimiento = (item: HallazgoSeguimiento) => {
 };
 
 const resumenEjecutivoSeguimiento = (item: HallazgoSeguimiento) => {
-  const plazo = semaforoVencimiento(item.responsableCierreFechaCompromiso, item.estado).etiqueta;
+  const plazo = estadoPlazoCierre(item);
 
   return [
     `${item.codigo} · ${item.responsableCorreccionEmpresa}`,
     `${t("Criticidad")}: ${t(item.criticidad)} · ${t("Estado")}: ${t(estadoSeguimientoVisual(item))}`,
     `${t("Fecha compromiso")}: ${t(item.responsableCierreFechaCompromiso)} · ${t("Plazo de cierre")}: ${t(plazo)}`,
+    ...(hallazgoTieneExtensionPlazo(item)
+      ? [`${t("Justificación de extensión de plazo")}: ${item.justificacionExtensionPlazo}`]
+      : []),
     `${t("Acción correctiva requerida")}: ${t(item.accionCorrectivaRequerida)}`,
     `${t("Evidencia requerida")}: ${t(item.evidenciaRequerida)}`,
     "Recomendación: mantener seguimiento diario hasta recibir evidencia verificable y validar cierre.",
@@ -2955,7 +2999,7 @@ const imprimirInformeSeguimiento = () => {
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;");
   const item = hallazgoSeguimientoActivo;
-  const plazo = semaforoVencimiento(item.responsableCierreFechaCompromiso, item.estado).etiqueta;
+  const plazo = estadoPlazoCierre(item);
   const evidencias = obtenerEvidenciasPanel(item);
   const evidenciasVisibles = evidencias.filter((evidencia) => evidencia.url).slice(0, 4);
   const prioridad = obtenerCampoOpcionalSeguimiento(item, "prioridad");
@@ -2977,6 +3021,9 @@ const imprimirInformeSeguimiento = () => {
     [t("Cargo"), t(item.responsableCorreccionCargo)],
     [t("Fecha compromiso"), t(item.responsableCierreFechaCompromiso)],
     [t("Plazo de cierre"), t(plazo)],
+    ...(hallazgoTieneExtensionPlazo(item)
+      ? [[t("Justificación de extensión de plazo"), item.justificacionExtensionPlazo]]
+      : []),
   ].filter(Boolean) as string[][];
   const bloquesInforme = [
     [t("Descripción"), item.descripcion],
@@ -3256,6 +3303,7 @@ const abrirGestionCierre = () => {
         ? []
         : hallazgoSeguimientoActivo.evidenciaRequerida.split(", ").filter(Boolean),
     responsableCierreFechaCompromiso: fechaCompromisoExistente || fechaCompromisoSugerida,
+    justificacionExtensionPlazo: hallazgoSeguimientoActivo.justificacionExtensionPlazo || "",
     validadorCierreNombre:
       hallazgoSeguimientoActivo.validadorCierreNombre === "Pendiente de validador"
         ? ""
@@ -3325,11 +3373,17 @@ const guardarGestionCierre = () => {
   );
 
   if (!validacionFechaCompromiso.ok) {
-    setErrorGestionCierre(
-      validacionFechaCompromiso.tipo === "anterior"
-        ? "La fecha compromiso no puede ser anterior a hoy."
-        : "La fecha compromiso excede el plazo máximo permitido para esta criticidad."
-    );
+    setErrorGestionCierre("La fecha compromiso no puede ser anterior a hoy.");
+    return;
+  }
+
+  const requiereJustificacionExtension = fechaExcedePlazoRecomendado(
+    gestionCierreDraft.responsableCierreFechaCompromiso,
+    hallazgoSeguimientoActivo.criticidad
+  );
+
+  if (requiereJustificacionExtension && !gestionCierreDraft.justificacionExtensionPlazo.trim()) {
+    setErrorGestionCierre("Para extender el plazo recomendado, agrega una justificación de extensión.");
     return;
   }
 
@@ -3353,6 +3407,10 @@ const guardarGestionCierre = () => {
     gestionCierreDraft.validadorCierreNombre !== hallazgoSeguimientoActivo.validadorCierreNombre
       ? t("Validador de cierre")
       : null,
+    requiereJustificacionExtension &&
+    gestionCierreDraft.justificacionExtensionPlazo !== hallazgoSeguimientoActivo.justificacionExtensionPlazo
+      ? t("Justificación de extensión de plazo")
+      : null,
   ].filter(Boolean) as string[];
   const fechaHora = new Date().toLocaleString("es-CL");
   const resumen = [
@@ -3363,7 +3421,8 @@ const guardarGestionCierre = () => {
     `${t("Fecha compromiso")}: ${
       gestionCierreDraft.responsableCierreFechaCompromiso || t("Sin definir")
     }`,
-  ].join(" · ");
+    requiereJustificacionExtension ? `${t("Plazo de cierre")}: ${t("Plazo extendido")}` : null,
+  ].filter(Boolean).join(" · ");
 
   setGestionCierreLocal((actual) => {
     const previo = actual[hallazgoSeguimientoActivo.codigo] || {};
@@ -3384,6 +3443,9 @@ const guardarGestionCierre = () => {
           gestionCierreDraft.validadorCierreNombre.trim() || "Pendiente de validador",
         responsableCierreFechaCompromiso:
           gestionCierreDraft.responsableCierreFechaCompromiso || "Sin definir",
+        justificacionExtensionPlazo: requiereJustificacionExtension
+          ? gestionCierreDraft.justificacionExtensionPlazo.trim()
+          : "",
         responsableCierreEstadoSeguimiento: estadoSeguimiento,
         responsableCierreObservacion:
           gestionCierreDraft.validadorCierreObservacion.trim() ||
@@ -4399,9 +4461,19 @@ const riesgoOperativoPrincipal =
       ? "inset 0 1px 0 rgba(255,255,255,0.8)"
       : "inset 0 1px 0 rgba(255,255,255,0.04)",
   };
+  const normalizarEstadoSemaforoCierre = (valor: string) =>
+    normalizarFechaCompromiso(valor) ? semaforoVencimiento(valor, "").etiqueta : valor;
   const colorSemaforoCierre = (etiqueta: string) => {
-    if (!temaClaro) return semaforoVencimiento(etiqueta, "").texto;
-    const estado = semaforoVencimiento(etiqueta, "").etiqueta;
+    const estado = normalizarEstadoSemaforoCierre(etiqueta);
+    if (!temaClaro) {
+      if (estado === "Plazo extendido") return "#fed7aa";
+      if (estado === "Vencido") return "#fecaca";
+      if (estado === "Vence hoy") return "#fde68a";
+      if (estado === "Vence mañana") return "#fef08a";
+      if (estado === "Dentro de plazo") return "#bbf7d0";
+      return "#cbd5e1";
+    }
+    if (estado === "Plazo extendido") return "#9a3412";
     if (estado === "Vencido") return "#991b1b";
     if (estado === "Vence hoy") return "#92400e";
     if (estado === "Vence mañana") return "#854d0e";
@@ -4409,7 +4481,24 @@ const riesgoOperativoPrincipal =
     return "#475569";
   };
   const seguimientoSemaforoStyle = (etiqueta: string): React.CSSProperties => {
-    const base = semaforoVencimiento(etiqueta, "");
+    const estado = normalizarEstadoSemaforoCierre(etiqueta);
+    const base = (() => {
+      if (estado === "Plazo extendido") {
+        return {
+          etiqueta: estado,
+          fondo: "rgba(249,115,22,0.15)",
+          borde: "1px solid rgba(249,115,22,0.34)",
+          texto: "#fed7aa",
+        };
+      }
+
+      if (normalizarFechaCompromiso(etiqueta)) return semaforoVencimiento(etiqueta, "");
+      if (estado === "Vencido") return semaforoVencimiento("2000-01-01", "");
+      if (estado === "Vence hoy") return semaforoVencimiento(sumarDiasFechaISO(0), "");
+      if (estado === "Vence mañana") return semaforoVencimiento(sumarDiasFechaISO(1), "");
+      if (estado === "Dentro de plazo") return semaforoVencimiento(sumarDiasFechaISO(5), "");
+      return semaforoVencimiento("", "");
+    })();
     const colorTexto = colorSemaforoCierre(etiqueta);
     return {
       display: "inline-flex",
@@ -4428,11 +4517,11 @@ const riesgoOperativoPrincipal =
       textAlign: "center",
       whiteSpace: "normal",
       boxShadow:
-        base.etiqueta === "Vencido" || base.etiqueta === "Vence hoy"
+        estado === "Vencido" || estado === "Vence hoy"
           ? `0 0 0 1px ${colorTexto}22, 0 0 18px ${colorTexto}22`
           : "none",
       animation:
-        base.etiqueta === "Vencido" || base.etiqueta === "Vence hoy"
+        estado === "Vencido" || estado === "Vence hoy"
           ? "ceClosurePulse 1.9s ease-in-out infinite"
           : undefined,
     };
@@ -4473,6 +4562,13 @@ const riesgoOperativoPrincipal =
   const fechaMaximaGestionCierre = hallazgoSeguimientoActivo
     ? fechaMaximaCompromisoPorCriticidad(hallazgoSeguimientoActivo.criticidad)
     : fechaMinimaGestionCierre;
+  const requiereJustificacionGestionCierre = Boolean(
+    hallazgoSeguimientoActivo &&
+      fechaExcedePlazoRecomendado(
+        gestionCierreDraft.responsableCierreFechaCompromiso,
+        hallazgoSeguimientoActivo.criticidad
+      )
+  );
   const validacionFechaGestionCierre = hallazgoSeguimientoActivo
     ? validarFechaCompromisoPorCriticidad(
         gestionCierreDraft.responsableCierreFechaCompromiso,
@@ -4489,6 +4585,8 @@ const riesgoOperativoPrincipal =
     ? validacionFechaGestionCierre.tipo === "anterior"
       ? t("La fecha compromiso no puede ser anterior a hoy.")
       : t("La fecha compromiso excede el plazo máximo permitido para esta criticidad.")
+    : requiereJustificacionGestionCierre
+      ? t("La fecha seleccionada excede el plazo recomendado para esta criticidad.")
     : "";
   const premiumActiveToggleStyle: React.CSSProperties = {
     border: "1px solid rgba(96,165,250,0.58)",
@@ -5471,7 +5569,6 @@ const riesgoOperativoPrincipal =
           <input
             type="date"
             min={fechaMinimaGestionCierre}
-            max={fechaMaximaGestionCierre}
             value={gestionCierreDraft.responsableCierreFechaCompromiso}
             onChange={(e) =>
               setGestionCierreDraft((actual) => ({
@@ -5484,10 +5581,14 @@ const riesgoOperativoPrincipal =
               colorScheme: tema.inputScheme,
               border: !validacionFechaGestionCierre.ok
                 ? "1px solid rgba(239,68,68,0.58)"
-                : controlStyle.border,
+                : requiereJustificacionGestionCierre
+                  ? "1px solid rgba(249,115,22,0.52)"
+                  : controlStyle.border,
               boxShadow: !validacionFechaGestionCierre.ok
                 ? "0 0 0 3px rgba(239,68,68,0.10)"
-                : controlStyle.boxShadow,
+                : requiereJustificacionGestionCierre
+                  ? "0 0 0 3px rgba(249,115,22,0.10)"
+                  : controlStyle.boxShadow,
             }}
           />
           <span
@@ -5504,14 +5605,25 @@ const riesgoOperativoPrincipal =
             }}
           >
             <span>
-              {t("Fecha sugerida por criticidad")}:{" "}
-              {sugerirFechaCompromisoPorCriticidad(hallazgoSeguimientoActivo.criticidad)} ·{" "}
-              {textoPlazoCriticidad(hallazgoSeguimientoActivo.criticidad)}
+              {t("Criticidad")}: {t(hallazgoSeguimientoActivo.criticidad)}
               <br />
-              {t("Rango permitido")}: {fechaMinimaGestionCierre} / {fechaMaximaGestionCierre}
+              {t("Plazo recomendado")}: {textoPlazoCriticidad(hallazgoSeguimientoActivo.criticidad)}
+              <br />
+              {t("Fecha máxima recomendada")}: {formatearFechaCompromisoVisual(fechaMaximaGestionCierre)}
             </span>
-            <span style={seguimientoSemaforoStyle(gestionCierreDraft.responsableCierreFechaCompromiso)}>
-              {t(semaforoVencimiento(gestionCierreDraft.responsableCierreFechaCompromiso, hallazgoSeguimientoActivo.estado).etiqueta)}
+            <span
+              style={seguimientoSemaforoStyle(
+                requiereJustificacionGestionCierre ? "Plazo extendido" : gestionCierreDraft.responsableCierreFechaCompromiso
+              )}
+            >
+              {t(
+                requiereJustificacionGestionCierre
+                  ? "Plazo extendido"
+                  : semaforoVencimiento(
+                      gestionCierreDraft.responsableCierreFechaCompromiso,
+                      hallazgoSeguimientoActivo.estado
+                    ).etiqueta
+              )}
             </span>
           </span>
           {mensajeFechaGestionCierre && (
@@ -5534,6 +5646,31 @@ const riesgoOperativoPrincipal =
             </span>
           )}
         </label>
+        {requiereJustificacionGestionCierre && (
+          <label style={{ display: "grid", gap: "6px" }}>
+            <span style={{ fontSize: "11px", color: tema.textoSuave, fontWeight: 900 }}>
+              {t("Justificación de extensión de plazo")}
+            </span>
+            <textarea
+              value={gestionCierreDraft.justificacionExtensionPlazo}
+              onChange={(e) =>
+                setGestionCierreDraft((actual) => ({
+                  ...actual,
+                  justificacionExtensionPlazo: e.target.value,
+                }))
+              }
+              style={{
+                ...controlStyle,
+                minHeight: "78px",
+                resize: "vertical",
+                lineHeight: 1.45,
+                border: !gestionCierreDraft.justificacionExtensionPlazo.trim()
+                  ? "1px solid rgba(249,115,22,0.46)"
+                  : controlStyle.border,
+              }}
+            />
+          </label>
+        )}
         <label style={{ display: "grid", gap: "6px" }}>
           <span style={{ fontSize: "11px", color: tema.textoSuave, fontWeight: 900 }}>
             {t("Estado seguimiento")}
@@ -7858,6 +7995,7 @@ style={{
           </div>
         ) : hallazgosSeguimientoFiltrados.map((item) => {
           const estadoVisual = estadoSeguimientoVisual(item);
+          const estadoPlazo = estadoPlazoCierre(item);
           const activo = hallazgoSeguimientoActivo?.codigo === item.codigo;
           return (
             <div
@@ -7899,18 +8037,18 @@ style={{
               <div>{item.responsableCorreccionEmpresa}</div>
               <div>{t(item.responsableCierreFechaCompromiso)}</div>
               <div>
-                <span style={seguimientoSemaforoStyle(item.responsableCierreFechaCompromiso)}>
+                <span style={seguimientoSemaforoStyle(estadoPlazo)}>
                   <span
                     style={{
                       width: "7px",
                       height: "7px",
                       borderRadius: "999px",
-                      background: colorSemaforoCierre(item.responsableCierreFechaCompromiso),
-                      boxShadow: `0 0 12px ${colorSemaforoCierre(item.responsableCierreFechaCompromiso)}`,
+                      background: colorSemaforoCierre(estadoPlazo),
+                      boxShadow: `0 0 12px ${colorSemaforoCierre(estadoPlazo)}`,
                       flex: "0 0 auto",
                     }}
                   />
-                  {t(semaforoVencimiento(item.responsableCierreFechaCompromiso, item.estado).etiqueta)}
+                  {t(estadoPlazo)}
                 </span>
               </div>
               <div>
@@ -7976,13 +8114,11 @@ style={{
             [t("Fecha compromiso"), t(hallazgoSeguimientoActivo.responsableCierreFechaCompromiso)],
             [
               t("Plazo de cierre"),
-              t(
-                semaforoVencimiento(
-                  hallazgoSeguimientoActivo.responsableCierreFechaCompromiso,
-                  hallazgoSeguimientoActivo.estado
-                ).etiqueta
-              ),
+              t(estadoPlazoCierre(hallazgoSeguimientoActivo)),
             ],
+            ...(hallazgoTieneExtensionPlazo(hallazgoSeguimientoActivo)
+              ? [[t("Justificación de extensión de plazo"), hallazgoSeguimientoActivo.justificacionExtensionPlazo]]
+              : []),
             [t("Estado seguimiento"), t(estadoSeguimientoVisual(hallazgoSeguimientoActivo))],
             [t("Acción correctiva requerida"), t(hallazgoSeguimientoActivo.accionCorrectivaRequerida)],
             [t("Evidencia requerida"), t(hallazgoSeguimientoActivo.evidenciaRequerida)],
@@ -8035,13 +8171,8 @@ style={{
               <div style={{ fontSize: "11px", color: tema.textoSuave, fontWeight: 950, textTransform: "uppercase" }}>
                 {t("Acciones operativas")}
               </div>
-              <span style={seguimientoSemaforoStyle(hallazgoSeguimientoActivo.responsableCierreFechaCompromiso)}>
-                {t(
-                  semaforoVencimiento(
-                    hallazgoSeguimientoActivo.responsableCierreFechaCompromiso,
-                    hallazgoSeguimientoActivo.estado
-                  ).etiqueta
-                )}
+              <span style={seguimientoSemaforoStyle(estadoPlazoCierre(hallazgoSeguimientoActivo))}>
+                {t(estadoPlazoCierre(hallazgoSeguimientoActivo))}
               </span>
             </div>
             <div
