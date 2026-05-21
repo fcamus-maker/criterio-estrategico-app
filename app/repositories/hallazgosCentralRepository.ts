@@ -243,6 +243,7 @@ function seguimientoCierreDesdeFilaSupabase(
     fila.observacion_inicial_cierre,
     fila.plazo_estado,
     fila.justificacion_extension_plazo,
+    fila.justificacion_cierre_sin_evidencia,
   ].some((valor) => texto(valor));
 
   if (!seguimientoJson && !tieneDatosDirectos) return undefined;
@@ -277,6 +278,10 @@ function seguimientoCierreDesdeFilaSupabase(
       fila.plazo_cierre_por_criticidad,
       seguimientoJson?.plazoPorCriticidad
     ),
+    estadoSeguimiento: texto(
+      seguimientoJson?.estadoSeguimiento,
+      texto(fila.estado_seguimiento)
+    ),
     plazoEstado: texto(fila.plazo_estado, seguimientoJson?.plazoEstado),
     plazoExtendido:
       typeof fila.plazo_extendido === "boolean"
@@ -285,6 +290,14 @@ function seguimientoCierreDesdeFilaSupabase(
     justificacionExtensionPlazo: texto(
       fila.justificacion_extension_plazo,
       seguimientoJson?.justificacionExtensionPlazo
+    ),
+    cierreSinEvidenciaJustificado:
+      typeof fila.cierre_sin_evidencia_justificado === "boolean"
+        ? fila.cierre_sin_evidencia_justificado
+        : seguimientoJson?.cierreSinEvidenciaJustificado,
+    justificacionCierreSinEvidencia: texto(
+      fila.justificacion_cierre_sin_evidencia,
+      seguimientoJson?.justificacionCierreSinEvidencia
     ),
     observacionInicial: texto(
       fila.observacion_inicial_cierre,

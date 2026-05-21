@@ -40,6 +40,9 @@ type HallazgoPanelExtendido = HallazgoPanel & {
   responsableCierreEmpresa?: string;
   responsableCierreTelefono?: string;
   evidenciaRequerida?: string;
+  evidenciaRecibida?: string;
+  justificacionExtensionPlazo?: string;
+  justificacionCierreSinEvidencia?: string;
   evidenciasPanel?: EvidenciaPanel[];
   totalEvidencias?: number;
   evidenciasPendientesVisualizacion?: number;
@@ -307,6 +310,7 @@ type GestionCierreDraft = {
   evidenciaRequerida: string[];
   responsableCierreFechaCompromiso: string;
   justificacionExtensionPlazo: string;
+  justificacionCierreSinEvidencia: string;
   validadorCierreNombre: string;
   validadorCierreEstado: string;
   validadorCierreObservacion: string;
@@ -317,6 +321,7 @@ type GestionCierreLocal = Partial<GestionCierreDraft> & {
   responsableCierreEvidencia?: string;
   evidenciaRecibida?: string;
   responsableCierreObservacion?: string;
+  justificacionCierreSinEvidencia?: string;
   bitacoraCierre?: BitacoraCierreLocal[];
 };
 
@@ -462,6 +467,7 @@ const [filasPanel, setFilasPanel] = useState<HallazgoPanelExtendido[]>(hallazgos
     "Acción correctiva requerida": "Required corrective action",
     "Evidencia requerida": "Required evidence",
     "Evidencia recibida": "Received evidence",
+    "Justificación de cierre sin evidencia": "Closure without evidence justification",
     "Gestionar cierre": "Manage closure",
     Asignación: "Assignment",
     "Tipo de responsable de corrección": "Correction responsible type",
@@ -506,6 +512,11 @@ const [filasPanel, setFilasPanel] = useState<HallazgoPanelExtendido[]>(hallazgos
     "Pendiente de revisión": "Review pending",
     "Evidencia solicitada": "Evidence requested",
     "Cerrado con evidencia": "Closed with evidence",
+    "Cerrado sin evidencia justificada": "Closed without evidence, justified",
+    "No se puede cerrar con evidencia si no existe evidencia recibida.": "Cannot close with evidence when no received evidence exists.",
+    "Puedes seleccionar Cerrado sin evidencia justificada si corresponde.": "You can select Closed without evidence, justified if applicable.",
+    "Para cerrar sin evidencia, agrega una justificación formal.": "To close without evidence, add a formal justification.",
+    "Justificación formal requerida cuando no existe evidencia de cierre disponible.": "Formal justification required when no closure evidence is available.",
     "Acción correctiva pendiente de definición": "Corrective action pending definition",
     "Registro fotográfico y documentación de corrección": "Photo record and correction documentation",
     "Validación pendiente de evidencia y revisión": "Validation pending evidence and review",
@@ -2289,6 +2300,7 @@ const [gestionCierreDraft, setGestionCierreDraft] = useState<GestionCierreDraft>
   evidenciaRequerida: [],
   responsableCierreFechaCompromiso: "",
   justificacionExtensionPlazo: "",
+  justificacionCierreSinEvidencia: "",
   validadorCierreNombre: "",
   estadoSeguimiento: "Sin asignar",
   validadorCierreEstado: "Pendiente de revisión",
@@ -2718,6 +2730,7 @@ type HallazgoSeguimiento = (typeof filas)[number] & {
   evidenciaRequerida: string;
   evidenciaRecibida: string;
   justificacionExtensionPlazo: string;
+  justificacionCierreSinEvidencia: string;
 };
 
 const obtenerCampoSeguimiento = (
@@ -2796,6 +2809,7 @@ const hallazgosSeguimiento: HallazgoSeguimiento[] = filas.map((item) => {
     ),
     evidenciaRecibida: evidenciaReal || "Pendiente de evidencia",
     justificacionExtensionPlazo: obtenerCampoSeguimiento(item, "justificacionExtensionPlazo", ""),
+    justificacionCierreSinEvidencia: obtenerCampoSeguimiento(item, "justificacionCierreSinEvidencia", ""),
   };
 
   const responsableCorreccionNombre =
@@ -2820,16 +2834,53 @@ const hallazgosSeguimiento: HallazgoSeguimiento[] = filas.map((item) => {
   };
 });
 
+const tieneEvidenciaCierre = (item: HallazgoSeguimiento) => {
+  const textoEvidencia = [
+    item.evidenciaRecibida,
+    item.responsableCierreEvidencia,
+  ]
+    .map((valor) => String(valor || "").trim())
+    .find(Boolean);
+
+  if (!textoEvidencia) return false;
+
+  const valor = textoEvidencia.toLowerCase();
+  return ![
+    "pendiente de evidencia",
+    "sin evidencia",
+    "sin evidencia de cierre",
+    "sin información",
+    "sin informacion",
+    "pendiente",
+  ].some((placeholder) => valor === placeholder || valor.includes(placeholder));
+};
+
+const hallazgoTieneCierreSinEvidenciaJustificada = (item: HallazgoSeguimiento) =>
+  item.responsableCierreEstadoSeguimiento === "Cerrado sin evidencia justificada" ||
+  Boolean(item.justificacionCierreSinEvidencia?.trim());
+
 const estadoSeguimientoVisual = (item: HallazgoSeguimiento) => {
   if (item.responsableCorreccionNombre === "Sin asignar") return "Sin asignar";
-  if (item.responsableCierreEstadoSeguimiento === "Cerrado") return "Cerrado";
-  if (item.responsableCierreEstadoSeguimiento === "Cerrado con evidencia") return "Cerrado";
+  if (item.responsableCierreEstadoSeguimiento === "Cerrado sin evidencia justificada") {
+    return "Cerrado sin evidencia justificada";
+  }
+  if (item.responsableCierreEstadoSeguimiento === "Cerrado con evidencia") return "Cerrado con evidencia";
+  if (item.responsableCierreEstadoSeguimiento === "Cerrado" || item.responsableCierreEstadoSeguimiento === "CERRADO") {
+    if (hallazgoTieneCierreSinEvidenciaJustificada(item)) return "Cerrado sin evidencia justificada";
+    return tieneEvidenciaCierre(item) ? "Cerrado con evidencia" : "Pendiente de evidencia";
+  }
   if (item.responsableCierreEstadoSeguimiento === "Rechazado") return "Rechazado";
   if (item.responsableCierreEstadoSeguimiento === "En revisión") return "En revisión";
-  if (item.responsableCierreEstadoSeguimiento === "Evidencia solicitada") return "En seguimiento";
+  if (
+    item.responsableCierreEstadoSeguimiento === "Pendiente de evidencia" ||
+    item.responsableCierreEstadoSeguimiento === "Evidencia solicitada"
+  ) {
+    return "Pendiente de evidencia";
+  }
   if (item.responsableCierreEstadoSeguimiento === "Evidencia cargada") return "Evidencia cargada";
   const vencimiento = semaforoVencimiento(item.responsableCierreFechaCompromiso, item.estado).etiqueta;
   if (vencimiento === "Vencido" && item.estado !== "CERRADO") return "Vencido";
+  if (hallazgoTieneExtensionPlazo(item)) return "Plazo extendido";
   if (item.responsableCierreEstadoSeguimiento === "En seguimiento") return "En seguimiento";
   return "Asignado";
 };
@@ -2855,11 +2906,11 @@ const opcionesSeguimientoEstado = [
   "Sin asignar",
   "Asignado",
   "En seguimiento",
-  "Evidencia cargada",
-  "En revisión",
+  "Pendiente de evidencia",
   "Vencido",
-  "Cerrado",
-  "Rechazado",
+  "Plazo extendido",
+  "Cerrado con evidencia",
+  "Cerrado sin evidencia justificada",
 ];
 const opcionesSeguimientoEmpresa = [
   "TODAS",
@@ -2932,6 +2983,7 @@ const cuerpoCorreoSeguimiento = (item: HallazgoSeguimiento) => {
     "",
     `${t("Código")}: ${item.codigo}`,
     `${t("Criticidad")}: ${t(item.criticidad)}`,
+    `${t("Estado seguimiento")}: ${t(estadoSeguimientoVisual(item))}`,
     `${t("Empresa involucrada / responsable")}: ${item.responsableCorreccionEmpresa}`,
     `${t("Responsable de la empresa")}: ${t(item.responsableCorreccionNombre)}`,
     `${t("Fecha compromiso")}: ${t(item.responsableCierreFechaCompromiso)}`,
@@ -2941,6 +2993,10 @@ const cuerpoCorreoSeguimiento = (item: HallazgoSeguimiento) => {
       : []),
     `${t("Acción correctiva requerida")}: ${t(item.accionCorrectivaRequerida)}`,
     `${t("Evidencia requerida")}: ${t(item.evidenciaRequerida)}`,
+    `${t("Evidencia recibida")}: ${t(item.evidenciaRecibida)}`,
+    ...(hallazgoTieneCierreSinEvidenciaJustificada(item)
+      ? [`${t("Justificación de cierre sin evidencia")}: ${item.justificacionCierreSinEvidencia}`]
+      : []),
     "",
     "Favor remitir evidencia de cierre y observaciones de avance para revisión del equipo responsable.",
   ].join("\n");
@@ -2958,7 +3014,13 @@ const resumenEjecutivoSeguimiento = (item: HallazgoSeguimiento) => {
       : []),
     `${t("Acción correctiva requerida")}: ${t(item.accionCorrectivaRequerida)}`,
     `${t("Evidencia requerida")}: ${t(item.evidenciaRequerida)}`,
-    "Recomendación: mantener seguimiento diario hasta recibir evidencia verificable y validar cierre.",
+    `${t("Evidencia recibida")}: ${t(item.evidenciaRecibida)}`,
+    ...(hallazgoTieneCierreSinEvidenciaJustificada(item)
+      ? [`${t("Justificación de cierre sin evidencia")}: ${item.justificacionCierreSinEvidencia}`]
+      : []),
+    hallazgoTieneCierreSinEvidenciaJustificada(item)
+      ? "Recomendación: conservar justificación formal y revisar evidencia pendiente si aparece posteriormente."
+      : "Recomendación: mantener seguimiento diario hasta recibir evidencia verificable y validar cierre.",
   ].join("\n");
 };
 
@@ -3030,6 +3092,9 @@ const imprimirInformeSeguimiento = () => {
     [t("Plazo de cierre"), t(plazo)],
     ...(hallazgoTieneExtensionPlazo(item)
       ? [[t("Justificación de extensión de plazo"), item.justificacionExtensionPlazo]]
+      : []),
+    ...(hallazgoTieneCierreSinEvidenciaJustificada(item)
+      ? [[t("Justificación de cierre sin evidencia"), item.justificacionCierreSinEvidencia]]
       : []),
   ].filter(Boolean) as string[][];
   const bloquesInforme = [
@@ -3260,13 +3325,11 @@ const opcionesEstadoValidacion = [
 ];
 
 const opcionesEstadoSeguimientoGestion = [
-  "Sin asignar",
   "Asignado",
   "En seguimiento",
-  "Evidencia solicitada",
-  "Evidencia cargada",
-  "Vencido",
+  "Pendiente de evidencia",
   "Cerrado con evidencia",
+  "Cerrado sin evidencia justificada",
 ];
 
 const opcionesValidadorCierre = [
@@ -3311,6 +3374,7 @@ const abrirGestionCierre = () => {
         : hallazgoSeguimientoActivo.evidenciaRequerida.split(", ").filter(Boolean),
     responsableCierreFechaCompromiso: fechaCompromisoExistente || fechaCompromisoSugerida,
     justificacionExtensionPlazo: hallazgoSeguimientoActivo.justificacionExtensionPlazo || "",
+    justificacionCierreSinEvidencia: hallazgoSeguimientoActivo.justificacionCierreSinEvidencia || "",
     validadorCierreNombre:
       hallazgoSeguimientoActivo.validadorCierreNombre === "Pendiente de validador"
         ? ""
@@ -3333,14 +3397,17 @@ const alternarEvidenciaGestion = (evidencia: string) => {
 };
 
 const estadoSeguimientoDesdeGestion = (draft: GestionCierreDraft) => {
-  if (draft.estadoSeguimiento === "Cerrado con evidencia") return "Cerrado";
   if (draft.estadoSeguimiento) return draft.estadoSeguimiento;
   if (draft.responsableCorreccionNombre.trim()) return "Asignado";
   return "Pendiente de asignación";
 };
 
 const estadoCierreCentralDesdeSeguimiento = (estado: string): EstadoCierreCentral => {
-  if (estado === "Cerrado" || estado === "Cerrado con evidencia") return "CERRADO";
+  if (
+    estado === "Cerrado" ||
+    estado === "Cerrado con evidencia" ||
+    estado === "Cerrado sin evidencia justificada"
+  ) return "CERRADO";
   if (estado === "Rechazado") return "RECHAZADO";
   if (estado === "Vencido") return "VENCIDO";
   if (estado === "Asignado") return "ASIGNADO";
@@ -3401,6 +3468,9 @@ const guardarGestionCierre = async () => {
 
   const estadoAnterior = estadoSeguimientoVisual(hallazgoSeguimientoActivo);
   const estadoSeguimiento = estadoSeguimientoDesdeGestion(gestionCierreDraft);
+  const cierreConEvidencia = estadoSeguimiento === "Cerrado con evidencia";
+  const cierreSinEvidenciaJustificada = estadoSeguimiento === "Cerrado sin evidencia justificada";
+  const evidenciaCierreDisponible = tieneEvidenciaCierre(hallazgoSeguimientoActivo);
   const validacionFechaCompromiso = validarFechaCompromisoPorCriticidad(
     gestionCierreDraft.responsableCierreFechaCompromiso,
     hallazgoSeguimientoActivo.criticidad
@@ -3418,6 +3488,16 @@ const guardarGestionCierre = async () => {
 
   if (requiereJustificacionExtension && !gestionCierreDraft.justificacionExtensionPlazo.trim()) {
     setErrorGestionCierre("Para extender el plazo recomendado, agrega una justificación de extensión.");
+    return;
+  }
+
+  if (cierreConEvidencia && !evidenciaCierreDisponible) {
+    setErrorGestionCierre("No se puede cerrar con evidencia si no existe evidencia recibida.");
+    return;
+  }
+
+  if (cierreSinEvidenciaJustificada && !gestionCierreDraft.justificacionCierreSinEvidencia.trim()) {
+    setErrorGestionCierre("Para cerrar sin evidencia, agrega una justificación formal.");
     return;
   }
 
@@ -3447,6 +3527,10 @@ const guardarGestionCierre = async () => {
     gestionCierreDraft.justificacionExtensionPlazo !== hallazgoSeguimientoActivo.justificacionExtensionPlazo
       ? t("Justificación de extensión de plazo")
       : null,
+    cierreSinEvidenciaJustificada &&
+    gestionCierreDraft.justificacionCierreSinEvidencia !== hallazgoSeguimientoActivo.justificacionCierreSinEvidencia
+      ? t("Justificación de cierre sin evidencia")
+      : null,
   ].filter(Boolean) as string[];
   const fechaHora = new Date().toLocaleString("es-CL");
   const resumen = [
@@ -3458,6 +3542,9 @@ const guardarGestionCierre = async () => {
       gestionCierreDraft.responsableCierreFechaCompromiso || t("Sin definir")
     }`,
     requiereJustificacionExtension ? `${t("Plazo de cierre")}: ${t("Plazo extendido")}` : null,
+    cierreSinEvidenciaJustificada
+      ? `${t("Justificación de cierre sin evidencia")}: ${gestionCierreDraft.justificacionCierreSinEvidencia.trim()}`
+      : null,
   ].filter(Boolean).join(" · ");
   const eventoBitacora = {
     fechaHora,
@@ -3470,6 +3557,9 @@ const guardarGestionCierre = async () => {
   };
   const justificacionExtension = requiereJustificacionExtension
     ? gestionCierreDraft.justificacionExtensionPlazo.trim()
+    : "";
+  const justificacionCierreSinEvidencia = cierreSinEvidenciaJustificada
+    ? gestionCierreDraft.justificacionCierreSinEvidencia.trim()
     : "";
   const fechaCompromisoNormalizada = normalizarFechaCompromiso(
     gestionCierreDraft.responsableCierreFechaCompromiso
@@ -3504,15 +3594,18 @@ const guardarGestionCierre = async () => {
         justificacionExtensionPlazo: requiereJustificacionExtension
           ? gestionCierreDraft.justificacionExtensionPlazo.trim()
           : "",
+        justificacionCierreSinEvidencia,
         responsableCierreEstadoSeguimiento: estadoSeguimiento,
         responsableCierreObservacion:
           gestionCierreDraft.validadorCierreObservacion.trim() ||
           "Responsable de cierre pendiente de definición",
         evidenciaRecibida:
-          gestionCierreDraft.validadorCierreEstado === "Aprobado" &&
+          cierreSinEvidenciaJustificada
+            ? "Sin evidencia de cierre"
+            : gestionCierreDraft.validadorCierreEstado === "Aprobado" &&
           gestionCierreDraft.evidenciaRequerida.length > 0
             ? gestionCierreDraft.evidenciaRequerida.join(", ")
-            : "Pendiente de evidencia",
+            : previo.evidenciaRecibida || hallazgoSeguimientoActivo.evidenciaRecibida || "Pendiente de evidencia",
         bitacoraCierre: [
           ...(previo.bitacoraCierre || []),
           eventoBitacora,
@@ -3548,12 +3641,15 @@ const guardarGestionCierre = async () => {
         telefono: gestionCierreDraft.responsableCorreccionTelefono.trim() || undefined,
       },
       estadoCierre: estadoCierreCentral,
+      estadoSeguimiento,
       fechaCompromiso: fechaCompromisoNormalizada || undefined,
       fechaMaximaPermitida: fechaMaximaRecomendada,
       plazoPorCriticidad: textoPlazoCriticidad(hallazgoSeguimientoActivo.criticidad),
       plazoEstado: estadoPlazoPersistente,
       plazoExtendido: requiereJustificacionExtension,
       justificacionExtensionPlazo: justificacionExtension || undefined,
+      cierreSinEvidenciaJustificado: cierreSinEvidenciaJustificada,
+      justificacionCierreSinEvidencia: justificacionCierreSinEvidencia || undefined,
       observacionInicial:
         gestionCierreDraft.validadorCierreObservacion.trim() ||
         seguimientoPrevio?.observacionInicial,
@@ -3587,6 +3683,7 @@ const guardarGestionCierre = async () => {
               origen: "panel-pc",
               plazoEstado: estadoPlazoPersistente,
               plazoExtendido: requiereJustificacionExtension,
+              cierreSinEvidenciaJustificado: cierreSinEvidenciaJustificada,
             },
           },
         ],
@@ -3633,8 +3730,8 @@ const kpisSeguimiento = [
     valor: String(
       hallazgosSeguimiento.filter(
         (item) =>
-          estadoSeguimientoVisual(item) === "Cerrado" &&
-          item.responsableCierreEvidencia !== "Sin evidencia de cierre"
+          estadoSeguimientoVisual(item) === "Cerrado con evidencia" &&
+          tieneEvidenciaCierre(item)
       ).length
     ),
     color: "#22c55e",
@@ -4427,11 +4524,27 @@ const riesgoOperativoPrincipal =
     lineHeight: 1,
   };
   const seguimientoChipStyle = (estado: string): React.CSSProperties => {
-    if (estado === "Cerrado") {
+    if (estado === "Cerrado" || estado === "Cerrado con evidencia") {
       return {
         background: "rgba(34,197,94,0.15)",
         border: "1px solid rgba(34,197,94,0.34)",
         color: temaClaro ? "#166534" : "#bbf7d0",
+      };
+    }
+
+    if (estado === "Cerrado sin evidencia justificada") {
+      return {
+        background: "rgba(99,102,241,0.15)",
+        border: "1px solid rgba(99,102,241,0.34)",
+        color: temaClaro ? "#3730a3" : "#c7d2fe",
+      };
+    }
+
+    if (estado === "Plazo extendido") {
+      return {
+        background: "rgba(249,115,22,0.15)",
+        border: "1px solid rgba(249,115,22,0.34)",
+        color: temaClaro ? "#9a3412" : "#fed7aa",
       };
     }
 
@@ -4448,6 +4561,14 @@ const riesgoOperativoPrincipal =
         background: "rgba(59,130,246,0.15)",
         border: "1px solid rgba(59,130,246,0.34)",
         color: temaClaro ? "#1e40af" : "#bfdbfe",
+      };
+    }
+
+    if (estado === "Pendiente de evidencia") {
+      return {
+        background: "rgba(245,158,11,0.15)",
+        border: "1px solid rgba(245,158,11,0.34)",
+        color: temaClaro ? "#92400e" : "#fde68a",
       };
     }
 
@@ -4721,6 +4842,13 @@ const riesgoOperativoPrincipal =
     : requiereJustificacionGestionCierre
       ? t("La fecha seleccionada excede el plazo recomendado para esta criticidad.")
     : "";
+  const cierreConEvidenciaGestion =
+    gestionCierreDraft.estadoSeguimiento === "Cerrado con evidencia";
+  const cierreSinEvidenciaGestion =
+    gestionCierreDraft.estadoSeguimiento === "Cerrado sin evidencia justificada";
+  const evidenciaDisponibleGestion = hallazgoSeguimientoActivo
+    ? tieneEvidenciaCierre(hallazgoSeguimientoActivo)
+    : false;
   const premiumActiveToggleStyle: React.CSSProperties = {
     border: "1px solid rgba(96,165,250,0.58)",
     background: "linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)",
@@ -5824,7 +5952,50 @@ const riesgoOperativoPrincipal =
               </option>
             ))}
           </select>
+          {cierreConEvidenciaGestion && !evidenciaDisponibleGestion && (
+            <span
+              style={{
+                padding: "9px 10px",
+                borderRadius: "12px",
+                border: "1px solid rgba(239,68,68,0.34)",
+                background: temaClaro ? "rgba(254,242,242,0.82)" : "rgba(239,68,68,0.12)",
+                color: temaClaro ? "#991b1b" : "#fecaca",
+                fontSize: "12px",
+                fontWeight: 850,
+                lineHeight: 1.35,
+              }}
+            >
+              {t("No se puede cerrar con evidencia si no existe evidencia recibida.")}{" "}
+              {t("Puedes seleccionar Cerrado sin evidencia justificada si corresponde.")}
+            </span>
+          )}
         </label>
+        {cierreSinEvidenciaGestion && (
+          <label style={{ display: "grid", gap: "6px" }}>
+            <span style={{ fontSize: "11px", color: tema.textoSuave, fontWeight: 900 }}>
+              {t("Justificación de cierre sin evidencia")}
+            </span>
+            <textarea
+              value={gestionCierreDraft.justificacionCierreSinEvidencia}
+              onChange={(e) =>
+                setGestionCierreDraft((actual) => ({
+                  ...actual,
+                  justificacionCierreSinEvidencia: e.target.value,
+                }))
+              }
+              style={{
+                ...controlStyle,
+                minHeight: "82px",
+                resize: "vertical",
+                lineHeight: 1.45,
+                border: !gestionCierreDraft.justificacionCierreSinEvidencia.trim()
+                  ? "1px solid rgba(249,115,22,0.46)"
+                  : controlStyle.border,
+              }}
+              placeholder={t("Justificación formal requerida cuando no existe evidencia de cierre disponible.")}
+            />
+          </label>
+        )}
       </div>
 
       <div
@@ -8261,6 +8432,9 @@ style={{
             [t("Acción correctiva requerida"), t(hallazgoSeguimientoActivo.accionCorrectivaRequerida)],
             [t("Evidencia requerida"), t(hallazgoSeguimientoActivo.evidenciaRequerida)],
             [t("Evidencia recibida"), t(hallazgoSeguimientoActivo.evidenciaRecibida)],
+            ...(hallazgoTieneCierreSinEvidenciaJustificada(hallazgoSeguimientoActivo)
+              ? [[t("Justificación de cierre sin evidencia"), hallazgoSeguimientoActivo.justificacionCierreSinEvidencia]]
+              : []),
             [t("Observación de seguimiento"), t(hallazgoSeguimientoActivo.responsableCierreObservacion)],
           ].map(([label, value]) => (
             <div

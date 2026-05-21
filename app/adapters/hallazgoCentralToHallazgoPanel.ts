@@ -42,6 +42,8 @@ export type HallazgoPanelDesdeCentral = HallazgoPanel & {
   plazoEstado?: string;
   plazoExtendido?: boolean;
   justificacionExtensionPlazo?: string;
+  cierreSinEvidenciaJustificado?: boolean;
+  justificacionCierreSinEvidencia?: string;
   evidenciasPanel?: EvidenciaPanel[];
   totalEvidencias?: number;
   evidenciasPendientesVisualizacion?: number;
@@ -173,8 +175,8 @@ export function adaptarHallazgoCentralAHallazgoPanel(
     responsableCierreEmpresa: texto(responsable?.empresa, hallazgo.empresa),
     responsableCierreTelefono: texto(responsable?.telefono, "Sin contacto"),
     responsableCierreEstadoSeguimiento: texto(
-      seguimiento?.estadoCierre,
-      "PENDIENTE"
+      seguimiento?.estadoSeguimiento,
+      seguimiento?.estadoCierre || "PENDIENTE"
     ),
     responsableCierreFechaCompromiso: texto(seguimiento?.fechaCompromiso),
     responsableCierreEvidencia: evidenciaCierre,
@@ -207,6 +209,12 @@ export function adaptarHallazgoCentralAHallazgoPanel(
     plazoEstado: texto(seguimiento?.plazoEstado),
     plazoExtendido: Boolean(seguimiento?.plazoExtendido),
     justificacionExtensionPlazo: texto(seguimiento?.justificacionExtensionPlazo),
+    cierreSinEvidenciaJustificado: Boolean(
+      seguimiento?.cierreSinEvidenciaJustificado
+    ),
+    justificacionCierreSinEvidencia: texto(
+      seguimiento?.justificacionCierreSinEvidencia
+    ),
   };
 }
 

@@ -107,9 +107,12 @@ export type SeguimientoCierreCentral = {
   fechaCompromiso?: string;
   fechaMaximaPermitida?: string;
   plazoPorCriticidad?: string;
+  estadoSeguimiento?: string;
   plazoEstado?: string;
   plazoExtendido?: boolean;
   justificacionExtensionPlazo?: string;
+  cierreSinEvidenciaJustificado?: boolean;
+  justificacionCierreSinEvidencia?: string;
   observacionInicial?: string;
   accionCorrectivaRequerida?: string;
   evidenciaRequerida?: string[];
