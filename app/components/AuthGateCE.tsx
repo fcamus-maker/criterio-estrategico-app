@@ -2,10 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import {
-  cerrarSesionCE,
-  obtenerAuthProfileActual,
-} from "@/app/services/authProfileService";
+import { obtenerAuthProfileActual } from "@/app/services/authProfileService";
 import {
   destinoPorRolCE,
   rolPuedeEntrarZonaCE,
@@ -65,7 +62,6 @@ export default function AuthGateCE({ zona, children }: AuthGateCEProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [estado, setEstado] = useState<EstadoGate>({ tipo: "verificando" });
-  const [cerrando, setCerrando] = useState(false);
 
   const loginUrl = useMemo(() => {
     const destino = pathname || (zona === "panel" ? "/panel" : "/evaluar-v2");
@@ -111,13 +107,6 @@ export default function AuthGateCE({ zona, children }: AuthGateCEProps) {
     };
   }, [loginUrl, router, zona]);
 
-  const cerrarSesion = async () => {
-    if (cerrando) return;
-    setCerrando(true);
-    await cerrarSesionCE();
-    router.replace("/login");
-  };
-
   if (estado.tipo === "verificando") {
     return pantallaEstado("Verificando sesión...");
   }
@@ -130,33 +119,5 @@ export default function AuthGateCE({ zona, children }: AuthGateCEProps) {
     );
   }
 
-  return (
-    <>
-      <button
-        type="button"
-        onClick={cerrarSesion}
-        disabled={cerrando}
-        style={{
-          position: "fixed",
-          top: "max(12px, env(safe-area-inset-top))",
-          right: "12px",
-          zIndex: 60,
-          border: "1px solid rgba(255,255,255,0.18)",
-          borderRadius: "999px",
-          background: "rgba(7,17,31,0.78)",
-          color: "white",
-          cursor: "pointer",
-          fontSize: "12px",
-          fontWeight: 900,
-          padding: "8px 11px",
-          boxShadow: "0 10px 24px rgba(0,0,0,0.22)",
-          touchAction: "manipulation",
-          opacity: cerrando ? 0.68 : 1,
-        }}
-      >
-        {cerrando ? "Cerrando..." : "Cerrar sesión"}
-      </button>
-      {children}
-    </>
-  );
+  return <>{children}</>;
 }
