@@ -97,6 +97,10 @@ export default function ReportarV2Page() {
   const [horaActual, setHoraActual] = useState("");
   const [area, setArea] = useState("");
   const [descripcion, setDescripcion] = useState("");
+  const [empresaInvolucradaResponsable, setEmpresaInvolucradaResponsable] =
+    useState("");
+  const [responsableEmpresa, setResponsableEmpresa] = useState("");
+  const [cargoResponsableEmpresa, setCargoResponsableEmpresa] = useState("");
   const [fotos, setFotos] = useState<FotoV2[]>([]);
   const [ubicacion, setUbicacion] = useState<UbicacionV2 | null>(null);
   const [mensaje, setMensaje] = useState("");
@@ -245,6 +249,21 @@ export default function ReportarV2Page() {
       return;
     }
 
+    if (!empresaInvolucradaResponsable.trim()) {
+      setError("Ingresa la empresa involucrada / responsable.");
+      return;
+    }
+
+    if (!responsableEmpresa.trim()) {
+      setError("Ingresa el responsable de la empresa.");
+      return;
+    }
+
+    if (!cargoResponsableEmpresa.trim()) {
+      setError("Ingresa el cargo del responsable.");
+      return;
+    }
+
     if (!perfilSupervisorV2Completo(supervisor)) {
       setError(
         "Complete el perfil del supervisor con empresa, obra y siglas antes de generar el reporte."
@@ -276,6 +295,15 @@ export default function ReportarV2Page() {
       hora: horaActual,
       area: area.trim(),
       descripcion: descripcion.trim(),
+      empresaInvolucradaResponsable: empresaInvolucradaResponsable.trim(),
+      responsableEmpresa: responsableEmpresa.trim(),
+      cargoResponsableEmpresa: cargoResponsableEmpresa.trim(),
+      asignacionCierre: {
+        responsableCorreccionTipo: "contratista",
+        responsableCorreccionEmpresa: empresaInvolucradaResponsable.trim(),
+        responsableCorreccionNombre: responsableEmpresa.trim(),
+        responsableCorreccionCargo: cargoResponsableEmpresa.trim(),
+      },
       fotos,
       gps: gpsReporte,
       estadoValidacion: "validado",
@@ -475,6 +503,57 @@ export default function ReportarV2Page() {
                   resize: "vertical",
                   lineHeight: 1.45,
                 }}
+              />
+            </label>
+          </div>
+        </section>
+
+        <section style={cardStyle}>
+          <div
+            style={{
+              fontSize: "18px",
+              lineHeight: 1.2,
+              fontWeight: 900,
+              marginBottom: "10px",
+            }}
+          >
+            Responsabilidad asociada al hallazgo
+          </div>
+          <div style={{ display: "grid", gap: "12px" }}>
+            <label style={{ display: "block" }}>
+              <span style={labelStyle}>Empresa involucrada / responsable</span>
+              <input
+                type="text"
+                value={empresaInvolucradaResponsable}
+                onChange={(event) =>
+                  setEmpresaInvolucradaResponsable(event.target.value)
+                }
+                placeholder="Ej: Contratista, área o empresa responsable"
+                style={inputStyle}
+              />
+            </label>
+
+            <label style={{ display: "block" }}>
+              <span style={labelStyle}>Responsable de la empresa</span>
+              <input
+                type="text"
+                value={responsableEmpresa}
+                onChange={(event) => setResponsableEmpresa(event.target.value)}
+                placeholder="Nombre del responsable"
+                style={inputStyle}
+              />
+            </label>
+
+            <label style={{ display: "block" }}>
+              <span style={labelStyle}>Cargo del responsable</span>
+              <input
+                type="text"
+                value={cargoResponsableEmpresa}
+                onChange={(event) =>
+                  setCargoResponsableEmpresa(event.target.value)
+                }
+                placeholder="Cargo o función"
+                style={inputStyle}
               />
             </label>
           </div>

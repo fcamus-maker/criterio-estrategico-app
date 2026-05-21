@@ -38,6 +38,9 @@ type ReporteV2 = ReporteV2Storage & {
   obra?: string;
   area?: string;
   descripcion?: string;
+  empresaInvolucradaResponsable?: string;
+  responsableEmpresa?: string;
+  cargoResponsableEmpresa?: string;
   fecha?: string;
   hora?: string;
   estado?: string;
@@ -356,6 +359,18 @@ export default function InformeFinalV2Page() {
                   ["Empresa / Obra", `${reporte.empresa || "—"} / ${reporte.obra || "—"}`],
                   ["Área", reporte.area || "Sin área"],
                   ["Descripción", reporte.descripcion || "Sin descripción"],
+                  [
+                    "Empresa involucrada / responsable",
+                    reporte.empresaInvolucradaResponsable || "Sin informar",
+                  ],
+                  [
+                    "Responsable de la empresa",
+                    reporte.responsableEmpresa || "Sin informar",
+                  ],
+                  [
+                    "Cargo del responsable",
+                    reporte.cargoResponsableEmpresa || "Sin informar",
+                  ],
                   [
                     "Acción inmediata",
                     reporte.evaluacion?.accionInmediata || "Sin acción definida",

@@ -76,6 +76,9 @@ export type ReporteV2CentralEntrada = {
   siglaProyecto?: string;
   area?: string;
   descripcion?: string;
+  empresaInvolucradaResponsable?: string;
+  responsableEmpresa?: string;
+  cargoResponsableEmpresa?: string;
   fecha?: string;
   hora?: string;
   estado?: string;
@@ -307,6 +310,22 @@ function seguimientoDesdeCierre(
   reporte: ReporteV2CentralEntrada
 ): SeguimientoCierreCentral | undefined {
   const cierre = reporte.asignacionCierre || reporte.cierre;
+  const empresaInvolucrada = texto(reporte.empresaInvolucradaResponsable);
+  const responsableEmpresa = texto(reporte.responsableEmpresa);
+  const cargoResponsable = texto(reporte.cargoResponsableEmpresa);
+
+  if (!cierre && (empresaInvolucrada || responsableEmpresa || cargoResponsable)) {
+    return {
+      responsable: {
+        tipoResponsable: "contratista",
+        nombre: responsableEmpresa,
+        cargo: cargoResponsable,
+        empresa: empresaInvolucrada,
+      },
+      estadoCierre: normalizarEstadoCierreCentral(reporte.estadoCierre),
+    };
+  }
+
   if (!cierre) return undefined;
 
   return {

@@ -32,6 +32,9 @@ export type ReporteV2Storage = {
   siglaProyecto?: string;
   area?: string;
   descripcion?: string;
+  empresaInvolucradaResponsable?: string;
+  responsableEmpresa?: string;
+  cargoResponsableEmpresa?: string;
   fecha?: string;
   hora?: string;
   estado?: string;
