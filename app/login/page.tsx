@@ -7,6 +7,7 @@ import {
   obtenerAuthProfileActual,
 } from "@/app/services/authProfileService";
 import type { RoleCE } from "@/app/types/authRoles";
+import PwaInstallCard from "@/app/components/PwaInstallCard";
 
 function rutaPorRol(rol?: RoleCE | null) {
   switch (rol) {
@@ -196,6 +197,10 @@ export default function LoginPage() {
             {mensaje}
           </div>
         )}
+
+        <div style={{ marginTop: "14px" }}>
+          <PwaInstallCard theme="dark" />
+        </div>
       </section>
     </main>
   );

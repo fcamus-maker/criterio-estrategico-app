@@ -8,6 +8,7 @@ import {
   usePlatformPreferences,
 } from "../services/platformPreferences";
 import { cerrarSesionCE } from "../services/authProfileService";
+import PwaInstallCard from "../components/PwaInstallCard";
 
 type SupervisorV2 = {
   nombre: string;
@@ -593,6 +594,10 @@ export default function EvaluarV2HomePage() {
         >
           {t("Reportar Hallazgo")}
         </button>
+
+        <div style={{ marginBottom: "14px" }}>
+          <PwaInstallCard theme={temaClaro ? "light" : "dark"} compact />
+        </div>
 
         {mensaje && (
           <div
