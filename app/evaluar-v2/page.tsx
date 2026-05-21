@@ -48,7 +48,7 @@ const textosMobileEn: Record<string, string> = {
   "Crear perfil del supervisor": "Create supervisor profile",
   "Completar perfil": "Complete profile",
   "Editar datos del supervisor": "Edit supervisor data",
-  "Actualiza el perfil usado en nuevos reportes V2.": "Update the profile used in new V2 reports.",
+  "Actualiza el perfil usado en nuevos reportes.": "Update the profile used in new reports.",
   Nombre: "Name",
   Cargo: "Role",
   "Fotografía del supervisor": "Supervisor photo",
@@ -60,7 +60,7 @@ const textosMobileEn: Record<string, string> = {
   Reportados: "Reported",
   Abiertos: "Open",
   Cerrados: "Closed",
-  "Supervisor V2 guardado.": "V2 supervisor saved.",
+  "Supervisor guardado.": "Supervisor saved.",
   "Procesando fotografía del supervisor...": "Processing supervisor photo...",
   "Fotografía del supervisor cargada. Presiona guardar.": "Supervisor photo loaded. Press save.",
   "Cerrar sesión": "Sign out",
@@ -223,7 +223,7 @@ export default function EvaluarV2HomePage() {
       setDraft(actualizado);
       setPerfilSupervisorGuardado(true);
       setEditorPerfilAbierto(false);
-      setMensaje("Supervisor V2 guardado.");
+      setMensaje("Supervisor guardado.");
       vibrarOk();
     } catch {
       const sinFoto: SupervisorV2 = {
@@ -620,7 +620,7 @@ export default function EvaluarV2HomePage() {
             {t("Editar datos del supervisor")}
           </div>
           <p style={{ margin: "0 0 12px", fontSize: "13px", opacity: 0.76 }}>
-            {t("Actualiza el perfil usado en nuevos reportes V2.")}
+            {t("Actualiza el perfil usado en nuevos reportes.")}
           </p>
 
           <div style={{ display: "grid", gap: "11px" }}>

@@ -167,6 +167,7 @@ export const preguntasEvaluacion: PreguntaEvaluacion[] = [
     opciones: [
       { label: "Sí", value: "si", score: 0 },
       { label: "No", value: "no", score: 10 },
+      { label: "No aplica", value: "no_aplica", score: 0 },
     ],
   },
   {
@@ -187,7 +188,7 @@ export const preguntasEvaluacion: PreguntaEvaluacion[] = [
     texto: "¿El trabajador fue capacitado en este procedimiento?",
     opciones: [
       { label: "Sí", value: "si", score: 0 },
-      { label: "Parcial", value: "parcial", score: 5 },
+      { label: "No aplica", value: "no_aplica", score: 0 },
       { label: "No", value: "no", score: 10 },
     ],
   },
@@ -199,6 +200,7 @@ export const preguntasEvaluacion: PreguntaEvaluacion[] = [
     opciones: [
       { label: "Sí", value: "si", score: 0 },
       { label: "No", value: "no", score: 6 },
+      { label: "No aplica", value: "no_aplica", score: 0 },
     ],
   },
   {
@@ -221,6 +223,7 @@ export const preguntasEvaluacion: PreguntaEvaluacion[] = [
       { label: "Sí", value: "si", score: 0 },
       { label: "Parcial", value: "parcial", score: 5 },
       { label: "No", value: "no", score: 10 },
+      { label: "No aplica", value: "no_aplica", score: 0 },
     ],
   },
   {

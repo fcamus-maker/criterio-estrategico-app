@@ -112,6 +112,18 @@ function obtenerEstiloCriticidad(criticidad?: string) {
   };
 }
 
+function mensajeUsuarioGuardado(detalle: DetalleGuardadoV2) {
+  if (detalle.centralOk) {
+    if ((detalle.evidenciasPendientes || 0) > 0) {
+      return "Reporte enviado correctamente. Una evidencia quedó pendiente de carga. Se intentará sincronizar nuevamente.";
+    }
+
+    return "Reporte enviado correctamente. El hallazgo fue guardado y sincronizado. Evidencias recibidas.";
+  }
+
+  return "Reporte guardado. La sincronización quedó pendiente y se intentará nuevamente.";
+}
+
 export default function InformeFinalV2Page() {
   const [reporte, setReporte] = useState<ReporteV2 | null>(null);
   const [cargado, setCargado] = useState(false);
@@ -251,12 +263,12 @@ export default function InformeFinalV2Page() {
               letterSpacing: "0",
             }}
           >
-            Informe Final V2
+            Informe Final
           </h1>
         </header>
 
         {!cargado && (
-          <section style={cardStyle}>Cargando informe V2...</section>
+          <section style={cardStyle}>Cargando informe...</section>
         )}
 
         {cargado && !reporte && (
@@ -268,7 +280,7 @@ export default function InformeFinalV2Page() {
                 marginBottom: "12px",
               }}
             >
-              No hay reporte V2 disponible
+              No hay reporte disponible
             </div>
             <a
               href="/evaluar-v2/reportar"
@@ -314,11 +326,6 @@ export default function InformeFinalV2Page() {
                 {reporte.evaluacion?.recomendacion ||
                   "Mantener control y seguimiento del hallazgo."}
               </div>
-              {typeof reporte.evaluacion?.puntaje === "number" && (
-                <div style={{ marginTop: "10px", fontSize: "12px", opacity: 0.76 }}>
-                  Índice interno de priorización: {reporte.evaluacion.puntaje} pts.
-                </div>
-              )}
             </section>
 
             <section style={cardStyle}>
@@ -387,9 +394,8 @@ export default function InformeFinalV2Page() {
                 </div>
               ) : fotosVisibles.length === 0 ? (
                 <div style={{ fontSize: "14px", opacity: 0.76, lineHeight: 1.45 }}>
-                  Fotografía registrada como evidencia pendiente de sincronización.
-                  La imagen no se persiste en este dispositivo para evitar el límite
-                  de almacenamiento.
+                  Una evidencia quedó pendiente de carga. Se intentará sincronizar
+                  nuevamente.
                 </div>
               ) : (
                 <div
@@ -424,8 +430,8 @@ export default function InformeFinalV2Page() {
               )}
               {fotosPendientes > 0 && fotosVisibles.length > 0 && (
                 <div style={{ marginTop: "8px", fontSize: "12px", opacity: 0.68 }}>
-                  {fotosPendientes} evidencia(s) quedaron como metadata pendiente
-                  de Storage.
+                  {fotosPendientes} evidencia(s) quedaron pendientes de carga. Se
+                  intentará sincronizar nuevamente.
                 </div>
               )}
             </section>
@@ -480,20 +486,6 @@ export default function InformeFinalV2Page() {
             </section>
 
             <div style={{ display: "grid", gap: "10px" }}>
-              <a
-                href="/evaluar-v2/resultado"
-                onClick={vibrarOk}
-                {...feedbackBoton("volver-resultado")}
-                style={{
-                  ...buttonStyle,
-                  color: "white",
-                  background: "rgba(255,255,255,0.14)",
-                  border: "1px solid rgba(255,255,255,0.18)",
-                  ...estiloFeedback("volver-resultado"),
-                }}
-              >
-                Volver a resultado
-              </a>
               <button
                 type="button"
                 {...feedbackBoton("guardar")}
@@ -544,15 +536,12 @@ export default function InformeFinalV2Page() {
                     setEstadoSincronizacion(
                       resultadoGuardado.centralOk ? "central-ok" : "central-error"
                     );
-                    setMensajeGuardado(resultadoGuardado.mensaje);
+                    setMensajeGuardado(mensajeUsuarioGuardado(resultadoGuardado));
                     setDetalleGuardado(resultadoGuardado);
                   } catch (error) {
                     const mensajeCentral =
-                      "Guardado local. Sincronización central pendiente por error controlado.";
-                    console.warn(
-                      "No se pudo completar escritura central V2. Se mantiene respaldo local liviano.",
-                      error
-                    );
+                      "Reporte guardado. La sincronización quedó pendiente y se intentará nuevamente.";
+                    console.warn("No se pudo completar escritura central.", error);
                     const reporteConEstado: ReporteV2 = {
                       ...reporteGuardado,
                       sincronizacionCentral: {
@@ -606,8 +595,8 @@ export default function InformeFinalV2Page() {
                   ? "Guardando..."
                   : guardado
                     ? estadoSincronizacion === "central-ok"
-                      ? "Sincronizado correctamente"
-                      : "Guardado local - sync pendiente"
+                      ? "Reporte enviado"
+                      : "Pendiente de sincronización"
                     : "Guardar y enviar"}
               </button>
               {mensajeGuardado && (
@@ -643,35 +632,18 @@ export default function InformeFinalV2Page() {
                     lineHeight: 1.45,
                   }}
                 >
-                  <div>Guardado local: {detalleGuardado.localOk ? "OK" : "ERROR"}</div>
                   <div>
-                    Supabase:{" "}
                     {detalleGuardado.centralOk
-                      ? `sincronizado OK: ${detalleGuardado.codigo || "sin codigo"}`
-                      : `pendiente/error: ${
-                          detalleGuardado.errorCentral || "sin detalle"
-                        }`}
+                      ? "El hallazgo fue guardado y sincronizado."
+                      : "El reporte quedó guardado y pendiente de sincronización."}
                   </div>
-                  <div>
-                    Evidencias Storage:{" "}
-                    {detalleGuardado.evidenciasIntentadas === undefined
-                      ? "sin lectura"
-                      : `${detalleGuardado.evidenciasSubidas || 0}/${detalleGuardado.evidenciasIntentadas} OK${
-                          detalleGuardado.evidenciasPendientes
-                            ? `, ${detalleGuardado.evidenciasPendientes} pendiente(s)`
-                            : ""
-                        }`}
-                  </div>
-                  <div>Tabla destino: {detalleGuardado.tablaDestino}</div>
-                  <div>Código para buscar: {detalleGuardado.codigo}</div>
-                  <div>
-                    Bandera Supabase:{" "}
-                    {detalleGuardado.banderaSupabaseActiva === undefined
-                      ? "sin lectura"
-                      : detalleGuardado.banderaSupabaseActiva
-                        ? "true"
-                        : "false"}
-                  </div>
+                  {(detalleGuardado.evidenciasIntentadas || 0) > 0 && (
+                    <div>
+                      {(detalleGuardado.evidenciasPendientes || 0) > 0
+                        ? "Una evidencia quedó pendiente de carga. Se intentará sincronizar nuevamente."
+                        : "Evidencias recibidas."}
+                    </div>
+                  )}
                 </div>
               )}
               <a
@@ -685,7 +657,7 @@ export default function InformeFinalV2Page() {
                   ...estiloFeedback("inicio"),
                 }}
               >
-                Volver al inicio V2
+                Volver al inicio
               </a>
             </div>
           </>

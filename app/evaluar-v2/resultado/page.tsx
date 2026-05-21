@@ -56,7 +56,7 @@ function obtenerEvaluacionVisual(reporte: ReporteV2) {
       prioridad: reporte.evaluacion.prioridad || "Sin prioridad",
       recomendacion:
         reporte.evaluacion.recomendacion || "Revisar controles y seguimiento.",
-      fundamento: "Evaluación por preguntas V2.",
+      fundamento: "Evaluación por preguntas.",
     };
   }
 
@@ -93,7 +93,7 @@ function obtenerEvaluacionVisual(reporte: ReporteV2) {
       prioridad: "Urgente",
       recomendacion:
         "Detener, controlar el área y revisar medidas inmediatas antes de continuar.",
-      fundamento: "Evaluación automática preliminar V2 por descripción.",
+      fundamento: "Evaluación automática preliminar por descripción.",
     };
   }
 
@@ -104,7 +104,7 @@ function obtenerEvaluacionVisual(reporte: ReporteV2) {
       prioridad: "Alta",
       recomendacion:
         "Corregir a la brevedad y reforzar controles preventivos.",
-      fundamento: "Evaluación automática preliminar V2 por descripción.",
+      fundamento: "Evaluación automática preliminar por descripción.",
     };
   }
 
@@ -114,7 +114,7 @@ function obtenerEvaluacionVisual(reporte: ReporteV2) {
     prioridad: texto.trim() ? "Media" : "Normal",
     recomendacion:
       "Mantener seguimiento y completar evaluación de criticidad.",
-    fundamento: "Evaluación automática preliminar V2 por descripción.",
+    fundamento: "Evaluación automática preliminar por descripción.",
   };
 }
 
@@ -282,7 +282,7 @@ export default function ResultadoV2Page() {
               ...estiloFeedback("inicio"),
             }}
           >
-            Volver a inicio V2
+            Volver a inicio
           </a>
           <h1
             style={{
@@ -293,12 +293,12 @@ export default function ResultadoV2Page() {
               letterSpacing: "0",
             }}
           >
-            Resultado V2
+            Resultado
           </h1>
         </header>
 
         {!cargado && (
-          <section style={cardStyle}>Cargando reporte V2...</section>
+          <section style={cardStyle}>Cargando reporte...</section>
         )}
 
         {cargado && !reporte && (
@@ -310,7 +310,7 @@ export default function ResultadoV2Page() {
                 marginBottom: "12px",
               }}
             >
-              No hay reporte V2 disponible
+              No hay reporte disponible
             </div>
             <a
               href="/evaluar-v2/reportar"
@@ -377,12 +377,6 @@ export default function ResultadoV2Page() {
                   ["Área", reporte.area || "Sin área"],
                   ["Descripción", reporte.descripcion || "Sin descripción"],
                   ["Criticidad", evaluacionVisual?.criticidad || "Sin evaluar"],
-                  [
-                    "Puntaje",
-                    typeof evaluacionVisual?.puntaje === "number"
-                      ? `${evaluacionVisual.puntaje}`
-                      : "Sin puntaje",
-                  ],
                   ["Prioridad", evaluacionVisual?.prioridad || "Sin prioridad"],
                   [
                     "Fotografías",

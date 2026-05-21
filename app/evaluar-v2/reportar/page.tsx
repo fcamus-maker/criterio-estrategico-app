@@ -75,7 +75,7 @@ function comprimirFoto(file: File): Promise<FotoV2> {
 
         resolve({
           id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-          nombre: file.name || "fotografia-v2.jpg",
+          nombre: file.name || "fotografia.jpg",
           tipo: "image/jpeg",
           dataUrl: canvas.toDataURL("image/jpeg", 0.72),
           fechaCarga: new Date().toISOString(),
@@ -279,11 +279,11 @@ export default function ReportarV2Page() {
       fotos,
       gps: gpsReporte,
       estadoValidacion: "validado",
-      mensajeValidacion: "Reporte V2 válido para continuar.",
+      mensajeValidacion: "Reporte válido para continuar.",
     };
 
     guardarReporteActualV2(reporteV2);
-    setMensaje("Reporte V2 válido para continuar.");
+    setMensaje("Reporte válido para continuar.");
     setNavegando(true);
     vibrarOk();
     router.push("/evaluar-v2/evaluacion/paso1");
@@ -409,7 +409,7 @@ export default function ReportarV2Page() {
               opacity: 0.9,
             }}
           >
-            Volver a inicio V2
+            Volver a inicio
           </a>
           <h1
             style={{
@@ -420,7 +420,7 @@ export default function ReportarV2Page() {
               letterSpacing: "0",
             }}
           >
-            Reportar Hallazgo V2
+            Reportar Hallazgo
           </h1>
         </header>
 

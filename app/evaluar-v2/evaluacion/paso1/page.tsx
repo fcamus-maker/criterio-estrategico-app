@@ -180,7 +180,7 @@ export default function EvaluacionPaso1V2Page() {
               letterSpacing: "0",
             }}
           >
-            Evaluación V2
+            Evaluación
           </h1>
           <p style={{ margin: "8px 0 0", opacity: 0.75 }}>
             Paso 1 de 2 — Condición crítica y operacional
@@ -192,7 +192,7 @@ export default function EvaluacionPaso1V2Page() {
         {cargado && !reporte && (
           <section style={cardStyle}>
             <div style={{ fontSize: "18px", fontWeight: 900, marginBottom: "12px" }}>
-              No hay reporte V2 disponible
+              No hay reporte disponible
             </div>
             <a
               href="/evaluar-v2/reportar"
