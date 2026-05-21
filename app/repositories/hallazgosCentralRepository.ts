@@ -220,6 +220,94 @@ function evidenciaDesdeRegistro(
   };
 }
 
+function seguimientoCierreDesdeFilaSupabase(
+  fila: Record<string, unknown>
+): SeguimientoCierreCentral | undefined {
+  const seguimientoJson = registroJson(fila.seguimiento_cierre) as
+    | Partial<SeguimientoCierreCentral>
+    | null;
+  const evidenciaRequerida = Array.isArray(fila.evidencia_requerida)
+    ? (fila.evidencia_requerida as string[])
+    : seguimientoJson?.evidenciaRequerida;
+  const evidenciaRecibida = Array.isArray(fila.evidencia_recibida)
+    ? listaJson(fila.evidencia_recibida).map(evidenciaDesdeRegistro)
+    : seguimientoJson?.evidenciaRecibida;
+  const responsableJson = seguimientoJson?.responsable;
+  const tieneDatosDirectos = [
+    fila.estado_seguimiento,
+    fila.responsable_cierre_nombre,
+    fila.responsable_cierre_empresa,
+    fila.fecha_compromiso,
+    fila.fecha_compromiso_cierre,
+    fila.accion_correctiva_requerida,
+    fila.observacion_inicial_cierre,
+    fila.plazo_estado,
+    fila.justificacion_extension_plazo,
+  ].some((valor) => texto(valor));
+
+  if (!seguimientoJson && !tieneDatosDirectos) return undefined;
+
+  return {
+    ...(seguimientoJson || {}),
+    responsable: {
+      ...(responsableJson || {}),
+      tipoResponsable: texto(
+        fila.responsable_cierre_tipo,
+        responsableJson?.tipoResponsable || "contratista"
+      ) as SeguimientoCierreCentral["responsable"]["tipoResponsable"],
+      nombre: texto(fila.responsable_cierre_nombre, responsableJson?.nombre),
+      cargo: texto(fila.responsable_cierre_cargo, responsableJson?.cargo),
+      empresa: texto(fila.responsable_cierre_empresa, responsableJson?.empresa),
+      telefono: texto(fila.responsable_cierre_telefono, responsableJson?.telefono),
+      email: texto(fila.responsable_cierre_email, responsableJson?.email),
+    },
+    estadoCierre: texto(
+      fila.estado_seguimiento || fila.estado_cierre,
+      seguimientoJson?.estadoCierre || "PENDIENTE"
+    ) as SeguimientoCierreCentral["estadoCierre"],
+    fechaCompromiso: texto(
+      fila.fecha_compromiso_cierre || fila.fecha_compromiso,
+      seguimientoJson?.fechaCompromiso
+    ),
+    fechaMaximaPermitida: texto(
+      fila.fecha_maxima_permitida_cierre,
+      seguimientoJson?.fechaMaximaPermitida
+    ),
+    plazoPorCriticidad: texto(
+      fila.plazo_cierre_por_criticidad,
+      seguimientoJson?.plazoPorCriticidad
+    ),
+    plazoEstado: texto(fila.plazo_estado, seguimientoJson?.plazoEstado),
+    plazoExtendido:
+      typeof fila.plazo_extendido === "boolean"
+        ? fila.plazo_extendido
+        : seguimientoJson?.plazoExtendido,
+    justificacionExtensionPlazo: texto(
+      fila.justificacion_extension_plazo,
+      seguimientoJson?.justificacionExtensionPlazo
+    ),
+    observacionInicial: texto(
+      fila.observacion_inicial_cierre,
+      seguimientoJson?.observacionInicial
+    ),
+    accionCorrectivaRequerida: texto(
+      fila.accion_correctiva_requerida,
+      seguimientoJson?.accionCorrectivaRequerida
+    ),
+    evidenciaRequerida,
+    evidenciaRecibida,
+    fechaCierre: texto(fila.fecha_cierre, seguimientoJson?.fechaCierre),
+    actualizadoEn: texto(
+      fila.seguimiento_cierre_actualizado_en,
+      seguimientoJson?.actualizadoEn
+    ),
+    actualizadoPor: texto(
+      fila.seguimiento_cierre_actualizado_por,
+      seguimientoJson?.actualizadoPor
+    ),
+  };
+}
+
 function evidenciasDesdeFilaSupabase(
   fila: Record<string, unknown>
 ): EvidenciaHallazgoCentral[] {
@@ -736,8 +824,7 @@ function mapearFilaSupabaseAHallazgo(fila: Record<string, unknown>): HallazgoCen
           visibleEnMapa: Boolean(fila.visible_en_mapa),
         }
       : { visibleEnMapa: Boolean(fila.visible_en_mapa) },
-    seguimientoCierre: (fila.seguimiento_cierre ||
-      undefined) as SeguimientoCierreCentral | undefined,
+    seguimientoCierre: seguimientoCierreDesdeFilaSupabase(fila),
     radarPreventivo,
     bitacora: Array.isArray(fila.bitacora)
       ? (fila.bitacora as BitacoraHallazgoCentral[])

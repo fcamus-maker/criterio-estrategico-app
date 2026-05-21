@@ -107,6 +107,9 @@ export type SeguimientoCierreCentral = {
   fechaCompromiso?: string;
   fechaMaximaPermitida?: string;
   plazoPorCriticidad?: string;
+  plazoEstado?: string;
+  plazoExtendido?: boolean;
+  justificacionExtensionPlazo?: string;
   observacionInicial?: string;
   accionCorrectivaRequerida?: string;
   evidenciaRequerida?: string[];
@@ -115,6 +118,8 @@ export type SeguimientoCierreCentral = {
   validadorNombre?: string;
   validadorEstado?: string;
   validadorObservacion?: string;
+  actualizadoEn?: string;
+  actualizadoPor?: string;
 };
 
 export type BitacoraHallazgoCentral = {

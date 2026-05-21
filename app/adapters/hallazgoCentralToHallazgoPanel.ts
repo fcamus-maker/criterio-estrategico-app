@@ -39,6 +39,9 @@ export type HallazgoPanelDesdeCentral = HallazgoPanel & {
   validadorCierreObservacion?: string;
   evidenciaRequerida?: string;
   evidenciaRecibida?: string;
+  plazoEstado?: string;
+  plazoExtendido?: boolean;
+  justificacionExtensionPlazo?: string;
   evidenciasPanel?: EvidenciaPanel[];
   totalEvidencias?: number;
   evidenciasPendientesVisualizacion?: number;
@@ -201,6 +204,9 @@ export function adaptarHallazgoCentralAHallazgoPanel(
       "Registro fotografico y documentacion de correccion"
     ),
     evidenciaRecibida: evidenciaCierre,
+    plazoEstado: texto(seguimiento?.plazoEstado),
+    plazoExtendido: Boolean(seguimiento?.plazoExtendido),
+    justificacionExtensionPlazo: texto(seguimiento?.justificacionExtensionPlazo),
   };
 }
 

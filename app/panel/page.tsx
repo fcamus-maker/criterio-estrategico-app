@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import { analizarRadarPreventivo } from "../analytics/radarPreventivo";
 import type {
   CriticidadHallazgoCentral,
+  EstadoCierreCentral,
   EstadoHallazgoCentral,
   HallazgoCentral,
+  SeguimientoCierreCentral,
   TipoHallazgoCentral,
 } from "../types/hallazgoCentral";
 import { hallazgosMock, notificacionesMock, usuarioMock, type HallazgoPanel } from "./mockdata";
@@ -15,6 +17,10 @@ import {
   type EvidenciaPanel,
 } from "./evidenciasPanel";
 import { cargarHallazgosPanelConFuentesOpcionales } from "./sources/hallazgosPanelSource";
+import {
+  actualizarHallazgoCentral,
+  obtenerHallazgoCentralPorCodigo,
+} from "../repositories/hallazgosCentralRepository";
 import {
   readPlatformPreferences,
   savePlatformPreferences,
@@ -2289,6 +2295,7 @@ const [gestionCierreDraft, setGestionCierreDraft] = useState<GestionCierreDraft>
   validadorCierreObservacion: "",
 });
 const [errorGestionCierre, setErrorGestionCierre] = useState("");
+const [guardandoGestionCierre, setGuardandoGestionCierre] = useState(false);
 const [mostrarNotificaciones, setMostrarNotificaciones] = useState(false);
 const [notificacionActiva, setNotificacionActiva] = useState<NotificacionPanel | null>(null);
 const [usuario, setUsuario] = useState({
@@ -3332,7 +3339,34 @@ const estadoSeguimientoDesdeGestion = (draft: GestionCierreDraft) => {
   return "Pendiente de asignación";
 };
 
-const guardarGestionCierre = () => {
+const estadoCierreCentralDesdeSeguimiento = (estado: string): EstadoCierreCentral => {
+  if (estado === "Cerrado" || estado === "Cerrado con evidencia") return "CERRADO";
+  if (estado === "Rechazado") return "RECHAZADO";
+  if (estado === "Vencido") return "VENCIDO";
+  if (estado === "Asignado") return "ASIGNADO";
+  if (
+    estado === "En seguimiento" ||
+    estado === "Evidencia solicitada" ||
+    estado === "Evidencia cargada" ||
+    estado === "En revisión"
+  ) {
+    return "EN_GESTION";
+  }
+  return "PENDIENTE";
+};
+
+const tipoResponsableCentralDesdeGestion = (
+  tipo: string
+): SeguimientoCierreCentral["responsable"]["tipoResponsable"] => {
+  const valor = tipo.toLowerCase();
+  if (valor.includes("empresa")) return "empresa";
+  if (valor.includes("persona")) return "persona";
+  if (valor.includes("cargo")) return "cargo";
+  if (valor.includes("contrat")) return "contratista";
+  return "otro";
+};
+
+const guardarGestionCierre = async () => {
   if (!hallazgoSeguimientoActivo) return;
 
   if (!gestionCierreDraft.responsableCorreccionTipo.trim()) {
@@ -3387,6 +3421,8 @@ const guardarGestionCierre = () => {
     return;
   }
 
+  setGuardandoGestionCierre(true);
+
   const camposModificados = [
     gestionCierreDraft.responsableCorreccionTipo !== hallazgoSeguimientoActivo.responsableCorreccionTipo
       ? t("Tipo de responsable de corrección")
@@ -3423,6 +3459,28 @@ const guardarGestionCierre = () => {
     }`,
     requiereJustificacionExtension ? `${t("Plazo de cierre")}: ${t("Plazo extendido")}` : null,
   ].filter(Boolean).join(" · ");
+  const eventoBitacora = {
+    fechaHora,
+    usuario: usuario?.nombre || "Administrador",
+    accion: "Actualización desde plataforma PC",
+    resumen,
+    camposModificados,
+    estadoAnterior,
+    estadoNuevo: estadoSeguimiento,
+  };
+  const justificacionExtension = requiereJustificacionExtension
+    ? gestionCierreDraft.justificacionExtensionPlazo.trim()
+    : "";
+  const fechaCompromisoNormalizada = normalizarFechaCompromiso(
+    gestionCierreDraft.responsableCierreFechaCompromiso
+  );
+  const fechaMaximaRecomendada = fechaMaximaCompromisoPorCriticidad(
+    hallazgoSeguimientoActivo.criticidad
+  );
+  const estadoPlazoPersistente = requiereJustificacionExtension
+    ? "Plazo extendido"
+    : semaforoVencimiento(fechaCompromisoNormalizada, hallazgoSeguimientoActivo.estado).etiqueta;
+  const estadoCierreCentral = estadoCierreCentralDesdeSeguimiento(estadoSeguimiento);
 
   setGestionCierreLocal((actual) => {
     const previo = actual[hallazgoSeguimientoActivo.codigo] || {};
@@ -3457,21 +3515,96 @@ const guardarGestionCierre = () => {
             : "Pendiente de evidencia",
         bitacoraCierre: [
           ...(previo.bitacoraCierre || []),
-          {
-            fechaHora,
-            usuario: usuario?.nombre || "Administrador",
-            accion: "Actualización desde plataforma PC",
-            resumen,
-            camposModificados,
-            estadoAnterior,
-            estadoNuevo: estadoSeguimiento,
-          },
+          eventoBitacora,
         ],
       },
     };
   });
+
+  const hallazgoPersistente = await obtenerHallazgoCentralPorCodigo(
+    hallazgoSeguimientoActivo.codigo
+  );
+
+  if (!hallazgoPersistente.ok && hallazgoPersistente.origen === "supabase") {
+    setErrorGestionCierre(
+      "Los cambios quedaron en esta sesión, pero no se pudo confirmar la persistencia en Supabase. Intenta guardar nuevamente."
+    );
+    setGuardandoGestionCierre(false);
+    return;
+  }
+
+  if (hallazgoPersistente.ok && hallazgoPersistente.data?.id) {
+    const seguimientoPrevio = hallazgoPersistente.data.seguimientoCierre;
+    const seguimientoPersistente: SeguimientoCierreCentral = {
+      ...(seguimientoPrevio || {}),
+      responsable: {
+        ...(seguimientoPrevio?.responsable || {}),
+        tipoResponsable: tipoResponsableCentralDesdeGestion(
+          gestionCierreDraft.responsableCorreccionTipo
+        ),
+        empresa: gestionCierreDraft.responsableCorreccionEmpresa.trim(),
+        nombre: gestionCierreDraft.responsableCorreccionNombre.trim() || "Sin asignar",
+        cargo: gestionCierreDraft.responsableCorreccionCargo.trim() || "Pendiente",
+        telefono: gestionCierreDraft.responsableCorreccionTelefono.trim() || undefined,
+      },
+      estadoCierre: estadoCierreCentral,
+      fechaCompromiso: fechaCompromisoNormalizada || undefined,
+      fechaMaximaPermitida: fechaMaximaRecomendada,
+      plazoPorCriticidad: textoPlazoCriticidad(hallazgoSeguimientoActivo.criticidad),
+      plazoEstado: estadoPlazoPersistente,
+      plazoExtendido: requiereJustificacionExtension,
+      justificacionExtensionPlazo: justificacionExtension || undefined,
+      observacionInicial:
+        gestionCierreDraft.validadorCierreObservacion.trim() ||
+        seguimientoPrevio?.observacionInicial,
+      accionCorrectivaRequerida: gestionCierreDraft.accionCorrectivaRequerida.trim(),
+      evidenciaRequerida: gestionCierreDraft.evidenciaRequerida,
+      evidenciaRecibida: seguimientoPrevio?.evidenciaRecibida || [],
+      fechaCierre:
+        estadoCierreCentral === "CERRADO"
+          ? seguimientoPrevio?.fechaCierre || new Date().toISOString()
+          : seguimientoPrevio?.fechaCierre,
+      validadorNombre: gestionCierreDraft.validadorCierreNombre.trim() || undefined,
+      validadorEstado: gestionCierreDraft.validadorCierreEstado,
+      validadorObservacion:
+        gestionCierreDraft.validadorCierreObservacion.trim() || undefined,
+      actualizadoEn: new Date().toISOString(),
+      actualizadoPor: usuario?.correo || usuario?.nombre || "Plataforma PC",
+    };
+
+    const resultadoPersistencia = await actualizarHallazgoCentral(
+      hallazgoPersistente.data.id,
+      {
+        estadoCierre: estadoCierreCentral,
+        seguimientoCierre: seguimientoPersistente,
+        bitacora: [
+          ...(hallazgoPersistente.data.bitacora || []),
+          {
+            ...eventoBitacora,
+            fechaHora: new Date().toISOString(),
+            accion: "seguimiento_cierre_actualizado_pc",
+            metadata: {
+              origen: "panel-pc",
+              plazoEstado: estadoPlazoPersistente,
+              plazoExtendido: requiereJustificacionExtension,
+            },
+          },
+        ],
+      }
+    );
+
+    if (!resultadoPersistencia.ok) {
+      setErrorGestionCierre(
+        "Los cambios quedaron en esta sesión, pero Supabase no confirmó la persistencia. Revisa conexión/permisos e intenta nuevamente."
+      );
+      setGuardandoGestionCierre(false);
+      return;
+    }
+  }
+
   setCodigoSeguimientoActivo(hallazgoSeguimientoActivo.codigo);
   setErrorGestionCierre("");
+  setGuardandoGestionCierre(false);
   setMostrarGestionCierre(false);
 };
 
@@ -5818,9 +5951,14 @@ const riesgoOperativoPrincipal =
         <button
           type="button"
           onClick={guardarGestionCierre}
-          style={perfilButtonStyle("guardar-gestion", "primary")}
+          disabled={guardandoGestionCierre}
+          style={{
+            ...perfilButtonStyle("guardar-gestion", "primary"),
+            opacity: guardandoGestionCierre ? 0.72 : 1,
+            cursor: guardandoGestionCierre ? "wait" : "pointer",
+          }}
         >
-          {t("Guardar cambios")}
+          {t(guardandoGestionCierre ? "Guardando..." : "Guardar cambios")}
         </button>
       </div>
     </div>
