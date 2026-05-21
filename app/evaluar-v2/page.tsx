@@ -471,7 +471,7 @@ export default function EvaluarV2HomePage() {
               letterSpacing: "0",
             }}
           >
-            REPORTE DE HALLAZGOS V2
+            REPORTE DE HALLAZGOS
           </h1>
         </header>
 
