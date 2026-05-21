@@ -21,6 +21,28 @@ export const SUPERVISOR_V2_VACIO: SupervisorV2 = {
   foto: "",
 };
 
+export function perfilSupervisorV2Completo(supervisor: SupervisorV2) {
+  return Boolean(
+    supervisor.empresa.trim() &&
+      supervisor.obra.trim() &&
+      supervisor.siglaEmpresa.trim() &&
+      supervisor.siglaProyecto.trim()
+  );
+}
+
+export function crearCodigoReporteMovil(
+  supervisor: SupervisorV2,
+  correlativo: number
+) {
+  if (!perfilSupervisorV2Completo(supervisor)) return "";
+
+  const proyecto = supervisor.siglaProyecto.trim().toUpperCase();
+  const empresa = supervisor.siglaEmpresa.trim().toUpperCase();
+  const siguiente = String(correlativo).padStart(4, "0");
+
+  return `CE-${proyecto}/${empresa}-${siguiente}`;
+}
+
 function normalizarSupervisor(valor: unknown, fallback: SupervisorV2) {
   const guardado =
     valor && typeof valor === "object" ? (valor as Partial<SupervisorV2>) : {};

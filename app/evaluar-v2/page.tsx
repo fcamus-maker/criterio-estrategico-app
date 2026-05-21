@@ -9,6 +9,13 @@ import {
 } from "../services/platformPreferences";
 import { cerrarSesionCE } from "../services/authProfileService";
 import PwaInstallCard from "../components/PwaInstallCard";
+import {
+  cargarSupervisorV2UsuarioActual,
+  crearCodigoReporteMovil,
+  guardarSupervisorV2EnClave,
+  perfilSupervisorV2Completo,
+  SUPERVISOR_V2_VACIO,
+} from "./supervisorProfileStorage";
 
 type SupervisorV2 = {
   nombre: string;
@@ -20,18 +27,7 @@ type SupervisorV2 = {
   foto: string;
 };
 
-const STORAGE_SUPERVISOR = "ce_mobile_v2_supervisor";
 const STORAGE_HISTORIAL = "ce_mobile_v2_historial_reportes";
-
-const SUPERVISOR_DEFAULT: SupervisorV2 = {
-  nombre: "Freddy Camus",
-  cargo: "Ingeniero",
-  empresa: "TNT",
-  obra: "PEL",
-  siglaEmpresa: "TNT",
-  siglaProyecto: "PEL",
-  foto: "",
-};
 
 const FOTO_SUPERVISOR_MAX_PX = 320;
 const FOTO_SUPERVISOR_QUALITY = 0.64;
@@ -45,6 +41,9 @@ const textosMobileEn: Record<string, string> = {
   "Sigla empresa": "Company code",
   "Sigla proyecto": "Project code",
   "Próximo código": "Next code",
+  "Código pendiente": "Pending code",
+  "Complete el perfil para generar el código del reporte.": "Complete the profile to generate the report code.",
+  "Complete empresa, obra y siglas para generar el código del reporte.": "Complete company, site and codes to generate the report code.",
   "Editar perfil del supervisor": "Edit supervisor profile",
   "Crear perfil del supervisor": "Create supervisor profile",
   "Completar perfil": "Complete profile",
@@ -76,34 +75,6 @@ function vibrarOk() {
   }
 }
 
-function cargarSupervisor(): SupervisorV2 {
-  if (typeof window === "undefined") return SUPERVISOR_DEFAULT;
-
-  try {
-    const guardado = JSON.parse(
-      localStorage.getItem(STORAGE_SUPERVISOR) || "null"
-    );
-
-    if (!guardado || typeof guardado !== "object") return SUPERVISOR_DEFAULT;
-
-    return {
-      nombre: String(guardado.nombre || SUPERVISOR_DEFAULT.nombre),
-      cargo: String(guardado.cargo || SUPERVISOR_DEFAULT.cargo),
-      empresa: String(guardado.empresa || SUPERVISOR_DEFAULT.empresa),
-      obra: String(guardado.obra || SUPERVISOR_DEFAULT.obra),
-      siglaEmpresa: String(
-        guardado.siglaEmpresa || SUPERVISOR_DEFAULT.siglaEmpresa
-      ),
-      siglaProyecto: String(
-        guardado.siglaProyecto || SUPERVISOR_DEFAULT.siglaProyecto
-      ),
-      foto: String(guardado.foto || SUPERVISOR_DEFAULT.foto),
-    };
-  } catch {
-    return SUPERVISOR_DEFAULT;
-  }
-}
-
 function cargarHistorial(): Array<{ estado?: string; estadoCierre?: string }> {
   if (typeof window === "undefined") return [];
 
@@ -112,20 +83,6 @@ function cargarHistorial(): Array<{ estado?: string; estadoCierre?: string }> {
     return Array.isArray(guardado) ? guardado : [];
   } catch {
     return [];
-  }
-}
-
-function existeSupervisorGuardado() {
-  if (typeof window === "undefined") return false;
-
-  try {
-    const guardado = JSON.parse(
-      localStorage.getItem(STORAGE_SUPERVISOR) || "null"
-    );
-
-    return Boolean(guardado && typeof guardado === "object");
-  } catch {
-    return false;
   }
 }
 
@@ -185,8 +142,8 @@ export default function EvaluarV2HomePage() {
   const t = (texto: string) =>
     idiomaActivo === "en" ? textosMobileEn[texto] || texto : texto;
   const [supervisor, setSupervisor] =
-    useState<SupervisorV2>(SUPERVISOR_DEFAULT);
-  const [draft, setDraft] = useState<SupervisorV2>(SUPERVISOR_DEFAULT);
+    useState<SupervisorV2>(SUPERVISOR_V2_VACIO);
+  const [draft, setDraft] = useState<SupervisorV2>(SUPERVISOR_V2_VACIO);
   const [historial, setHistorial] = useState<
     Array<{ estado?: string; estadoCierre?: string }>
   >([]);
@@ -195,16 +152,21 @@ export default function EvaluarV2HomePage() {
   const [editorPerfilAbierto, setEditorPerfilAbierto] = useState(false);
   const [perfilSupervisorGuardado, setPerfilSupervisorGuardado] =
     useState(false);
+  const [claveSupervisor, setClaveSupervisor] = useState("");
   const [navegandoReporte, setNavegandoReporte] = useState(false);
   const [cerrandoSesion, setCerrandoSesion] = useState(false);
 
   useEffect(() => {
-    const frameId = window.requestAnimationFrame(() => {
-      const supervisorGuardado = cargarSupervisor();
-      const tienePerfil = existeSupervisorGuardado();
+    const frameId = window.requestAnimationFrame(async () => {
+      const contexto = await cargarSupervisorV2UsuarioActual();
+      const supervisorGuardado = contexto.supervisor;
+      const tienePerfil =
+        contexto.tienePerfilGuardado &&
+        perfilSupervisorV2Completo(supervisorGuardado);
       setSupervisor(supervisorGuardado);
       setDraft(supervisorGuardado);
       setHistorial(cargarHistorial());
+      setClaveSupervisor(contexto.clave);
       setPerfilSupervisorGuardado(tienePerfil);
       setEditorPerfilAbierto(false);
     });
@@ -229,30 +191,34 @@ export default function EvaluarV2HomePage() {
   }, [historial]);
 
   const codigoPreview = useMemo(() => {
-    const proyecto = draft.siglaProyecto.trim().toUpperCase() || "PEL";
-    const empresa = draft.siglaEmpresa.trim().toUpperCase() || "TNT";
-    const siguiente = String(contadores.reportados + 1).padStart(4, "0");
+    if (!perfilSupervisorGuardado || !perfilSupervisorV2Completo(supervisor)) {
+      return "";
+    }
 
-    return `CE-${proyecto}/${empresa}-V2-${siguiente}`;
-  }, [contadores.reportados, draft.siglaEmpresa, draft.siglaProyecto]);
+    return crearCodigoReporteMovil(supervisor, contadores.reportados + 1);
+  }, [contadores.reportados, perfilSupervisorGuardado, supervisor]);
 
   const guardarSupervisor = () => {
     const actualizado: SupervisorV2 = {
-      nombre: draft.nombre.trim() || SUPERVISOR_DEFAULT.nombre,
-      cargo: draft.cargo.trim() || SUPERVISOR_DEFAULT.cargo,
-      empresa: draft.empresa.trim() || SUPERVISOR_DEFAULT.empresa,
-      obra: draft.obra.trim() || SUPERVISOR_DEFAULT.obra,
-      siglaEmpresa:
-        draft.siglaEmpresa.trim().toUpperCase() ||
-        SUPERVISOR_DEFAULT.siglaEmpresa,
-      siglaProyecto:
-        draft.siglaProyecto.trim().toUpperCase() ||
-        SUPERVISOR_DEFAULT.siglaProyecto,
+      nombre: draft.nombre.trim(),
+      cargo: draft.cargo.trim(),
+      empresa: draft.empresa.trim(),
+      obra: draft.obra.trim(),
+      siglaEmpresa: draft.siglaEmpresa.trim().toUpperCase(),
+      siglaProyecto: draft.siglaProyecto.trim().toUpperCase(),
       foto: draft.foto,
     };
 
+    if (!perfilSupervisorV2Completo(actualizado)) {
+      setPerfilSupervisorGuardado(false);
+      setMensaje(
+        "Complete empresa, obra y siglas para generar el código del reporte."
+      );
+      return;
+    }
+
     try {
-      localStorage.setItem(STORAGE_SUPERVISOR, JSON.stringify(actualizado));
+      guardarSupervisorV2EnClave(claveSupervisor, actualizado);
       setSupervisor(actualizado);
       setDraft(actualizado);
       setPerfilSupervisorGuardado(true);
@@ -266,7 +232,7 @@ export default function EvaluarV2HomePage() {
       };
 
       try {
-        localStorage.setItem(STORAGE_SUPERVISOR, JSON.stringify(sinFoto));
+        guardarSupervisorV2EnClave(claveSupervisor, sinFoto);
         setSupervisor(sinFoto);
         setDraft(sinFoto);
         setPerfilSupervisorGuardado(true);
@@ -321,6 +287,14 @@ export default function EvaluarV2HomePage() {
 
   const irAReporte = () => {
     if (navegandoReporte) return;
+
+    if (!perfilSupervisorGuardado || !perfilSupervisorV2Completo(supervisor)) {
+      setEditorPerfilAbierto(true);
+      setMensaje(
+        "Complete el perfil para generar el código del reporte."
+      );
+      return;
+    }
 
     setNavegandoReporte(true);
     setMensaje("");
@@ -548,7 +522,25 @@ export default function EvaluarV2HomePage() {
               fontWeight: 800,
             }}
           >
-            {t("Próximo código")}: {codigoPreview}
+            {codigoPreview ? (
+              <>
+                {t("Próximo código")}: {codigoPreview}
+              </>
+            ) : (
+              <>
+                {t("Código pendiente")}
+                <div
+                  style={{
+                    marginTop: "4px",
+                    fontSize: "12px",
+                    opacity: 0.72,
+                    lineHeight: 1.35,
+                  }}
+                >
+                  {t("Complete el perfil para generar el código del reporte.")}
+                </div>
+              </>
+            )}
           </div>
           <button
             type="button"

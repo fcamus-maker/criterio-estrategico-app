@@ -8,6 +8,8 @@ import {
 } from "../storageReporteV2";
 import {
   cargarSupervisorV2UsuarioActual,
+  crearCodigoReporteMovil,
+  perfilSupervisorV2Completo,
   SUPERVISOR_V2_VACIO,
   type SupervisorV2,
 } from "../supervisorProfileStorage";
@@ -243,17 +245,26 @@ export default function ReportarV2Page() {
       return;
     }
 
+    if (!perfilSupervisorV2Completo(supervisor)) {
+      setError(
+        "Complete el perfil del supervisor con empresa, obra y siglas antes de generar el reporte."
+      );
+      return;
+    }
+
     const gpsReporte = ubicacion || {
       fechaHoraGeolocalizacion: new Date().toISOString(),
       estadoGeolocalizacion: "pendiente" as const,
       motivoGeolocalizacion:
         "El reporte fue validado sin captura GPS previa. No se registraron coordenadas.",
     };
+    const codigoReporte = crearCodigoReporteMovil(
+      supervisor,
+      obtenerTotalHistorial() + 1
+    );
 
     const reporteV2 = {
-      codigo: `CE-${supervisor.siglaProyecto || "PEL"}/${
-        supervisor.siglaEmpresa || "TNT"
-      }-V2-${String(obtenerTotalHistorial() + 1).padStart(4, "0")}`,
+      codigo: codigoReporte,
       supervisor: supervisor.nombre,
       cargo: supervisor.cargo,
       empresa: supervisor.empresa,
