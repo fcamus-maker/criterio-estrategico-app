@@ -37,9 +37,9 @@ const textosMobileEn: Record<string, string> = {
   "Reportar Hallazgo": "Report Finding",
   "Contadores locales": "Local counters",
   Empresa: "Company",
-  Obra: "Site",
+  "Obra / Proyecto": "Site / Project",
   "Sigla empresa": "Company code",
-  "Sigla proyecto": "Project code",
+  "Sigla obra / proyecto": "Site / project code",
   "Próximo código": "Next code",
   "Código pendiente": "Pending code",
   "Complete el perfil para generar el código del reporte.": "Complete the profile to generate the report code.",
@@ -496,7 +496,7 @@ export default function EvaluarV2HomePage() {
               <div style={{ fontWeight: 800 }}>{supervisor.empresa}</div>
             </div>
             <div>
-              <div style={{ fontSize: "11px", opacity: 0.62 }}>{t("Obra")}</div>
+              <div style={{ fontSize: "11px", opacity: 0.62 }}>{t("Obra / Proyecto")}</div>
               <div style={{ fontWeight: 800 }}>{supervisor.obra}</div>
             </div>
             <div>
@@ -507,7 +507,7 @@ export default function EvaluarV2HomePage() {
             </div>
             <div>
               <div style={{ fontSize: "11px", opacity: 0.62 }}>
-                {t("Sigla proyecto")}
+                {t("Sigla obra / proyecto")}
               </div>
               <div style={{ fontWeight: 800 }}>{supervisor.siglaProyecto}</div>
             </div>
@@ -628,9 +628,9 @@ export default function EvaluarV2HomePage() {
               ["nombre", "Nombre"],
               ["cargo", "Cargo"],
               ["empresa", "Empresa"],
-              ["obra", "Obra"],
+              ["obra", "Obra / Proyecto"],
               ["siglaEmpresa", "Sigla empresa"],
-              ["siglaProyecto", "Sigla proyecto"],
+              ["siglaProyecto", "Sigla obra / proyecto"],
             ].map(([campo, label]) => (
               <label key={campo} style={{ display: "block" }}>
                 <span
