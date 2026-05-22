@@ -17,6 +17,8 @@ export type HallazgoPanelDesdeCentral = HallazgoPanel & {
   puntajeEvaluacion?: number;
   prioridad?: string;
   recomendacion?: string;
+  empresaReportante?: string;
+  empresaResponsableInvolucrada?: string;
   fechaCompromiso?: string;
   fechaCierre?: string;
   evidenciaCierre?: string;
@@ -166,6 +168,8 @@ export function adaptarHallazgoCentralAHallazgoPanel(
     puntajeEvaluacion: hallazgo.puntajeEvaluacion,
     prioridad: texto(hallazgo.prioridad),
     recomendacion: texto(hallazgo.recomendacion),
+    empresaReportante: texto(hallazgo.reportante.empresa, hallazgo.empresa),
+    empresaResponsableInvolucrada: texto(responsable?.empresa),
     fechaCompromiso: texto(seguimiento?.fechaCompromiso),
     fechaCierre: texto(seguimiento?.fechaCierre),
     evidenciaCierre,

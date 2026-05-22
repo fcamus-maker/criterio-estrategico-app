@@ -22,23 +22,34 @@ import {
 type HallazgoPanelGerencial = HallazgoPanel & {
   area?: string;
   gps?: HallazgoCentral["geolocalizacion"];
+  empresaReportante?: string;
+  empresaResponsableInvolucrada?: string;
   fechaCompromiso?: string;
   fechaCierre?: string;
   responsable?: string;
   responsableCierreNombre?: string;
+  responsableCierreCargo?: string;
+  responsableCierreEstadoSeguimiento?: string;
   responsableCorreccionNombre?: string;
+  responsableCorreccionCargo?: string;
+  responsableCorreccionEmpresa?: string;
   evidenciaCierre?: string;
   evidenciaRecibida?: string;
+  plazoExtendido?: boolean;
+  cierreSinEvidenciaJustificado?: boolean;
 };
 
 type FiltrosVista = {
-  empresa: string;
+  empresaReportante: string;
+  empresaResponsable: string;
   obra: string;
   area: string;
   criticidad: "" | CriticidadKpiGerencial;
   estado: "" | EstadoKpiGerencial;
+  estadoCierre: string;
   tipoHallazgo: string;
   responsableCierre: string;
+  responsableCargo: string;
   reportante: string;
   fechaDesde: string;
   fechaHasta: string;
@@ -70,13 +81,16 @@ type GrupoKpiGerencial = {
 const LIMITE_REGISTROS_ANALISIS = 500;
 
 const filtrosIniciales: FiltrosVista = {
-  empresa: "",
+  empresaReportante: "",
+  empresaResponsable: "",
   obra: "",
   area: "",
   criticidad: "",
   estado: "",
+  estadoCierre: "",
   tipoHallazgo: "",
   responsableCierre: "",
+  responsableCargo: "",
   reportante: "",
   fechaDesde: "",
   fechaHasta: "",
@@ -161,10 +175,17 @@ function normalizarEstado(valor: string): EstadoKpiGerencial {
 }
 
 function convertirHallazgoKpi(hallazgo: HallazgoPanelGerencial): HallazgoKpiGerencial {
+  const empresaReportante =
+    hallazgo.empresaReportante || hallazgo.empresa || "Sin empresa reportante";
+  const empresaResponsable =
+    hallazgo.empresaResponsableInvolucrada || "";
+
   return {
     id: hallazgo.id,
     codigo: hallazgo.codigo,
-    empresa: hallazgo.empresa || "Sin empresa",
+    empresa: empresaReportante,
+    empresaReportante,
+    empresaResponsable,
     obra: hallazgo.obra || "Sin obra",
     area: hallazgo.area || hallazgo.obra || "Sin area",
     tipoHallazgo: hallazgo.tipoHallazgo || "Sin tipo",
@@ -177,8 +198,16 @@ function convertirHallazgoKpi(hallazgo: HallazgoPanelGerencial): HallazgoKpiGere
       hallazgo.responsableCorreccionNombre ||
       hallazgo.responsable ||
       "Sin responsable",
+    responsableCargo:
+      hallazgo.responsableCierreCargo ||
+      hallazgo.responsableCorreccionCargo ||
+      "",
+    estadoCierre: hallazgo.responsableCierreEstadoSeguimiento || "",
     fechaCompromiso: hallazgo.fechaCompromiso,
     fechaCierre: hallazgo.fechaCierre,
+    evidenciaCierreRecibida: hallazgo.evidenciaRecibida || hallazgo.evidenciaCierre,
+    plazoExtendido: hallazgo.plazoExtendido,
+    cierreSinEvidenciaJustificado: hallazgo.cierreSinEvidenciaJustificado,
     descripcion: hallazgo.descripcion,
     fotos: hallazgo.fotos,
     tieneGps:
@@ -361,21 +390,33 @@ export default function KpiGerencialAvanzadoPage() {
   const traducirComparacion = (etiqueta: string) =>
     idiomaActivo === "en" ? t(etiqueta) : etiqueta;
   const resumenEjecutivoTraducido = () => {
-    const focoEmpresa = analisis.porEmpresa[0]?.nombre || "Sin empresa dominante";
+    const focoEmpresa =
+      filtros.empresaResponsable ||
+      filtros.empresaReportante ||
+      analisis.porEmpresaReportante[0]?.nombre ||
+      "Sin empresa dominante";
     const focoObra = analisis.porObra[0]?.nombre || "Sin obra dominante";
     const focoArea = analisis.porArea[0]?.nombre || "Sin area dominante";
+    const contextoFiltro =
+      filtros.empresaResponsable && filtros.empresaReportante
+        ? `Cruce reportante ${filtros.empresaReportante} / responsable ${filtros.empresaResponsable}`
+        : filtros.empresaResponsable
+          ? `Empresa responsable ${filtros.empresaResponsable}`
+          : filtros.empresaReportante
+            ? `Reportes generados por ${filtros.empresaReportante}`
+            : "Vista general";
 
     if (idiomaActivo !== "en") {
       if (analisis.total === 0) {
         return "No hay datos suficientes con los filtros seleccionados para emitir lectura gerencial.";
       }
 
-      return `${metricasGerenciales.nivelRiesgo}. ${focoEmpresa} concentra la mayor carga, con foco operativo en ${focoObra} y ${focoArea}.`;
+      return `${metricasGerenciales.nivelRiesgo}. ${contextoFiltro}. Foco principal: ${focoEmpresa}, ${focoObra}, ${focoArea}.`;
     }
     if (analisis.total === 0) {
       return t("No hay datos suficientes para un analisis gerencial avanzado.");
     }
-    return `${metricasGerenciales.nivelRiesgo}. ${focoEmpresa} concentrates the highest operational load, with focus on ${focoObra} and ${focoArea}.`;
+    return `${metricasGerenciales.nivelRiesgo}. ${contextoFiltro}. Main focus: ${focoEmpresa}, ${focoObra}, ${focoArea}.`;
   };
   const riesgosTraducidos = () => {
     if (idiomaActivo !== "en") {
@@ -453,6 +494,49 @@ export default function KpiGerencialAvanzadoPage() {
   const bordeInterno = temaClaro
     ? "1px solid rgba(100,116,139,0.20)"
     : "1px solid rgba(148,163,184,0.18)";
+  const filtroBloqueStyle: CSSProperties = {
+    display: "grid",
+    gap: "11px",
+    borderRadius: "18px",
+    padding: "13px",
+    background: temaClaro
+      ? "linear-gradient(145deg, rgba(255,255,255,0.96), rgba(241,245,249,0.92))"
+      : "linear-gradient(145deg, rgba(30,41,59,0.92), rgba(15,23,42,0.82))",
+    border: temaClaro
+      ? "1px solid rgba(59,130,246,0.22)"
+      : "1px solid rgba(125,211,252,0.18)",
+    borderLeft: temaClaro
+      ? "3px solid rgba(37,99,235,0.72)"
+      : "3px solid rgba(56,189,248,0.70)",
+    boxShadow: temaClaro
+      ? "0 12px 26px rgba(15,23,42,0.06)"
+      : "0 16px 34px rgba(0,0,0,0.20)",
+  };
+  const filtroTituloStyle: CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    color: textoPrincipal,
+    fontSize: "12px",
+    fontWeight: 950,
+    textTransform: "uppercase",
+    letterSpacing: "0.7px",
+  };
+  const filtroChipStyle: CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "22px",
+    height: "22px",
+    borderRadius: "999px",
+    background: temaClaro ? "rgba(37,99,235,0.12)" : "rgba(56,189,248,0.14)",
+    border: temaClaro
+      ? "1px solid rgba(37,99,235,0.22)"
+      : "1px solid rgba(125,211,252,0.28)",
+    color: textoAzul,
+    fontSize: "11px",
+    fontWeight: 950,
+  };
   const [hallazgos, setHallazgos] = useState<HallazgoKpiGerencial[]>(
     () => hallazgosMock.map((hallazgo) => convertirHallazgoKpi(hallazgo))
   );
@@ -486,11 +570,20 @@ export default function KpiGerencialAvanzadoPage() {
 
   const opciones = useMemo(
     () => ({
-      empresas: valorUnico(hallazgos.map((item) => item.empresa)),
+      empresasReportantes: valorUnico(
+        hallazgos.map((item) => item.empresaReportante || item.empresa)
+      ),
+      empresasResponsables: valorUnico(
+        hallazgos.map((item) => item.empresaResponsable || "")
+      ),
       obras: valorUnico(hallazgos.map((item) => item.obra)),
       areas: valorUnico(hallazgos.map((item) => item.area)),
       tipos: valorUnico(hallazgos.map((item) => item.tipoHallazgo)),
       responsables: valorUnico(hallazgos.map((item) => item.responsableCierre || "")),
+      cargosResponsables: valorUnico(
+        hallazgos.map((item) => item.responsableCargo || "")
+      ),
+      estadosCierre: valorUnico(hallazgos.map((item) => item.estadoCierre || "")),
       reportantes: valorUnico(hallazgos.map((item) => item.reportante || "")),
     }),
     [hallazgos]
@@ -498,13 +591,16 @@ export default function KpiGerencialAvanzadoPage() {
 
   const filtrosAnalisis: FiltrosKpiGerencial = useMemo(
     () => ({
-      empresa: filtros.empresa || undefined,
+      empresaReportante: filtros.empresaReportante || undefined,
+      empresaResponsable: filtros.empresaResponsable || undefined,
       obra: filtros.obra || undefined,
       area: filtros.area || undefined,
       criticidad: filtros.criticidad || undefined,
       estado: filtros.estado || undefined,
+      estadoCierre: filtros.estadoCierre || undefined,
       tipoHallazgo: filtros.tipoHallazgo || undefined,
       responsableCierre: filtros.responsableCierre || undefined,
+      responsableCargo: filtros.responsableCargo || undefined,
       reportante: filtros.reportante || undefined,
       fechaDesde: filtros.fechaDesde || undefined,
       fechaHasta: filtros.fechaHasta || undefined,
@@ -548,6 +644,38 @@ export default function KpiGerencialAvanzadoPage() {
       analisisLimitadoPorCarga: hallazgos.length >= LIMITE_REGISTROS_ANALISIS,
     };
   }, [analisis, hallazgos.length]);
+
+  const filtrosActivosResumen = useMemo(
+    () =>
+      [
+        filtros.empresaReportante
+          ? `Empresa reportante: ${filtros.empresaReportante}`
+          : null,
+        filtros.empresaResponsable
+          ? `Empresa responsable: ${filtros.empresaResponsable}`
+          : null,
+        filtros.obra ? `Obra: ${filtros.obra}` : null,
+        filtros.area ? `Area: ${filtros.area}` : null,
+        filtros.tipoHallazgo ? `Tipo: ${filtros.tipoHallazgo}` : null,
+        filtros.responsableCierre
+          ? `Responsable cierre: ${filtros.responsableCierre}`
+          : null,
+        filtros.responsableCargo ? `Cargo responsable: ${filtros.responsableCargo}` : null,
+        filtros.estadoCierre ? `Estado cierre: ${filtros.estadoCierre}` : null,
+        filtros.criticidad ? `Criticidad: ${filtros.criticidad}` : null,
+        filtros.estado ? `Estado operativo: ${filtros.estado}` : null,
+        filtros.vencimiento !== "todos" ? `Vencimiento: ${filtros.vencimiento}` : null,
+        filtros.soloCriticosAbiertos ? "Solo criticos abiertos" : null,
+        filtros.soloReincidencias ? "Solo reincidencias" : null,
+        filtros.fechaDesde ? `Desde: ${filtros.fechaDesde}` : null,
+        filtros.fechaHasta ? `Hasta: ${filtros.fechaHasta}` : null,
+        filtros.semana ? `Semana desde: ${filtros.semana}` : null,
+        filtros.mes ? `Mes: ${filtros.mes}` : null,
+        filtros.gps !== "todos" ? `GPS: ${filtros.gps}` : null,
+        filtros.evidencia !== "todos" ? `Evidencia del reporte: ${filtros.evidencia}` : null,
+      ].filter(Boolean) as string[],
+    [filtros]
+  );
 
   function activarBoton(id: string) {
     setAccionActiva(id);
@@ -685,10 +813,10 @@ export default function KpiGerencialAvanzadoPage() {
       foco: "Comparacion",
       tarjetas: [
         {
-          titulo: "Empresas",
+          titulo: "Empresas reportantes",
           valor: analisis.empresasActivas,
           color: "#60a5fa",
-          detalle: "Empresas presentes en el filtro",
+          detalle: "Quienes reportan o registran",
         },
         {
           titulo: "Obras",
@@ -711,9 +839,12 @@ export default function KpiGerencialAvanzadoPage() {
     if (modoAnalisis === "ranking-obras") return analisis.porObra;
     if (modoAnalisis === "ranking-tipos") return analisis.porTipo;
     if (modoAnalisis === "ranking-responsables") return analisis.porResponsable;
+    if (modoAnalisis === "ranking-empresas-responsables") {
+      return analisis.porEmpresaResponsable;
+    }
     if (modoAnalisis === "cierres") return analisis.porResponsable;
     if (modoAnalisis === "reincidencias") return analisis.porTipo;
-    return analisis.porEmpresa;
+    return analisis.porEmpresaReportante;
   })();
   const rankingTitulo =
     modoAnalisis === "ranking-obras"
@@ -724,7 +855,9 @@ export default function KpiGerencialAvanzadoPage() {
           ? "Ranking de tipos"
           : modoAnalisis === "ranking-responsables" || modoAnalisis === "cierres"
             ? "Responsables de cierre"
-            : "Ranking de empresas";
+            : modoAnalisis === "ranking-empresas-responsables"
+              ? "Ranking por empresa responsable"
+              : "Ranking por empresa reportante";
   const rankingSubtitulo =
     modoAnalisis === "vencidos"
       ? "Enfoque visual sobre carga y vencidos por empresa. El listado exacto queda para KPI-D."
@@ -739,9 +872,14 @@ export default function KpiGerencialAvanzadoPage() {
   const maxTendencia = Math.max(1, ...analisis.tendenciaTemporal.map((item) => item.total));
   const rankingsSecundarios = [
     {
-      titulo: "Empresas",
-      subtitulo: "Carga total por empresa reportada.",
-      data: analisis.porEmpresa,
+      titulo: "Empresa reportante",
+      subtitulo: "Carga total segun quien reporta o registra.",
+      data: analisis.porEmpresaReportante,
+    },
+    {
+      titulo: "Empresa responsable",
+      subtitulo: "Carga atribuida al responsable/involucrado disponible.",
+      data: analisis.porEmpresaResponsable,
     },
     {
       titulo: "Obras",
@@ -757,6 +895,11 @@ export default function KpiGerencialAvanzadoPage() {
       titulo: "Tipos",
       subtitulo: "Familias de hallazgo mas frecuentes.",
       data: analisis.porTipo,
+    },
+    {
+      titulo: "Responsable cierre",
+      subtitulo: "Personas responsables segun trazabilidad disponible.",
+      data: analisis.porResponsable,
     },
   ];
 
@@ -908,6 +1051,42 @@ export default function KpiGerencialAvanzadoPage() {
         </section>
 
         <section
+          style={{
+            ...themedSurfaceStyle,
+            padding: "14px 16px",
+            background: temaClaro ? "rgba(255,255,255,0.78)" : "rgba(15,23,42,0.64)",
+          }}
+        >
+          <div style={{ fontSize: "11px", color: textoAzul, fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.7px" }}>
+            Filtros maestros activos
+          </div>
+          {filtrosActivosResumen.length > 0 ? (
+            <div style={{ marginTop: "10px", display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              {filtrosActivosResumen.map((filtro) => (
+                <span
+                  key={filtro}
+                  style={{
+                    borderRadius: "999px",
+                    padding: "7px 10px",
+                    background: fondoInterno,
+                    border: bordeInterno,
+                    color: textoMedio,
+                    fontSize: "11px",
+                    fontWeight: 850,
+                  }}
+                >
+                  {filtro}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <div style={{ marginTop: "6px", color: textoSuave, fontSize: "12px", lineHeight: 1.45, fontWeight: 750 }}>
+              Vista general sin filtros maestros activos.
+            </div>
+          )}
+        </section>
+
+        <section
           className="ce-panel-kpi-grid-layout"
           style={{
             display: "grid",
@@ -917,154 +1096,236 @@ export default function KpiGerencialAvanzadoPage() {
             alignItems: "start",
           }}
         >
-          <aside className="ce-panel-kpi-filters" style={{ ...themedSurfaceStyle, padding: "18px", display: "grid", gap: "13px" }}>
-            <div>
-              <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 950 }}>{t("Filtros avanzados")}</h2>
-              <p style={{ margin: "6px 0 0", color: textoSuave, fontSize: "12px", lineHeight: 1.45, fontWeight: 700 }}>
+          <aside className="ce-panel-kpi-filters" style={{ ...themedSurfaceStyle, padding: "18px", display: "grid", gap: "15px" }}>
+            <div
+              style={{
+                borderRadius: "18px",
+                padding: "14px",
+                background: temaClaro ? "rgba(239,246,255,0.92)" : "rgba(30,41,59,0.78)",
+                border: temaClaro
+                  ? "1px solid rgba(59,130,246,0.20)"
+                  : "1px solid rgba(148,163,184,0.18)",
+                boxShadow: temaClaro
+                  ? "0 10px 22px rgba(15,23,42,0.06)"
+                  : "inset 0 1px 0 rgba(255,255,255,0.04)",
+              }}
+            >
+              <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 950, color: textoPrincipal }}>{t("Filtros avanzados")}</h2>
+              <p style={{ margin: "6px 0 0", color: textoMedio, fontSize: "12px", lineHeight: 1.45, fontWeight: 750 }}>
                 {t("Cruza empresa, obra, area, periodo, criticidad, responsable y evidencia.")}
               </p>
             </div>
 
-            {[
-              ["Empresa", "empresa", opciones.empresas],
-              ["Obra / proyecto", "obra", opciones.obras],
-              ["Area", "area", opciones.areas],
-              ["Tipo de hallazgo", "tipoHallazgo", opciones.tipos],
-              ["Responsable cierre", "responsableCierre", opciones.responsables],
-              ["Supervisor/reportante", "reportante", opciones.reportantes],
-            ].map(([label, key, values]) => (
-              <label key={String(key)} style={{ display: "grid", gap: "6px" }}>
-                <span style={{ fontSize: "12px", fontWeight: 900, color: textoAzul }}>{t(label as string)}</span>
-                <select
-                  value={String(filtros[key as keyof FiltrosVista])}
-                  onChange={(event) =>
-                    setFiltros((actual) => ({
-                      ...actual,
-                      [key as keyof FiltrosVista]: event.target.value,
-                    }))
-                  }
-                  style={themedInputStyle}
-                >
-                  <option value="">{t("Todos")}</option>
-                  {(values as string[]).map((valor) => (
-                    <option key={valor} value={valor}>
-                      {valor}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ))}
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-              <label style={{ display: "grid", gap: "6px" }}>
-                <span style={{ fontSize: "12px", fontWeight: 900, color: textoAzul }}>{t("Criticidad")}</span>
-                <select
-                  value={filtros.criticidad}
-                  onChange={(event) =>
-                    setFiltros((actual) => ({
-                      ...actual,
-                      criticidad: event.target.value as FiltrosVista["criticidad"],
-                    }))
-                  }
-                  style={themedInputStyle}
-                >
-                  <option value="">{t("Todas")}</option>
-                  {(["CRITICO", "ALTO", "MEDIO", "BAJO"] as CriticidadKpiGerencial[]).map((criticidad) => (
-                    <option key={criticidad} value={criticidad}>
-                      {traducirCriticidad(criticidad)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label style={{ display: "grid", gap: "6px" }}>
-                <span style={{ fontSize: "12px", fontWeight: 900, color: textoAzul }}>{t("Estado")}</span>
-                <select
-                  value={filtros.estado}
-                  onChange={(event) =>
-                    setFiltros((actual) => ({
-                      ...actual,
-                      estado: event.target.value as FiltrosVista["estado"],
-                    }))
-                  }
-                  style={themedInputStyle}
-                >
-                  <option value="">{t("Todos")}</option>
-                  {(["REPORTADO", "ABIERTO", "EN_SEGUIMIENTO", "CERRADO", "ANULADO"] as EstadoKpiGerencial[]).map((estado) => (
-                    <option key={estado} value={estado}>
-                      {traducirEstado(estado)}
-                    </option>
-                  ))}
-                </select>
-              </label>
+            <div style={filtroBloqueStyle}>
+              <div style={filtroTituloStyle}><span style={filtroChipStyle}>A</span> Alcance operacional</div>
+              {[
+                ["Empresa reportante", "empresaReportante", opciones.empresasReportantes],
+                ["Obra / proyecto", "obra", opciones.obras],
+                ["Area", "area", opciones.areas],
+                ["Tipo de hallazgo", "tipoHallazgo", opciones.tipos],
+              ].map(([label, key, values]) => (
+                <label key={String(key)} style={{ display: "grid", gap: "6px" }}>
+                  <span style={{ fontSize: "12px", fontWeight: 900, color: textoAzul }}>{label as string}</span>
+                  <select
+                    value={String(filtros[key as keyof FiltrosVista])}
+                    onChange={(event) =>
+                      setFiltros((actual) => ({
+                        ...actual,
+                        [key as keyof FiltrosVista]: event.target.value,
+                      }))
+                    }
+                    style={themedInputStyle}
+                  >
+                    <option value="">{t("Todos")}</option>
+                    {(values as string[]).map((valor) => (
+                      <option key={valor} value={valor}>
+                        {valor}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ))}
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-              <label style={{ display: "grid", gap: "6px" }}>
-                <span style={{ fontSize: "12px", fontWeight: 900, color: textoAzul }}>{t("Desde")}</span>
-                <input type="date" value={filtros.fechaDesde} onChange={(event) => setFiltros((actual) => ({ ...actual, fechaDesde: event.target.value }))} style={themedInputStyle} />
-              </label>
-              <label style={{ display: "grid", gap: "6px" }}>
-                <span style={{ fontSize: "12px", fontWeight: 900, color: textoAzul }}>{t("Hasta")}</span>
-                <input type="date" value={filtros.fechaHasta} onChange={(event) => setFiltros((actual) => ({ ...actual, fechaHasta: event.target.value }))} style={themedInputStyle} />
-              </label>
+            <div style={filtroBloqueStyle}>
+              <div style={filtroTituloStyle}><span style={filtroChipStyle}>B</span> Responsabilidad y cierre</div>
+              {[
+                ["Empresa responsable / involucrada", "empresaResponsable", opciones.empresasResponsables],
+                ["Responsable de cierre", "responsableCierre", opciones.responsables],
+                ["Cargo del responsable", "responsableCargo", opciones.cargosResponsables],
+                ["Estado de cierre", "estadoCierre", opciones.estadosCierre],
+              ].map(([label, key, values]) => (
+                <label key={String(key)} style={{ display: "grid", gap: "6px" }}>
+                  <span style={{ fontSize: "12px", fontWeight: 900, color: textoAzul }}>{label as string}</span>
+                  <select
+                    value={String(filtros[key as keyof FiltrosVista])}
+                    onChange={(event) =>
+                      setFiltros((actual) => ({
+                        ...actual,
+                        [key as keyof FiltrosVista]: event.target.value,
+                      }))
+                    }
+                    style={themedInputStyle}
+                  >
+                    <option value="">{t("Todos")}</option>
+                    {(values as string[]).map((valor) => (
+                      <option key={valor} value={valor}>
+                        {valor}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ))}
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+            <div style={filtroBloqueStyle}>
+              <div style={filtroTituloStyle}><span style={filtroChipStyle}>C</span> Riesgo y prioridad</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                <label style={{ display: "grid", gap: "6px" }}>
+                  <span style={{ fontSize: "12px", fontWeight: 900, color: textoAzul }}>{t("Criticidad")}</span>
+                  <select
+                    value={filtros.criticidad}
+                    onChange={(event) =>
+                      setFiltros((actual) => ({
+                        ...actual,
+                        criticidad: event.target.value as FiltrosVista["criticidad"],
+                      }))
+                    }
+                    style={themedInputStyle}
+                  >
+                    <option value="">{t("Todas")}</option>
+                    {(["CRITICO", "ALTO", "MEDIO", "BAJO"] as CriticidadKpiGerencial[]).map((criticidad) => (
+                      <option key={criticidad} value={criticidad}>
+                        {traducirCriticidad(criticidad)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label style={{ display: "grid", gap: "6px" }}>
+                  <span style={{ fontSize: "12px", fontWeight: 900, color: textoAzul }}>Estado operativo</span>
+                  <select
+                    value={filtros.estado}
+                    onChange={(event) =>
+                      setFiltros((actual) => ({
+                        ...actual,
+                        estado: event.target.value as FiltrosVista["estado"],
+                      }))
+                    }
+                    style={themedInputStyle}
+                  >
+                    <option value="">{t("Todos")}</option>
+                    {(["REPORTADO", "ABIERTO", "EN_SEGUIMIENTO", "CERRADO", "ANULADO"] as EstadoKpiGerencial[]).map((estado) => (
+                      <option key={estado} value={estado}>
+                        {traducirEstado(estado)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
               <label style={{ display: "grid", gap: "6px" }}>
-                <span style={{ fontSize: "12px", fontWeight: 900, color: textoAzul }}>{t("Semana")}</span>
-                <input type="date" value={filtros.semana} onChange={(event) => setFiltros((actual) => ({ ...actual, semana: event.target.value }))} style={themedInputStyle} />
-              </label>
-              <label style={{ display: "grid", gap: "6px" }}>
-                <span style={{ fontSize: "12px", fontWeight: 900, color: textoAzul }}>{t("Mes")}</span>
-                <input type="month" value={filtros.mes} onChange={(event) => setFiltros((actual) => ({ ...actual, mes: event.target.value }))} style={themedInputStyle} />
-              </label>
-            </div>
-
-            {[
-              ["GPS", "gps", [["todos", "Con GPS y sin GPS"], ["con-gps", "Solo con GPS"], ["sin-gps", "Solo sin GPS"]]],
-              ["Evidencia", "evidencia", [["todos", "Con y sin evidencia"], ["con-evidencia", "Con evidencia"], ["sin-evidencia", "Sin evidencia"]]],
-              ["Vencimiento", "vencimiento", [["todos", "Todos"], ["vencidos", "Solo vencidos"], ["no-vencidos", "No vencidos"]]],
-            ].map(([label, key, values]) => (
-              <label key={String(key)} style={{ display: "grid", gap: "6px" }}>
-                <span style={{ fontSize: "12px", fontWeight: 900, color: textoAzul }}>{t(label as string)}</span>
+                <span style={{ fontSize: "12px", fontWeight: 900, color: textoAzul }}>{t("Vencimiento")}</span>
                 <select
-                  value={String(filtros[key as keyof FiltrosVista])}
+                  value={filtros.vencimiento}
                   onChange={(event) =>
                     setFiltros((actual) => ({
                       ...actual,
-                      [key as keyof FiltrosVista]: event.target.value,
+                      vencimiento: event.target.value as FiltrosVista["vencimiento"],
                     }))
                   }
                   style={themedInputStyle}
                 >
-                  {(values as string[][]).map(([valor, etiqueta]) => (
+                  {[
+                    ["todos", "Todos"],
+                    ["vencidos", "Solo vencidos"],
+                    ["no-vencidos", "No vencidos"],
+                  ].map(([valor, etiqueta]) => (
                     <option key={valor} value={valor}>
                       {t(etiqueta)}
                     </option>
                   ))}
                 </select>
               </label>
-            ))}
+              <label style={{ display: "flex", gap: "10px", alignItems: "center", fontSize: "13px", fontWeight: 850, color: textoAzul }}>
+                <input
+                  type="checkbox"
+                  checked={filtros.soloCriticosAbiertos}
+                  onChange={(event) => setFiltros((actual) => ({ ...actual, soloCriticosAbiertos: event.target.checked }))}
+                />
+                {t("Solo criticos abiertos")}
+              </label>
+              <label style={{ display: "flex", gap: "10px", alignItems: "center", fontSize: "13px", fontWeight: 850, color: textoAzul }}>
+                <input
+                  type="checkbox"
+                  checked={filtros.soloReincidencias}
+                  onChange={(event) => setFiltros((actual) => ({ ...actual, soloReincidencias: event.target.checked }))}
+                />
+                {t("Solo reincidencias")}
+              </label>
+            </div>
 
-            <label style={{ display: "flex", gap: "10px", alignItems: "center", fontSize: "13px", fontWeight: 850, color: textoAzul }}>
-              <input
-                type="checkbox"
-                checked={filtros.soloCriticosAbiertos}
-                onChange={(event) => setFiltros((actual) => ({ ...actual, soloCriticosAbiertos: event.target.checked }))}
-              />
-              {t("Solo criticos abiertos")}
-            </label>
-            <label style={{ display: "flex", gap: "10px", alignItems: "center", fontSize: "13px", fontWeight: 850, color: textoAzul }}>
-              <input
-                type="checkbox"
-                checked={filtros.soloReincidencias}
-                onChange={(event) => setFiltros((actual) => ({ ...actual, soloReincidencias: event.target.checked }))}
-              />
-              {t("Solo reincidencias")}
-            </label>
+            <div style={filtroBloqueStyle}>
+              <div style={filtroTituloStyle}><span style={filtroChipStyle}>D</span> Fecha y trazabilidad</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                <label style={{ display: "grid", gap: "6px" }}>
+                  <span style={{ fontSize: "12px", fontWeight: 900, color: textoAzul }}>{t("Desde")}</span>
+                  <input type="date" value={filtros.fechaDesde} onChange={(event) => setFiltros((actual) => ({ ...actual, fechaDesde: event.target.value }))} style={themedInputStyle} />
+                </label>
+                <label style={{ display: "grid", gap: "6px" }}>
+                  <span style={{ fontSize: "12px", fontWeight: 900, color: textoAzul }}>{t("Hasta")}</span>
+                  <input type="date" value={filtros.fechaHasta} onChange={(event) => setFiltros((actual) => ({ ...actual, fechaHasta: event.target.value }))} style={themedInputStyle} />
+                </label>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                <label style={{ display: "grid", gap: "6px" }}>
+                  <span style={{ fontSize: "12px", fontWeight: 900, color: textoAzul }}>{t("Semana")}</span>
+                  <input type="date" value={filtros.semana} onChange={(event) => setFiltros((actual) => ({ ...actual, semana: event.target.value }))} style={themedInputStyle} />
+                </label>
+                <label style={{ display: "grid", gap: "6px" }}>
+                  <span style={{ fontSize: "12px", fontWeight: 900, color: textoAzul }}>{t("Mes")}</span>
+                  <input type="month" value={filtros.mes} onChange={(event) => setFiltros((actual) => ({ ...actual, mes: event.target.value }))} style={themedInputStyle} />
+                </label>
+              </div>
+              {[
+                ["GPS", "gps", [["todos", "Con GPS y sin GPS"], ["con-gps", "Solo con GPS"], ["sin-gps", "Solo sin GPS"]]],
+                ["Evidencia del reporte", "evidencia", [["todos", "Con y sin evidencia"], ["con-evidencia", "Con evidencia"], ["sin-evidencia", "Sin evidencia"]]],
+              ].map(([label, key, values]) => (
+                <label key={String(key)} style={{ display: "grid", gap: "6px" }}>
+                  <span style={{ fontSize: "12px", fontWeight: 900, color: textoAzul }}>{label as string}</span>
+                  <select
+                    value={String(filtros[key as keyof FiltrosVista])}
+                    onChange={(event) =>
+                      setFiltros((actual) => ({
+                        ...actual,
+                        [key as keyof FiltrosVista]: event.target.value,
+                      }))
+                    }
+                    style={themedInputStyle}
+                  >
+                    {(values as string[][]).map(([valor, etiqueta]) => (
+                      <option key={valor} value={valor}>
+                        {t(etiqueta)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ))}
+              <div style={{ borderRadius: "14px", padding: "10px 12px", background: fondoInternoFuerte, border: bordeInterno, color: textoSuave, fontSize: "11px", lineHeight: 1.4, fontWeight: 750 }}>
+                Evidencia de cierre: disponible como dato informativo cuando existe, pero no se usa como filtro maestro en KPI-C.
+              </div>
+            </div>
 
-            <div style={{ borderRadius: "16px", padding: "12px", background: fondoInterno, border: bordeInterno }}>
-              <div style={{ fontSize: "11px", color: textoAzul, fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.6px" }}>
+            <div
+              style={{
+                borderRadius: "16px",
+                padding: "12px",
+                background: temaClaro ? "rgba(239,246,255,0.78)" : "rgba(14,165,233,0.08)",
+                border: temaClaro
+                  ? "1px solid rgba(37,99,235,0.18)"
+                  : "1px solid rgba(56,189,248,0.16)",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "11px", color: textoAzul, fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.6px" }}>
+                <span style={{ width: "7px", height: "7px", borderRadius: "999px", background: "#22c55e", boxShadow: "0 0 12px rgba(34,197,94,0.42)" }} />
                 Filtros reactivos
               </div>
               <div style={{ marginTop: "5px", color: textoSuave, fontSize: "12px", lineHeight: 1.4, fontWeight: 750 }}>
@@ -1087,7 +1348,8 @@ export default function KpiGerencialAvanzadoPage() {
                 </div>
                 <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
                   {[
-                    ["ranking-empresas", "Ranking empresas", "Ranking de empresas activo."],
+                    ["ranking-empresas", "Ranking reportantes", "Ranking por empresa reportante activo."],
+                    ["ranking-empresas-responsables", "Ranking responsables", "Ranking por empresa responsable/involucrada activo."],
                     ["ranking-obras", "Comparar obras", "Comparacion por obras activa."],
                     ["ranking-areas", "Ranking areas", "Ranking de areas activo."],
                     ["criticidad", "Enfocar criticidad", "Enfoque visual en criticidad activo. No abre listado individual todavia."],
@@ -1167,11 +1429,48 @@ export default function KpiGerencialAvanzadoPage() {
 
             <section className="ce-panel-kpi-secondary-grid" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.1fr) minmax(360px, 0.9fr)", gap: "16px" }}>
               <div style={{ ...themedSurfaceStyle, padding: "18px" }}>
-                <div style={{ fontSize: "16px", fontWeight: 950, marginBottom: "14px" }}>{t("Tendencia temporal")}</div>
-                <div style={{ height: "230px", display: "flex", alignItems: "end", gap: "10px", paddingTop: "16px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start", marginBottom: "14px" }}>
+                  <div>
+                    <div style={{ fontSize: "16px", fontWeight: 950 }}>{t("Tendencia temporal")}</div>
+                    <div style={{ marginTop: "5px", color: textoSuave, fontSize: "12px", lineHeight: 1.4, fontWeight: 750 }}>
+                      Volumen mensual de hallazgos filtrados. El acento ambar indica periodos con criticidad critica.
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", justifyContent: "flex-end", color: textoSuave, fontSize: "11px", fontWeight: 850 }}>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}>
+                      <span style={{ width: "10px", height: "10px", borderRadius: "3px", background: "linear-gradient(180deg,#38bdf8,#2563eb)" }} />
+                      Total
+                    </span>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}>
+                      <span style={{ width: "10px", height: "10px", borderRadius: "999px", background: "#f59e0b" }} />
+                      Con criticos
+                    </span>
+                  </div>
+                </div>
+                <div style={{ height: "210px", display: "flex", alignItems: "end", gap: "10px", paddingTop: "16px" }}>
                   {analisis.tendenciaTemporal.slice(-10).map((item) => (
                     <div key={item.periodo} style={{ flex: 1, display: "grid", alignItems: "end", gap: "8px", minWidth: 0 }}>
-                      <div style={{ height: `${Math.max(8, (item.total / maxTendencia) * 180)}px`, borderRadius: "14px 14px 6px 6px", background: item.criticos > 0 ? "linear-gradient(180deg,#ef4444,#7f1d1d)" : "linear-gradient(180deg,#38bdf8,#1d4ed8)", boxShadow: "0 10px 24px rgba(14,165,233,0.20)" }} />
+                      <div style={{ display: "grid", alignItems: "end", justifyItems: "center", gap: "6px" }}>
+                        {item.criticos > 0 && (
+                          <span style={{ width: "8px", height: "8px", borderRadius: "999px", background: "#f59e0b", boxShadow: "0 0 12px rgba(245,158,11,0.42)" }} />
+                        )}
+                        <div
+                          style={{
+                            width: "100%",
+                            height: `${Math.max(8, (item.total / maxTendencia) * 150)}px`,
+                            borderRadius: "14px 14px 6px 6px",
+                            background: item.criticos > 0
+                              ? "linear-gradient(180deg,#f59e0b 0%, #38bdf8 44%, #2563eb 100%)"
+                              : "linear-gradient(180deg,#38bdf8,#2563eb)",
+                            boxShadow: item.criticos > 0
+                              ? "0 10px 22px rgba(245,158,11,0.16)"
+                              : "0 10px 22px rgba(14,165,233,0.18)",
+                            border: item.criticos > 0
+                              ? "1px solid rgba(245,158,11,0.28)"
+                              : "1px solid rgba(125,211,252,0.18)",
+                          }}
+                        />
+                      </div>
                       <div style={{ fontSize: "10px", color: textoSuave, textAlign: "center", fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis" }}>{item.periodo}</div>
                     </div>
                   ))}
@@ -1215,7 +1514,8 @@ export default function KpiGerencialAvanzadoPage() {
             <div style={{ display: "grid", gap: "8px" }}>
               <div style={{ fontSize: "12px", color: textoAzul, fontWeight: 950 }}>Foco gerencial</div>
               {[
-                ["Empresa", analisis.porEmpresa[0]?.nombre || "Sin datos"],
+                ["Empresa reportante", filtros.empresaReportante || analisis.porEmpresaReportante[0]?.nombre || "Sin datos"],
+                ["Empresa responsable", filtros.empresaResponsable || analisis.porEmpresaResponsable[0]?.nombre || "Sin datos"],
                 ["Obra", analisis.porObra[0]?.nombre || "Sin datos"],
                 ["Area", analisis.porArea[0]?.nombre || "Sin datos"],
               ].map(([label, valor]) => (

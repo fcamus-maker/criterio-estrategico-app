@@ -16,10 +16,17 @@ export type HallazgoKpiGerencial = {
   criticidad: CriticidadKpiGerencial;
   estado: EstadoKpiGerencial;
   fechaISO?: string;
+  empresaReportante?: string;
+  empresaResponsable?: string;
   reportante?: string;
   responsableCierre?: string;
+  responsableCargo?: string;
+  estadoCierre?: string;
   fechaCompromiso?: string;
   fechaCierre?: string;
+  evidenciaCierreRecibida?: string;
+  plazoExtendido?: boolean;
+  cierreSinEvidenciaJustificado?: boolean;
   descripcion?: string;
   fotos?: string[];
   tieneGps?: boolean;
@@ -27,12 +34,16 @@ export type HallazgoKpiGerencial = {
 
 export type FiltrosKpiGerencial = {
   empresa?: string;
+  empresaReportante?: string;
+  empresaResponsable?: string;
   obra?: string;
   area?: string;
   criticidad?: CriticidadKpiGerencial;
   estado?: EstadoKpiGerencial;
+  estadoCierre?: string;
   tipoHallazgo?: string;
   responsableCierre?: string;
+  responsableCargo?: string;
   reportante?: string;
   fechaDesde?: string;
   fechaHasta?: string;
@@ -86,6 +97,8 @@ export type AnalisisKpiGerencial = {
   cumplimientoGeneral: number;
   indicadorPreventivoGlobal: number;
   porEmpresa: RankingKpiGerencial[];
+  porEmpresaReportante: RankingKpiGerencial[];
+  porEmpresaResponsable: RankingKpiGerencial[];
   porObra: RankingKpiGerencial[];
   porArea: RankingKpiGerencial[];
   porResponsable: RankingKpiGerencial[];
@@ -205,12 +218,33 @@ export function filtrarHallazgosKpiGerencial(
     const tieneEvidencia = Boolean(hallazgo.fotos?.length);
 
     if (filtros.empresa && hallazgo.empresa !== filtros.empresa) return false;
+    if (
+      filtros.empresaReportante &&
+      (hallazgo.empresaReportante || hallazgo.empresa) !== filtros.empresaReportante
+    ) {
+      return false;
+    }
+    if (
+      filtros.empresaResponsable &&
+      hallazgo.empresaResponsable !== filtros.empresaResponsable
+    ) {
+      return false;
+    }
     if (filtros.obra && hallazgo.obra !== filtros.obra) return false;
     if (filtros.area && hallazgo.area !== filtros.area) return false;
     if (filtros.criticidad && hallazgo.criticidad !== filtros.criticidad) return false;
     if (filtros.estado && hallazgo.estado !== filtros.estado) return false;
+    if (filtros.estadoCierre && hallazgo.estadoCierre !== filtros.estadoCierre) {
+      return false;
+    }
     if (filtros.tipoHallazgo && hallazgo.tipoHallazgo !== filtros.tipoHallazgo) return false;
     if (filtros.responsableCierre && hallazgo.responsableCierre !== filtros.responsableCierre) return false;
+    if (
+      filtros.responsableCargo &&
+      hallazgo.responsableCargo !== filtros.responsableCargo
+    ) {
+      return false;
+    }
     if (filtros.reportante && hallazgo.reportante !== filtros.reportante) return false;
     if (filtros.gps === "con-gps" && !hallazgo.tieneGps) return false;
     if (filtros.gps === "sin-gps" && hallazgo.tieneGps) return false;
@@ -352,7 +386,15 @@ export function analizarKpiGerencialAvanzado(
     CERRADO: cerrados,
     ANULADO: hallazgos.filter((item) => item.estado === "ANULADO").length,
   };
-  const porEmpresa = rankingPor(hallazgos, (hallazgo) => hallazgo.empresa);
+  const porEmpresaReportante = rankingPor(
+    hallazgos,
+    (hallazgo) => hallazgo.empresaReportante || hallazgo.empresa
+  );
+  const porEmpresaResponsable = rankingPor(
+    hallazgos,
+    (hallazgo) => hallazgo.empresaResponsable || "Sin empresa responsable"
+  );
+  const porEmpresa = porEmpresaReportante;
   const porObra = rankingPor(hallazgos, (hallazgo) => hallazgo.obra);
   const porArea = rankingPor(hallazgos, (hallazgo) => hallazgo.area);
   const porResponsable = rankingPor(
@@ -380,6 +422,8 @@ export function analizarKpiGerencialAvanzado(
     cumplimientoGeneral,
     indicadorPreventivoGlobal,
     porEmpresa,
+    porEmpresaReportante,
+    porEmpresaResponsable,
     porObra,
     porArea,
     porResponsable,
