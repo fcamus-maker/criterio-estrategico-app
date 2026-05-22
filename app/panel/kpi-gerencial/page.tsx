@@ -51,6 +51,24 @@ type FiltrosVista = {
   soloReincidencias: boolean;
 };
 
+type TarjetaKpiGerencial = {
+  titulo: string;
+  valor: number | string;
+  color: string;
+  detalle: string;
+  sufijo?: string;
+  disponible?: boolean;
+};
+
+type GrupoKpiGerencial = {
+  titulo: string;
+  subtitulo: string;
+  foco: string;
+  tarjetas: TarjetaKpiGerencial[];
+};
+
+const LIMITE_REGISTROS_ANALISIS = 500;
+
 const filtrosIniciales: FiltrosVista = {
   empresa: "",
   obra: "",
@@ -194,6 +212,14 @@ function formatoNumero(valor: number, sufijo = "") {
   return `${valor.toLocaleString("es-CL")}${sufijo}`;
 }
 
+function formatoValorTarjeta(valor: TarjetaKpiGerencial["valor"], sufijo = "") {
+  return typeof valor === "number" ? formatoNumero(valor, sufijo) : valor;
+}
+
+function esHallazgoAbiertoGerencial(hallazgo: HallazgoKpiGerencial) {
+  return hallazgo.estado !== "CERRADO" && hallazgo.estado !== "ANULADO";
+}
+
 const textosKpiEn: Record<string, string> = {
   "Modulo gerencial preparado con fuente actual y fallback seguro.": "Management module ready with current source and safe fallback.",
   "Analisis actualizado con hallazgos disponibles para gerencia.": "Analysis updated with findings available for management.",
@@ -335,33 +361,59 @@ export default function KpiGerencialAvanzadoPage() {
   const traducirComparacion = (etiqueta: string) =>
     idiomaActivo === "en" ? t(etiqueta) : etiqueta;
   const resumenEjecutivoTraducido = () => {
-    if (idiomaActivo !== "en") return analisis.resumenEjecutivo;
+    const focoEmpresa = analisis.porEmpresa[0]?.nombre || "Sin empresa dominante";
+    const focoObra = analisis.porObra[0]?.nombre || "Sin obra dominante";
+    const focoArea = analisis.porArea[0]?.nombre || "Sin area dominante";
+
+    if (idiomaActivo !== "en") {
+      if (analisis.total === 0) {
+        return "No hay datos suficientes con los filtros seleccionados para emitir lectura gerencial.";
+      }
+
+      return `${metricasGerenciales.nivelRiesgo}. ${focoEmpresa} concentra la mayor carga, con foco operativo en ${focoObra} y ${focoArea}.`;
+    }
     if (analisis.total === 0) {
       return t("No hay datos suficientes para un analisis gerencial avanzado.");
     }
-    const empresaCritica = analisis.porEmpresa[0]?.nombre || "No dominant company";
-    const areaCritica = analisis.porArea[0]?.nombre || "No dominant area";
-    return `${analisis.total} ${pluralEn(analisis.total, "finding was", "findings were")} analyzed. ${empresaCritica} concentrates the highest operational load and ${areaCritica} requires priority preventive focus.`;
+    return `${metricasGerenciales.nivelRiesgo}. ${focoEmpresa} concentrates the highest operational load, with focus on ${focoObra} and ${focoArea}.`;
   };
   const riesgosTraducidos = () => {
-    if (idiomaActivo !== "en") return analisis.principalesRiesgos;
+    if (idiomaActivo !== "en") {
+      return [
+        metricasGerenciales.criticosAbiertos > 0
+          ? `${metricasGerenciales.criticosAbiertos} critico(s) abierto(s) requieren prioridad ejecutiva.`
+          : "Sin criticos abiertos en los registros cargados.",
+        metricasGerenciales.vencidosAbiertos > 0
+          ? `${metricasGerenciales.vencidosAbiertos} hallazgo(s) vencido(s) siguen abiertos.`
+          : "Sin vencidos abiertos en el filtro actual.",
+        metricasGerenciales.sinFechaCompromiso > 0
+          ? `${metricasGerenciales.sinFechaCompromiso} hallazgo(s) abierto(s) no tienen fecha compromiso.`
+          : "La base filtrada no muestra abiertos sin fecha compromiso.",
+      ];
+    }
     return [
-      analisis.criticos > 0
-        ? `${analisis.criticos} critical ${pluralEn(analisis.criticos, "finding", "findings")} in the filtered period.`
-        : t("Sin criticidad critica dominante."),
-      analisis.vencidos > 0
-        ? `${analisis.vencidos} overdue ${pluralEn(analisis.vencidos, "finding requires", "findings require")} action.`
-        : t("Sin vencimientos relevantes en el filtro."),
-      analisis.reincidenciasDetectadas > 0
-        ? `${analisis.reincidenciasDetectadas} recurrence ${pluralEn(analisis.reincidenciasDetectadas, "pattern detected", "patterns detected")}.`
-        : t("No se detectan reincidencias significativas."),
+      metricasGerenciales.criticosAbiertos > 0
+        ? `${metricasGerenciales.criticosAbiertos} open critical ${pluralEn(metricasGerenciales.criticosAbiertos, "finding requires", "findings require")} executive priority.`
+        : "No open critical findings in loaded records.",
+      metricasGerenciales.vencidosAbiertos > 0
+        ? `${metricasGerenciales.vencidosAbiertos} open overdue ${pluralEn(metricasGerenciales.vencidosAbiertos, "finding", "findings")}.`
+        : "No open overdue findings in the current filter.",
+      metricasGerenciales.sinFechaCompromiso > 0
+        ? `${metricasGerenciales.sinFechaCompromiso} open ${pluralEn(metricasGerenciales.sinFechaCompromiso, "finding has", "findings have")} no commitment date.`
+        : "No open findings without commitment date in the filtered base.",
     ];
   };
   const recomendacionTraducida = () => {
-    if (idiomaActivo !== "en") return analisis.recomendacionPreventiva;
-    return analisis.criticos + analisis.altos > 0 || analisis.vencidos > 0
-      ? "Prioritize closure of high-severity findings, review recurrences and validate real closure owners."
-      : t("Mantener controles preventivos, seguimiento de cierre y revision periodica por empresa y obra.");
+    if (idiomaActivo !== "en") {
+      if (metricasGerenciales.criticosAbiertos + metricasGerenciales.vencidosAbiertos > 0) {
+        return "Priorizar cierre de criticos y vencidos, exigir responsable real por empresa y revisar evidencia antes del proximo comite.";
+      }
+
+      return "Mantener seguimiento preventivo, validar responsables reales y sostener revision periodica por empresa, obra y area.";
+    }
+    return metricasGerenciales.criticosAbiertos + metricasGerenciales.vencidosAbiertos > 0
+      ? "Prioritize critical and overdue closure, require real company owners, and review evidence before the next committee."
+      : "Maintain preventive follow-up, validate real owners and keep periodic review by company, site and area.";
   };
   const pageThemeStyle: CSSProperties = {
     ...pageStyle,
@@ -472,6 +524,31 @@ export default function KpiGerencialAvanzadoPage() {
     [hallazgos, filtrosAnalisis]
   );
 
+  const metricasGerenciales = useMemo(() => {
+    const abiertos = analisis.hallazgos.filter(esHallazgoAbiertoGerencial);
+    const criticosAbiertos = abiertos.filter(
+      (hallazgo) => hallazgo.criticidad === "CRITICO"
+    ).length;
+    const sinFechaCompromiso = abiertos.filter(
+      (hallazgo) => !hallazgo.fechaCompromiso
+    ).length;
+    const nivelRiesgo =
+      criticosAbiertos > 0 || analisis.vencidos > 0
+        ? "Riesgo alto"
+        : analisis.altos > 0 || sinFechaCompromiso > 0
+          ? "Riesgo medio"
+          : "Riesgo controlado";
+
+    return {
+      abiertosReales: abiertos.length,
+      criticosAbiertos,
+      vencidosAbiertos: analisis.vencidos,
+      sinFechaCompromiso,
+      nivelRiesgo,
+      analisisLimitadoPorCarga: hallazgos.length >= LIMITE_REGISTROS_ANALISIS,
+    };
+  }, [analisis, hallazgos.length]);
+
   function activarBoton(id: string) {
     setAccionActiva(id);
     vibrarCorto();
@@ -523,33 +600,165 @@ export default function KpiGerencialAvanzadoPage() {
     setMensaje(texto);
   }
 
-  const tarjetas = [
-    [t("Total hallazgos"), analisis.total, "#38bdf8", t("Base analizada")],
-    [t("Abiertos"), analisis.abiertos, "#fb7185", t("Pendientes/no cerrados")],
-    [t("Cerrados"), analisis.cerrados, "#22c55e", t("Gestion completada")],
-    [t("Criticos"), analisis.criticos, "#ef4444", t("Mayor severidad")],
-    [t("Vencidos"), analisis.vencidos, "#f97316", t("Fuera de plazo")],
-    [t("Tasa cierre"), analisis.tasaCierre, "#a78bfa", t("Cumplimiento cierre"), "%"],
-    [t("Prom. cierre"), analisis.tiempoPromedioCierre, "#facc15", t("Dias promedio"), " d"],
-    [t("Empresas"), analisis.empresasActivas, "#60a5fa", t("Empresas activas")],
-    [t("Obras"), analisis.obrasActivas, "#2dd4bf", t("Proyectos activos")],
-    [t("Reincidencias"), analisis.reincidenciasDetectadas, "#f43f5e", t("Patrones repetidos")],
-    [t("Cumplimiento"), analisis.cumplimientoGeneral, "#34d399", t("Indice general"), "%"],
-    [t("Preventivo"), analisis.indicadorPreventivoGlobal, "#818cf8", t("Indicador global"), "%"],
-  ] as const;
+  const gruposKpi: GrupoKpiGerencial[] = [
+    {
+      titulo: "Estado general operativo",
+      subtitulo: "Volumen base y estado operativo de los registros filtrados.",
+      foco: "Operacion",
+      tarjetas: [
+        {
+          titulo: "Total reportado",
+          valor: analisis.total,
+          color: "#38bdf8",
+          detalle: "Registros cargados en el analisis",
+        },
+        {
+          titulo: "Abiertos reales",
+          valor: metricasGerenciales.abiertosReales,
+          color: "#fb7185",
+          detalle: "No cerrados ni anulados",
+        },
+        {
+          titulo: "Cerrados",
+          valor: analisis.cerrados,
+          color: "#22c55e",
+          detalle: "Estado operativo cerrado",
+        },
+      ],
+    },
+    {
+      titulo: "Riesgo urgente",
+      subtitulo: "Prioridades que requieren atencion gerencial inmediata.",
+      foco: "Riesgo",
+      tarjetas: [
+        {
+          titulo: "Criticos abiertos",
+          valor: metricasGerenciales.criticosAbiertos,
+          color: "#ef4444",
+          detalle: "Criticidad maxima aun abierta",
+        },
+        {
+          titulo: "Vencidos abiertos",
+          valor: metricasGerenciales.vencidosAbiertos,
+          color: "#f97316",
+          detalle: "Fuera de plazo y no cerrados",
+        },
+        {
+          titulo: "Sin fecha compromiso",
+          valor: metricasGerenciales.sinFechaCompromiso,
+          color: "#facc15",
+          detalle: "Abiertos sin trazabilidad de plazo",
+        },
+      ],
+    },
+    {
+      titulo: "Gestion de cierre",
+      subtitulo: "Lectura de avance con las trazas disponibles hoy.",
+      foco: "Cierre",
+      tarjetas: [
+        {
+          titulo: "Tasa cierre",
+          valor: analisis.tasaCierre,
+          color: "#a78bfa",
+          detalle: "Cerrados sobre total filtrado",
+          sufijo: "%",
+        },
+        {
+          titulo: "Prom. cierre",
+          valor: analisis.tiempoPromedioCierre,
+          color: "#facc15",
+          detalle: "Dias promedio con fecha cierre",
+          sufijo: " d",
+        },
+        {
+          titulo: "Pendiente evidencia",
+          valor: "No disponible",
+          color: "#94a3b8",
+          detalle: "Requiere trazabilidad de evidencia de cierre",
+          disponible: false,
+        },
+      ],
+    },
+    {
+      titulo: "Comparacion gerencial",
+      subtitulo: "Dimensiones para preparar comites y reuniones por contrato.",
+      foco: "Comparacion",
+      tarjetas: [
+        {
+          titulo: "Empresas",
+          valor: analisis.empresasActivas,
+          color: "#60a5fa",
+          detalle: "Empresas presentes en el filtro",
+        },
+        {
+          titulo: "Obras",
+          valor: analisis.obrasActivas,
+          color: "#2dd4bf",
+          detalle: "Proyectos activos filtrados",
+        },
+        {
+          titulo: "Reincidencias",
+          valor: analisis.reincidenciasDetectadas,
+          color: "#f43f5e",
+          detalle: "Patrones repetidos detectados",
+        },
+      ],
+    },
+  ];
 
-  const rankingPrincipal =
-    modoAnalisis === "ranking-areas"
-      ? analisis.porArea
-      : modoAnalisis === "ranking-obras"
-        ? analisis.porObra
-        : modoAnalisis === "ranking-tipos"
-          ? analisis.porTipo
-          : modoAnalisis === "ranking-responsables"
-            ? analisis.porResponsable
-            : analisis.porEmpresa;
+  const rankingPrincipal = (() => {
+    if (modoAnalisis === "ranking-areas") return analisis.porArea;
+    if (modoAnalisis === "ranking-obras") return analisis.porObra;
+    if (modoAnalisis === "ranking-tipos") return analisis.porTipo;
+    if (modoAnalisis === "ranking-responsables") return analisis.porResponsable;
+    if (modoAnalisis === "cierres") return analisis.porResponsable;
+    if (modoAnalisis === "reincidencias") return analisis.porTipo;
+    return analisis.porEmpresa;
+  })();
+  const rankingTitulo =
+    modoAnalisis === "ranking-obras"
+      ? "Ranking de obras"
+      : modoAnalisis === "ranking-areas"
+        ? "Ranking de areas"
+        : modoAnalisis === "ranking-tipos" || modoAnalisis === "reincidencias"
+          ? "Ranking de tipos"
+          : modoAnalisis === "ranking-responsables" || modoAnalisis === "cierres"
+            ? "Responsables de cierre"
+            : "Ranking de empresas";
+  const rankingSubtitulo =
+    modoAnalisis === "vencidos"
+      ? "Enfoque visual sobre carga y vencidos por empresa. El listado exacto queda para KPI-D."
+      : modoAnalisis === "criticidad"
+        ? "Lectura de concentracion con criticidad visible en las barras y panel lateral."
+        : modoAnalisis === "cierres"
+          ? "Comparacion por responsable disponible en los registros cargados."
+          : modoAnalisis === "reincidencias"
+            ? "Tipos repetidos que ayudan a orientar prevencion."
+            : "Comparacion segun los filtros activos y los registros cargados.";
   const maxRanking = maximoRanking(rankingPrincipal);
   const maxTendencia = Math.max(1, ...analisis.tendenciaTemporal.map((item) => item.total));
+  const rankingsSecundarios = [
+    {
+      titulo: "Empresas",
+      subtitulo: "Carga total por empresa reportada.",
+      data: analisis.porEmpresa,
+    },
+    {
+      titulo: "Obras",
+      subtitulo: "Concentracion por proyecto u obra.",
+      data: analisis.porObra,
+    },
+    {
+      titulo: "Areas",
+      subtitulo: "Zonas operativas con mayor repeticion.",
+      data: analisis.porArea,
+    },
+    {
+      titulo: "Tipos",
+      subtitulo: "Familias de hallazgo mas frecuentes.",
+      data: analisis.porTipo,
+    },
+  ];
 
   return (
     <main className="ce-panel-page ce-panel-kpi-page" style={pageThemeStyle}>
@@ -595,39 +804,107 @@ export default function KpiGerencialAvanzadoPage() {
               type="button"
               onClick={() =>
                 aplicarAccion(
-                  "informe",
-                  "Informe ejecutivo preparado visualmente. PDF/Excel real se conectara en etapa posterior."
+                  "resumen-ejecutivo",
+                  "Vista resumen ejecutivo activa. Es un borrador visual, no una exportacion final."
                 )
               }
-              style={botonStyle("informe", true)}
+              style={botonStyle("resumen-ejecutivo", true)}
             >
-              {t("Preparar informe")}
+              {t("Vista resumen ejecutivo")}
             </button>
           </div>
         </header>
 
-        <section style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(150px, 1fr))", gap: "12px" }}>
-          {tarjetas.map(([titulo, valor, color, detalle, sufijo]) => (
+        <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: "14px" }}>
+          {gruposKpi.map((grupo) => (
             <article
-              key={titulo}
+              key={grupo.titulo}
               style={{
                 ...themedSurfaceStyle,
                 padding: "16px",
-                minHeight: "126px",
                 background: fondoTarjeta,
+                display: "grid",
+                gap: "12px",
+                alignContent: "start",
               }}
             >
-              <div style={{ fontSize: "11px", color: textoMedio, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.7px" }}>
-                {titulo}
+              <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start" }}>
+                <div>
+                  <div style={{ fontSize: "11px", color: textoAzul, fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.7px" }}>
+                    {grupo.foco}
+                  </div>
+                  <h2 style={{ margin: "5px 0 0", fontSize: "17px", lineHeight: 1.15, fontWeight: 950, color: textoPrincipal }}>
+                    {grupo.titulo}
+                  </h2>
+                </div>
               </div>
-              <div style={{ marginTop: "9px", fontSize: "34px", lineHeight: 1, fontWeight: 950, color, textShadow: `0 0 20px ${color}66` }}>
-                {formatoNumero(valor, sufijo || "")}
-              </div>
-              <div style={{ marginTop: "9px", color: textoSuave, fontSize: "12px", lineHeight: 1.35, fontWeight: 750 }}>
-                {detalle}
+              <p style={{ margin: 0, color: textoSuave, fontSize: "12px", lineHeight: 1.45, fontWeight: 750 }}>
+                {grupo.subtitulo}
+              </p>
+              <div style={{ display: "grid", gap: "9px" }}>
+                {grupo.tarjetas.map((tarjeta) => {
+                  const disponible = tarjeta.disponible !== false;
+                  return (
+                    <div
+                      key={tarjeta.titulo}
+                      style={{
+                        borderRadius: "18px",
+                        background: fondoInterno,
+                        border: bordeInterno,
+                        padding: "12px",
+                        minHeight: "92px",
+                        opacity: disponible ? 1 : 0.82,
+                      }}
+                    >
+                      <div style={{ fontSize: "10px", color: textoMedio, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                        {tarjeta.titulo}
+                      </div>
+                      <div
+                        style={{
+                          marginTop: "8px",
+                          fontSize: typeof tarjeta.valor === "number" ? "30px" : "18px",
+                          lineHeight: 1,
+                          fontWeight: 950,
+                          color: tarjeta.color,
+                          textShadow: disponible ? `0 0 18px ${tarjeta.color}55` : "none",
+                        }}
+                      >
+                        {formatoValorTarjeta(tarjeta.valor, tarjeta.sufijo || "")}
+                      </div>
+                      <div style={{ marginTop: "8px", color: textoSuave, fontSize: "11px", lineHeight: 1.35, fontWeight: 750 }}>
+                        {tarjeta.detalle}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </article>
           ))}
+        </section>
+
+        <section
+          style={{
+            ...themedSurfaceStyle,
+            padding: "14px 16px",
+            display: "flex",
+            justifyContent: "space-between",
+            gap: "14px",
+            alignItems: "center",
+            flexWrap: "wrap",
+            background: temaClaro ? "rgba(255,255,255,0.72)" : "rgba(15,23,42,0.58)",
+          }}
+        >
+          <div>
+            <div style={{ fontSize: "11px", color: textoAzul, fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.7px" }}>
+              Nota de trazabilidad
+            </div>
+            <div style={{ marginTop: "4px", color: textoSuave, fontSize: "12px", lineHeight: 1.45, fontWeight: 750 }}>
+              Esta vista analiza los registros cargados en el panel. Agregaciones server-side, paginacion masiva y exportaciones reales quedan para fases posteriores.
+            </div>
+          </div>
+          <div style={{ color: metricasGerenciales.analisisLimitadoPorCarga ? "#facc15" : textoAzul, fontSize: "12px", fontWeight: 950, whiteSpace: "nowrap" }}>
+            {metricasGerenciales.analisisLimitadoPorCarga ? "Carga al limite actual" : "Alcance visible"}
+          </div>
         </section>
 
         <section
@@ -786,9 +1063,14 @@ export default function KpiGerencialAvanzadoPage() {
               {t("Solo reincidencias")}
             </label>
 
-            <button type="button" onClick={() => aplicarAccion("aplicar", "Filtros aplicados al analisis gerencial.")} style={botonStyle("aplicar", true)}>
-              {t("Aplicar filtros")}
-            </button>
+            <div style={{ borderRadius: "16px", padding: "12px", background: fondoInterno, border: bordeInterno }}>
+              <div style={{ fontSize: "11px", color: textoAzul, fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.6px" }}>
+                Filtros reactivos
+              </div>
+              <div style={{ marginTop: "5px", color: textoSuave, fontSize: "12px", lineHeight: 1.4, fontWeight: 750 }}>
+                Los indicadores se recalculan automaticamente al cambiar una condicion.
+              </div>
+            </div>
             <button type="button" onClick={limpiarFiltros} style={botonStyle("limpiar")}>
               {t("Limpiar filtros")}
             </button>
@@ -808,10 +1090,10 @@ export default function KpiGerencialAvanzadoPage() {
                     ["ranking-empresas", "Ranking empresas", "Ranking de empresas activo."],
                     ["ranking-obras", "Comparar obras", "Comparacion por obras activa."],
                     ["ranking-areas", "Ranking areas", "Ranking de areas activo."],
-                    ["criticidad", "Ver criticidad", "Distribucion por criticidad activa."],
-                    ["cierres", "Ver cierres", "Analisis de cierres activo."],
-                    ["vencidos", "Ver vencidos", "Foco en hallazgos vencidos activo."],
-                    ["reincidencias", "Ver reincidencias", "Lectura de reincidencias activa."],
+                    ["criticidad", "Enfocar criticidad", "Enfoque visual en criticidad activo. No abre listado individual todavia."],
+                    ["cierres", "Enfocar cierres", "Enfoque visual en gestion de cierre activo. Drill-down queda para KPI-D."],
+                    ["vencidos", "Enfocar vencidos", "Enfoque visual en vencidos activo. Listado exacto queda para KPI-D."],
+                    ["reincidencias", "Enfocar reincidencias", "Enfoque visual en reincidencias activo. Detalle accionable queda para KPI-D."],
                   ].map(([id, label, texto]) => (
                     <button key={id} type="button" onClick={() => aplicarAccion(id, texto)} style={botonStyle(id, id === modoAnalisis)}>
                       {t(label)}
@@ -830,9 +1112,14 @@ export default function KpiGerencialAvanzadoPage() {
               ) : (
                 <div className="ce-panel-kpi-analysis-grid" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.35fr) minmax(330px, 0.85fr)", gap: "16px", alignItems: "stretch" }}>
                   <div style={{ borderRadius: "24px", padding: "18px", background: fondoInterno, border: bordeInterno }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "14px" }}>
-                      <div style={{ fontSize: "15px", fontWeight: 950 }}>{t("Ranking comparativo")}</div>
-                      <div style={{ fontSize: "12px", color: textoAzul, fontWeight: 900 }}>{modoAnalisis.replace("-", " ")}</div>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "14px", gap: "12px" }}>
+                      <div>
+                        <div style={{ fontSize: "15px", fontWeight: 950 }}>{rankingTitulo}</div>
+                        <div style={{ marginTop: "4px", fontSize: "12px", color: textoSuave, lineHeight: 1.35, fontWeight: 750 }}>
+                          {rankingSubtitulo}
+                        </div>
+                      </div>
+                      <div style={{ fontSize: "12px", color: textoAzul, fontWeight: 900, whiteSpace: "nowrap" }}>{modoAnalisis.replace("-", " ")}</div>
                     </div>
                     <div style={{ display: "grid", gap: "10px" }}>
                       {rankingPrincipal.slice(0, 8).map((item, index) => {
@@ -912,9 +1199,9 @@ export default function KpiGerencialAvanzadoPage() {
 
           <aside className="ce-panel-kpi-report" style={{ ...themedSurfaceStyle, padding: "18px", display: "grid", gap: "14px" }}>
             <div>
-              <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 950 }}>{t("Informe ejecutivo preparado")}</h2>
+              <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 950 }}>{t("Resumen ejecutivo visual")}</h2>
               <p style={{ margin: "6px 0 0", color: textoSuave, fontSize: "12px", lineHeight: 1.45, fontWeight: 700 }}>
-                {t("Resumen automatico listo para futura salida PDF/Excel.")}
+                {t("Borrador gerencial segun filtros activos. Exportacion real pendiente.")}
               </p>
             </div>
 
@@ -923,6 +1210,20 @@ export default function KpiGerencialAvanzadoPage() {
               <p style={{ margin: "8px 0 0", color: textoPrincipal, lineHeight: 1.5, fontSize: "14px", fontWeight: 750 }}>
                 {resumenEjecutivoTraducido()}
               </p>
+            </div>
+
+            <div style={{ display: "grid", gap: "8px" }}>
+              <div style={{ fontSize: "12px", color: textoAzul, fontWeight: 950 }}>Foco gerencial</div>
+              {[
+                ["Empresa", analisis.porEmpresa[0]?.nombre || "Sin datos"],
+                ["Obra", analisis.porObra[0]?.nombre || "Sin datos"],
+                ["Area", analisis.porArea[0]?.nombre || "Sin datos"],
+              ].map(([label, valor]) => (
+                <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: "10px", borderRadius: "14px", padding: "10px 12px", background: fondoInterno, border: bordeInterno, color: textoMedio, fontSize: "12px", fontWeight: 800 }}>
+                  <span style={{ color: textoSuave }}>{label}</span>
+                  <strong style={{ color: textoPrincipal, textAlign: "right" }}>{valor}</strong>
+                </div>
+              ))}
             </div>
 
             <div style={{ display: "grid", gap: "10px" }}>
@@ -942,26 +1243,46 @@ export default function KpiGerencialAvanzadoPage() {
             </div>
 
             <div style={{ display: "grid", gap: "9px" }}>
-              <button type="button" onClick={() => aplicarAccion("pdf", "PDF preparado visualmente. Generacion real pendiente de etapa posterior.")} style={botonStyle("pdf", true)}>
-                {t("Exportar PDF")}
+              <button
+                type="button"
+                disabled
+                title="Exportacion real pendiente de implementacion."
+                style={{ ...botonStyle("pdf"), opacity: 0.58, cursor: "not-allowed", color: textoSuave }}
+              >
+                {t("PDF proximamente")}
               </button>
-              <button type="button" onClick={() => aplicarAccion("excel", "Excel preparado visualmente. Exportacion real pendiente de etapa posterior.")} style={botonStyle("excel")}>
-                {t("Exportar Excel")}
+              <button
+                type="button"
+                disabled
+                title="Exportacion real pendiente de implementacion."
+                style={{ ...botonStyle("excel"), opacity: 0.58, cursor: "not-allowed", color: textoSuave }}
+              >
+                {t("Excel proximamente")}
               </button>
+              <div style={{ color: textoSuave, fontSize: "11px", lineHeight: 1.4, fontWeight: 750 }}>
+                Exportacion real pendiente de implementacion.
+              </div>
             </div>
 
             <div style={{ display: "grid", gap: "9px" }}>
-              <div style={{ fontSize: "12px", color: textoAzul, fontWeight: 950 }}>{t("Rankings adicionales")}</div>
-              {[
-                ["ranking-empresas", "Empresas con mas hallazgos"],
-                ["ranking-areas", "Areas con mas hallazgos"],
-                ["ranking-tipos", "Tipos mas frecuentes"],
-                ["ranking-responsables", "Responsables pendientes"],
-              ].map(([id, label]) => (
-                <button key={id} type="button" onClick={() => aplicarAccion(id, `${label} activo.`)} style={{ ...botonStyle(id), justifyContent: "space-between" }}>
-                  <span>{t(label)}</span>
-                  <span>→</span>
-                </button>
+              <div style={{ fontSize: "12px", color: textoAzul, fontWeight: 950 }}>{t("Rankings gerenciales")}</div>
+              {rankingsSecundarios.map((ranking) => (
+                <div key={ranking.titulo} style={{ borderRadius: "18px", padding: "12px", background: fondoInterno, border: bordeInterno, display: "grid", gap: "8px" }}>
+                  <div>
+                    <div style={{ fontSize: "12px", color: textoPrincipal, fontWeight: 950 }}>{ranking.titulo}</div>
+                    <div style={{ marginTop: "3px", fontSize: "11px", color: textoSuave, lineHeight: 1.35, fontWeight: 750 }}>{ranking.subtitulo}</div>
+                  </div>
+                  {ranking.data.slice(0, 3).map((item, index) => (
+                    <div key={`${ranking.titulo}-${item.nombre}`} style={{ display: "grid", gridTemplateColumns: "20px minmax(0, 1fr) auto", gap: "8px", alignItems: "center", color: textoMedio, fontSize: "11px", fontWeight: 850 }}>
+                      <span style={{ color: textoAzul }}>{index + 1}</span>
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.nombre}</span>
+                      <span style={{ color: textoPrincipal }}>{item.total}</span>
+                    </div>
+                  ))}
+                  {ranking.data.length === 0 && (
+                    <div style={{ color: textoSuave, fontSize: "11px", fontWeight: 750 }}>Sin datos con los filtros actuales.</div>
+                  )}
+                </div>
               ))}
             </div>
           </aside>
