@@ -78,6 +78,14 @@ type GrupoKpiGerencial = {
   tarjetas: TarjetaKpiGerencial[];
 };
 
+type FocoDetalleAccionable =
+  | "todos"
+  | "abiertos"
+  | "criticos-abiertos"
+  | "vencidos-abiertos"
+  | "sin-fecha-compromiso"
+  | "cerrados";
+
 const LIMITE_REGISTROS_ANALISIS = 500;
 
 const filtrosIniciales: FiltrosVista = {
@@ -247,6 +255,42 @@ function formatoValorTarjeta(valor: TarjetaKpiGerencial["valor"], sufijo = "") {
 
 function esHallazgoAbiertoGerencial(hallazgo: HallazgoKpiGerencial) {
   return hallazgo.estado !== "CERRADO" && hallazgo.estado !== "ANULADO";
+}
+
+function fechaCortaDetalle(valor?: string) {
+  if (!valor) return "Sin fecha";
+  const fecha = new Date(valor);
+  if (Number.isNaN(fecha.getTime())) return "Sin fecha";
+  return fecha.toLocaleDateString("es-CL");
+}
+
+function esHallazgoVencidoDetalle(hallazgo: HallazgoKpiGerencial) {
+  if (!esHallazgoAbiertoGerencial(hallazgo) || !hallazgo.fechaCompromiso) {
+    return false;
+  }
+  const compromiso = new Date(hallazgo.fechaCompromiso);
+  const hoy = new Date();
+  if (Number.isNaN(compromiso.getTime())) return false;
+  compromiso.setHours(0, 0, 0, 0);
+  hoy.setHours(0, 0, 0, 0);
+  return compromiso < hoy;
+}
+
+function diasVencidoDetalle(hallazgo: HallazgoKpiGerencial) {
+  if (!esHallazgoVencidoDetalle(hallazgo) || !hallazgo.fechaCompromiso) return 0;
+  const compromiso = new Date(hallazgo.fechaCompromiso);
+  const hoy = new Date();
+  compromiso.setHours(0, 0, 0, 0);
+  hoy.setHours(0, 0, 0, 0);
+  return Math.max(1, Math.ceil((hoy.getTime() - compromiso.getTime()) / 86400000));
+}
+
+function colorEstadoDetalle(estado: EstadoKpiGerencial) {
+  if (estado === "CERRADO") return "#22c55e";
+  if (estado === "EN_SEGUIMIENTO") return "#38bdf8";
+  if (estado === "ABIERTO") return "#f97316";
+  if (estado === "ANULADO") return "#94a3b8";
+  return "#a78bfa";
 }
 
 const textosKpiEn: Record<string, string> = {
@@ -545,6 +589,12 @@ export default function KpiGerencialAvanzadoPage() {
   const [accionActiva, setAccionActiva] = useState("");
   const [modoAnalisis, setModoAnalisis] = useState("ranking-empresas");
   const [mensaje, setMensaje] = useState("Modulo gerencial preparado con fuente actual y fallback seguro.");
+  const [focoDetalleAccionable, setFocoDetalleAccionable] =
+    useState<FocoDetalleAccionable>("todos");
+  const [busquedaDetalleAccionable, setBusquedaDetalleAccionable] = useState("");
+  const [limiteDetalleAccionable, setLimiteDetalleAccionable] = useState(20);
+  const [paginaDetalleAccionable, setPaginaDetalleAccionable] = useState(1);
+  const [hallazgoDetalleAbierto, setHallazgoDetalleAbierto] = useState("");
 
   async function cargarDatos() {
     try {
@@ -676,6 +726,134 @@ export default function KpiGerencialAvanzadoPage() {
       ].filter(Boolean) as string[],
     [filtros]
   );
+
+  const detalleAccionableBase = useMemo(() => {
+    if (focoDetalleAccionable === "abiertos") {
+      return analisis.hallazgos.filter(esHallazgoAbiertoGerencial);
+    }
+    if (focoDetalleAccionable === "criticos-abiertos") {
+      return analisis.hallazgos.filter(
+        (hallazgo) =>
+          hallazgo.criticidad === "CRITICO" &&
+          esHallazgoAbiertoGerencial(hallazgo)
+      );
+    }
+    if (focoDetalleAccionable === "vencidos-abiertos") {
+      return analisis.hallazgos.filter(esHallazgoVencidoDetalle);
+    }
+    if (focoDetalleAccionable === "sin-fecha-compromiso") {
+      return analisis.hallazgos.filter(
+        (hallazgo) =>
+          esHallazgoAbiertoGerencial(hallazgo) && !hallazgo.fechaCompromiso
+      );
+    }
+    if (focoDetalleAccionable === "cerrados") {
+      return analisis.hallazgos.filter((hallazgo) => hallazgo.estado === "CERRADO");
+    }
+    return analisis.hallazgos;
+  }, [analisis.hallazgos, focoDetalleAccionable]);
+
+  const detalleAccionableFiltrado = useMemo(() => {
+    const busqueda = normalizarTexto(busquedaDetalleAccionable.trim());
+    if (!busqueda) return detalleAccionableBase;
+
+    return detalleAccionableBase.filter((hallazgo) =>
+      normalizarTexto(
+        [
+          hallazgo.codigo,
+          hallazgo.empresaResponsable || "Sin empresa responsable",
+          hallazgo.empresaReportante || hallazgo.empresa,
+          hallazgo.obra,
+          hallazgo.area,
+          hallazgo.tipoHallazgo,
+          hallazgo.responsableCierre || "Sin responsable",
+          hallazgo.criticidad,
+          hallazgo.estado,
+          hallazgo.estadoCierre || "",
+        ].join(" ")
+      ).includes(busqueda)
+    );
+  }, [busquedaDetalleAccionable, detalleAccionableBase]);
+
+  const totalDetalleAccionable = detalleAccionableFiltrado.length;
+  const totalPaginasDetalleAccionable = Math.max(
+    1,
+    Math.ceil(totalDetalleAccionable / limiteDetalleAccionable)
+  );
+  const paginaDetalleVisible = Math.min(
+    paginaDetalleAccionable,
+    totalPaginasDetalleAccionable
+  );
+  const inicioDetalleAccionable =
+    totalDetalleAccionable === 0
+      ? 0
+      : (paginaDetalleVisible - 1) * limiteDetalleAccionable + 1;
+  const finDetalleAccionable = Math.min(
+    paginaDetalleVisible * limiteDetalleAccionable,
+    totalDetalleAccionable
+  );
+  const hallazgosDetalleAccionablePagina = useMemo(
+    () =>
+      detalleAccionableFiltrado.slice(
+        (paginaDetalleVisible - 1) * limiteDetalleAccionable,
+        paginaDetalleVisible * limiteDetalleAccionable
+      ),
+    [detalleAccionableFiltrado, limiteDetalleAccionable, paginaDetalleVisible]
+  );
+  const etiquetaFocoDetalleAccionable =
+    focoDetalleAccionable === "abiertos"
+      ? "Abiertos"
+      : focoDetalleAccionable === "criticos-abiertos"
+        ? "Criticos abiertos"
+        : focoDetalleAccionable === "vencidos-abiertos"
+          ? "Vencidos abiertos"
+          : focoDetalleAccionable === "sin-fecha-compromiso"
+            ? "Sin fecha compromiso"
+            : focoDetalleAccionable === "cerrados"
+              ? "Cerrados"
+              : "Todos";
+
+  useEffect(() => {
+    setPaginaDetalleAccionable(1);
+    setHallazgoDetalleAbierto("");
+  }, [busquedaDetalleAccionable, focoDetalleAccionable, limiteDetalleAccionable]);
+
+  useEffect(() => {
+    if (paginaDetalleAccionable > totalPaginasDetalleAccionable) {
+      setPaginaDetalleAccionable(totalPaginasDetalleAccionable);
+    }
+  }, [paginaDetalleAccionable, totalPaginasDetalleAccionable]);
+
+  async function copiarResumenDetalle(texto: string, mensajeOk: string) {
+    activarBoton("copiar-detalle-accionable");
+    try {
+      await navigator.clipboard.writeText(texto);
+      setMensaje(mensajeOk);
+    } catch {
+      setMensaje("No se pudo copiar automaticamente. El resumen sigue disponible en pantalla.");
+    }
+  }
+
+  function resumenHallazgoDetalle(hallazgo: HallazgoKpiGerencial) {
+    const vencimiento = esHallazgoVencidoDetalle(hallazgo)
+      ? `${diasVencidoDetalle(hallazgo)} dia(s) vencido`
+      : hallazgo.fechaCompromiso
+        ? "En plazo o cerrado"
+        : "Sin fecha compromiso";
+
+    return [
+      `Codigo: ${hallazgo.codigo}`,
+      `Empresa responsable: ${hallazgo.empresaResponsable || "Sin empresa responsable"}`,
+      `Empresa reportante: ${hallazgo.empresaReportante || hallazgo.empresa}`,
+      `Obra/area: ${hallazgo.obra} / ${hallazgo.area}`,
+      `Tipo: ${hallazgo.tipoHallazgo}`,
+      `Criticidad: ${hallazgo.criticidad}`,
+      `Estado: ${hallazgo.estado}`,
+      `Fecha compromiso: ${fechaCortaDetalle(hallazgo.fechaCompromiso)}`,
+      `Vencimiento: ${vencimiento}`,
+      `Responsable cierre: ${hallazgo.responsableCierre || "Sin responsable"}`,
+    ].join("\n");
+  }
 
   function activarBoton(id: string) {
     setAccionActiva(id);
@@ -1494,6 +1672,7 @@ export default function KpiGerencialAvanzadoPage() {
                 </div>
               </div>
             </section>
+
           </section>
 
           <aside className="ce-panel-kpi-report" style={{ ...themedSurfaceStyle, padding: "18px", display: "grid", gap: "14px" }}>
@@ -1586,6 +1765,309 @@ export default function KpiGerencialAvanzadoPage() {
               ))}
             </div>
           </aside>
+            <section style={{ ...themedSurfaceStyle, padding: "18px", display: "grid", gap: "14px", width: "100%", maxWidth: "none", minWidth: 0, alignSelf: "stretch", justifySelf: "stretch", boxSizing: "border-box", gridColumn: "1 / -1" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start", flexWrap: "wrap" }}>
+                <div>
+                  <div style={{ fontSize: "11px", color: textoAzul, fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.7px" }}>
+                    Detalle accionable
+                  </div>
+                  <h2 style={{ margin: "5px 0 0", fontSize: "21px", lineHeight: 1.15, fontWeight: 950 }}>
+                    Hallazgos del analisis
+                  </h2>
+                  <p style={{ margin: "7px 0 0", color: textoMedio, fontSize: "13px", lineHeight: 1.45, fontWeight: 750 }}>
+                    {totalDetalleAccionable > 0
+                      ? `Mostrando ${inicioDetalleAccionable}-${finDetalleAccionable} de ${totalDetalleAccionable} hallazgo(s) del analisis con los filtros actuales.`
+                      : busquedaDetalleAccionable.trim()
+                        ? "No hay coincidencias para esta busqueda dentro del foco seleccionado."
+                        : "No hay hallazgos asociados a este foco con los filtros actuales."}
+                  </p>
+                </div>
+                <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                  <div style={{ borderRadius: "999px", padding: "8px 11px", background: fondoInterno, border: bordeInterno, color: textoAzul, fontSize: "12px", fontWeight: 950 }}>
+                    Foco: {etiquetaFocoDetalleAccionable}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void copiarResumenDetalle(
+                        `Detalle accionable\nFoco: ${etiquetaFocoDetalleAccionable}\nTotal: ${totalDetalleAccionable}\nMostrando: ${inicioDetalleAccionable}-${finDetalleAccionable}`,
+                        "Resumen del detalle accionable copiado al portapapeles."
+                      )
+                    }
+                    style={{ ...botonStyle("copiar-detalle-accionable"), minHeight: "38px", padding: "9px 12px", fontSize: "12px" }}
+                  >
+                    Copiar resumen
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ borderRadius: "18px", padding: "12px", background: fondoInterno, border: bordeInterno, display: "grid", gap: "12px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+                  <div style={{ display: "flex", gap: "7px", flexWrap: "wrap" }}>
+                    {[
+                      ["todos", "Todos"],
+                      ["abiertos", "Abiertos"],
+                      ["criticos-abiertos", "Criticos abiertos"],
+                      ["vencidos-abiertos", "Vencidos abiertos"],
+                      ["sin-fecha-compromiso", "Sin fecha compromiso"],
+                      ["cerrados", "Cerrados"],
+                    ].map(([valor, etiqueta]) => {
+                      const activo = focoDetalleAccionable === valor;
+                      return (
+                        <button
+                          key={valor}
+                          type="button"
+                          onClick={() => setFocoDetalleAccionable(valor as FocoDetalleAccionable)}
+                          style={{
+                            borderRadius: "999px",
+                            border: activo ? "1px solid rgba(96,165,250,0.52)" : bordeInterno,
+                            background: activo
+                              ? "linear-gradient(135deg, rgba(37,99,235,0.86), rgba(14,165,233,0.62))"
+                              : fondoInternoFuerte,
+                            color: activo ? "#ffffff" : textoMedio,
+                            minHeight: "34px",
+                            padding: "7px 10px",
+                            fontSize: "11px",
+                            fontWeight: 950,
+                            cursor: "pointer",
+                          }}
+                        >
+                          {etiqueta}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                    <label style={{ display: "grid", gap: "5px", minWidth: "230px" }}>
+                      <span style={{ color: textoSuave, fontSize: "10px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                        Buscar en detalle
+                      </span>
+                      <input
+                        type="search"
+                        value={busquedaDetalleAccionable}
+                        onChange={(event) => setBusquedaDetalleAccionable(event.target.value)}
+                        placeholder="Codigo, empresa, obra, area..."
+                        style={{ ...themedInputStyle, minHeight: "38px" }}
+                      />
+                    </label>
+                    {detalleAccionableBase.length > 20 && (
+                      <label style={{ display: "grid", gap: "5px", width: "96px" }}>
+                        <span style={{ color: textoSuave, fontSize: "10px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                          Ver
+                        </span>
+                        <select
+                          value={limiteDetalleAccionable}
+                          onChange={(event) => setLimiteDetalleAccionable(Number(event.target.value))}
+                          style={{ ...themedInputStyle, minHeight: "38px" }}
+                        >
+                          {[20, 40, 60].map((limite) => (
+                            <option key={limite} value={limite}>
+                              {limite}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: "7px", flexWrap: "wrap" }}>
+                  {filtrosActivosResumen.length > 0 ? (
+                    filtrosActivosResumen.map((filtro) => (
+                      <span key={`detalle-${filtro}`} style={{ borderRadius: "999px", padding: "6px 9px", background: fondoInternoFuerte, border: bordeInterno, color: textoMedio, fontSize: "11px", fontWeight: 850 }}>
+                        {filtro}
+                      </span>
+                    ))
+                  ) : (
+                    <span style={{ color: textoSuave, fontSize: "12px", fontWeight: 750 }}>
+                      Vista general sin filtros maestros activos.
+                    </span>
+                  )}
+                  {busquedaDetalleAccionable.trim() && (
+                    <span style={{ borderRadius: "999px", padding: "6px 9px", background: temaClaro ? "rgba(37,99,235,0.10)" : "rgba(56,189,248,0.10)", border: temaClaro ? "1px solid rgba(37,99,235,0.20)" : "1px solid rgba(125,211,252,0.22)", color: textoAzul, fontSize: "11px", fontWeight: 900 }}>
+                      Busqueda: {busquedaDetalleAccionable.trim()}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {detalleAccionableBase.length === 0 ? (
+                <div style={{ borderRadius: "18px", padding: "22px", background: fondoInterno, border: bordeInterno, textAlign: "center", color: textoMedio, fontSize: "14px", fontWeight: 800 }}>
+                  No hay hallazgos asociados a este foco con los filtros actuales.
+                </div>
+              ) : totalDetalleAccionable === 0 ? (
+                <div style={{ borderRadius: "18px", padding: "22px", background: fondoInterno, border: bordeInterno, textAlign: "center", color: textoMedio, fontSize: "14px", fontWeight: 800 }}>
+                  No hay coincidencias para esta busqueda dentro del foco seleccionado.
+                </div>
+              ) : (
+                <div style={{ display: "grid", gap: "8px", overflowX: "auto", paddingBottom: "2px", width: "100%", maxWidth: "none", minWidth: 0, justifyItems: "stretch" }}>
+                  <div style={{ width: "100%", minWidth: "1180px", maxWidth: "none", display: "grid", gridTemplateColumns: "minmax(96px, 0.75fr) minmax(0, 1.55fr) minmax(0, 1.2fr) minmax(96px, 0.65fr) minmax(106px, 0.7fr) minmax(118px, 0.8fr) minmax(0, 1fr) minmax(104px, auto)", gap: "10px", alignItems: "center", padding: "0 10px 2px", color: textoSuave, fontSize: "10px", fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.45px", boxSizing: "border-box" }}>
+                    <span>Codigo</span>
+                    <span>Responsable / reporta</span>
+                    <span>Obra / area</span>
+                    <span>Criticidad</span>
+                    <span>Estado</span>
+                    <span>Plazo</span>
+                    <span>Responsable cierre</span>
+                    <span>Accion</span>
+                  </div>
+
+                  {hallazgosDetalleAccionablePagina.map((hallazgo) => {
+                    const vencido = esHallazgoVencidoDetalle(hallazgo);
+                    const abierto = esHallazgoAbiertoGerencial(hallazgo);
+                    const sinFechaCompromiso = abierto && !hallazgo.fechaCompromiso;
+                    const vencimientoTexto = vencido
+                      ? `${diasVencidoDetalle(hallazgo)} dia(s) vencido`
+                      : sinFechaCompromiso
+                        ? "Sin fecha compromiso"
+                        : hallazgo.estado === "CERRADO"
+                          ? "Cerrado"
+                          : "En plazo";
+                    const expandido = hallazgoDetalleAbierto === hallazgo.codigo;
+
+                    return (
+                      <article key={`${hallazgo.codigo}-${hallazgo.id || ""}`} style={{ width: "100%", minWidth: "1180px", maxWidth: "none", borderRadius: "12px", background: fondoInterno, border: vencido ? "1px solid rgba(249,115,22,0.30)" : bordeInterno, overflow: "hidden", boxSizing: "border-box" }}>
+                        <div style={{ width: "100%", display: "grid", gridTemplateColumns: "minmax(96px, 0.75fr) minmax(0, 1.55fr) minmax(0, 1.2fr) minmax(96px, 0.65fr) minmax(106px, 0.7fr) minmax(118px, 0.8fr) minmax(0, 1fr) minmax(104px, auto)", gap: "10px", alignItems: "center", minHeight: "40px", padding: "6px 10px", boxSizing: "border-box" }}>
+                          <div style={{ minWidth: 0, display: "flex", alignItems: "center", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            <strong style={{ color: textoPrincipal, fontSize: "12px", fontWeight: 950, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                              {hallazgo.codigo}
+                            </strong>
+                          </div>
+
+                          <div style={{ minWidth: 0, display: "flex", alignItems: "center", color: textoMedio, fontSize: "11px", fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            <span style={{ color: textoSuave, flex: "0 0 auto" }}>Resp.</span>
+                            <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{hallazgo.empresaResponsable || "Sin empresa responsable"}</span>
+                            <span style={{ color: textoSuave, padding: "0 5px", flex: "0 0 auto" }}>/ Rep.</span>
+                            <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{hallazgo.empresaReportante || hallazgo.empresa}</span>
+                          </div>
+
+                          <div style={{ minWidth: 0, display: "flex", alignItems: "center", color: textoMedio, fontSize: "11px", fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{hallazgo.obra}</span>
+                            <span style={{ color: textoSuave, padding: "0 5px", flex: "0 0 auto" }}>/</span>
+                            <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{hallazgo.area}</span>
+                          </div>
+
+                          <div style={{ display: "flex", gap: "5px", alignItems: "center", minWidth: 0 }}>
+                            <span style={{ borderRadius: "999px", padding: "5px 7px", background: `${colorCriticidad(hallazgo.criticidad)}1f`, border: `1px solid ${colorCriticidad(hallazgo.criticidad)}44`, color: colorCriticidad(hallazgo.criticidad), fontSize: "10px", fontWeight: 950, whiteSpace: "nowrap" }}>
+                              {traducirCriticidad(hallazgo.criticidad)}
+                            </span>
+                          </div>
+
+                          <div style={{ display: "flex", alignItems: "center", minWidth: 0 }}>
+                            <span style={{ borderRadius: "999px", padding: "5px 7px", background: `${colorEstadoDetalle(hallazgo.estado)}1f`, border: `1px solid ${colorEstadoDetalle(hallazgo.estado)}44`, color: colorEstadoDetalle(hallazgo.estado), fontSize: "10px", fontWeight: 950, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                              {traducirEstado(hallazgo.estado)}
+                            </span>
+                          </div>
+
+                          <div style={{ minWidth: 0, display: "flex", alignItems: "center", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            <span style={{ display: "inline-flex", maxWidth: "100%", borderRadius: "999px", padding: "5px 8px", background: vencido ? "rgba(249,115,22,0.14)" : sinFechaCompromiso ? "rgba(250,204,21,0.14)" : temaClaro ? "rgba(37,99,235,0.08)" : "rgba(56,189,248,0.08)", border: vencido ? "1px solid rgba(249,115,22,0.32)" : sinFechaCompromiso ? "1px solid rgba(250,204,21,0.32)" : "1px solid rgba(96,165,250,0.16)", color: vencido ? "#fb923c" : sinFechaCompromiso ? "#facc15" : textoAzul, fontSize: "10px", fontWeight: 950, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                              {vencimientoTexto}
+                            </span>
+                          </div>
+
+                          <div style={{ minWidth: 0, display: "flex", alignItems: "center", color: textoMedio, fontSize: "11px", fontWeight: 850, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {hallazgo.responsableCierre || "Sin responsable"}
+                          </div>
+
+                          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                            <button
+                              type="button"
+                              onClick={() => setHallazgoDetalleAbierto(expandido ? "" : hallazgo.codigo)}
+                              style={{ ...botonStyle(`detalle-${hallazgo.codigo}`), minHeight: "32px", padding: "7px 10px", fontSize: "11px" }}
+                            >
+                              {expandido ? "Ocultar" : "Ver detalle"}
+                            </button>
+                          </div>
+                        </div>
+
+                        {expandido && (
+                          <div style={{ padding: "12px", borderTop: bordeInterno, background: temaClaro ? "rgba(255,255,255,0.66)" : "rgba(2,6,23,0.22)", display: "grid", gap: "10px" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start", flexWrap: "wrap" }}>
+                              <div style={{ color: textoMedio, fontSize: "12px", lineHeight: 1.5, fontWeight: 750, flex: "1 1 520px", minWidth: 0 }}>
+                                <strong style={{ display: "block", color: textoPrincipal, marginBottom: "5px" }}>Descripcion / contexto</strong>
+                                {hallazgo.descripcion || "Sin descripcion disponible en el registro cargado."}
+                              </div>
+                              <div style={{ display: "flex", gap: "7px", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    void copiarResumenDetalle(
+                                      resumenHallazgoDetalle(hallazgo),
+                                      `Resumen de ${hallazgo.codigo} copiado al portapapeles.`
+                                    )
+                                  }
+                                  style={{ ...botonStyle(`copiar-${hallazgo.codigo}`), minHeight: "32px", padding: "7px 10px", fontSize: "11px" }}
+                                >
+                                  Copiar resumen
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    activarBoton(`seguimiento-${hallazgo.codigo}`);
+                                    setMensaje(`Seguimiento preparado visualmente para ${hallazgo.codigo}. Conexion accionable queda para fase posterior.`);
+                                  }}
+                                  style={{ ...botonStyle(`seguimiento-${hallazgo.codigo}`), minHeight: "32px", padding: "7px 10px", fontSize: "11px" }}
+                                >
+                                  Preparar seguimiento
+                                </button>
+                              </div>
+                            </div>
+
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "8px" }}>
+                              {[
+                                ["Tipo", hallazgo.tipoHallazgo],
+                                ["Empresa reportante", hallazgo.empresaReportante || hallazgo.empresa],
+                                ["Empresa responsable", hallazgo.empresaResponsable || "Sin empresa responsable"],
+                                ["Responsable cierre", hallazgo.responsableCierre || "Sin responsable"],
+                                ["Cargo responsable", hallazgo.responsableCargo || "Sin cargo"],
+                                ["Estado cierre", hallazgo.estadoCierre || "Sin dato"],
+                                ["Fecha reporte", fechaCortaDetalle(hallazgo.fechaISO)],
+                                ["Fecha compromiso", fechaCortaDetalle(hallazgo.fechaCompromiso)],
+                                ["Vencimiento", vencimientoTexto],
+                                ["Evidencia reporte", hallazgo.fotos?.length ? "Si" : "No"],
+                                ["Evidencia cierre", hallazgo.evidenciaCierreRecibida ? "Si" : "No disponible"],
+                              ].map(([label, valor]) => (
+                                <div key={`${hallazgo.codigo}-detalle-${label}`} style={{ borderRadius: "12px", padding: "8px 9px", background: fondoInternoFuerte, border: bordeInterno }}>
+                                  <div style={{ color: textoSuave, fontSize: "10px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.4px" }}>{label}</div>
+                                  <div style={{ marginTop: "4px", color: textoPrincipal, fontSize: "12px", lineHeight: 1.35, fontWeight: 850 }}>{valor}</div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </article>
+                    );
+                  })}
+
+                  {totalDetalleAccionable > limiteDetalleAccionable && (
+                    <div style={{ width: "100%", minWidth: "1080px", maxWidth: "none", display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap", paddingTop: "6px", boxSizing: "border-box" }}>
+                      <div style={{ color: textoSuave, fontSize: "12px", fontWeight: 800 }}>
+                        Pagina {paginaDetalleVisible} de {totalPaginasDetalleAccionable} · Mostrando {inicioDetalleAccionable}-{finDetalleAccionable} de {totalDetalleAccionable}
+                      </div>
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        <button
+                          type="button"
+                          disabled={paginaDetalleVisible <= 1}
+                          onClick={() => setPaginaDetalleAccionable((actual) => Math.max(1, actual - 1))}
+                          style={{ ...botonStyle("detalle-anterior"), minHeight: "36px", padding: "8px 12px", opacity: paginaDetalleVisible <= 1 ? 0.52 : 1, cursor: paginaDetalleVisible <= 1 ? "not-allowed" : "pointer" }}
+                        >
+                          Anterior
+                        </button>
+                        <button
+                          type="button"
+                          disabled={paginaDetalleVisible >= totalPaginasDetalleAccionable}
+                          onClick={() => setPaginaDetalleAccionable((actual) => Math.min(totalPaginasDetalleAccionable, actual + 1))}
+                          style={{ ...botonStyle("detalle-siguiente"), minHeight: "36px", padding: "8px 12px", opacity: paginaDetalleVisible >= totalPaginasDetalleAccionable ? 0.52 : 1, cursor: paginaDetalleVisible >= totalPaginasDetalleAccionable ? "not-allowed" : "pointer" }}
+                        >
+                          Siguiente
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </section>
         </section>
       </div>
     </main>
