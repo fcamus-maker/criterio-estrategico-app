@@ -1839,53 +1839,62 @@ export default function KpiGerencialAvanzadoPage() {
 
           </section>
 
-          <aside className="ce-panel-kpi-report" style={{ ...themedSurfaceStyle, padding: "18px", display: "grid", gap: "14px" }}>
-            <div>
-              <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 950 }}>{t("Resumen ejecutivo visual")}</h2>
+          <aside className="ce-panel-kpi-report" style={{ ...themedSurfaceStyle, padding: "18px", display: "grid", gap: "14px", borderLeft: temaClaro ? "1px solid rgba(37,99,235,0.24)" : "1px solid rgba(125,211,252,0.18)" }}>
+            <div style={{ borderRadius: "18px", padding: "13px 14px", background: temaClaro ? "rgba(239,246,255,0.82)" : "linear-gradient(145deg, rgba(15,23,42,0.82), rgba(30,41,59,0.54))", border: temaClaro ? "1px solid rgba(37,99,235,0.20)" : "1px solid rgba(125,211,252,0.18)", borderLeft: temaClaro ? "3px solid rgba(37,99,235,0.72)" : "3px solid rgba(56,189,248,0.72)" }}>
+              <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 950, display: "flex", alignItems: "center", gap: "8px", color: textoPrincipal }}>
+                <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: "22px", height: "22px", borderRadius: "999px", background: temaClaro ? "rgba(37,99,235,0.12)" : "rgba(56,189,248,0.14)", border: temaClaro ? "1px solid rgba(37,99,235,0.22)" : "1px solid rgba(125,211,252,0.28)", color: textoAzul, fontSize: "11px", fontWeight: 950 }}>R</span>
+                {t("Resumen ejecutivo visual")}
+              </h2>
               <p style={{ margin: "6px 0 0", color: textoSuave, fontSize: "12px", lineHeight: 1.45, fontWeight: 700 }}>
                 {t("Borrador gerencial segun filtros activos. Exportacion real pendiente.")}
               </p>
             </div>
 
-            <div style={{ borderRadius: "22px", padding: "16px", background: temaClaro ? "rgba(219,234,254,0.62)" : "linear-gradient(145deg, rgba(37,99,235,0.22), rgba(15,23,42,0.82))", border: "1px solid rgba(96,165,250,0.26)" }}>
-              <div style={{ fontSize: "12px", color: textoAzul, fontWeight: 950 }}>{t("Resumen")}</div>
+            <div style={{ borderRadius: "22px", padding: "16px", background: temaClaro ? "rgba(219,234,254,0.62)" : "linear-gradient(145deg, rgba(37,99,235,0.22), rgba(15,23,42,0.82))", border: "1px solid rgba(96,165,250,0.30)", borderLeft: "3px solid rgba(96,165,250,0.76)", boxShadow: temaClaro ? "0 12px 26px rgba(15,23,42,0.06)" : "0 16px 34px rgba(2,6,23,0.22)" }}>
+              <div style={{ fontSize: "12px", color: textoAzul, fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.55px" }}>{t("Resumen")}</div>
               <p style={{ margin: "8px 0 0", color: textoPrincipal, lineHeight: 1.5, fontSize: "14px", fontWeight: 750 }}>
                 {resumenEjecutivoTraducido()}
               </p>
             </div>
 
-            <div style={{ display: "grid", gap: "8px" }}>
-              <div style={{ fontSize: "12px", color: textoAzul, fontWeight: 950 }}>Foco gerencial</div>
+            <div style={{ display: "grid", gap: "8px", borderRadius: "18px", padding: "12px", background: temaClaro ? "rgba(248,250,252,0.82)" : "rgba(15,23,42,0.42)", border: temaClaro ? "1px solid rgba(100,116,139,0.16)" : "1px solid rgba(148,163,184,0.14)" }}>
+              <div style={{ fontSize: "12px", color: textoAzul, fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.55px", display: "flex", alignItems: "center", gap: "7px" }}>
+                <span style={{ width: "7px", height: "18px", borderRadius: "999px", background: "linear-gradient(180deg, rgba(56,189,248,0.92), rgba(99,102,241,0.72))" }} />
+                Foco gerencial
+              </div>
               {[
                 ["Empresa reportante", filtros.empresaReportante || analisis.porEmpresaReportante[0]?.nombre || "Sin datos"],
                 ["Empresa responsable", filtros.empresaResponsable || analisis.porEmpresaResponsable[0]?.nombre || "Sin datos"],
                 ["Obra", analisis.porObra[0]?.nombre || "Sin datos"],
                 ["Area", analisis.porArea[0]?.nombre || "Sin datos"],
               ].map(([label, valor]) => (
-                <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: "10px", borderRadius: "14px", padding: "10px 12px", background: fondoInterno, border: bordeInterno, color: textoMedio, fontSize: "12px", fontWeight: 800 }}>
-                  <span style={{ color: textoSuave }}>{label}</span>
+                <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: "10px", borderRadius: "14px", padding: "10px 12px", background: fondoInterno, border: temaClaro ? "1px solid rgba(37,99,235,0.14)" : "1px solid rgba(125,211,252,0.16)", borderLeft: temaClaro ? "3px solid rgba(37,99,235,0.42)" : "3px solid rgba(56,189,248,0.42)", color: textoMedio, fontSize: "12px", fontWeight: 800, boxShadow: temaClaro ? "0 8px 18px rgba(15,23,42,0.04)" : "inset 0 1px 0 rgba(255,255,255,0.03)" }}>
+                  <span style={{ color: textoAzul, fontWeight: 950 }}>{label}</span>
                   <strong style={{ color: textoPrincipal, textAlign: "right" }}>{valor}</strong>
                 </div>
               ))}
             </div>
 
-            <div style={{ display: "grid", gap: "10px" }}>
-              <div style={{ fontSize: "12px", color: textoAzul, fontWeight: 950 }}>{t("Riesgos principales")}</div>
+            <div style={{ display: "grid", gap: "10px", borderRadius: "18px", padding: "12px", background: temaClaro ? "rgba(248,250,252,0.78)" : "rgba(15,23,42,0.38)", border: temaClaro ? "1px solid rgba(100,116,139,0.14)" : "1px solid rgba(148,163,184,0.12)" }}>
+              <div style={{ fontSize: "12px", color: textoAzul, fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.55px", display: "flex", alignItems: "center", gap: "7px" }}>
+                <span style={{ width: "7px", height: "18px", borderRadius: "999px", background: "linear-gradient(180deg, rgba(168,85,247,0.82), rgba(56,189,248,0.72))" }} />
+                {t("Riesgos principales")}
+              </div>
               {riesgosTraducidos().map((riesgo) => (
-                <div key={riesgo} style={{ borderRadius: "16px", padding: "12px", background: fondoInterno, border: bordeInterno, color: textoMedio, fontSize: "13px", lineHeight: 1.4, fontWeight: 750 }}>
+                <div key={riesgo} style={{ borderRadius: "16px", padding: "12px", background: fondoInterno, border: temaClaro ? "1px solid rgba(100,116,139,0.16)" : "1px solid rgba(148,163,184,0.14)", color: textoMedio, fontSize: "13px", lineHeight: 1.4, fontWeight: 750 }}>
                   {riesgo}
                 </div>
               ))}
             </div>
 
-            <div style={{ borderRadius: "22px", padding: "16px", background: temaClaro ? "rgba(254,226,226,0.72)" : "linear-gradient(145deg, rgba(239,68,68,0.18), rgba(15,23,42,0.82))", border: "1px solid rgba(239,68,68,0.26)" }}>
-              <div style={{ fontSize: "12px", color: temaClaro ? "#991b1b" : "#fecaca", fontWeight: 950 }}>{t("Recomendacion preventiva")}</div>
+            <div style={{ borderRadius: "22px", padding: "16px", background: temaClaro ? "rgba(254,226,226,0.72)" : "linear-gradient(145deg, rgba(239,68,68,0.18), rgba(15,23,42,0.82))", border: "1px solid rgba(239,68,68,0.28)", borderLeft: "3px solid rgba(248,113,113,0.78)", boxShadow: temaClaro ? "0 12px 26px rgba(127,29,29,0.06)" : "0 16px 34px rgba(2,6,23,0.20)" }}>
+              <div style={{ fontSize: "12px", color: temaClaro ? "#991b1b" : "#fecaca", fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.55px" }}>{t("Recomendacion preventiva")}</div>
               <p style={{ margin: "8px 0 0", color: textoPrincipal, lineHeight: 1.5, fontSize: "14px", fontWeight: 800 }}>
                 {recomendacionTraducida()}
               </p>
             </div>
 
-            <div style={{ display: "grid", gap: "9px" }}>
+            <div style={{ display: "grid", gap: "9px", borderRadius: "18px", padding: "12px", background: temaClaro ? "rgba(248,250,252,0.72)" : "rgba(15,23,42,0.34)", border: temaClaro ? "1px solid rgba(100,116,139,0.14)" : "1px solid rgba(148,163,184,0.12)" }}>
               <button
                 type="button"
                 disabled
@@ -1907,19 +1916,25 @@ export default function KpiGerencialAvanzadoPage() {
               </div>
             </div>
 
-            <div style={{ display: "grid", gap: "9px" }}>
-              <div style={{ fontSize: "12px", color: textoAzul, fontWeight: 950 }}>{t("Rankings gerenciales")}</div>
+            <div style={{ display: "grid", gap: "10px", borderRadius: "20px", padding: "13px", background: temaClaro ? "linear-gradient(145deg, rgba(239,246,255,0.88), rgba(255,255,255,0.82))" : "linear-gradient(145deg, rgba(15,23,42,0.78), rgba(30,41,59,0.42))", border: temaClaro ? "1px solid rgba(37,99,235,0.18)" : "1px solid rgba(125,211,252,0.16)", boxShadow: temaClaro ? "0 12px 26px rgba(15,23,42,0.05)" : "0 16px 34px rgba(2,6,23,0.20)" }}>
+              <div style={{ fontSize: "12px", color: textoPrincipal, fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.65px", display: "flex", alignItems: "center", gap: "8px" }}>
+                <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: "22px", height: "22px", borderRadius: "999px", background: temaClaro ? "rgba(37,99,235,0.12)" : "rgba(56,189,248,0.14)", border: temaClaro ? "1px solid rgba(37,99,235,0.22)" : "1px solid rgba(125,211,252,0.28)", color: textoAzul, fontSize: "11px", fontWeight: 950 }}>G</span>
+                {t("Rankings gerenciales")}
+              </div>
               {rankingsSecundarios.map((ranking) => (
-                <div key={ranking.titulo} style={{ borderRadius: "18px", padding: "12px", background: fondoInterno, border: bordeInterno, display: "grid", gap: "8px" }}>
+                <div key={ranking.titulo} style={{ borderRadius: "18px", padding: "12px", background: temaClaro ? "rgba(255,255,255,0.88)" : "rgba(15,23,42,0.64)", border: temaClaro ? "1px solid rgba(37,99,235,0.16)" : "1px solid rgba(125,211,252,0.16)", borderLeft: temaClaro ? "3px solid rgba(37,99,235,0.54)" : "3px solid rgba(56,189,248,0.50)", display: "grid", gap: "9px", boxShadow: temaClaro ? "0 9px 20px rgba(15,23,42,0.05)" : "inset 0 1px 0 rgba(255,255,255,0.035)" }}>
                   <div>
-                    <div style={{ fontSize: "12px", color: textoPrincipal, fontWeight: 950 }}>{ranking.titulo}</div>
+                    <div style={{ fontSize: "12px", color: textoPrincipal, fontWeight: 950, display: "flex", alignItems: "center", gap: "7px" }}>
+                      <span style={{ width: "6px", height: "16px", borderRadius: "999px", background: "linear-gradient(180deg, rgba(56,189,248,0.92), rgba(99,102,241,0.70))" }} />
+                      {ranking.titulo}
+                    </div>
                     <div style={{ marginTop: "3px", fontSize: "11px", color: textoSuave, lineHeight: 1.35, fontWeight: 750 }}>{ranking.subtitulo}</div>
                   </div>
                   {ranking.data.slice(0, 3).map((item, index) => (
-                    <div key={`${ranking.titulo}-${item.nombre}`} style={{ display: "grid", gridTemplateColumns: "20px minmax(0, 1fr) auto", gap: "8px", alignItems: "center", color: textoMedio, fontSize: "11px", fontWeight: 850 }}>
-                      <span style={{ color: textoAzul }}>{index + 1}</span>
+                    <div key={`${ranking.titulo}-${item.nombre}`} style={{ display: "grid", gridTemplateColumns: "24px minmax(0, 1fr) auto", gap: "8px", alignItems: "center", color: textoMedio, fontSize: "11px", fontWeight: 850, borderRadius: "12px", padding: "7px 8px", background: temaClaro ? "rgba(239,246,255,0.72)" : "rgba(30,41,59,0.42)", border: temaClaro ? "1px solid rgba(37,99,235,0.10)" : "1px solid rgba(125,211,252,0.10)" }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: "20px", height: "20px", borderRadius: "999px", background: temaClaro ? "rgba(37,99,235,0.10)" : "rgba(56,189,248,0.12)", color: textoAzul, fontWeight: 950 }}>{index + 1}</span>
                       <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.nombre}</span>
-                      <span style={{ color: textoPrincipal }}>{item.total}</span>
+                      <span style={{ color: textoPrincipal, fontWeight: 950 }}>{item.total}</span>
                     </div>
                   ))}
                   {ranking.data.length === 0 && (
