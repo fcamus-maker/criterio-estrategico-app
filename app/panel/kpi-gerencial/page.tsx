@@ -1212,38 +1212,203 @@ export default function KpiGerencialAvanzadoPage() {
             : "Comparacion segun los filtros activos y los registros cargados.";
   const maxRanking = maximoRanking(rankingPrincipal);
   const maxTendencia = Math.max(1, ...analisis.tendenciaTemporal.map((item) => item.total));
-  const rankingsSecundarios = [
-    {
-      titulo: "Empresa reportante",
-      subtitulo: "Carga total segun quien reporta o registra.",
-      data: analisis.porEmpresaReportante,
-    },
-    {
-      titulo: "Empresa responsable",
-      subtitulo: "Carga atribuida al responsable/involucrado disponible.",
-      data: analisis.porEmpresaResponsable,
-    },
-    {
-      titulo: "Obras",
-      subtitulo: "Concentracion por proyecto u obra.",
-      data: analisis.porObra,
-    },
-    {
-      titulo: "Areas",
-      subtitulo: "Zonas operativas con mayor repeticion.",
-      data: analisis.porArea,
-    },
-    {
-      titulo: "Tipos",
-      subtitulo: "Familias de hallazgo mas frecuentes.",
-      data: analisis.porTipo,
-    },
-    {
-      titulo: "Responsable cierre",
-      subtitulo: "Personas responsables segun trazabilidad disponible.",
-      data: analisis.porResponsable,
-    },
-  ];
+  const radarGerencial = useMemo(() => {
+    const abiertos = analisis.hallazgos.filter(esHallazgoAbiertoGerencial);
+    const criticosAbiertos = abiertos.filter(
+      (hallazgo) => hallazgo.criticidad === "CRITICO"
+    );
+    const vencidosAbiertos = analisis.hallazgos.filter(esHallazgoVencidoDetalle);
+    const sinFechaCompromiso = abiertos.filter(
+      (hallazgo) => !hallazgo.fechaCompromiso
+    );
+    const rankingRadar = (
+      hallazgosRadar: HallazgoKpiGerencial[],
+      obtenerNombre: (hallazgo: HallazgoKpiGerencial) => string
+    ) => {
+      const conteo = new Map<string, number>();
+
+      hallazgosRadar.forEach((hallazgo) => {
+        const nombre = obtenerNombre(hallazgo) || "Sin datos";
+        conteo.set(nombre, (conteo.get(nombre) || 0) + 1);
+      });
+
+      return Array.from(conteo.entries())
+        .map(([nombre, total]) => ({ nombre, total }))
+        .sort((actual, siguiente) => siguiente.total - actual.total)
+        .slice(0, 3);
+    };
+
+    return {
+      empresasCriticas: rankingRadar(
+        criticosAbiertos,
+        (hallazgo) => hallazgo.empresaResponsable || "Sin empresa responsable"
+      ),
+      obrasVencidas: rankingRadar(
+        vencidosAbiertos,
+        (hallazgo) => hallazgo.obra || "Sin obra"
+      ),
+      responsablesPendientes: rankingRadar(
+        abiertos,
+        (hallazgo) => hallazgo.responsableCierre || "Sin asignar"
+      ),
+      sinFechaTotal: sinFechaCompromiso.length,
+      sinFechaFoco: rankingRadar(
+        sinFechaCompromiso,
+        (hallazgo) =>
+          `${hallazgo.empresaResponsable || hallazgo.empresaReportante || "Sin empresa"} · ${hallazgo.obra || "Sin obra"}`
+      )[0],
+    };
+  }, [analisis.hallazgos]);
+  const matrizComparativaGerencial = useMemo(() => {
+    const abiertos = analisis.hallazgos.filter(esHallazgoAbiertoGerencial);
+    const criticosAbiertos = abiertos.filter(
+      (hallazgo) => hallazgo.criticidad === "CRITICO"
+    );
+    const vencidosAbiertos = analisis.hallazgos.filter(esHallazgoVencidoDetalle);
+    const rankingDesdeHallazgos = (
+      hallazgosMatriz: HallazgoKpiGerencial[],
+      obtenerNombre: (hallazgo: HallazgoKpiGerencial) => string
+    ) => {
+      const conteo = new Map<string, number>();
+
+      hallazgosMatriz.forEach((hallazgo) => {
+        const nombre = obtenerNombre(hallazgo) || "Sin datos";
+        conteo.set(nombre, (conteo.get(nombre) || 0) + 1);
+      });
+
+      return Array.from(conteo.entries())
+        .map(([nombre, total]) => ({ nombre, total }))
+        .sort((actual, siguiente) => siguiente.total - actual.total);
+    };
+    const rankingDesdeAnalisis = (ranking: RankingKpiGerencial[]) =>
+      ranking.map((item) => ({ nombre: item.nombre, total: item.total }));
+
+    return [
+      {
+        id: "matriz-empresas-criticas",
+        titulo: "Empresas con mayor carga critica",
+        subtitulo: "Criticos abiertos por empresa responsable.",
+        data: rankingDesdeHallazgos(
+          criticosAbiertos,
+          (hallazgo) => hallazgo.empresaResponsable || "Sin empresa responsable"
+        ),
+        color: "#ef4444",
+      },
+      {
+        id: "matriz-empresas-pendientes",
+        titulo: "Empresas responsables con mas pendientes",
+        subtitulo: "Hallazgos abiertos por empresa responsable.",
+        data: rankingDesdeHallazgos(
+          abiertos,
+          (hallazgo) => hallazgo.empresaResponsable || "Sin empresa responsable"
+        ),
+        color: "#38bdf8",
+      },
+      {
+        id: "matriz-obras-vencidas",
+        titulo: "Obras con mas vencidos",
+        subtitulo: "Vencidos abiertos por obra/proyecto.",
+        data: rankingDesdeHallazgos(
+          vencidosAbiertos,
+          (hallazgo) => hallazgo.obra || "Sin obra"
+        ),
+        color: "#f97316",
+      },
+      {
+        id: "matriz-responsables-abiertos",
+        titulo: "Responsables con mas hallazgos abiertos",
+        subtitulo: "Pendientes por responsable de cierre.",
+        data: rankingDesdeHallazgos(
+          abiertos,
+          (hallazgo) => hallazgo.responsableCierre || "Sin asignar"
+        ),
+        color: "#0ea5e9",
+      },
+      {
+        id: "matriz-areas-repeticion",
+        titulo: "Areas con mayor repeticion",
+        subtitulo: "Concentracion total por area.",
+        data: rankingDesdeAnalisis(analisis.porArea),
+        color: "#8b5cf6",
+      },
+      {
+        id: "matriz-tipos-frecuentes",
+        titulo: "Tipos de hallazgo mas frecuentes",
+        subtitulo: "Familias de hallazgo con mayor carga.",
+        data: rankingDesdeAnalisis(analisis.porTipo),
+        color: "#22c55e",
+      },
+    ];
+  }, [analisis.hallazgos, analisis.porArea, analisis.porTipo]);
+  const pulsoLateralGerencial = useMemo(() => {
+    const abiertos = analisis.hallazgos.filter(esHallazgoAbiertoGerencial);
+    const vencidosAbiertos = analisis.hallazgos.filter(esHallazgoVencidoDetalle);
+    const abiertosSinFecha = abiertos.filter((hallazgo) => !hallazgo.fechaCompromiso);
+    const abiertosEnPlazo = abiertos.filter(
+      (hallazgo) => hallazgo.fechaCompromiso && !esHallazgoVencidoDetalle(hallazgo)
+    );
+    const conResponsable = analisis.hallazgos.filter(
+      (hallazgo) =>
+        Boolean(hallazgo.responsableCierre) &&
+        hallazgo.responsableCierre !== "Sin responsable"
+    );
+    const abiertosSinResponsable = abiertos.filter(
+      (hallazgo) =>
+        !hallazgo.responsableCierre ||
+        hallazgo.responsableCierre === "Sin responsable"
+    );
+    const totalCriticidad = Math.max(
+      1,
+      analisis.porCriticidad.CRITICO +
+        analisis.porCriticidad.ALTO +
+        analisis.porCriticidad.MEDIO +
+        analisis.porCriticidad.BAJO
+    );
+    const totalEstado = Math.max(1, analisis.total);
+    const totalHallazgos = Math.max(1, analisis.hallazgos.length);
+    const totalAbiertos = Math.max(1, abiertos.length);
+
+    return {
+      criticidad: [
+        { label: "Criticos", total: analisis.porCriticidad.CRITICO, color: "#ef4444" },
+        { label: "Altos", total: analisis.porCriticidad.ALTO, color: "#f97316" },
+        { label: "Medios", total: analisis.porCriticidad.MEDIO, color: "#facc15" },
+        { label: "Bajos", total: analisis.porCriticidad.BAJO, color: "#22c55e" },
+      ],
+      presion: [
+        { label: "Cerrados", total: analisis.cerrados, color: "#22c55e" },
+        { label: "Abiertos", total: abiertos.length, color: "#38bdf8" },
+        { label: "Vencidos", total: vencidosAbiertos.length, color: "#f97316" },
+        { label: "Sin plazo", total: abiertosSinFecha.length, color: "#facc15" },
+      ],
+      cierre: [
+        { label: "Cerrados", total: analisis.cerrados, color: "#22c55e" },
+        { label: "Abiertos", total: abiertos.length, color: "#38bdf8" },
+        { label: "En plazo", total: abiertosEnPlazo.length, color: "#60a5fa" },
+        { label: "Vencidos", total: vencidosAbiertos.length, color: "#f97316" },
+      ],
+      calidad: [
+        { label: "Con GPS", total: analisis.hallazgos.filter((hallazgo) => hallazgo.tieneGps).length, color: "#38bdf8" },
+        { label: "Con evidencia", total: analisis.hallazgos.filter((hallazgo) => Boolean(hallazgo.fotos?.length)).length, color: "#22c55e" },
+        { label: "Responsable", total: conResponsable.length, color: "#8b5cf6" },
+        { label: "Fecha compromiso", total: analisis.hallazgos.filter((hallazgo) => Boolean(hallazgo.fechaCompromiso)).length, color: "#60a5fa" },
+      ],
+      brechas: [
+        { label: "Criticos abiertos", total: abiertos.filter((hallazgo) => hallazgo.criticidad === "CRITICO").length, color: "#ef4444" },
+        { label: "Vencidos abiertos", total: vencidosAbiertos.length, color: "#f97316" },
+        { label: "Sin fecha compromiso", total: abiertosSinFecha.length, color: "#facc15" },
+        { label: "Sin responsable", total: abiertosSinResponsable.length, color: "#8b5cf6" },
+      ],
+      abiertos: abiertos.length,
+      abiertosSinFecha: abiertosSinFecha.length,
+      abiertosEnPlazo: abiertosEnPlazo.length,
+      totalCriticidad,
+      totalEstado,
+      totalHallazgos,
+      totalAbiertos,
+      vencidosAbiertos: vencidosAbiertos.length,
+    };
+  }, [analisis.hallazgos, analisis.porCriticidad, analisis.total, analisis.cerrados]);
 
   return (
     <main className="ce-panel-page ce-panel-kpi-page" style={pageThemeStyle}>
@@ -1435,10 +1600,10 @@ export default function KpiGerencialAvanzadoPage() {
             gridTemplateColumns:
               "clamp(300px, 16vw, 390px) minmax(0, 1fr) clamp(340px, 18vw, 440px)",
             gap: "clamp(16px, 0.95vw, 24px)",
-            alignItems: "start",
+            alignItems: "stretch",
           }}
         >
-          <aside className="ce-panel-kpi-filters" style={{ ...themedSurfaceStyle, padding: "18px", display: "grid", gap: "15px" }}>
+          <aside className="ce-panel-kpi-filters" style={{ ...themedSurfaceStyle, padding: "18px", display: "grid", gap: "15px", alignSelf: "stretch", alignContent: "start", boxSizing: "border-box" }}>
             <div
               style={{
                 borderRadius: "18px",
@@ -1677,6 +1842,76 @@ export default function KpiGerencialAvanzadoPage() {
             <button type="button" onClick={limpiarFiltros} style={botonStyle("limpiar")}>
               {t("Limpiar filtros")}
             </button>
+
+            <div style={{ borderRadius: "18px", padding: "13px", background: temaClaro ? "rgba(248,250,252,0.84)" : "rgba(15,23,42,0.42)", border: temaClaro ? "1px solid rgba(37,99,235,0.14)" : "1px solid rgba(125,211,252,0.14)", borderLeft: temaClaro ? "3px solid rgba(37,99,235,0.50)" : "3px solid rgba(56,189,248,0.56)", display: "grid", gap: "12px", boxShadow: temaClaro ? "0 10px 22px rgba(15,23,42,0.04)" : "inset 0 1px 0 rgba(255,255,255,0.03)" }}>
+              <div>
+                <div style={{ fontSize: "11px", color: textoAzul, fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.55px" }}>
+                  Pulso de filtros activos
+                </div>
+                <div style={{ marginTop: "4px", color: textoSuave, fontSize: "11px", lineHeight: 1.35, fontWeight: 750 }}>
+                  Lectura compacta del universo filtrado.
+                </div>
+              </div>
+
+              <div style={{ height: "92px", display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "8px", alignItems: "end" }}>
+                {pulsoLateralGerencial.criticidad.map((item) => {
+                  const alturaBarra = Math.max(8, (item.total / pulsoLateralGerencial.totalCriticidad) * 62);
+
+                  return (
+                    <div key={item.label} style={{ minWidth: 0, display: "grid", gap: "5px", justifyItems: "center" }}>
+                      <div style={{ width: "100%", height: "64px", display: "flex", alignItems: "end", justifyContent: "center", borderRadius: "12px", background: fondoInternoFuerte, border: bordeInterno, overflow: "hidden" }}>
+                        <div style={{ width: "54%", height: `${alturaBarra}px`, borderRadius: "999px 999px 4px 4px", background: `linear-gradient(180deg, ${item.color}, rgba(56,189,248,0.52))`, boxShadow: `0 0 16px ${item.color}2f` }} />
+                      </div>
+                      <div style={{ maxWidth: "100%", color: textoSuave, fontSize: "9px", fontWeight: 850, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {item.label}
+                      </div>
+                      <strong style={{ color: textoPrincipal, fontSize: "12px", lineHeight: 1 }}>{item.total}</strong>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div style={{ display: "grid", gap: "7px" }}>
+                {pulsoLateralGerencial.presion.map((item) => (
+                  <div key={item.label} style={{ display: "grid", gridTemplateColumns: "68px minmax(0, 1fr) 28px", gap: "8px", alignItems: "center", color: textoMedio, fontSize: "10px", fontWeight: 850 }}>
+                    <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.label}</span>
+                    <div style={{ height: "7px", borderRadius: "999px", background: fondoInternoFuerte, overflow: "hidden" }}>
+                      <div style={{ width: `${Math.max(6, (item.total / pulsoLateralGerencial.totalEstado) * 100)}%`, height: "100%", borderRadius: "999px", background: item.color }} />
+                    </div>
+                    <strong style={{ color: textoPrincipal, textAlign: "right" }}>{item.total}</strong>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ borderRadius: "18px", padding: "13px", background: temaClaro ? "rgba(248,250,252,0.82)" : "rgba(15,23,42,0.40)", border: temaClaro ? "1px solid rgba(37,99,235,0.14)" : "1px solid rgba(125,211,252,0.14)", borderLeft: temaClaro ? "3px solid rgba(99,102,241,0.50)" : "3px solid rgba(129,140,248,0.58)", display: "grid", gap: "11px", boxShadow: temaClaro ? "0 10px 22px rgba(15,23,42,0.04)" : "inset 0 1px 0 rgba(255,255,255,0.03)" }}>
+              <div>
+                <div style={{ fontSize: "11px", color: textoAzul, fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.55px" }}>
+                  Calidad del dato
+                </div>
+                <div style={{ marginTop: "4px", color: textoSuave, fontSize: "11px", lineHeight: 1.35, fontWeight: 750 }}>
+                  Completitud de los hallazgos filtrados.
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gap: "8px" }}>
+                {pulsoLateralGerencial.calidad.map((item) => {
+                  const porcentaje = Math.round((item.total / pulsoLateralGerencial.totalHallazgos) * 100);
+
+                  return (
+                    <div key={item.label} style={{ display: "grid", gap: "5px" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: "8px", alignItems: "center", color: textoMedio, fontSize: "11px", fontWeight: 850 }}>
+                        <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.label}</span>
+                        <strong style={{ color: textoPrincipal }}>{item.total} · {porcentaje}%</strong>
+                      </div>
+                      <div style={{ height: "8px", borderRadius: "999px", background: fondoInternoFuerte, overflow: "hidden" }}>
+                        <div style={{ width: `${Math.max(6, porcentaje)}%`, height: "100%", borderRadius: "999px", background: `linear-gradient(90deg, ${item.color}, rgba(56,189,248,0.62))`, boxShadow: `0 0 14px ${item.color}2f` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </aside>
 
           <section className="ce-panel-kpi-main" style={{ display: "grid", gap: "16px", minWidth: 0 }}>
@@ -1769,6 +2004,127 @@ export default function KpiGerencialAvanzadoPage() {
               )}
             </section>
 
+            <section style={{ ...themedSurfaceStyle, padding: "16px", display: "grid", gap: "13px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start", flexWrap: "wrap" }}>
+                <div>
+                  <div style={{ fontSize: "11px", color: textoAzul, fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.7px" }}>
+                    Radar Gerencial Compacto
+                  </div>
+                  <h2 style={{ margin: "4px 0 0", fontSize: "18px", lineHeight: 1.18, fontWeight: 950 }}>
+                    Focos ejecutivos priorizados
+                  </h2>
+                  <p style={{ margin: "5px 0 0", color: textoSuave, fontSize: "12px", lineHeight: 1.4, fontWeight: 750 }}>
+                    Focos ejecutivos priorizados segun los filtros activos.
+                  </p>
+                </div>
+                <div style={{ borderRadius: "999px", padding: "7px 10px", background: fondoInterno, border: bordeInterno, color: textoAzul, fontSize: "11px", fontWeight: 950 }}>
+                  {analisis.hallazgos.length} registros filtrados
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: "10px" }}>
+                {[
+                  {
+                    id: "empresas-criticas",
+                    titulo: "Empresas con mayor carga critica",
+                    subtitulo: "Criticos abiertos por responsable/involucrado.",
+                    data: radarGerencial.empresasCriticas,
+                    color: "#ef4444",
+                    accion: "Radar: foco visual en empresas con criticos abiertos. Conexion con Detalle accionable queda para fase posterior.",
+                  },
+                  {
+                    id: "obras-vencidas",
+                    titulo: "Obras con mas vencidos",
+                    subtitulo: "Hallazgos vencidos que siguen abiertos.",
+                    data: radarGerencial.obrasVencidas,
+                    color: "#f97316",
+                    accion: "Radar: foco visual en obras con vencidos abiertos. Conexion con Detalle accionable queda para fase posterior.",
+                  },
+                  {
+                    id: "responsables-pendientes",
+                    titulo: "Responsables con mas pendientes",
+                    subtitulo: "Abiertos y en gestion por responsable cierre.",
+                    data: radarGerencial.responsablesPendientes,
+                    color: "#38bdf8",
+                    accion: "Radar: foco visual en responsables con pendientes. Conexion con Detalle accionable queda para fase posterior.",
+                  },
+                ].map((modulo) => {
+                  const maxRadar = Math.max(1, ...modulo.data.map((item) => item.total));
+
+                  return (
+                    <div key={modulo.id} style={{ borderRadius: "18px", padding: "12px", background: temaClaro ? "rgba(248,250,252,0.86)" : "rgba(15,23,42,0.58)", border: temaClaro ? "1px solid rgba(37,99,235,0.14)" : "1px solid rgba(125,211,252,0.14)", borderLeft: `3px solid ${modulo.color}`, display: "grid", gap: "9px", boxShadow: temaClaro ? "0 9px 20px rgba(15,23,42,0.04)" : "inset 0 1px 0 rgba(255,255,255,0.035)" }}>
+                      <div>
+                        <div style={{ color: textoPrincipal, fontSize: "12px", fontWeight: 950 }}>{modulo.titulo}</div>
+                        <div style={{ marginTop: "3px", color: textoSuave, fontSize: "11px", lineHeight: 1.35, fontWeight: 750 }}>{modulo.subtitulo}</div>
+                      </div>
+
+                      {modulo.data.length > 0 ? (
+                        <div style={{ display: "grid", gap: "7px" }}>
+                          {modulo.data.map((item, index) => (
+                            <div key={`${modulo.id}-${item.nombre}`} style={{ display: "grid", gap: "5px" }}>
+                              <div style={{ display: "grid", gridTemplateColumns: "22px minmax(0, 1fr) auto", gap: "7px", alignItems: "center", color: textoMedio, fontSize: "11px", fontWeight: 850 }}>
+                                <span style={{ color: textoAzul, fontWeight: 950 }}>{index + 1}</span>
+                                <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.nombre}</span>
+                                <strong style={{ color: textoPrincipal }}>{item.total}</strong>
+                              </div>
+                              <div style={{ height: "7px", borderRadius: "999px", background: fondoInternoFuerte, overflow: "hidden" }}>
+                                <div style={{ width: `${Math.max(8, (item.total / maxRadar) * 100)}%`, height: "100%", borderRadius: "999px", background: `linear-gradient(90deg, ${modulo.color}, rgba(56,189,248,0.70))` }} />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div style={{ borderRadius: "12px", padding: "10px", background: fondoInternoFuerte, border: bordeInterno, color: textoSuave, fontSize: "11px", fontWeight: 750 }}>
+                          Sin datos suficientes con los filtros actuales.
+                        </div>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          activarBoton(`radar-${modulo.id}`);
+                          setMensaje(modulo.accion);
+                        }}
+                        style={{ ...botonStyle(`radar-${modulo.id}`), minHeight: "32px", padding: "7px 10px", fontSize: "11px" }}
+                      >
+                        Revisar foco
+                      </button>
+                    </div>
+                  );
+                })}
+
+                <div style={{ borderRadius: "18px", padding: "12px", background: temaClaro ? "rgba(248,250,252,0.86)" : "rgba(15,23,42,0.58)", border: temaClaro ? "1px solid rgba(37,99,235,0.14)" : "1px solid rgba(125,211,252,0.14)", borderLeft: "3px solid rgba(250,204,21,0.90)", display: "grid", gap: "9px", boxShadow: temaClaro ? "0 9px 20px rgba(15,23,42,0.04)" : "inset 0 1px 0 rgba(255,255,255,0.035)" }}>
+                  <div>
+                    <div style={{ color: textoPrincipal, fontSize: "12px", fontWeight: 950 }}>Hallazgos sin fecha compromiso</div>
+                    <div style={{ marginTop: "3px", color: textoSuave, fontSize: "11px", lineHeight: 1.35, fontWeight: 750 }}>Alerta de trazabilidad para abiertos sin plazo.</div>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "end" }}>
+                    <div>
+                      <div style={{ color: radarGerencial.sinFechaTotal > 0 ? "#facc15" : textoAzul, fontSize: "30px", lineHeight: 1, fontWeight: 950 }}>
+                        {radarGerencial.sinFechaTotal}
+                      </div>
+                      <div style={{ marginTop: "4px", color: textoSuave, fontSize: "11px", fontWeight: 800 }}>abiertos sin plazo</div>
+                    </div>
+                    <div style={{ minWidth: 0, textAlign: "right", color: textoMedio, fontSize: "11px", lineHeight: 1.35, fontWeight: 800 }}>
+                      {radarGerencial.sinFechaFoco
+                        ? `Foco: ${radarGerencial.sinFechaFoco.nombre} (${radarGerencial.sinFechaFoco.total})`
+                        : "Sin datos suficientes con los filtros actuales."}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      activarBoton("radar-sin-fecha");
+                      setMensaje("Radar: foco visual en hallazgos sin fecha compromiso. Conexion con Detalle accionable queda para fase posterior.");
+                    }}
+                    style={{ ...botonStyle("radar-sin-fecha"), minHeight: "32px", padding: "7px 10px", fontSize: "11px" }}
+                  >
+                    Revisar foco
+                  </button>
+                </div>
+              </div>
+            </section>
+
             <section className="ce-panel-kpi-secondary-grid" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.1fr) minmax(360px, 0.9fr)", gap: "16px" }}>
               <div style={{ ...themedSurfaceStyle, padding: "18px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start", marginBottom: "14px" }}>
@@ -1837,9 +2193,64 @@ export default function KpiGerencialAvanzadoPage() {
               </div>
             </section>
 
+            <section style={{ ...themedSurfaceStyle, padding: "16px", display: "grid", gap: "13px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start", flexWrap: "wrap" }}>
+                <div>
+                  <div style={{ fontSize: "11px", color: textoAzul, fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.7px" }}>
+                    Matriz Comparativa Gerencial
+                  </div>
+                  <h2 style={{ margin: "4px 0 0", fontSize: "18px", lineHeight: 1.18, fontWeight: 950 }}>
+                    Comparativos clave
+                  </h2>
+                  <p style={{ margin: "5px 0 0", color: textoSuave, fontSize: "12px", lineHeight: 1.4, fontWeight: 750 }}>
+                    Comparativos clave segun los filtros activos.
+                  </p>
+                </div>
+                <div style={{ borderRadius: "999px", padding: "7px 10px", background: fondoInterno, border: bordeInterno, color: textoAzul, fontSize: "11px", fontWeight: 950 }}>
+                  Cuerpo con scroll interno
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "10px", alignItems: "stretch" }}>
+                {matrizComparativaGerencial.map((modulo) => {
+                  const maxMatriz = Math.max(1, ...modulo.data.map((item) => item.total));
+
+                  return (
+                    <div key={modulo.id} style={{ borderRadius: "18px", padding: "12px", background: temaClaro ? "rgba(248,250,252,0.88)" : "rgba(15,23,42,0.60)", border: temaClaro ? "1px solid rgba(37,99,235,0.14)" : "1px solid rgba(125,211,252,0.14)", borderLeft: `3px solid ${modulo.color}`, display: "grid", gridTemplateRows: "auto minmax(0, 1fr)", gap: "9px", minHeight: "252px", height: "252px", overflow: "hidden", boxSizing: "border-box", boxShadow: temaClaro ? "0 9px 20px rgba(15,23,42,0.04)" : "inset 0 1px 0 rgba(255,255,255,0.035)" }}>
+                      <div>
+                        <div style={{ color: textoPrincipal, fontSize: "12px", fontWeight: 950 }}>{modulo.titulo}</div>
+                        <div style={{ marginTop: "3px", color: textoSuave, fontSize: "11px", lineHeight: 1.35, fontWeight: 750 }}>{modulo.subtitulo}</div>
+                      </div>
+
+                      {modulo.data.length > 0 ? (
+                        <div style={{ minHeight: 0, overflowY: "auto", overscrollBehavior: "contain", paddingRight: "4px", display: "grid", alignContent: "start", gap: "8px", scrollbarWidth: "thin", scrollbarColor: temaClaro ? "rgba(37,99,235,0.36) rgba(226,232,240,0.60)" : "rgba(56,189,248,0.34) rgba(15,23,42,0.74)" }}>
+                          {modulo.data.map((item, index) => (
+                            <div key={`${modulo.id}-${item.nombre}`} style={{ display: "grid", gap: "5px" }}>
+                              <div style={{ display: "grid", gridTemplateColumns: "24px minmax(0, 1fr) auto", gap: "8px", alignItems: "center", color: textoMedio, fontSize: "11px", fontWeight: 850 }}>
+                                <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: "20px", height: "20px", borderRadius: "999px", background: temaClaro ? "rgba(37,99,235,0.10)" : "rgba(56,189,248,0.12)", color: textoAzul, fontWeight: 950 }}>{index + 1}</span>
+                                <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.nombre}</span>
+                                <strong style={{ color: textoPrincipal }}>{item.total}</strong>
+                              </div>
+                              <div style={{ height: "8px", borderRadius: "999px", background: fondoInternoFuerte, overflow: "hidden" }}>
+                                <div style={{ width: `${Math.max(8, (item.total / maxMatriz) * 100)}%`, height: "100%", borderRadius: "999px", background: `linear-gradient(90deg, ${modulo.color}, rgba(56,189,248,0.70))`, boxShadow: `0 0 16px ${modulo.color}33` }} />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div style={{ minHeight: 0, borderRadius: "12px", padding: "10px", background: fondoInternoFuerte, border: bordeInterno, color: textoSuave, fontSize: "11px", fontWeight: 750 }}>
+                          Sin datos suficientes con los filtros actuales.
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+
           </section>
 
-          <aside className="ce-panel-kpi-report" style={{ ...themedSurfaceStyle, padding: "18px", display: "grid", gap: "14px", borderLeft: temaClaro ? "1px solid rgba(37,99,235,0.24)" : "1px solid rgba(125,211,252,0.18)" }}>
+          <aside className="ce-panel-kpi-report" style={{ ...themedSurfaceStyle, padding: "18px", display: "grid", gap: "14px", alignSelf: "stretch", alignContent: "start", boxSizing: "border-box", borderLeft: temaClaro ? "1px solid rgba(37,99,235,0.24)" : "1px solid rgba(125,211,252,0.18)" }}>
             <div style={{ borderRadius: "18px", padding: "13px 14px", background: temaClaro ? "rgba(239,246,255,0.82)" : "linear-gradient(145deg, rgba(15,23,42,0.82), rgba(30,41,59,0.54))", border: temaClaro ? "1px solid rgba(37,99,235,0.20)" : "1px solid rgba(125,211,252,0.18)", borderLeft: temaClaro ? "3px solid rgba(37,99,235,0.72)" : "3px solid rgba(56,189,248,0.72)" }}>
               <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 950, display: "flex", alignItems: "center", gap: "8px", color: textoPrincipal }}>
                 <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: "22px", height: "22px", borderRadius: "999px", background: temaClaro ? "rgba(37,99,235,0.12)" : "rgba(56,189,248,0.14)", border: temaClaro ? "1px solid rgba(37,99,235,0.22)" : "1px solid rgba(125,211,252,0.28)", color: textoAzul, fontSize: "11px", fontWeight: 950 }}>R</span>
@@ -1916,33 +2327,83 @@ export default function KpiGerencialAvanzadoPage() {
               </div>
             </div>
 
-            <div style={{ display: "grid", gap: "10px", borderRadius: "20px", padding: "13px", background: temaClaro ? "linear-gradient(145deg, rgba(239,246,255,0.88), rgba(255,255,255,0.82))" : "linear-gradient(145deg, rgba(15,23,42,0.78), rgba(30,41,59,0.42))", border: temaClaro ? "1px solid rgba(37,99,235,0.18)" : "1px solid rgba(125,211,252,0.16)", boxShadow: temaClaro ? "0 12px 26px rgba(15,23,42,0.05)" : "0 16px 34px rgba(2,6,23,0.20)" }}>
-              <div style={{ fontSize: "12px", color: textoPrincipal, fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.65px", display: "flex", alignItems: "center", gap: "8px" }}>
-                <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: "22px", height: "22px", borderRadius: "999px", background: temaClaro ? "rgba(37,99,235,0.12)" : "rgba(56,189,248,0.14)", border: temaClaro ? "1px solid rgba(37,99,235,0.22)" : "1px solid rgba(125,211,252,0.28)", color: textoAzul, fontSize: "11px", fontWeight: 950 }}>G</span>
-                {t("Rankings gerenciales")}
-              </div>
-              {rankingsSecundarios.map((ranking) => (
-                <div key={ranking.titulo} style={{ borderRadius: "18px", padding: "12px", background: temaClaro ? "rgba(255,255,255,0.88)" : "rgba(15,23,42,0.64)", border: temaClaro ? "1px solid rgba(37,99,235,0.16)" : "1px solid rgba(125,211,252,0.16)", borderLeft: temaClaro ? "3px solid rgba(37,99,235,0.54)" : "3px solid rgba(56,189,248,0.50)", display: "grid", gap: "9px", boxShadow: temaClaro ? "0 9px 20px rgba(15,23,42,0.05)" : "inset 0 1px 0 rgba(255,255,255,0.035)" }}>
-                  <div>
-                    <div style={{ fontSize: "12px", color: textoPrincipal, fontWeight: 950, display: "flex", alignItems: "center", gap: "7px" }}>
-                      <span style={{ width: "6px", height: "16px", borderRadius: "999px", background: "linear-gradient(180deg, rgba(56,189,248,0.92), rgba(99,102,241,0.70))" }} />
-                      {ranking.titulo}
-                    </div>
-                    <div style={{ marginTop: "3px", fontSize: "11px", color: textoSuave, lineHeight: 1.35, fontWeight: 750 }}>{ranking.subtitulo}</div>
-                  </div>
-                  {ranking.data.slice(0, 3).map((item, index) => (
-                    <div key={`${ranking.titulo}-${item.nombre}`} style={{ display: "grid", gridTemplateColumns: "24px minmax(0, 1fr) auto", gap: "8px", alignItems: "center", color: textoMedio, fontSize: "11px", fontWeight: 850, borderRadius: "12px", padding: "7px 8px", background: temaClaro ? "rgba(239,246,255,0.72)" : "rgba(30,41,59,0.42)", border: temaClaro ? "1px solid rgba(37,99,235,0.10)" : "1px solid rgba(125,211,252,0.10)" }}>
-                      <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: "20px", height: "20px", borderRadius: "999px", background: temaClaro ? "rgba(37,99,235,0.10)" : "rgba(56,189,248,0.12)", color: textoAzul, fontWeight: 950 }}>{index + 1}</span>
-                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.nombre}</span>
-                      <span style={{ color: textoPrincipal, fontWeight: 950 }}>{item.total}</span>
-                    </div>
-                  ))}
-                  {ranking.data.length === 0 && (
-                    <div style={{ color: textoSuave, fontSize: "11px", fontWeight: 750 }}>Sin datos con los filtros actuales.</div>
-                  )}
+            <div style={{ display: "grid", gap: "12px", borderRadius: "18px", padding: "13px", background: temaClaro ? "rgba(248,250,252,0.78)" : "rgba(15,23,42,0.38)", border: temaClaro ? "1px solid rgba(37,99,235,0.14)" : "1px solid rgba(125,211,252,0.14)", borderLeft: temaClaro ? "3px solid rgba(14,165,233,0.50)" : "3px solid rgba(14,165,233,0.58)", boxShadow: temaClaro ? "0 10px 22px rgba(15,23,42,0.04)" : "inset 0 1px 0 rgba(255,255,255,0.03)" }}>
+              <div>
+                <div style={{ fontSize: "11px", color: textoAzul, fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.55px", display: "flex", alignItems: "center", gap: "7px" }}>
+                  <span style={{ width: "7px", height: "18px", borderRadius: "999px", background: "linear-gradient(180deg, rgba(56,189,248,0.92), rgba(249,115,22,0.72))" }} />
+                  Cierre y vencimiento
                 </div>
-              ))}
+                <div style={{ marginTop: "5px", color: textoSuave, fontSize: "11px", lineHeight: 1.35, fontWeight: 750 }}>
+                  Indicadores de presion del filtro actual.
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "8px" }}>
+                {[
+                  ["Tasa cierre", `${analisis.tasaCierre}%`, "#22c55e"],
+                  ["Vencidos", pulsoLateralGerencial.vencidosAbiertos, "#f97316"],
+                  ["En plazo", pulsoLateralGerencial.abiertosEnPlazo, "#60a5fa"],
+                  ["Sin plazo", pulsoLateralGerencial.abiertosSinFecha, "#facc15"],
+                ].map(([label, valor, color]) => (
+                  <div key={String(label)} style={{ minWidth: 0, borderRadius: "14px", padding: "10px", background: fondoInterno, border: bordeInterno, display: "grid", gap: "5px" }}>
+                    <span style={{ color: textoSuave, fontSize: "10px", fontWeight: 850, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {label}
+                    </span>
+                    <strong style={{ color: String(color), fontSize: "18px", lineHeight: 1, fontWeight: 950 }}>
+                      {valor}
+                    </strong>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ display: "grid", gap: "8px" }}>
+                {pulsoLateralGerencial.cierre.map((item) => (
+                  <div key={item.label} style={{ display: "grid", gap: "5px" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: "8px", alignItems: "center", color: textoMedio, fontSize: "11px", fontWeight: 850 }}>
+                      <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.label}</span>
+                      <strong style={{ color: textoPrincipal }}>{item.total}</strong>
+                    </div>
+                    <div style={{ height: "8px", borderRadius: "999px", background: fondoInternoFuerte, overflow: "hidden" }}>
+                      <div style={{ width: `${Math.max(6, (item.total / pulsoLateralGerencial.totalEstado) * 100)}%`, height: "100%", borderRadius: "999px", background: `linear-gradient(90deg, ${item.color}, rgba(56,189,248,0.62))`, boxShadow: `0 0 14px ${item.color}2f` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
+
+            <div style={{ display: "grid", gap: "11px", borderRadius: "18px", padding: "13px", background: temaClaro ? "rgba(248,250,252,0.78)" : "rgba(15,23,42,0.38)", border: temaClaro ? "1px solid rgba(37,99,235,0.14)" : "1px solid rgba(125,211,252,0.14)", borderLeft: temaClaro ? "3px solid rgba(248,113,113,0.52)" : "3px solid rgba(248,113,113,0.58)", boxShadow: temaClaro ? "0 10px 22px rgba(15,23,42,0.04)" : "inset 0 1px 0 rgba(255,255,255,0.03)" }}>
+              <div>
+                <div style={{ fontSize: "11px", color: textoAzul, fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.55px", display: "flex", alignItems: "center", gap: "7px" }}>
+                  <span style={{ width: "7px", height: "18px", borderRadius: "999px", background: "linear-gradient(180deg, rgba(248,113,113,0.92), rgba(249,115,22,0.72))" }} />
+                  Control inmediato
+                </div>
+                <div style={{ marginTop: "5px", color: textoSuave, fontSize: "11px", lineHeight: 1.35, fontWeight: 750 }}>
+                  Brechas de gestion que requieren seguimiento.
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gap: "8px" }}>
+                {pulsoLateralGerencial.brechas.map((item) => {
+                  const porcentaje = Math.round((item.total / pulsoLateralGerencial.totalAbiertos) * 100);
+
+                  return (
+                    <div key={item.label} style={{ display: "grid", gridTemplateColumns: "42px minmax(0, 1fr)", gap: "9px", alignItems: "center", borderRadius: "14px", padding: "9px 10px", background: fondoInterno, border: bordeInterno }}>
+                      <strong style={{ color: item.color, fontSize: "18px", lineHeight: 1, fontWeight: 950, textAlign: "right" }}>{item.total}</strong>
+                      <div style={{ minWidth: 0, display: "grid", gap: "5px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", color: textoMedio, fontSize: "11px", fontWeight: 850 }}>
+                          <span style={{ minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.label}</span>
+                          <span style={{ color: textoSuave, fontSize: "10px", fontWeight: 850 }}>{porcentaje}%</span>
+                        </div>
+                        <div style={{ height: "7px", borderRadius: "999px", background: fondoInternoFuerte, overflow: "hidden" }}>
+                          <div style={{ width: `${Math.max(6, porcentaje)}%`, height: "100%", borderRadius: "999px", background: `linear-gradient(90deg, ${item.color}, rgba(56,189,248,0.56))`, boxShadow: `0 0 14px ${item.color}2f` }} />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
           </aside>
             <section style={{ ...themedSurfaceStyle, padding: "18px", display: "grid", gap: "14px", width: "100%", maxWidth: "none", minWidth: 0, alignSelf: "stretch", justifySelf: "stretch", boxSizing: "border-box", gridColumn: "1 / -1" }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start", flexWrap: "wrap" }}>
