@@ -86,6 +86,16 @@ type FocoDetalleAccionable =
   | "sin-fecha-compromiso"
   | "cerrados";
 
+type FiltrosDetalleAccionable = {
+  empresaResponsable: string;
+  empresaReportante: string;
+  obra: string;
+  responsableCierre: string;
+  criticidad: "" | CriticidadKpiGerencial;
+  estado: "" | EstadoKpiGerencial;
+  vencimiento: "todos" | "vencidos" | "no-vencidos" | "sin-fecha";
+};
+
 const LIMITE_REGISTROS_ANALISIS = 500;
 
 const filtrosIniciales: FiltrosVista = {
@@ -109,6 +119,16 @@ const filtrosIniciales: FiltrosVista = {
   vencimiento: "todos",
   soloCriticosAbiertos: false,
   soloReincidencias: false,
+};
+
+const filtrosDetalleAccionableIniciales: FiltrosDetalleAccionable = {
+  empresaResponsable: "",
+  empresaReportante: "",
+  obra: "",
+  responsableCierre: "",
+  criticidad: "",
+  estado: "",
+  vencimiento: "todos",
 };
 
 const pageStyle: CSSProperties = {
@@ -595,6 +615,8 @@ export default function KpiGerencialAvanzadoPage() {
   const [limiteDetalleAccionable, setLimiteDetalleAccionable] = useState(20);
   const [paginaDetalleAccionable, setPaginaDetalleAccionable] = useState(1);
   const [hallazgoDetalleAbierto, setHallazgoDetalleAbierto] = useState("");
+  const [filtrosDetalleAccionable, setFiltrosDetalleAccionable] =
+    useState<FiltrosDetalleAccionable>(filtrosDetalleAccionableIniciales);
 
   async function cargarDatos() {
     try {
@@ -753,11 +775,107 @@ export default function KpiGerencialAvanzadoPage() {
     return analisis.hallazgos;
   }, [analisis.hallazgos, focoDetalleAccionable]);
 
+  const opcionesDetalleAccionable = useMemo(
+    () => ({
+      empresasResponsables: valorUnico(
+        detalleAccionableBase.map(
+          (hallazgo) => hallazgo.empresaResponsable || "Sin empresa responsable"
+        )
+      ),
+      empresasReportantes: valorUnico(
+        detalleAccionableBase.map(
+          (hallazgo) => hallazgo.empresaReportante || hallazgo.empresa
+        )
+      ),
+      obras: valorUnico(detalleAccionableBase.map((hallazgo) => hallazgo.obra)),
+      responsables: valorUnico(
+        detalleAccionableBase.map(
+          (hallazgo) => hallazgo.responsableCierre || "Sin responsable"
+        )
+      ),
+      criticidades: valorUnico(
+        detalleAccionableBase.map((hallazgo) => hallazgo.criticidad)
+      ) as CriticidadKpiGerencial[],
+      estados: valorUnico(
+        detalleAccionableBase.map((hallazgo) => hallazgo.estado)
+      ) as EstadoKpiGerencial[],
+    }),
+    [detalleAccionableBase]
+  );
+
+  const detalleAccionableConFiltrosInternos = useMemo(
+    () =>
+      detalleAccionableBase.filter((hallazgo) => {
+        if (
+          filtrosDetalleAccionable.empresaResponsable &&
+          (hallazgo.empresaResponsable || "Sin empresa responsable") !==
+            filtrosDetalleAccionable.empresaResponsable
+        ) {
+          return false;
+        }
+        if (
+          filtrosDetalleAccionable.empresaReportante &&
+          (hallazgo.empresaReportante || hallazgo.empresa) !==
+            filtrosDetalleAccionable.empresaReportante
+        ) {
+          return false;
+        }
+        if (
+          filtrosDetalleAccionable.obra &&
+          hallazgo.obra !== filtrosDetalleAccionable.obra
+        ) {
+          return false;
+        }
+        if (
+          filtrosDetalleAccionable.responsableCierre &&
+          (hallazgo.responsableCierre || "Sin responsable") !==
+            filtrosDetalleAccionable.responsableCierre
+        ) {
+          return false;
+        }
+        if (
+          filtrosDetalleAccionable.criticidad &&
+          hallazgo.criticidad !== filtrosDetalleAccionable.criticidad
+        ) {
+          return false;
+        }
+        if (
+          filtrosDetalleAccionable.estado &&
+          hallazgo.estado !== filtrosDetalleAccionable.estado
+        ) {
+          return false;
+        }
+        if (
+          filtrosDetalleAccionable.vencimiento === "vencidos" &&
+          !esHallazgoVencidoDetalle(hallazgo)
+        ) {
+          return false;
+        }
+        if (
+          filtrosDetalleAccionable.vencimiento === "no-vencidos" &&
+          esHallazgoVencidoDetalle(hallazgo)
+        ) {
+          return false;
+        }
+        if (
+          filtrosDetalleAccionable.vencimiento === "sin-fecha" &&
+          !(
+            esHallazgoAbiertoGerencial(hallazgo) &&
+            !hallazgo.fechaCompromiso
+          )
+        ) {
+          return false;
+        }
+        return true;
+      }),
+    [detalleAccionableBase, filtrosDetalleAccionable]
+  );
+
   const detalleAccionableFiltrado = useMemo(() => {
     const busqueda = normalizarTexto(busquedaDetalleAccionable.trim());
-    if (!busqueda) return detalleAccionableBase;
+    if (!busqueda) return detalleAccionableConFiltrosInternos;
 
-    return detalleAccionableBase.filter((hallazgo) =>
+    return detalleAccionableConFiltrosInternos.filter((hallazgo) =>
       normalizarTexto(
         [
           hallazgo.codigo,
@@ -773,7 +891,7 @@ export default function KpiGerencialAvanzadoPage() {
         ].join(" ")
       ).includes(busqueda)
     );
-  }, [busquedaDetalleAccionable, detalleAccionableBase]);
+  }, [busquedaDetalleAccionable, detalleAccionableConFiltrosInternos]);
 
   const totalDetalleAccionable = detalleAccionableFiltrado.length;
   const totalPaginasDetalleAccionable = Math.max(
@@ -813,16 +931,62 @@ export default function KpiGerencialAvanzadoPage() {
               ? "Cerrados"
               : "Todos";
 
+  const filtrosInternosActivosResumen = useMemo(
+    () =>
+      [
+        filtrosDetalleAccionable.empresaResponsable
+          ? `Empresa responsable: ${filtrosDetalleAccionable.empresaResponsable}`
+          : null,
+        filtrosDetalleAccionable.empresaReportante
+          ? `Empresa reportante: ${filtrosDetalleAccionable.empresaReportante}`
+          : null,
+        filtrosDetalleAccionable.obra
+          ? `Obra: ${filtrosDetalleAccionable.obra}`
+          : null,
+        filtrosDetalleAccionable.responsableCierre
+          ? `Responsable cierre: ${filtrosDetalleAccionable.responsableCierre}`
+          : null,
+        filtrosDetalleAccionable.criticidad
+          ? `Criticidad: ${traducirCriticidad(filtrosDetalleAccionable.criticidad)}`
+          : null,
+        filtrosDetalleAccionable.estado
+          ? `Estado operativo: ${traducirEstado(filtrosDetalleAccionable.estado)}`
+          : null,
+        filtrosDetalleAccionable.vencimiento !== "todos"
+          ? `Vencimiento: ${
+              filtrosDetalleAccionable.vencimiento === "vencidos"
+                ? "Vencidos"
+                : filtrosDetalleAccionable.vencimiento === "no-vencidos"
+                  ? "No vencidos"
+                  : "Sin fecha compromiso"
+            }`
+          : null,
+      ].filter(Boolean) as string[],
+    [filtrosDetalleAccionable, idiomaActivo]
+  );
+
   useEffect(() => {
     setPaginaDetalleAccionable(1);
     setHallazgoDetalleAbierto("");
-  }, [busquedaDetalleAccionable, focoDetalleAccionable, limiteDetalleAccionable]);
+  }, [
+    busquedaDetalleAccionable,
+    filtrosDetalleAccionable,
+    focoDetalleAccionable,
+    limiteDetalleAccionable,
+  ]);
 
   useEffect(() => {
     if (paginaDetalleAccionable > totalPaginasDetalleAccionable) {
       setPaginaDetalleAccionable(totalPaginasDetalleAccionable);
     }
   }, [paginaDetalleAccionable, totalPaginasDetalleAccionable]);
+
+  const limpiarFiltrosDetalleAccionable = () => {
+    setFiltrosDetalleAccionable(filtrosDetalleAccionableIniciales);
+    setBusquedaDetalleAccionable("");
+    setPaginaDetalleAccionable(1);
+    setHallazgoDetalleAbierto("");
+  };
 
   async function copiarResumenDetalle(texto: string, mensajeOk: string) {
     activarBoton("copiar-detalle-accionable");
@@ -1777,9 +1941,19 @@ export default function KpiGerencialAvanzadoPage() {
                   <p style={{ margin: "7px 0 0", color: textoMedio, fontSize: "13px", lineHeight: 1.45, fontWeight: 750 }}>
                     {totalDetalleAccionable > 0
                       ? `Mostrando ${inicioDetalleAccionable}-${finDetalleAccionable} de ${totalDetalleAccionable} hallazgo(s) del analisis con los filtros actuales.`
-                      : busquedaDetalleAccionable.trim()
-                        ? "No hay coincidencias para esta busqueda dentro del foco seleccionado."
-                        : "No hay hallazgos asociados a este foco con los filtros actuales."}
+                      : filtrosInternosActivosResumen.length > 0
+                        ? "No hay hallazgos asociados a estas opciones rápidas dentro del foco seleccionado."
+                        : busquedaDetalleAccionable.trim()
+                          ? "No hay coincidencias para esta busqueda dentro del foco seleccionado."
+                          : "No hay hallazgos asociados a este foco con los filtros actuales."}
+                    {totalDetalleAccionable > 0 && (
+                      <span>
+                        {" "}
+                        {filtrosInternosActivosResumen.length > 0
+                          ? `Opciones rápidas: ${filtrosInternosActivosResumen.join(", ")}.`
+                          : "Sin opciones rápidas aplicadas."}
+                      </span>
+                    )}
                   </p>
                 </div>
                 <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
@@ -1872,6 +2046,170 @@ export default function KpiGerencialAvanzadoPage() {
                   </div>
                 </div>
 
+                <div style={{ borderRadius: "16px", padding: "12px", background: temaClaro ? "rgba(239,246,255,0.86)" : "linear-gradient(135deg, rgba(15,23,42,0.92), rgba(8,47,73,0.38))", border: temaClaro ? "1px solid rgba(37,99,235,0.22)" : "1px solid rgba(125,211,252,0.28)", borderLeft: "4px solid rgba(56,189,248,0.82)", boxShadow: temaClaro ? "0 10px 24px rgba(15,23,42,0.06)" : "0 16px 34px rgba(2,6,23,0.24)", display: "grid", gap: "10px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+                    <div>
+                      <div style={{ color: textoAzul, fontSize: "12px", fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.7px" }}>
+                        D · Opciones rápidas
+                      </div>
+                      <div style={{ marginTop: "3px", color: textoSuave, fontSize: "11px", lineHeight: 1.35, fontWeight: 750 }}>
+                        Refinan solo este listado, sin cambiar los filtros maestros del KPI.
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                      <span style={{ color: textoSuave, fontSize: "11px", fontWeight: 800 }}>
+                        {filtrosInternosActivosResumen.length > 0
+                          ? `${filtrosInternosActivosResumen.length} opción(es) activa(s)`
+                          : "Todos los registros del foco"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={limpiarFiltrosDetalleAccionable}
+                        disabled={
+                          filtrosInternosActivosResumen.length === 0 &&
+                          !busquedaDetalleAccionable.trim()
+                        }
+                        style={{
+                          ...botonStyle("limpiar-opciones-rapidas"),
+                          minHeight: "34px",
+                          padding: "7px 10px",
+                          fontSize: "11px",
+                          opacity:
+                            filtrosInternosActivosResumen.length === 0 &&
+                            !busquedaDetalleAccionable.trim()
+                              ? 0.52
+                              : 1,
+                          cursor:
+                            filtrosInternosActivosResumen.length === 0 &&
+                            !busquedaDetalleAccionable.trim()
+                              ? "not-allowed"
+                              : "pointer",
+                        }}
+                      >
+                        Limpiar opciones rápidas
+                      </button>
+                    </div>
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "8px", width: "100%" }}>
+                    {[
+                      [
+                        "Empresa responsable",
+                        "empresaResponsable",
+                        opcionesDetalleAccionable.empresasResponsables,
+                      ],
+                      [
+                        "Empresa reportante",
+                        "empresaReportante",
+                        opcionesDetalleAccionable.empresasReportantes,
+                      ],
+                      ["Obra", "obra", opcionesDetalleAccionable.obras],
+                      [
+                        "Responsable cierre",
+                        "responsableCierre",
+                        opcionesDetalleAccionable.responsables,
+                      ],
+                    ].map(([label, campo, opcionesFiltro]) => (
+                      <label key={campo as string} style={{ display: "grid", gap: "5px", minWidth: 0 }}>
+                        <span style={{ color: textoSuave, fontSize: "10px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.5px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {label as string}
+                        </span>
+                        <select
+                          value={
+                            filtrosDetalleAccionable[
+                              campo as keyof Pick<
+                                FiltrosDetalleAccionable,
+                                | "empresaResponsable"
+                                | "empresaReportante"
+                                | "obra"
+                                | "responsableCierre"
+                              >
+                            ]
+                          }
+                          onChange={(event) =>
+                            setFiltrosDetalleAccionable((actual) => ({
+                              ...actual,
+                              [campo as string]: event.target.value,
+                            }))
+                          }
+                          style={{ ...themedInputStyle, minHeight: "34px", fontSize: "12px" }}
+                        >
+                          <option value="">Todos</option>
+                          {(opcionesFiltro as string[]).map((opcion) => (
+                            <option key={`${campo}-${opcion}`} value={opcion}>
+                              {opcion}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ))}
+                    <label style={{ display: "grid", gap: "5px", minWidth: 0 }}>
+                      <span style={{ color: textoSuave, fontSize: "10px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                        Criticidad
+                      </span>
+                      <select
+                        value={filtrosDetalleAccionable.criticidad}
+                        onChange={(event) =>
+                          setFiltrosDetalleAccionable((actual) => ({
+                            ...actual,
+                            criticidad: event.target.value as "" | CriticidadKpiGerencial,
+                          }))
+                        }
+                        style={{ ...themedInputStyle, minHeight: "34px", fontSize: "12px" }}
+                      >
+                        <option value="">Todos</option>
+                        {opcionesDetalleAccionable.criticidades.map((criticidad) => (
+                          <option key={`detalle-criticidad-${criticidad}`} value={criticidad}>
+                            {traducirCriticidad(criticidad)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label style={{ display: "grid", gap: "5px", minWidth: 0 }}>
+                      <span style={{ color: textoSuave, fontSize: "10px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                        Estado
+                      </span>
+                      <select
+                        value={filtrosDetalleAccionable.estado}
+                        onChange={(event) =>
+                          setFiltrosDetalleAccionable((actual) => ({
+                            ...actual,
+                            estado: event.target.value as "" | EstadoKpiGerencial,
+                          }))
+                        }
+                        style={{ ...themedInputStyle, minHeight: "34px", fontSize: "12px" }}
+                      >
+                        <option value="">Todos</option>
+                        {opcionesDetalleAccionable.estados.map((estado) => (
+                          <option key={`detalle-estado-${estado}`} value={estado}>
+                            {traducirEstado(estado)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label style={{ display: "grid", gap: "5px", minWidth: 0 }}>
+                      <span style={{ color: textoSuave, fontSize: "10px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                        Vencimiento
+                      </span>
+                      <select
+                        value={filtrosDetalleAccionable.vencimiento}
+                        onChange={(event) =>
+                          setFiltrosDetalleAccionable((actual) => ({
+                            ...actual,
+                            vencimiento: event.target.value as FiltrosDetalleAccionable["vencimiento"],
+                          }))
+                        }
+                        style={{ ...themedInputStyle, minHeight: "34px", fontSize: "12px" }}
+                      >
+                        <option value="todos">Todos</option>
+                        <option value="vencidos">Vencidos abiertos</option>
+                        <option value="no-vencidos">No vencidos</option>
+                        <option value="sin-fecha">Sin fecha compromiso</option>
+                      </select>
+                    </label>
+                  </div>
+                </div>
+
                 <div style={{ display: "flex", gap: "7px", flexWrap: "wrap" }}>
                   {filtrosActivosResumen.length > 0 ? (
                     filtrosActivosResumen.map((filtro) => (
@@ -1889,6 +2227,17 @@ export default function KpiGerencialAvanzadoPage() {
                       Busqueda: {busquedaDetalleAccionable.trim()}
                     </span>
                   )}
+                  {filtrosInternosActivosResumen.length > 0 ? (
+                    filtrosInternosActivosResumen.map((filtro) => (
+                      <span key={`detalle-interno-${filtro}`} style={{ borderRadius: "999px", padding: "6px 9px", background: temaClaro ? "rgba(14,165,233,0.10)" : "rgba(56,189,248,0.10)", border: temaClaro ? "1px solid rgba(14,165,233,0.20)" : "1px solid rgba(125,211,252,0.22)", color: textoAzul, fontSize: "11px", fontWeight: 900 }}>
+                        Opción rápida: {filtro}
+                      </span>
+                    ))
+                  ) : (
+                    <span style={{ color: textoSuave, fontSize: "12px", fontWeight: 750 }}>
+                      Sin opciones rápidas aplicadas.
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -1898,7 +2247,11 @@ export default function KpiGerencialAvanzadoPage() {
                 </div>
               ) : totalDetalleAccionable === 0 ? (
                 <div style={{ borderRadius: "18px", padding: "22px", background: fondoInterno, border: bordeInterno, textAlign: "center", color: textoMedio, fontSize: "14px", fontWeight: 800 }}>
-                  No hay coincidencias para esta busqueda dentro del foco seleccionado.
+                  {filtrosInternosActivosResumen.length > 0
+                    ? "No hay hallazgos asociados a estas opciones rápidas dentro del foco seleccionado."
+                    : busquedaDetalleAccionable.trim()
+                      ? "No hay coincidencias para esta busqueda dentro del foco seleccionado."
+                      : "No hay hallazgos asociados a este foco con los filtros actuales."}
                 </div>
               ) : (
                 <div style={{ display: "grid", gap: "8px", overflowX: "auto", paddingBottom: "2px", width: "100%", maxWidth: "none", minWidth: 0, justifyItems: "stretch" }}>
