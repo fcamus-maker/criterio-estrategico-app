@@ -1347,7 +1347,97 @@ export default function KpiGerencialAvanzadoPage() {
             ? "Tipos repetidos que ayudan a orientar prevencion."
             : "Comparacion segun los filtros activos y los registros cargados.";
   const maxRanking = maximoRanking(rankingPrincipal);
-  const maxTendencia = Math.max(1, ...analisis.tendenciaTemporal.map((item) => item.total));
+  const periodoTendenciaDesdeFecha = (valor?: string) => {
+    if (!valor) return "Sin fecha";
+    const fecha = new Date(valor);
+    if (Number.isNaN(fecha.getTime())) return "Sin fecha";
+    return fecha.toISOString().slice(0, 7);
+  };
+  const criticosAbiertosPorPeriodo = new Map<string, number>();
+  const vencidosAbiertosPorPeriodo = new Map<string, number>();
+
+  analisis.hallazgos.forEach((hallazgo) => {
+    const periodo = periodoTendenciaDesdeFecha(hallazgo.fechaISO);
+    if (hallazgo.criticidad === "CRITICO" && esHallazgoAbiertoGerencial(hallazgo)) {
+      criticosAbiertosPorPeriodo.set(
+        periodo,
+        (criticosAbiertosPorPeriodo.get(periodo) || 0) + 1
+      );
+    }
+    if (esHallazgoVencidoDetalle(hallazgo)) {
+      vencidosAbiertosPorPeriodo.set(
+        periodo,
+        (vencidosAbiertosPorPeriodo.get(periodo) || 0) + 1
+      );
+    }
+  });
+  const tendenciaTemporalVisible = analisis.tendenciaTemporal.slice(-10);
+  const tendenciaSeriesVisible = tendenciaTemporalVisible.map((item) => ({
+    ...item,
+    criticosAbiertos: criticosAbiertosPorPeriodo.get(item.periodo) || 0,
+    vencidosAbiertos: vencidosAbiertosPorPeriodo.get(item.periodo) || 0,
+  }));
+  const maxTendencia = Math.max(
+    1,
+    ...tendenciaSeriesVisible.flatMap((item) => [
+      item.total,
+      item.criticosAbiertos,
+      item.vencidosAbiertos,
+    ])
+  );
+  const tendenciaEscalaMaxima = Math.max(2, maxTendencia);
+  const tendenciaEscalaMedia = Math.ceil(tendenciaEscalaMaxima / 2);
+  const tendenciaChartWidth = 680;
+  const tendenciaChartHeight = 168;
+  const tendenciaPlotLeft = 54;
+  const tendenciaPlotRight = 642;
+  const tendenciaPlotTop = 20;
+  const tendenciaPlotBottom = 132;
+  const tendenciaPlotWidth = tendenciaPlotRight - tendenciaPlotLeft;
+  const tendenciaPlotHeight = tendenciaPlotBottom - tendenciaPlotTop;
+  const tendenciaY = (valor: number) =>
+    tendenciaPlotBottom - (valor / tendenciaEscalaMaxima) * tendenciaPlotHeight;
+  const tendenciaPuntos = tendenciaTemporalVisible.map((item, index, lista) => {
+    const x =
+      lista.length <= 1
+        ? (tendenciaPlotLeft + tendenciaPlotRight) / 2
+        : tendenciaPlotLeft + (index / (lista.length - 1)) * tendenciaPlotWidth;
+    const criticosAbiertos = criticosAbiertosPorPeriodo.get(item.periodo) || 0;
+    const vencidosAbiertos = vencidosAbiertosPorPeriodo.get(item.periodo) || 0;
+
+    return {
+      ...item,
+      criticosAbiertos,
+      vencidosAbiertos,
+      x,
+      yTotal: tendenciaY(item.total),
+      yCriticos: tendenciaY(criticosAbiertos),
+      yVencidos: tendenciaY(vencidosAbiertos),
+    };
+  });
+  const tendenciaTotalPolyline = tendenciaPuntos
+    .map((item) => `${item.x},${item.yTotal}`)
+    .join(" ");
+  const tendenciaCriticosPolyline = tendenciaPuntos
+    .map((item) => `${item.x},${item.yCriticos}`)
+    .join(" ");
+  const tendenciaVencidosPolyline = tendenciaPuntos
+    .map((item) => `${item.x},${item.yVencidos}`)
+    .join(" ");
+  const tendenciaEscalas = [
+    tendenciaEscalaMaxima,
+    tendenciaEscalaMedia,
+    0,
+  ];
+  const tendenciaLineasVerticales =
+    tendenciaPuntos.length > 1
+      ? tendenciaPuntos.map((item) => item.x)
+      : [
+          tendenciaPlotLeft,
+          (tendenciaPlotLeft + tendenciaPlotRight) / 2,
+          tendenciaPlotRight,
+        ];
+  const tendenciaSegmentoUnico = 86;
   const radarGerencial = useMemo(() => {
     const abiertos = analisis.hallazgos.filter(esHallazgoAbiertoGerencial);
     const criticosAbiertos = abiertos.filter(
@@ -2626,47 +2716,202 @@ export default function KpiGerencialAvanzadoPage() {
                   <div>
                     <div style={{ fontSize: "16px", fontWeight: 950 }}>{t("Tendencia temporal")}</div>
                     <div style={{ marginTop: "5px", color: textoSuave, fontSize: "12px", lineHeight: 1.4, fontWeight: 750 }}>
-                      Volumen mensual de hallazgos filtrados. El acento ambar indica periodos con criticidad critica.
+                      Evolucion mensual con total reportado, criticos abiertos y vencidos abiertos.
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", justifyContent: "flex-end", color: textoSuave, fontSize: "11px", fontWeight: 850 }}>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}>
-                      <span style={{ width: "10px", height: "10px", borderRadius: "3px", background: "linear-gradient(180deg,#38bdf8,#2563eb)" }} />
-                      Total
-                    </span>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}>
-                      <span style={{ width: "10px", height: "10px", borderRadius: "999px", background: "#f59e0b" }} />
-                      Con criticos
-                    </span>
+                    {[
+                      ["Total reportado", "#38bdf8"],
+                      ["Criticos abiertos", "#ef4444"],
+                      ["Vencidos abiertos", "#f97316"],
+                    ].map(([label, color]) => (
+                      <span key={label} style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                        <span style={{ width: "18px", height: "3px", borderRadius: "999px", background: color, boxShadow: `0 0 10px ${color}55` }} />
+                        {label}
+                      </span>
+                    ))}
                   </div>
                 </div>
-                <div style={{ height: "210px", display: "flex", alignItems: "end", gap: "10px", paddingTop: "16px" }}>
-                  {analisis.tendenciaTemporal.slice(-10).map((item) => (
-                    <div key={item.periodo} style={{ flex: 1, display: "grid", alignItems: "end", gap: "8px", minWidth: 0 }}>
-                      <div style={{ display: "grid", alignItems: "end", justifyItems: "center", gap: "6px" }}>
-                        {item.criticos > 0 && (
-                          <span style={{ width: "8px", height: "8px", borderRadius: "999px", background: "#f59e0b", boxShadow: "0 0 12px rgba(245,158,11,0.42)" }} />
-                        )}
-                        <div
-                          style={{
-                            width: "100%",
-                            height: `${Math.max(8, (item.total / maxTendencia) * 150)}px`,
-                            borderRadius: "14px 14px 6px 6px",
-                            background: item.criticos > 0
-                              ? "linear-gradient(180deg,#f59e0b 0%, #38bdf8 44%, #2563eb 100%)"
-                              : "linear-gradient(180deg,#38bdf8,#2563eb)",
-                            boxShadow: item.criticos > 0
-                              ? "0 10px 22px rgba(245,158,11,0.16)"
-                              : "0 10px 22px rgba(14,165,233,0.18)",
-                            border: item.criticos > 0
-                              ? "1px solid rgba(245,158,11,0.28)"
-                              : "1px solid rgba(125,211,252,0.18)",
-                          }}
+                <div style={{ height: "210px", display: "grid", gridTemplateRows: "minmax(0, 1fr)", paddingTop: "6px" }}>
+                  {tendenciaPuntos.length > 0 ? (
+                    <div style={{ minHeight: 0, borderRadius: "18px", border: temaClaro ? "1px solid rgba(100,116,139,0.18)" : "1px solid rgba(148,163,184,0.16)", background: temaClaro ? "rgba(248,250,252,0.74)" : "rgba(2,6,23,0.18)", padding: "4px 2px 0" }}>
+                      <svg
+                        viewBox={`0 0 ${tendenciaChartWidth} ${tendenciaChartHeight}`}
+                        role="img"
+                        aria-label="Tendencia temporal de hallazgos"
+                        style={{ width: "100%", height: "100%", minHeight: "178px", overflow: "visible", display: "block" }}
+                      >
+                        <rect
+                          x={tendenciaPlotLeft}
+                          y={tendenciaPlotTop}
+                          width={tendenciaPlotWidth}
+                          height={tendenciaPlotHeight}
+                          rx="10"
+                          fill={temaClaro ? "rgba(255,255,255,0.58)" : "rgba(15,23,42,0.36)"}
                         />
-                      </div>
-                      <div style={{ fontSize: "10px", color: textoSuave, textAlign: "center", fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis" }}>{item.periodo}</div>
+                        {tendenciaEscalas.map((valor) => {
+                          const y = tendenciaY(valor);
+                          return (
+                            <g key={`y-${valor}`}>
+                              <line
+                                x1={tendenciaPlotLeft}
+                                y1={y}
+                                x2={tendenciaPlotRight}
+                                y2={y}
+                                stroke={temaClaro ? "rgba(100,116,139,0.24)" : "rgba(148,163,184,0.18)"}
+                                strokeWidth="1"
+                              />
+                              <line
+                                x1={tendenciaPlotLeft - 5}
+                                y1={y}
+                                x2={tendenciaPlotLeft}
+                                y2={y}
+                                stroke={temaClaro ? "rgba(51,65,85,0.50)" : "rgba(226,232,240,0.42)"}
+                                strokeWidth="1.4"
+                              />
+                              <text
+                                x={tendenciaPlotLeft - 12}
+                                y={y + 4}
+                                textAnchor="end"
+                                fill={temaClaro ? "#475569" : "#94a3b8"}
+                                fontSize="11"
+                                fontWeight="850"
+                              >
+                                {valor}
+                              </text>
+                            </g>
+                          );
+                        })}
+                        {tendenciaLineasVerticales.map((x, index) => (
+                          <line
+                            key={`x-grid-${index}`}
+                            x1={x}
+                            y1={tendenciaPlotTop}
+                            x2={x}
+                            y2={tendenciaPlotBottom}
+                            stroke={temaClaro ? "rgba(100,116,139,0.16)" : "rgba(148,163,184,0.12)"}
+                            strokeWidth="1"
+                          />
+                        ))}
+                        <line
+                          x1={tendenciaPlotLeft}
+                          y1={tendenciaPlotTop}
+                          x2={tendenciaPlotLeft}
+                          y2={tendenciaPlotBottom}
+                          stroke={temaClaro ? "#475569" : "#cbd5e1"}
+                          strokeWidth="1.6"
+                        />
+                        <line
+                          x1={tendenciaPlotLeft}
+                          y1={tendenciaPlotBottom}
+                          x2={tendenciaPlotRight}
+                          y2={tendenciaPlotBottom}
+                          stroke={temaClaro ? "#475569" : "#cbd5e1"}
+                          strokeWidth="1.6"
+                        />
+                        {tendenciaPuntos.length > 1 && (
+                          <>
+                            <polyline
+                              points={tendenciaTotalPolyline}
+                              fill="none"
+                              stroke="#38bdf8"
+                              strokeWidth="4"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              vectorEffect="non-scaling-stroke"
+                            />
+                            <polyline
+                              points={tendenciaCriticosPolyline}
+                              fill="none"
+                              stroke="#ef4444"
+                              strokeWidth="3"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              vectorEffect="non-scaling-stroke"
+                            />
+                            <polyline
+                              points={tendenciaVencidosPolyline}
+                              fill="none"
+                              stroke="#f97316"
+                              strokeWidth="3"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeDasharray="6 6"
+                              vectorEffect="non-scaling-stroke"
+                            />
+                          </>
+                        )}
+                        {tendenciaPuntos.length === 1 && (
+                          <>
+                            <line x1={tendenciaPuntos[0].x - tendenciaSegmentoUnico} y1={tendenciaPuntos[0].yTotal} x2={tendenciaPuntos[0].x + tendenciaSegmentoUnico} y2={tendenciaPuntos[0].yTotal} stroke="#38bdf8" strokeWidth="4" strokeLinecap="round" />
+                            <line x1={tendenciaPuntos[0].x - tendenciaSegmentoUnico} y1={tendenciaPuntos[0].yCriticos} x2={tendenciaPuntos[0].x + tendenciaSegmentoUnico} y2={tendenciaPuntos[0].yCriticos} stroke="#ef4444" strokeWidth="3" strokeLinecap="round" />
+                            <line x1={tendenciaPuntos[0].x - tendenciaSegmentoUnico} y1={tendenciaPuntos[0].yVencidos} x2={tendenciaPuntos[0].x + tendenciaSegmentoUnico} y2={tendenciaPuntos[0].yVencidos} stroke="#f97316" strokeWidth="3" strokeLinecap="round" strokeDasharray="6 6" />
+                          </>
+                        )}
+                        {tendenciaPuntos.map((item) => (
+                          <g key={`total-${item.periodo}`}>
+                            <circle cx={item.x} cy={item.yVencidos} r="5" fill="#f97316" stroke={temaClaro ? "#fff7ed" : "#431407"} strokeWidth="2.4" />
+                            <circle cx={item.x} cy={item.yCriticos} r="5" fill="#ef4444" stroke={temaClaro ? "#fef2f2" : "#450a0a"} strokeWidth="2.4" />
+                            <circle
+                              cx={item.x}
+                              cy={item.yTotal}
+                              r="6"
+                              fill={temaClaro ? "#ffffff" : "#0f172a"}
+                              stroke="#38bdf8"
+                              strokeWidth="4"
+                            />
+                            <text
+                              x={item.x}
+                              y={Math.max(12, item.yTotal - 12)}
+                              textAnchor="middle"
+                              fill={temaClaro ? "#0f172a" : "#e0f2fe"}
+                              fontSize="18"
+                              fontWeight="900"
+                            >
+                              {item.total}
+                            </text>
+                            <text
+                              x={item.x + 10}
+                              y={item.yCriticos + 4}
+                              textAnchor="start"
+                              fill={temaClaro ? "#991b1b" : "#fecaca"}
+                              fontSize="11"
+                              fontWeight="900"
+                            >
+                              {item.criticosAbiertos}
+                            </text>
+                            <text
+                              x={item.x + 10}
+                              y={item.yVencidos + 15}
+                              textAnchor="start"
+                              fill={temaClaro ? "#9a3412" : "#fed7aa"}
+                              fontSize="11"
+                              fontWeight="900"
+                            >
+                              {item.vencidosAbiertos}
+                            </text>
+                            <text
+                              x={item.x}
+                              y={tendenciaPlotBottom + 22}
+                              textAnchor="middle"
+                              fill={temaClaro ? "#475569" : "#cbd5e1"}
+                              fontSize="11"
+                              fontWeight="850"
+                            >
+                              {item.periodo}
+                            </text>
+                          </g>
+                        ))}
+                        <text x={tendenciaPlotLeft} y={tendenciaChartHeight - 4} textAnchor="start" fill={temaClaro ? "#64748b" : "#94a3b8"} fontSize="10" fontWeight="800">
+                          Periodo
+                        </text>
+                      </svg>
                     </div>
-                  ))}
+                  ) : (
+                    <div style={{ minHeight: "150px", display: "grid", placeItems: "center", color: textoSuave, fontSize: "12px", fontWeight: 850 }}>
+                      Sin datos temporales con los filtros actuales.
+                    </div>
+                  )}
                 </div>
               </div>
 
