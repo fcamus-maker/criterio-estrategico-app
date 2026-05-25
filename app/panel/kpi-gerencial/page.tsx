@@ -126,6 +126,15 @@ type SeccionInformeGerencial =
   | "detalle-resumido"
   | "anexos";
 
+type AnalisisSeccionInformeGerencial = {
+  id: SeccionInformeGerencial;
+  titulo: string;
+  observacion: string;
+  brecha: string;
+  accion: string;
+  base: string;
+};
+
 const LIMITE_REGISTROS_ANALISIS = 500;
 
 const plantillasInformeGerencial: Array<{
@@ -194,6 +203,13 @@ const seccionesInformeGerencial: Array<{
   { id: "detalle-resumido", label: "Detalle accionable resumido" },
   { id: "anexos", label: "Anexos / detalle completo" },
 ];
+
+const notaNormativaInformeGerencial =
+  "Este analisis se relaciona con obligaciones generales de gestion preventiva bajo la Ley 16.744, con trazabilidad, control de riesgos, responsabilidades, seguimiento y mejora continua abordados por el DS 44, y con condiciones sanitarias, ambientales, de higiene, seguridad o exposicion del lugar de trabajo cuando corresponda revisar DS 594. No reemplaza auditoria legal ni validacion tecnica formal.";
+
+function obtenerTituloSeccionInforme(id: SeccionInformeGerencial) {
+  return seccionesInformeGerencial.find((seccion) => seccion.id === id)?.label || id;
+}
 
 const alcanceInformeOpciones: Array<{
   id: AlcanceInformeGerencial;
@@ -1694,9 +1710,163 @@ export default function KpiGerencialAvanzadoPage() {
           : null,
         "La reincidencia es un patron preventivo simple y no debe usarse como prueba contractual definitiva.",
         "Los indices sinteticos de cumplimiento/preventivo son referenciales y no reemplazan validacion tecnica.",
+        "Este informe no reemplaza auditoria legal ni validacion tecnica por profesional competente.",
       ].filter(Boolean) as string[],
     [metricasGerenciales.analisisLimitadoPorCarga, seccionesInformeSeleccionadas]
   );
+  const analisisSeccionesInformeGerencial = useMemo<AnalisisSeccionInformeGerencial[]>(() => {
+    const total = analisisInformeGerencial.total;
+    const cerrados = analisisInformeGerencial.cerrados;
+    const tasaCierre = analisisInformeGerencial.tasaCierre;
+    const tipoPrincipal = analisisInformeGerencial.porTipo[0]?.nombre || "sin tipo dominante";
+    const areaPrincipal = analisisInformeGerencial.porArea[0]?.nombre || "sin area dominante";
+    const enfoquePlantilla =
+      tipoInformeGerencial === "criticos-vencidos"
+        ? "priorizar escalamiento, responsables nominales, fecha compromiso y evidencia de cierre documentada."
+        : tipoInformeGerencial === "calidad-dato"
+          ? "regularizar datos incompletos antes de usar el informe como respaldo documental o auditoria interna."
+          : "concentrar decision gerencial en criticidad, plazos, responsables y brechas con mayor impacto preventivo.";
+
+    const crearAnalisis = (
+      id: SeccionInformeGerencial,
+      observacion: string,
+      brecha: string,
+      accion: string,
+      base = notaNormativaInformeGerencial
+    ): AnalisisSeccionInformeGerencial => ({
+      id,
+      titulo: obtenerTituloSeccionInforme(id),
+      observacion,
+      brecha,
+      accion,
+      base,
+    });
+
+    return seccionesInformeSeleccionadas.map((seccion) => {
+      switch (seccion) {
+        case "kpis":
+          return crearAnalisis(
+            seccion,
+            `El alcance incluye ${total} hallazgo(s), ${metricasInformeGerencial.abiertos} abierto(s), ${cerrados} cerrado(s), ${metricasInformeGerencial.criticosAbiertos} critico(s) abierto(s), ${metricasInformeGerencial.vencidosAbiertos} vencido(s) abierto(s), ${metricasInformeGerencial.sinFechaCompromiso} sin fecha compromiso y tasa de cierre ${tasaCierre}%.`,
+            "La combinacion de criticidad, vencimiento y ausencia de plazo muestra presion operativa y posibles brechas de seguimiento preventivo.",
+            `Usar estos KPIs para ordenar prioridades, exigir plan de cierre y ${enfoquePlantilla}`
+          );
+        case "resumen":
+          return crearAnalisis(
+            seccion,
+            `La lectura global concentra foco en ${empresaFocoInforme}, ${obraFocoInforme} y responsable ${responsableFocoInforme}.`,
+            "Una concentracion sostenida puede indicar exposicion preventiva activa o carga de gestion que requiere seguimiento de gerencia.",
+            `Validar el foco con prevencion y administracion, confirmar causas, responsable, plazo y respaldo documental; luego ${enfoquePlantilla}`
+          );
+        case "radar":
+          return crearAnalisis(
+            seccion,
+            `El radar prioriza empresas con carga critica, obras con vencidos, responsables pendientes y registros sin fecha compromiso en el alcance actual.`,
+            "Estos focos muestran donde puede perderse control preventivo si no se asignan acciones, plazos y seguimiento verificable.",
+            "Usar el radar para preparar comite, solicitar cierre documentado y revisar semanalmente los focos que concentran mayor presion."
+          );
+        case "matriz":
+          return crearAnalisis(
+            seccion,
+            `La matriz compara carga por empresas, obras, areas, tipos y responsables; destacan ${empresaFocoInforme}, ${obraFocoInforme}, ${areaPrincipal} y ${tipoPrincipal}.`,
+            "La comparacion permite detectar concentraciones que pueden requerir intervencion preventiva, redistribucion de seguimiento o control por contrato.",
+            "Presentar la matriz en reunion ejecutiva para definir prioridades por empresa, obra y responsable, evitando interpretar mayor reporte como peor desempeno sin revisar contexto."
+          );
+        case "criticos-abiertos":
+          return crearAnalisis(
+            seccion,
+            `Se identifican ${metricasInformeGerencial.criticosAbiertos} hallazgo(s) critico(s) abierto(s) en los registros filtrados.`,
+            "Mantener criticos abiertos representa exposicion preventiva activa y requiere control gerencial oportuno.",
+            "Exigir plan de cierre inmediato, responsable nominal, fecha compromiso, evidencia y validacion tecnica de la accion correctiva."
+          );
+        case "vencidos-abiertos":
+          return crearAnalisis(
+            seccion,
+            `Se identifican ${metricasInformeGerencial.vencidosAbiertos} hallazgo(s) vencido(s) abierto(s) en el alcance seleccionado.`,
+            "El vencimiento abierto refleja brecha de plazo, seguimiento o escalamiento, y debilita la trazabilidad de cierre.",
+            "Escalar con empresa responsable, confirmar causa del atraso, regularizar fecha y documentar cierre o justificacion de extension cuando corresponda."
+          );
+        case "sin-fecha-compromiso":
+          return crearAnalisis(
+            seccion,
+            `Existen ${metricasInformeGerencial.sinFechaCompromiso} hallazgo(s) abierto(s) sin fecha compromiso.`,
+            "La falta de fecha compromiso reduce trazabilidad, dificulta medir cumplimiento y debilita la gestion de seguimiento.",
+            "Asignar fecha compromiso y responsable real antes de presentar el registro como control preventivo cerrado o trazable."
+          );
+        case "calidad-dato":
+          return crearAnalisis(
+            seccion,
+            `La calidad del dato muestra ${metricasInformeGerencial.conGps}/${metricasInformeGerencial.total} con GPS, ${metricasInformeGerencial.conEvidencia}/${metricasInformeGerencial.total} con evidencia, ${metricasInformeGerencial.conResponsable}/${metricasInformeGerencial.total} con responsable y ${metricasInformeGerencial.conFechaCompromiso}/${metricasInformeGerencial.total} con fecha compromiso.`,
+            "Datos incompletos reducen confiabilidad del informe y pueden afectar respaldo documental ante revisiones internas, mandante o auditoria.",
+            "Regularizar GPS, evidencia, responsable y fecha compromiso en registros relevantes antes de usarlos para respaldo formal o contractual."
+          );
+        case "ranking-empresas":
+          return crearAnalisis(
+            seccion,
+            `El ranking de empresas muestra mayor carga en ${empresaFocoInforme}.`,
+            "Una empresa con mayor carga requiere revision gerencial, aunque mayor reporte tambien puede reflejar mejor cultura de reporte y no necesariamente peor desempeno.",
+            "Cruzar ranking con criticidad, vencimientos y cierres antes de definir exigencias o compromisos de gestion por empresa."
+          );
+        case "ranking-obras":
+          return crearAnalisis(
+            seccion,
+            `El ranking de obras muestra mayor concentracion en ${obraFocoInforme}.`,
+            "La concentracion por obra puede indicar condiciones operativas, supervisores, frentes o procesos que requieren intervencion preventiva focalizada.",
+            "Usar el ranking para priorizar inspeccion, reunion de cierre y control de compromisos por proyecto."
+          );
+        case "ranking-responsables":
+          return crearAnalisis(
+            seccion,
+            `El ranking de responsables concentra carga en ${responsableFocoInforme}.`,
+            "Una alta carga en un responsable puede generar cuellos de botella, atrasos o falta de seguimiento documentado.",
+            "Revisar carga real, reasignar seguimiento si corresponde y exigir actualizacion de estado y evidencia de cierre."
+          );
+        case "recomendacion":
+          return crearAnalisis(
+            seccion,
+            analisisInformeGerencial.recomendacionPreventiva,
+            "La recomendacion resume el foco preventivo principal, pero debe contrastarse con el detalle accionable y la evidencia disponible.",
+            "Convertir la recomendacion en acuerdos de gestion: responsable, plazo, evidencia esperada y fecha de revision."
+          );
+        case "detalle-resumido":
+          return crearAnalisis(
+            seccion,
+            `El detalle resumido considera ${hallazgosInformeGerencial.length} hallazgo(s) del alcance actual para revision operativa.`,
+            "Sin revision de hallazgos concretos, los KPIs pueden quedarse como lectura agregada sin accion verificable.",
+            "Usar el detalle para preparar seguimiento, comite o requerimientos a empresas responsables, manteniendo evidencia y trazabilidad de cada cierre."
+          );
+        case "anexos":
+          return crearAnalisis(
+            seccion,
+            "Los anexos o detalle completo respaldan la trazabilidad del analisis con registros individuales.",
+            "El uso contractual o de auditoria requiere validar que los datos, evidencias y estados esten completos y actualizados.",
+            "Revisar anexo contra evidencia, responsable, fecha compromiso y cierre documentado antes de emitir conclusiones formales."
+          );
+        default:
+          return crearAnalisis(
+            seccion,
+            "La seccion seleccionada aporta contexto al informe gerencial.",
+            "Debe revisarse junto con filtros, alcance y detalle para evitar conclusiones fuera de contexto.",
+            "Usar la seccion como apoyo a decision preventiva y seguimiento documentado."
+          );
+      }
+    });
+  }, [
+    analisisInformeGerencial,
+    empresaFocoInforme,
+    hallazgosInformeGerencial.length,
+    metricasInformeGerencial,
+    obraFocoInforme,
+    responsableFocoInforme,
+    seccionesInformeSeleccionadas,
+    tipoInformeGerencial,
+  ]);
+  const textoAnalisisSeccionesInformeGerencial = analisisSeccionesInformeGerencial
+    .map(
+      (analisisSeccion) =>
+        `${analisisSeccion.titulo}\nObservación: ${analisisSeccion.observacion}\nBrecha o riesgo: ${analisisSeccion.brecha}\nAcción recomendada: ${analisisSeccion.accion}\nBase preventiva/normativa: ${analisisSeccion.base}`
+    )
+    .join("\n\n");
   const textoCopiableInformeGerencial = [
     plantillaInformeActiva.titulo,
     `Alcance: ${etiquetaAlcanceInforme}`,
@@ -1715,6 +1885,14 @@ export default function KpiGerencialAvanzadoPage() {
     `- Sin fecha compromiso: ${metricasInformeGerencial.sinFechaCompromiso}`,
     "",
     `Recomendacion: ${analisisInformeGerencial.recomendacionPreventiva}`,
+    "",
+    "Análisis ejecutivo por sección:",
+    textoAnalisisSeccionesInformeGerencial || "Sin secciones seleccionadas.",
+    "",
+    "Advertencias:",
+    ...advertenciasInformeGerencial.map((advertencia) => `- ${advertencia}`),
+    "",
+    `Nota normativa: ${notaNormativaInformeGerencial}`,
   ].join("\n");
 
   async function copiarResumenInformeGerencial() {
@@ -2933,31 +3111,69 @@ export default function KpiGerencialAvanzadoPage() {
                   </div>
                 )}
 
-                <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.2fr) minmax(260px, 0.8fr)", gap: "12px" }}>
-                  <div style={{ borderRadius: "16px", padding: "12px", background: fondoInterno, border: bordeInterno }}>
-                    <div style={{ color: textoAzul, fontSize: "11px", fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.55px" }}>
-                      Resumen ejecutivo deterministico
-                    </div>
-                    <p style={{ margin: "8px 0 0", color: textoPrincipal, fontSize: "13px", lineHeight: 1.5, fontWeight: 760 }}>
-                      {resumenInformeGerencial}
-                    </p>
+                <div style={{ borderRadius: "16px", padding: "12px", background: fondoInterno, border: bordeInterno }}>
+                  <div style={{ color: textoAzul, fontSize: "11px", fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.55px" }}>
+                    Resumen ejecutivo deterministico
                   </div>
+                  <p style={{ margin: "8px 0 0", color: textoPrincipal, fontSize: "13px", lineHeight: 1.5, fontWeight: 760 }}>
+                    {resumenInformeGerencial}
+                  </p>
+                </div>
 
-                  <div style={{ borderRadius: "16px", padding: "12px", background: fondoInterno, border: bordeInterno, display: "grid", gap: "8px", alignContent: "start" }}>
-                    <div style={{ color: textoAzul, fontSize: "11px", fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.55px" }}>
-                      Riesgos principales
-                    </div>
-                    {[
-                      `Criticos abiertos: ${metricasInformeGerencial.criticosAbiertos}`,
-                      `Vencidos abiertos: ${metricasInformeGerencial.vencidosAbiertos}`,
-                      `Sin fecha compromiso: ${metricasInformeGerencial.sinFechaCompromiso}`,
-                      `Sin responsable: ${metricasInformeGerencial.sinResponsable}`,
-                    ].map((riesgo) => (
-                      <div key={`informe-riesgo-${riesgo}`} style={{ borderRadius: "12px", padding: "8px 9px", background: fondoInternoFuerte, border: bordeInterno, color: textoMedio, fontSize: "11px", fontWeight: 850 }}>
-                        {riesgo}
+                {analisisSeccionesInformeGerencial.length > 0 && (
+                  <div style={{ display: "grid", gap: "12px", borderRadius: "20px", padding: "15px", background: temaClaro ? "linear-gradient(145deg, rgba(255,255,255,0.96), rgba(239,246,255,0.88))" : "linear-gradient(145deg, rgba(15,23,42,0.92), rgba(8,47,73,0.52))", border: temaClaro ? "1px solid rgba(37,99,235,0.20)" : "1px solid rgba(125,211,252,0.22)", borderLeft: temaClaro ? "4px solid rgba(37,99,235,0.78)" : "4px solid rgba(56,189,248,0.78)", boxShadow: temaClaro ? "0 16px 32px rgba(15,23,42,0.08)" : "0 18px 42px rgba(0,0,0,0.24)" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start", flexWrap: "wrap" }}>
+                      <div>
+                        <h3 style={{ margin: 0, color: textoPrincipal, fontSize: "22px", lineHeight: 1.1, fontWeight: 950, letterSpacing: "0" }}>
+                          Análisis ejecutivo por sección
+                        </h3>
+                        <div style={{ marginTop: "6px", color: textoSuave, fontSize: "13px", lineHeight: 1.35, fontWeight: 780 }}>
+                          Interpretación técnica y gerencial de las secciones seleccionadas.
+                        </div>
                       </div>
-                    ))}
+                      <span style={{ borderRadius: "999px", padding: "6px 9px", background: fondoInternoFuerte, border: bordeInterno, color: textoMedio, fontSize: "11px", fontWeight: 850 }}>
+                        {analisisSeccionesInformeGerencial.length} sección(es) · Ley 16.744 · DS 44 · DS 594
+                      </span>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "11px" }}>
+                      {analisisSeccionesInformeGerencial.map((analisisSeccion) => (
+                        <div key={`analisis-informe-${analisisSeccion.id}`} style={{ borderRadius: "16px", padding: "13px", background: temaClaro ? "rgba(255,255,255,0.88)" : "rgba(2,6,23,0.34)", border: temaClaro ? "1px solid rgba(37,99,235,0.18)" : "1px solid rgba(125,211,252,0.16)", borderLeft: temaClaro ? "3px solid rgba(37,99,235,0.72)" : "3px solid rgba(56,189,248,0.68)", display: "grid", gap: "9px", alignContent: "start" }}>
+                          <div style={{ color: textoPrincipal, fontSize: "14px", fontWeight: 950, lineHeight: 1.2 }}>
+                            {analisisSeccion.titulo}
+                          </div>
+                          {[
+                            ["Observación", analisisSeccion.observacion],
+                            ["Brecha o riesgo", analisisSeccion.brecha],
+                            ["Acción recomendada", analisisSeccion.accion],
+                            ["Base preventiva/normativa", analisisSeccion.base],
+                          ].map(([label, texto]) => (
+                            <div key={`analisis-informe-${analisisSeccion.id}-${label}`} style={{ display: "grid", gap: "3px" }}>
+                              <span style={{ color: textoMedio, fontSize: "11px", lineHeight: 1.38, fontWeight: 760 }}>
+                                <strong style={{ color: textoAzul, fontWeight: 950 }}>{label}: </strong>
+                                {texto}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
                   </div>
+                )}
+
+                <div style={{ borderRadius: "16px", padding: "12px", background: fondoInterno, border: bordeInterno, display: "grid", gap: "8px", alignContent: "start" }}>
+                  <div style={{ color: textoAzul, fontSize: "11px", fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.55px" }}>
+                    Riesgos principales
+                  </div>
+                  {[
+                    `Criticos abiertos: ${metricasInformeGerencial.criticosAbiertos}`,
+                    `Vencidos abiertos: ${metricasInformeGerencial.vencidosAbiertos}`,
+                    `Sin fecha compromiso: ${metricasInformeGerencial.sinFechaCompromiso}`,
+                    `Sin responsable: ${metricasInformeGerencial.sinResponsable}`,
+                  ].map((riesgo) => (
+                    <div key={`informe-riesgo-${riesgo}`} style={{ borderRadius: "12px", padding: "8px 9px", background: fondoInternoFuerte, border: bordeInterno, color: textoMedio, fontSize: "11px", fontWeight: 850 }}>
+                      {riesgo}
+                    </div>
+                  ))}
                 </div>
 
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "10px" }}>
@@ -3022,6 +3238,10 @@ export default function KpiGerencialAvanzadoPage() {
                       {advertencia}
                     </div>
                   ))}
+                </div>
+
+                <div style={{ borderRadius: "14px", padding: "10px 12px", background: fondoInterno, border: bordeInterno, color: textoSuave, fontSize: "11px", lineHeight: 1.45, fontWeight: 760 }}>
+                  Este análisis es determinístico y se basa en los registros actualmente cargados en KPI. No reemplaza auditoría legal ni validación técnica formal.
                 </div>
               </div>
             </section>
