@@ -101,6 +101,11 @@ type TipoInformeGerencial =
   | "criticos-vencidos"
   | "calidad-dato";
 
+type NivelDetalleInformeGerencial =
+  | "resumen-gerencial"
+  | "informe-operativo"
+  | "completo-anexos";
+
 type AlcanceInformeGerencial =
   | "general"
   | "empresaResponsable"
@@ -113,18 +118,55 @@ type AlcanceInformeGerencial =
 type SeccionInformeGerencial =
   | "kpis"
   | "resumen"
+  | "riesgos"
+  | "recomendacion"
+  | "calidad-dato"
+  | "nota-normativa"
+  | "advertencias"
   | "radar"
+  | "tendencia"
   | "matriz"
+  | "comparaciones"
+  | "cierre-vencimiento"
+  | "control-inmediato"
+  | "ranking-empresa-reportante"
+  | "ranking-empresa-responsable"
+  | "ranking-obras"
+  | "ranking-areas"
+  | "ranking-tipos"
+  | "ranking-responsables"
   | "criticos-abiertos"
   | "vencidos-abiertos"
   | "sin-fecha-compromiso"
-  | "calidad-dato"
-  | "ranking-empresas"
-  | "ranking-obras"
-  | "ranking-responsables"
-  | "recomendacion"
+  | "cerrados"
+  | "backlog-no-cerrado"
   | "detalle-resumido"
   | "anexos";
+
+type GraficoInformeGerencial =
+  | "radar"
+  | "tendencia"
+  | "matriz"
+  | "comparaciones"
+  | "cierre-vencimiento"
+  | "calidad-dato"
+  | "control-inmediato";
+
+type RankingInformeGerencial =
+  | "ranking-empresa-reportante"
+  | "ranking-empresa-responsable"
+  | "ranking-obras"
+  | "ranking-areas"
+  | "ranking-tipos"
+  | "ranking-responsables";
+
+type DetalleInformeGerencial =
+  | "sin-detalle"
+  | "detalle-resumido"
+  | "detalle-filtrado"
+  | "anexo-completo-futuro";
+
+type MaxFilasDetalleInforme = 5 | 10 | 20;
 
 type AnalisisSeccionInformeGerencial = {
   id: SeccionInformeGerencial;
@@ -142,74 +184,257 @@ const plantillasInformeGerencial: Array<{
   titulo: string;
   detalle: string;
   secciones: SeccionInformeGerencial[];
+  nivelDetalle: NivelDetalleInformeGerencial;
+  graficos: GraficoInformeGerencial[];
+  rankings: RankingInformeGerencial[];
+  detalleInforme: DetalleInformeGerencial;
+  maxFilasDetalle: MaxFilasDetalleInforme;
 }> = [
   {
     id: "ejecutivo-general",
     titulo: "Informe Ejecutivo General",
     detalle: "Vision global para gerencia y mandante con KPIs, focos y recomendacion.",
+    nivelDetalle: "resumen-gerencial",
     secciones: [
       "kpis",
       "resumen",
-      "radar",
-      "matriz",
-      "ranking-empresas",
-      "ranking-obras",
+      "riesgos",
       "recomendacion",
+      "calidad-dato",
+      "nota-normativa",
+      "advertencias",
     ],
+    graficos: ["radar", "tendencia", "matriz"],
+    rankings: ["ranking-empresa-reportante", "ranking-obras"],
+    detalleInforme: "sin-detalle",
+    maxFilasDetalle: 5,
   },
   {
     id: "criticos-vencidos",
     titulo: "Informe Criticos y Vencidos",
     detalle: "Presion de cierre sobre criticos abiertos, vencidos y trazabilidad de plazo.",
+    nivelDetalle: "informe-operativo",
     secciones: [
       "kpis",
+      "riesgos",
       "criticos-abiertos",
       "vencidos-abiertos",
       "sin-fecha-compromiso",
-      "ranking-responsables",
+      "cierre-vencimiento",
       "detalle-resumido",
       "recomendacion",
+      "advertencias",
     ],
+    graficos: ["radar", "tendencia", "cierre-vencimiento"],
+    rankings: ["ranking-empresa-responsable", "ranking-responsables"],
+    detalleInforme: "detalle-resumido",
+    maxFilasDetalle: 10,
   },
   {
     id: "calidad-dato",
     titulo: "Informe Calidad del Dato",
     detalle: "Completitud de GPS, evidencia, responsable y fecha compromiso.",
+    nivelDetalle: "resumen-gerencial",
     secciones: [
       "resumen",
       "calidad-dato",
-      "detalle-resumido",
       "recomendacion",
+      "nota-normativa",
+      "advertencias",
     ],
+    graficos: ["calidad-dato", "control-inmediato"],
+    rankings: ["ranking-empresa-reportante", "ranking-obras"],
+    detalleInforme: "detalle-resumido",
+    maxFilasDetalle: 5,
   },
 ];
 
-const seccionesInformeGerencial: Array<{
+const seccionesPrincipalesInformeGerencial: Array<{
   id: SeccionInformeGerencial;
   label: string;
 }> = [
   { id: "kpis", label: "KPIs principales" },
   { id: "resumen", label: "Resumen ejecutivo" },
+  { id: "riesgos", label: "Riesgos principales" },
+  { id: "recomendacion", label: "Recomendacion preventiva" },
+  { id: "calidad-dato", label: "Calidad del dato" },
+  { id: "nota-normativa", label: "Nota normativa" },
+  { id: "advertencias", label: "Advertencias" },
+];
+
+const graficosInformeGerencial: Array<{
+  id: GraficoInformeGerencial;
+  label: string;
+}> = [
   { id: "radar", label: "Radar gerencial" },
+  { id: "tendencia", label: "Tendencia temporal" },
   { id: "matriz", label: "Matriz comparativa" },
+  { id: "comparaciones", label: "Comparaciones" },
+  { id: "cierre-vencimiento", label: "Cierre y vencimiento" },
+  { id: "calidad-dato", label: "Calidad del dato" },
+  { id: "control-inmediato", label: "Control inmediato" },
+];
+
+const rankingsInformeGerencial: Array<{
+  id: RankingInformeGerencial;
+  label: string;
+}> = [
+  { id: "ranking-empresa-reportante", label: "Empresa reportante" },
+  { id: "ranking-empresa-responsable", label: "Empresa responsable" },
+  { id: "ranking-obras", label: "Obras" },
+  { id: "ranking-areas", label: "Areas" },
+  { id: "ranking-tipos", label: "Tipos de hallazgo" },
+  { id: "ranking-responsables", label: "Responsables cierre" },
+];
+
+const hallazgosDetalleInformeGerencial: Array<{
+  id: SeccionInformeGerencial;
+  label: string;
+}> = [
   { id: "criticos-abiertos", label: "Criticos abiertos" },
   { id: "vencidos-abiertos", label: "Vencidos abiertos" },
   { id: "sin-fecha-compromiso", label: "Sin fecha compromiso" },
-  { id: "calidad-dato", label: "Calidad del dato" },
-  { id: "ranking-empresas", label: "Ranking empresas" },
-  { id: "ranking-obras", label: "Ranking obras" },
-  { id: "ranking-responsables", label: "Ranking responsables" },
-  { id: "recomendacion", label: "Recomendacion preventiva" },
+  { id: "cerrados", label: "Cerrados" },
+  { id: "backlog-no-cerrado", label: "Backlog no cerrado" },
   { id: "detalle-resumido", label: "Detalle accionable resumido" },
-  { id: "anexos", label: "Anexos / detalle completo" },
+  { id: "anexos", label: "Anexo completo futuro" },
 ];
+
+const seccionesInformeGerencial = [
+  ...seccionesPrincipalesInformeGerencial,
+  ...graficosInformeGerencial,
+  ...rankingsInformeGerencial,
+  ...hallazgosDetalleInformeGerencial,
+];
+
+const nivelDetalleInformeOpciones: Array<{
+  id: NivelDetalleInformeGerencial;
+  label: string;
+  detalle: string;
+}> = [
+  {
+    id: "resumen-gerencial",
+    label: "Resumen gerencial",
+    detalle: "KPIs, resumen, graficos clave, riesgos, recomendacion y nota normativa.",
+  },
+  {
+    id: "informe-operativo",
+    label: "Informe operativo",
+    detalle: "Agrega criticos, vencidos, sin fecha, responsables y detalle resumido.",
+  },
+  {
+    id: "completo-anexos",
+    label: "Informe completo con anexos",
+    detalle: "Deja preparado anexo completo para fase posterior.",
+  },
+];
+
+const detalleInformeOpciones: Array<{
+  id: DetalleInformeGerencial;
+  label: string;
+  detalle: string;
+}> = [
+  { id: "sin-detalle", label: "No incluir detalle", detalle: "Solo lectura ejecutiva." },
+  { id: "detalle-resumido", label: "Detalle resumido", detalle: "Filas principales para seguimiento." },
+  { id: "detalle-filtrado", label: "Detalle filtrado actual", detalle: "Usa el alcance actual del informe." },
+  { id: "anexo-completo-futuro", label: "Anexo completo futuro", detalle: "Preparado para fase posterior." },
+];
+
+const maxFilasDetalleInformeOpciones: MaxFilasDetalleInforme[] = [5, 10, 20];
+
+const recomendacionesNivelDetalleInforme: Record<
+  NivelDetalleInformeGerencial,
+  {
+    secciones: SeccionInformeGerencial[];
+    graficos: GraficoInformeGerencial[];
+    rankings: RankingInformeGerencial[];
+    detalleInforme: DetalleInformeGerencial;
+    maxFilasDetalle: MaxFilasDetalleInforme;
+  }
+> = {
+  "resumen-gerencial": {
+    secciones: ["kpis", "resumen", "riesgos", "recomendacion", "calidad-dato", "nota-normativa", "advertencias"],
+    graficos: ["radar", "tendencia", "matriz"],
+    rankings: ["ranking-empresa-reportante", "ranking-obras"],
+    detalleInforme: "sin-detalle",
+    maxFilasDetalle: 5,
+  },
+  "informe-operativo": {
+    secciones: ["kpis", "resumen", "riesgos", "criticos-abiertos", "vencidos-abiertos", "sin-fecha-compromiso", "detalle-resumido", "recomendacion", "advertencias"],
+    graficos: ["radar", "tendencia", "cierre-vencimiento", "comparaciones"],
+    rankings: ["ranking-empresa-responsable", "ranking-obras", "ranking-responsables"],
+    detalleInforme: "detalle-resumido",
+    maxFilasDetalle: 10,
+  },
+  "completo-anexos": {
+    secciones: ["kpis", "resumen", "riesgos", "criticos-abiertos", "vencidos-abiertos", "sin-fecha-compromiso", "cerrados", "backlog-no-cerrado", "detalle-resumido", "anexos", "recomendacion", "nota-normativa", "advertencias"],
+    graficos: ["radar", "tendencia", "matriz", "comparaciones", "cierre-vencimiento", "calidad-dato", "control-inmediato"],
+    rankings: ["ranking-empresa-reportante", "ranking-empresa-responsable", "ranking-obras", "ranking-areas", "ranking-tipos", "ranking-responsables"],
+    detalleInforme: "anexo-completo-futuro",
+    maxFilasDetalle: 20,
+  },
+};
+
+const listaEtiquetasInforme = <T extends string>(
+  opciones: Array<{ id: T; label: string }>,
+  seleccion: T[]
+) => {
+  const labels = seleccion
+    .map((id) => opciones.find((opcion) => opcion.id === id)?.label || id)
+    .filter(Boolean);
+  return labels.length ? labels : ["Sin seleccion"];
+};
+
+function etiquetaNivelDetalleInforme(id: NivelDetalleInformeGerencial) {
+  return nivelDetalleInformeOpciones.find((opcion) => opcion.id === id)?.label || id;
+}
+
+function etiquetaDetalleInforme(id: DetalleInformeGerencial) {
+  return detalleInformeOpciones.find((opcion) => opcion.id === id)?.label || id;
+}
+
+function etiquetaSeccionInforme(id: SeccionInformeGerencial) {
+  return seccionesInformeGerencial.find((seccion) => seccion.id === id)?.label || id;
+}
+
+function etiquetaGraficoInforme(id: GraficoInformeGerencial) {
+  return graficosInformeGerencial.find((grafico) => grafico.id === id)?.label || id;
+}
+
+function etiquetaRankingInforme(id: RankingInformeGerencial) {
+  return rankingsInformeGerencial.find((ranking) => ranking.id === id)?.label || id;
+}
+
+function maxFilasDetalleDesdeValor(valor: string): MaxFilasDetalleInforme {
+  const numero = Number(valor);
+  return numero === 5 || numero === 10 || numero === 20 ? numero : 10;
+}
+
+function formatearMesInforme(valor: string) {
+  const [anio, mes] = valor.split("-").map(Number);
+  if (!anio || !mes) return valor;
+  const fecha = new Date(anio, mes - 1, 1);
+  return fecha.toLocaleDateString("es-CL", { month: "long", year: "numeric" });
+}
+
+function tituloBaseInforme(tipo: TipoInformeGerencial, nivel: NivelDetalleInformeGerencial) {
+  if (tipo === "criticos-vencidos") {
+    return nivel === "completo-anexos"
+      ? "Informe de Gestion Vigente con Backlog No Cerrado"
+      : "Informe de Gestion Preventiva: Criticos y Vencidos Abiertos";
+  }
+  if (tipo === "calidad-dato") return "Informe de Calidad del Dato Preventivo";
+  return nivel === "informe-operativo"
+    ? "Informe Operativo de Hallazgos Preventivos"
+    : "Informe Ejecutivo General de Hallazgos Preventivos";
+}
+
+function obtenerTituloSeccionInforme(id: SeccionInformeGerencial) {
+  return etiquetaSeccionInforme(id);
+}
 
 const notaNormativaInformeGerencial =
   "Este analisis se relaciona con obligaciones generales de gestion preventiva bajo la Ley 16.744, con trazabilidad, control de riesgos, responsabilidades, seguimiento y mejora continua abordados por el DS 44, y con condiciones sanitarias, ambientales, de higiene, seguridad o exposicion del lugar de trabajo cuando corresponda revisar DS 594. No reemplaza auditoria legal ni validacion tecnica formal.";
-
-function obtenerTituloSeccionInforme(id: SeccionInformeGerencial) {
-  return seccionesInformeGerencial.find((seccion) => seccion.id === id)?.label || id;
-}
 
 const alcanceInformeOpciones: Array<{
   id: AlcanceInformeGerencial;
@@ -749,10 +974,20 @@ export default function KpiGerencialAvanzadoPage() {
     useState<AlcanceInformeGerencial>("general");
   const [valorAlcanceInformeGerencial, setValorAlcanceInformeGerencial] =
     useState("");
+  const [nivelDetalleInformeGerencial, setNivelDetalleInformeGerencial] =
+    useState<NivelDetalleInformeGerencial>(plantillasInformeGerencial[0].nivelDetalle);
   const [seccionesInformeSeleccionadas, setSeccionesInformeSeleccionadas] =
     useState<SeccionInformeGerencial[]>(
       plantillasInformeGerencial[0].secciones
     );
+  const [graficosInformeSeleccionados, setGraficosInformeSeleccionados] =
+    useState<GraficoInformeGerencial[]>(plantillasInformeGerencial[0].graficos);
+  const [rankingsInformeSeleccionados, setRankingsInformeSeleccionados] =
+    useState<RankingInformeGerencial[]>(plantillasInformeGerencial[0].rankings);
+  const [detalleInformeGerencial, setDetalleInformeGerencial] =
+    useState<DetalleInformeGerencial>(plantillasInformeGerencial[0].detalleInforme);
+  const [maxFilasDetalleInforme, setMaxFilasDetalleInforme] =
+    useState<MaxFilasDetalleInforme>(plantillasInformeGerencial[0].maxFilasDetalle);
 
   async function cargarDatos() {
     try {
@@ -1638,6 +1873,62 @@ export default function KpiGerencialAvanzadoPage() {
   const plantillaInformeActiva =
     plantillasInformeGerencial.find((plantilla) => plantilla.id === tipoInformeGerencial) ||
     plantillasInformeGerencial[0];
+  const aplicarConfiguracionInforme = (configuracion: {
+    nivelDetalle: NivelDetalleInformeGerencial;
+    secciones: SeccionInformeGerencial[];
+    graficos: GraficoInformeGerencial[];
+    rankings: RankingInformeGerencial[];
+    detalleInforme: DetalleInformeGerencial;
+    maxFilasDetalle: MaxFilasDetalleInforme;
+  }) => {
+    setNivelDetalleInformeGerencial(configuracion.nivelDetalle);
+    setSeccionesInformeSeleccionadas(configuracion.secciones);
+    setGraficosInformeSeleccionados(configuracion.graficos);
+    setRankingsInformeSeleccionados(configuracion.rankings);
+    setDetalleInformeGerencial(configuracion.detalleInforme);
+    setMaxFilasDetalleInforme(configuracion.maxFilasDetalle);
+  };
+  const aplicarNivelDetalleInforme = (nivel: NivelDetalleInformeGerencial) => {
+    const recomendacion = recomendacionesNivelDetalleInforme[nivel];
+    aplicarConfiguracionInforme({
+      nivelDetalle: nivel,
+      ...recomendacion,
+    });
+  };
+  const alternarSeccionInforme = (id: SeccionInformeGerencial, activo: boolean) => {
+    setSeccionesInformeSeleccionadas((actual) =>
+      activo
+        ? Array.from(new Set([...actual, id]))
+        : actual.filter((item) => item !== id)
+    );
+  };
+  const alternarGraficoInforme = (id: GraficoInformeGerencial, activo: boolean) => {
+    setGraficosInformeSeleccionados((actual) =>
+      activo
+        ? Array.from(new Set([...actual, id]))
+        : actual.filter((item) => item !== id)
+    );
+  };
+  const alternarRankingInforme = (id: RankingInformeGerencial, activo: boolean) => {
+    setRankingsInformeSeleccionados((actual) =>
+      activo
+        ? Array.from(new Set([...actual, id]))
+        : actual.filter((item) => item !== id)
+    );
+  };
+  const cambiarDetalleInformeGerencial = (detalle: DetalleInformeGerencial) => {
+    setDetalleInformeGerencial(detalle);
+    setSeccionesInformeSeleccionadas((actual) => {
+      const sinDetalle = actual.filter(
+        (item) => item !== "detalle-resumido" && item !== "anexos"
+      );
+      if (detalle === "sin-detalle") return sinDetalle;
+      if (detalle === "anexo-completo-futuro") {
+        return Array.from(new Set([...sinDetalle, "anexos"]));
+      }
+      return Array.from(new Set([...sinDetalle, "detalle-resumido"]));
+    });
+  };
   const opcionesAlcanceInformeGerencial = useMemo(
     () => ({
       empresaResponsable: valorUnico(
@@ -1754,6 +2045,61 @@ export default function KpiGerencialAvanzadoPage() {
         : `${alcanceInformeOpciones.find((opcion) => opcion.id === alcanceInformeGerencial)?.label || "Alcance"}: ${
             valorAlcanceInformeGerencial || "Todos"
           }`;
+  const periodoInformeEtiqueta = filtros.mes
+    ? formatearMesInforme(filtros.mes)
+    : filtros.semana
+      ? `Semana desde ${filtros.semana}`
+      : filtros.fechaDesde || filtros.fechaHasta
+        ? `${filtros.fechaDesde || "inicio"} a ${filtros.fechaHasta || "hoy"}`
+        : "Periodo actual filtrado";
+  const informeConBacklogVisible =
+    seccionesInformeSeleccionadas.includes("backlog-no-cerrado") ||
+    alcanceInformeGerencial === "periodo" ||
+    Boolean(filtros.fechaDesde || filtros.fechaHasta || filtros.semana || filtros.mes);
+  const tituloAutomaticoInformeGerencial = [
+    tituloBaseInforme(tipoInformeGerencial, nivelDetalleInformeGerencial),
+    alcanceInformeGerencial !== "general" ? etiquetaAlcanceInforme : null,
+    periodoInformeEtiqueta,
+    informeConBacklogVisible ? "Gestion vigente con backlog" : null,
+  ].filter(Boolean).join(" — ");
+  const seccionesAnalisisInformeGerencial = Array.from(
+    new Set<SeccionInformeGerencial>([
+      ...seccionesInformeSeleccionadas,
+      ...graficosInformeSeleccionados,
+      ...rankingsInformeSeleccionados,
+      ...(detalleInformeGerencial === "sin-detalle"
+        ? []
+        : detalleInformeGerencial === "anexo-completo-futuro"
+          ? ["anexos" as SeccionInformeGerencial]
+          : ["detalle-resumido" as SeccionInformeGerencial]),
+    ])
+  );
+  const etiquetasSeccionesPrincipalesSeleccionadas = listaEtiquetasInforme(
+    seccionesPrincipalesInformeGerencial,
+    seccionesInformeSeleccionadas.filter((id) =>
+      seccionesPrincipalesInformeGerencial.some((seccion) => seccion.id === id)
+    )
+  );
+  const etiquetasHallazgosDetalleSeleccionados = listaEtiquetasInforme(
+    hallazgosDetalleInformeGerencial,
+    seccionesInformeSeleccionadas.filter((id) =>
+      hallazgosDetalleInformeGerencial.some((seccion) => seccion.id === id)
+    )
+  );
+  const etiquetasGraficosSeleccionados = listaEtiquetasInforme(
+    graficosInformeGerencial,
+    graficosInformeSeleccionados
+  );
+  const etiquetasRankingsSeleccionados = listaEtiquetasInforme(
+    rankingsInformeGerencial,
+    rankingsInformeSeleccionados
+  );
+  const cantidadDetalleEstimada =
+    detalleInformeGerencial === "sin-detalle"
+      ? 0
+      : detalleInformeGerencial === "detalle-resumido"
+        ? Math.min(maxFilasDetalleInforme, hallazgosInformeGerencial.length)
+        : hallazgosInformeGerencial.length;
   const empresaFocoInforme =
     analisisInformeGerencial.porEmpresaResponsable[0]?.nombre ||
     analisisInformeGerencial.porEmpresaReportante[0]?.nombre ||
@@ -1791,6 +2137,9 @@ export default function KpiGerencialAvanzadoPage() {
         metricasGerenciales.analisisLimitadoPorCarga
           ? "El limite actual de carga puede no representar todo el historico si existen mas registros."
           : null,
+        informeConBacklogVisible
+          ? "El periodo debe leerse con backlog abierto/no cerrado de periodos anteriores para mantener trazabilidad de gestion vigente."
+          : null,
         seccionesInformeSeleccionadas.includes("calidad-dato")
           ? "La evidencia de cierre requiere trazabilidad formal antes de usarse como cumplimiento contractual."
           : null,
@@ -1802,7 +2151,7 @@ export default function KpiGerencialAvanzadoPage() {
         "Los indices sinteticos de cumplimiento/preventivo son referenciales y no reemplazan validacion tecnica.",
         "Este informe no reemplaza auditoria legal ni validacion tecnica por profesional competente.",
       ].filter(Boolean) as string[],
-    [metricasGerenciales.analisisLimitadoPorCarga, seccionesInformeSeleccionadas]
+    [informeConBacklogVisible, metricasGerenciales.analisisLimitadoPorCarga, seccionesInformeSeleccionadas]
   );
   const analisisSeccionesInformeGerencial = useMemo<AnalisisSeccionInformeGerencial[]>(() => {
     const total = analisisInformeGerencial.total;
@@ -1832,7 +2181,7 @@ export default function KpiGerencialAvanzadoPage() {
       base,
     });
 
-    return seccionesInformeSeleccionadas.map((seccion) => {
+    return seccionesAnalisisInformeGerencial.map((seccion) => {
       switch (seccion) {
         case "kpis":
           return crearAnalisis(
@@ -1848,6 +2197,13 @@ export default function KpiGerencialAvanzadoPage() {
             "Una concentracion sostenida puede indicar exposicion preventiva activa o carga de gestion que requiere seguimiento de gerencia.",
             `Validar el foco con prevencion y administracion, confirmar causas, responsable, plazo y respaldo documental; luego ${enfoquePlantilla}`
           );
+        case "riesgos":
+          return crearAnalisis(
+            seccion,
+            `Los riesgos principales combinan ${metricasInformeGerencial.criticosAbiertos} critico(s), ${metricasInformeGerencial.vencidosAbiertos} vencido(s), ${metricasInformeGerencial.sinFechaCompromiso} sin fecha y ${metricasInformeGerencial.sinResponsable} sin responsable.`,
+            "La suma de criticidad, atraso, ausencia de plazo y responsable debilita la gestion vigente.",
+            "Priorizar responsables, plazos y evidencia de cierre para los focos con mayor presion preventiva."
+          );
         case "radar":
           return crearAnalisis(
             seccion,
@@ -1855,12 +2211,40 @@ export default function KpiGerencialAvanzadoPage() {
             "Estos focos muestran donde puede perderse control preventivo si no se asignan acciones, plazos y seguimiento verificable.",
             "Usar el radar para preparar comite, solicitar cierre documentado y revisar semanalmente los focos que concentran mayor presion."
           );
+        case "tendencia":
+          return crearAnalisis(
+            seccion,
+            "La tendencia temporal muestra evolucion de hallazgos reportados, criticos abiertos y vencidos abiertos con los filtros actuales.",
+            "Un aumento sostenido o puntos altos en criticos/vencidos indican presion de gestion y posible acumulacion de brechas.",
+            "Revisar los periodos con mayor carga y exigir plan de cierre documentado para los focos abiertos."
+          );
         case "matriz":
           return crearAnalisis(
             seccion,
             `La matriz compara carga por empresas, obras, areas, tipos y responsables; destacan ${empresaFocoInforme}, ${obraFocoInforme}, ${areaPrincipal} y ${tipoPrincipal}.`,
             "La comparacion permite detectar concentraciones que pueden requerir intervencion preventiva, redistribucion de seguimiento o control por contrato.",
             "Presentar la matriz en reunion ejecutiva para definir prioridades por empresa, obra y responsable, evitando interpretar mayor reporte como peor desempeno sin revisar contexto."
+          );
+        case "comparaciones":
+          return crearAnalisis(
+            seccion,
+            "Las comparaciones muestran variacion entre periodo actual y periodo anterior para volumen, criticidad y cierre.",
+            "Variaciones fuertes requieren revisar si responden a cambio real de riesgo, carga operativa o diferencia de registro.",
+            "Usar la comparacion como alerta gerencial y validar el detalle antes de definir conclusiones contractuales."
+          );
+        case "cierre-vencimiento":
+          return crearAnalisis(
+            seccion,
+            `El cierre y vencimiento muestra ${metricasInformeGerencial.vencidosAbiertos} vencido(s), ${metricasInformeGerencial.sinFechaCompromiso} sin fecha y tasa de cierre ${tasaCierre}%.`,
+            "La brecha de plazos y cierre afecta trazabilidad y oportunidad de la gestion preventiva.",
+            "Escalar vencidos, regularizar fechas compromiso y validar evidencia o justificacion formal de cierre."
+          );
+        case "control-inmediato":
+          return crearAnalisis(
+            seccion,
+            "El control inmediato resume focos que requieren atencion prioritaria por criticidad, vencimiento o falta de trazabilidad.",
+            "Si estos focos no se gestionan, pueden mantenerse riesgos abiertos sin cierre verificable.",
+            "Definir responsables nominales, plazos y evidencia esperada antes del siguiente comite."
           );
         case "criticos-abiertos":
           return crearAnalisis(
@@ -1890,11 +2274,18 @@ export default function KpiGerencialAvanzadoPage() {
             "Datos incompletos reducen confiabilidad del informe y pueden afectar respaldo documental ante revisiones internas, mandante o auditoria.",
             "Regularizar GPS, evidencia, responsable y fecha compromiso en registros relevantes antes de usarlos para respaldo formal o contractual."
           );
-        case "ranking-empresas":
+        case "ranking-empresa-reportante":
           return crearAnalisis(
             seccion,
-            `El ranking de empresas muestra mayor carga en ${empresaFocoInforme}.`,
-            "Una empresa con mayor carga requiere revision gerencial, aunque mayor reporte tambien puede reflejar mejor cultura de reporte y no necesariamente peor desempeno.",
+            `El ranking por empresa reportante muestra mayor carga en ${analisisInformeGerencial.porEmpresaReportante[0]?.nombre || empresaFocoInforme}.`,
+            "Una mayor carga reportada puede reflejar exposicion, cultura de reporte o foco operacional que requiere interpretacion contextual.",
+            "Cruzar empresa reportante con criticidad, obra y estado de cierre antes de emitir conclusiones de desempeno."
+          );
+        case "ranking-empresa-responsable":
+          return crearAnalisis(
+            seccion,
+            `El ranking por empresa responsable muestra mayor carga en ${analisisInformeGerencial.porEmpresaResponsable[0]?.nombre || empresaFocoInforme}.`,
+            "Una empresa responsable con mayor carga requiere seguimiento de compromisos, vencimientos y evidencia de cierre.",
             "Cruzar ranking con criticidad, vencimientos y cierres antes de definir exigencias o compromisos de gestion por empresa."
           );
         case "ranking-obras":
@@ -1911,12 +2302,54 @@ export default function KpiGerencialAvanzadoPage() {
             "Una alta carga en un responsable puede generar cuellos de botella, atrasos o falta de seguimiento documentado.",
             "Revisar carga real, reasignar seguimiento si corresponde y exigir actualizacion de estado y evidencia de cierre."
           );
+        case "ranking-areas":
+          return crearAnalisis(
+            seccion,
+            `El ranking por areas destaca ${areaPrincipal}.`,
+            "La concentracion por area puede indicar exposicion operacional o brecha de control especifica.",
+            "Revisar causas y acciones preventivas por area antes de escalar conclusiones generales."
+          );
+        case "ranking-tipos":
+          return crearAnalisis(
+            seccion,
+            `El ranking por tipos destaca ${tipoPrincipal}.`,
+            "La repeticion por tipo puede sugerir patron preventivo, no prueba contractual definitiva.",
+            "Cruzar tipos repetidos con empresa, obra y evidencia antes de definir acciones correctivas estructurales."
+          );
+        case "cerrados":
+          return crearAnalisis(
+            seccion,
+            `El alcance muestra ${cerrados} hallazgo(s) cerrado(s).`,
+            "Los cierres deben revisarse contra evidencia, justificacion y trazabilidad antes de usarse como respaldo formal.",
+            "Validar cierre con evidencia o justificacion formal y conservar respaldo documental."
+          );
+        case "backlog-no-cerrado":
+          return crearAnalisis(
+            seccion,
+            "El backlog no cerrado representa gestion vigente pendiente de periodos anteriores.",
+            "Ocultar backlog al filtrar un periodo puede subestimar la carga real y debilitar la trazabilidad.",
+            "Mantener backlog visible en informes de gestion vigente hasta contar con cierre formal."
+          );
         case "recomendacion":
           return crearAnalisis(
             seccion,
             analisisInformeGerencial.recomendacionPreventiva,
             "La recomendacion resume el foco preventivo principal, pero debe contrastarse con el detalle accionable y la evidencia disponible.",
             "Convertir la recomendacion en acuerdos de gestion: responsable, plazo, evidencia esperada y fecha de revision."
+          );
+        case "nota-normativa":
+          return crearAnalisis(
+            seccion,
+            "La nota normativa ubica el informe como apoyo preventivo y no como certificacion legal.",
+            "Sin validacion tecnica o legal, el informe no debe presentarse como cumplimiento absoluto.",
+            "Usar la nota para enmarcar decisiones y solicitar revision profesional cuando corresponda."
+          );
+        case "advertencias":
+          return crearAnalisis(
+            seccion,
+            "Las advertencias delimitan dataset, evidencia, reincidencias, indices sinteticos y alcance tecnico.",
+            "Omitir advertencias puede inducir una lectura mas amplia que la soportada por los datos actuales.",
+            "Mantener advertencias visibles antes de generar PDF real."
           );
         case "detalle-resumido":
           return crearAnalisis(
@@ -1948,7 +2381,7 @@ export default function KpiGerencialAvanzadoPage() {
     metricasInformeGerencial,
     obraFocoInforme,
     responsableFocoInforme,
-    seccionesInformeSeleccionadas,
+    seccionesAnalisisInformeGerencial,
     tipoInformeGerencial,
   ]);
   const textoAnalisisSeccionesInformeGerencial = analisisSeccionesInformeGerencial
@@ -1958,9 +2391,19 @@ export default function KpiGerencialAvanzadoPage() {
     )
     .join("\n\n");
   const textoCopiableInformeGerencial = [
-    plantillaInformeActiva.titulo,
+    tituloAutomaticoInformeGerencial,
+    `Tipo de informe: ${plantillaInformeActiva.titulo}`,
+    `Nivel de detalle: ${etiquetaNivelDetalleInforme(nivelDetalleInformeGerencial)}`,
     `Alcance: ${etiquetaAlcanceInforme}`,
+    `Periodo: ${periodoInformeEtiqueta}`,
     `Hallazgos incluidos: ${analisisInformeGerencial.total}`,
+    `Graficos incluidos: ${etiquetasGraficosSeleccionados.join(", ")}`,
+    `Rankings incluidos: ${etiquetasRankingsSeleccionados.join(", ")}`,
+    `Detalle: ${etiquetaDetalleInforme(detalleInformeGerencial)}${
+      detalleInformeGerencial === "detalle-resumido"
+        ? `, maximo ${maxFilasDetalleInforme} filas`
+        : ""
+    }`,
     `Filtros maestros: ${
       filtrosActivosResumen.length > 0
         ? filtrosActivosResumen.join(", ")
@@ -3181,7 +3624,7 @@ export default function KpiGerencialAvanzadoPage() {
                           onClick={() => {
                             activarBoton(`plantilla-${plantilla.id}`);
                             setTipoInformeGerencial(plantilla.id);
-                            setSeccionesInformeSeleccionadas(plantilla.secciones);
+                            aplicarConfiguracionInforme(plantilla);
                           }}
                           style={{
                             borderRadius: "14px",
@@ -3200,6 +3643,45 @@ export default function KpiGerencialAvanzadoPage() {
                         >
                           <span style={{ fontSize: "12px", fontWeight: 950 }}>{plantilla.titulo}</span>
                           <span style={{ fontSize: "11px", lineHeight: 1.35, fontWeight: 750, opacity: activo ? 0.92 : 1 }}>{plantilla.detalle}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div style={{ borderRadius: "18px", padding: "12px", background: fondoInterno, border: bordeInterno, display: "grid", gap: "9px" }}>
+                    <div style={{ color: textoAzul, fontSize: "11px", fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.55px" }}>
+                      Nivel de detalle
+                    </div>
+                    {nivelDetalleInformeOpciones.map((opcion) => {
+                      const activo = nivelDetalleInformeGerencial === opcion.id;
+
+                      return (
+                        <button
+                          key={opcion.id}
+                          type="button"
+                          onClick={() => {
+                            activarBoton(`nivel-informe-${opcion.id}`);
+                            aplicarNivelDetalleInforme(opcion.id);
+                          }}
+                          style={{
+                            borderRadius: "14px",
+                            border: activo ? "1px solid rgba(96,165,250,0.48)" : bordeInterno,
+                            background: activo
+                              ? temaClaro
+                                ? "linear-gradient(135deg, rgba(37,99,235,0.92), rgba(14,165,233,0.58))"
+                                : "linear-gradient(135deg, rgba(14,165,233,0.34), rgba(30,41,59,0.86))"
+                              : fondoInternoFuerte,
+                            color: activo ? (temaClaro ? "#ffffff" : textoAzul) : textoMedio,
+                            padding: "9px 10px",
+                            textAlign: "left",
+                            cursor: "pointer",
+                            display: "grid",
+                            gap: "3px",
+                            boxShadow: activo ? "0 12px 24px rgba(37,99,235,0.14)" : "none",
+                          }}
+                        >
+                          <span style={{ fontSize: "12px", fontWeight: 950 }}>{opcion.label}</span>
+                          <span style={{ fontSize: "11px", lineHeight: 1.35, fontWeight: 750, opacity: activo ? 0.94 : 1 }}>{opcion.detalle}</span>
                         </button>
                       );
                     })}
@@ -3256,40 +3738,114 @@ export default function KpiGerencialAvanzadoPage() {
                   </div>
                 </div>
 
-                <div style={{ borderRadius: "18px", padding: "12px", background: fondoInterno, border: bordeInterno, display: "grid", gap: "10px", alignContent: "start" }}>
+                <div style={{ borderRadius: "18px", padding: "12px", background: fondoInterno, border: bordeInterno, display: "grid", gap: "12px", alignContent: "start" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
                     <div style={{ color: textoAzul, fontSize: "11px", fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.55px" }}>
-                      Secciones seleccionables
+                      Seleccion configurable del informe
                     </div>
                     <button
                       type="button"
-                      onClick={() => setSeccionesInformeSeleccionadas(plantillaInformeActiva.secciones)}
+                      onClick={() => aplicarConfiguracionInforme(plantillaInformeActiva)}
                       style={{ ...botonStyle("preset-informe"), minHeight: "32px", padding: "7px 10px", fontSize: "11px" }}
                     >
                       Restaurar preset
                     </button>
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: "8px" }}>
-                    {seccionesInformeGerencial.map((seccion) => {
-                      const activa = seccionesInformeSeleccionadas.includes(seccion.id);
 
-                      return (
-                        <label key={seccion.id} style={{ display: "flex", gap: "8px", alignItems: "center", minHeight: "34px", borderRadius: "12px", padding: "8px 9px", background: activa ? temaClaro ? "rgba(37,99,235,0.10)" : "rgba(56,189,248,0.10)" : fondoInternoFuerte, border: activa ? "1px solid rgba(96,165,250,0.28)" : bordeInterno, color: activa ? textoAzul : textoMedio, fontSize: "11px", fontWeight: 850 }}>
-                          <input
-                            type="checkbox"
-                            checked={activa}
-                            onChange={(event) =>
-                              setSeccionesInformeSeleccionadas((actual) =>
-                                event.target.checked
-                                  ? Array.from(new Set([...actual, seccion.id]))
-                                  : actual.filter((item) => item !== seccion.id)
-                              )
-                            }
-                          />
-                          <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{seccion.label}</span>
-                        </label>
-                      );
-                    })}
+                  {[
+                    {
+                      titulo: "A. Secciones principales",
+                      items: seccionesPrincipalesInformeGerencial,
+                      seleccion: seccionesInformeSeleccionadas,
+                      cambiar: alternarSeccionInforme,
+                    },
+                    {
+                      titulo: "B. Graficos y visualizaciones",
+                      items: graficosInformeGerencial,
+                      seleccion: graficosInformeSeleccionados,
+                      cambiar: alternarGraficoInforme,
+                    },
+                    {
+                      titulo: "C. Rankings",
+                      items: rankingsInformeGerencial,
+                      seleccion: rankingsInformeSeleccionados,
+                      cambiar: alternarRankingInforme,
+                    },
+                    {
+                      titulo: "D. Hallazgos y detalle",
+                      items: hallazgosDetalleInformeGerencial,
+                      seleccion: seccionesInformeSeleccionadas,
+                      cambiar: alternarSeccionInforme,
+                    },
+                  ].map((grupo) => (
+                    <div key={grupo.titulo} style={{ display: "grid", gap: "8px", borderRadius: "16px", padding: "10px", background: fondoInternoFuerte, border: bordeInterno }}>
+                      <div style={{ color: textoSuave, fontSize: "10px", fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                        {grupo.titulo}
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(165px, 1fr))", gap: "7px" }}>
+                        {grupo.items.map((item) => {
+                          const activa = grupo.seleccion.includes(item.id as never);
+
+                          return (
+                            <label key={`${grupo.titulo}-${item.id}`} style={{ display: "flex", gap: "8px", alignItems: "center", minHeight: "33px", borderRadius: "12px", padding: "7px 8px", background: activa ? temaClaro ? "rgba(37,99,235,0.10)" : "rgba(56,189,248,0.10)" : temaClaro ? "rgba(255,255,255,0.62)" : "rgba(2,6,23,0.24)", border: activa ? "1px solid rgba(96,165,250,0.30)" : bordeInterno, color: activa ? textoAzul : textoMedio, fontSize: "11px", fontWeight: 850 }}>
+                              <input
+                                type="checkbox"
+                                checked={activa}
+                                onChange={(event) => grupo.cambiar(item.id as never, event.target.checked)}
+                              />
+                              <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.label}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+
+                  <div style={{ display: "grid", gap: "10px", borderRadius: "16px", padding: "10px", background: fondoInternoFuerte, border: bordeInterno }}>
+                    <div style={{ color: textoSuave, fontSize: "10px", fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                      Detalle del informe
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 130px", gap: "8px" }}>
+                      <label style={{ display: "grid", gap: "6px" }}>
+                        <span style={{ color: textoSuave, fontSize: "10px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                          Tipo de detalle
+                        </span>
+                        <select
+                          value={detalleInformeGerencial}
+                          onChange={(event) => cambiarDetalleInformeGerencial(event.target.value as DetalleInformeGerencial)}
+                          style={themedInputStyle}
+                        >
+                          {detalleInformeOpciones.map((opcion) => (
+                            <option key={opcion.id} value={opcion.id}>
+                              {opcion.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label style={{ display: "grid", gap: "6px", opacity: detalleInformeGerencial === "sin-detalle" ? 0.58 : 1 }}>
+                        <span style={{ color: textoSuave, fontSize: "10px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                          Max. filas
+                        </span>
+                        <select
+                          value={maxFilasDetalleInforme}
+                          disabled={detalleInformeGerencial === "sin-detalle"}
+                          onChange={(event) => setMaxFilasDetalleInforme(maxFilasDetalleDesdeValor(event.target.value))}
+                          style={themedInputStyle}
+                        >
+                          {maxFilasDetalleInformeOpciones.map((opcion) => (
+                            <option key={`max-detalle-${opcion}`} value={opcion}>
+                              {opcion}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                    <div style={{ color: textoSuave, fontSize: "11px", lineHeight: 1.35, fontWeight: 750 }}>
+                      {detalleInformeOpciones.find((opcion) => opcion.id === detalleInformeGerencial)?.detalle}
+                      {detalleInformeGerencial === "anexo-completo-futuro"
+                        ? " Anexo completo queda preparado como fase posterior; no exporta todavia."
+                        : ""}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -3301,10 +3857,10 @@ export default function KpiGerencialAvanzadoPage() {
                       Vista previa
                     </div>
                     <h3 style={{ margin: "4px 0 0", color: textoPrincipal, fontSize: "18px", lineHeight: 1.18, fontWeight: 950 }}>
-                      {plantillaInformeActiva.titulo}
+                      {tituloAutomaticoInformeGerencial}
                     </h3>
                     <div style={{ marginTop: "5px", color: textoSuave, fontSize: "12px", lineHeight: 1.4, fontWeight: 750 }}>
-                      {etiquetaAlcanceInforme} · {analisisInformeGerencial.total} hallazgo(s) incluidos
+                      {plantillaInformeActiva.titulo} · {etiquetaNivelDetalleInforme(nivelDetalleInformeGerencial)} · {etiquetaAlcanceInforme} · {analisisInformeGerencial.total} hallazgo(s) incluidos
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
@@ -3336,6 +3892,34 @@ export default function KpiGerencialAvanzadoPage() {
                       Vista general sin filtros maestros activos
                     </span>
                   )}
+                </div>
+
+                <div style={{ borderRadius: "18px", padding: "12px", background: temaClaro ? "rgba(239,246,255,0.62)" : "rgba(8,47,73,0.28)", border: temaClaro ? "1px solid rgba(37,99,235,0.16)" : "1px solid rgba(125,211,252,0.16)", display: "grid", gap: "10px" }}>
+                  <div style={{ color: textoAzul, fontSize: "11px", fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.55px" }}>
+                    Elementos incluidos en el informe
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: "8px" }}>
+                    {[
+                      ["Nivel de detalle", etiquetaNivelDetalleInforme(nivelDetalleInformeGerencial)],
+                      ["Secciones principales", etiquetasSeccionesPrincipalesSeleccionadas.join(", ")],
+                      ["Graficos incluidos", etiquetasGraficosSeleccionados.join(", ")],
+                      ["Rankings incluidos", etiquetasRankingsSeleccionados.join(", ")],
+                      ["Hallazgos y detalle", etiquetasHallazgosDetalleSeleccionados.join(", ")],
+                      ["Detalle del informe", `${etiquetaDetalleInforme(detalleInformeGerencial)}${detalleInformeGerencial === "detalle-resumido" ? ` · ${maxFilasDetalleInforme} filas` : ""}`],
+                      ["Hallazgos incluidos", `${analisisInformeGerencial.total}`],
+                      ["Filas de detalle estimadas", `${cantidadDetalleEstimada}`],
+                      ["Advertencias aplicables", `${advertenciasInformeGerencial.length}`],
+                    ].map(([label, valor]) => (
+                      <div key={`elemento-informe-${label}`} style={{ minWidth: 0, borderRadius: "14px", padding: "9px 10px", background: fondoInterno, border: bordeInterno, display: "grid", gap: "4px" }}>
+                        <span style={{ color: textoSuave, fontSize: "10px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.45px" }}>
+                          {label}
+                        </span>
+                        <strong style={{ color: textoPrincipal, fontSize: "12px", lineHeight: 1.35, fontWeight: 900 }}>
+                          {valor}
+                        </strong>
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
                 {seccionesInformeSeleccionadas.includes("kpis") && (
@@ -3422,7 +4006,8 @@ export default function KpiGerencialAvanzadoPage() {
                 </div>
 
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "10px" }}>
-                  {seccionesInformeSeleccionadas.includes("calidad-dato") && (
+                  {(seccionesInformeSeleccionadas.includes("calidad-dato") ||
+                    graficosInformeSeleccionados.includes("calidad-dato")) && (
                     <div style={{ borderRadius: "16px", padding: "12px", background: fondoInterno, border: bordeInterno, display: "grid", gap: "8px" }}>
                       <div style={{ color: textoAzul, fontSize: "11px", fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.55px" }}>Calidad del dato</div>
                       {[
@@ -3439,16 +4024,26 @@ export default function KpiGerencialAvanzadoPage() {
                     </div>
                   )}
 
-                  {(seccionesInformeSeleccionadas.includes("ranking-empresas") ||
-                    seccionesInformeSeleccionadas.includes("ranking-obras") ||
-                    seccionesInformeSeleccionadas.includes("ranking-responsables")) && (
+                  {rankingsInformeSeleccionados.length > 0 && (
                     <div style={{ borderRadius: "16px", padding: "12px", background: fondoInterno, border: bordeInterno, display: "grid", gap: "8px" }}>
                       <div style={{ color: textoAzul, fontSize: "11px", fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.55px" }}>Focos comparativos</div>
                       {[
+                        ["Empresa reportante", analisisInformeGerencial.porEmpresaReportante[0]?.nombre || "Sin datos"],
                         ["Empresa responsable", analisisInformeGerencial.porEmpresaResponsable[0]?.nombre || "Sin datos"],
                         ["Obra", analisisInformeGerencial.porObra[0]?.nombre || "Sin datos"],
+                        ["Area", analisisInformeGerencial.porArea[0]?.nombre || "Sin datos"],
+                        ["Tipo", analisisInformeGerencial.porTipo[0]?.nombre || "Sin datos"],
                         ["Responsable", analisisInformeGerencial.porResponsable[0]?.nombre || "Sin datos"],
-                      ].map(([label, valor]) => (
+                      ]
+                        .filter(([label]) => {
+                          if (label === "Empresa reportante") return rankingsInformeSeleccionados.includes("ranking-empresa-reportante");
+                          if (label === "Empresa responsable") return rankingsInformeSeleccionados.includes("ranking-empresa-responsable");
+                          if (label === "Obra") return rankingsInformeSeleccionados.includes("ranking-obras");
+                          if (label === "Area") return rankingsInformeSeleccionados.includes("ranking-areas");
+                          if (label === "Tipo") return rankingsInformeSeleccionados.includes("ranking-tipos");
+                          return rankingsInformeSeleccionados.includes("ranking-responsables");
+                        })
+                        .map(([label, valor]) => (
                         <div key={`comparativo-informe-${label}`} style={{ display: "flex", justifyContent: "space-between", gap: "8px", color: textoMedio, fontSize: "11px", fontWeight: 850 }}>
                           <span>{label}</span>
                           <strong style={{ color: textoPrincipal, textAlign: "right" }}>{valor}</strong>
@@ -3457,10 +4052,11 @@ export default function KpiGerencialAvanzadoPage() {
                     </div>
                   )}
 
-                  {seccionesInformeSeleccionadas.includes("detalle-resumido") && (
+                  {(detalleInformeGerencial !== "sin-detalle" ||
+                    seccionesInformeSeleccionadas.includes("detalle-resumido")) && (
                     <div style={{ borderRadius: "16px", padding: "12px", background: fondoInterno, border: bordeInterno, display: "grid", gap: "8px" }}>
                       <div style={{ color: textoAzul, fontSize: "11px", fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.55px" }}>Detalle resumido</div>
-                      {hallazgosInformeGerencial.slice(0, 4).map((hallazgo) => (
+                      {hallazgosInformeGerencial.slice(0, maxFilasDetalleInforme).map((hallazgo) => (
                         <div key={`informe-detalle-${hallazgo.codigo}`} style={{ display: "grid", gridTemplateColumns: "86px minmax(0, 1fr) auto", gap: "8px", alignItems: "center", color: textoMedio, fontSize: "11px", fontWeight: 850 }}>
                           <strong style={{ color: textoPrincipal }}>{hallazgo.codigo}</strong>
                           <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{hallazgo.empresaResponsable || hallazgo.empresaReportante || hallazgo.empresa}</span>
