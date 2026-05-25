@@ -48,3 +48,46 @@ Estos contratos preparan fases posteriores:
 ## Fuera de alcance
 
 Esta fase no implementa SQL, RPC, materialized views, indices, migraciones, servicios activos, consultas nuevas, cambios visuales, PDF real ni Excel real.
+
+## HV-DATA-1C1 lectura pasiva de gestion vigente
+
+Se prepara una lectura pasiva para gestion vigente sin conectarla todavia a Panel, KPI, Mapa, Seguimiento, App movil ni Constructor de Informe.
+
+Regla operativa:
+
+```text
+Gestion vigente = hallazgos del periodo + backlog historico no cerrado anterior + cerrados del periodo
+```
+
+El periodo es alcance de lectura. No debe aplicarse despues como filtro frontend simple sobre `fechaISO`, porque eso volveria a ocultar backlog anterior no cerrado.
+
+### Estrategia A/B/C
+
+- Consulta A: hallazgos reportados dentro del periodo usando `fecha_iso`.
+- Consulta B: backlog anterior no cerrado usando `fecha_iso < periodoDesde` y estados `REPORTADO`, `ABIERTO`, `EN_SEGUIMIENTO`.
+- Consulta C: hallazgos cerrados durante el periodo usando `fecha_cierre`.
+
+Esta estrategia usa filtros TypeScript sobre columnas existentes. No crea SQL, RPC, vistas, indices ni migraciones.
+
+### Deduplicacion
+
+La combinacion debe evitar doble conteo con esta prioridad:
+
+1. `id`.
+2. `codigo`.
+3. Fallback compuesto por codigo, fecha de reporte, empresa y obra.
+
+Un hallazgo reportado antes y cerrado dentro del periodo puede quedar marcado como `cerradoDelPeriodo`. Un hallazgo reportado antes y abierto durante el periodo queda como `backlogAnterior`. Un hallazgo reportado dentro del periodo queda como `periodo`.
+
+### Clasificacion pasiva
+
+Cada hallazgo de la lectura pasiva puede clasificarse con:
+
+- `origenGestion`.
+- `esBacklogAnterior`.
+- `esDelPeriodo`.
+- `esCerradoDelPeriodo`.
+
+### Siguiente fase
+
+HV-DATA-1C2 deberia conectar progresivamente esta lectura a un modulo controlado, mostrando advertencia de backlog y validando que no se pierdan abiertos historicos antes de reemplazar lecturas visibles.

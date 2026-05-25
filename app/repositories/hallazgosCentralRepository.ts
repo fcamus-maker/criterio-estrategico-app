@@ -3,6 +3,11 @@ import {
   obtenerSupabaseCliente,
 } from "../../lib/supabaseClient";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { HallazgosReadFilters } from "../types/hallazgosReadFilters";
+import type {
+  HallazgoGestionVigente,
+  OrigenGestionVigente,
+} from "../types/hallazgosReadDtos";
 import type {
   BitacoraHallazgoCentral,
   EstadoHallazgoCentral,
@@ -38,9 +43,13 @@ export type FiltrosHallazgosCentrales = {
   obra?: string;
   area?: string;
   estado?: EstadoHallazgoCentral;
+  estadoCierre?: string;
   criticidad?: HallazgoCentral["criticidad"];
   fechaDesde?: string;
   fechaHasta?: string;
+  fechaAntesDe?: string;
+  fechaCierreDesde?: string;
+  fechaCierreHasta?: string;
   origen?: HallazgoCentral["origen"];
   limit?: number;
   offset?: number;
@@ -857,6 +866,7 @@ type SupabaseFilterQuery<T> = {
   eq: (columna: string, valor: unknown) => T;
   gte: (columna: string, valor: unknown) => T;
   lte: (columna: string, valor: unknown) => T;
+  lt: (columna: string, valor: unknown) => T;
 };
 
 function aplicarFiltrosSupabase<T extends SupabaseFilterQuery<T>>(
@@ -869,6 +879,9 @@ function aplicarFiltrosSupabase<T extends SupabaseFilterQuery<T>>(
   if (filtros.obra) consulta = consulta.eq("obra", filtros.obra);
   if (filtros.area) consulta = consulta.eq("area", filtros.area);
   if (filtros.estado) consulta = consulta.eq("estado", filtros.estado);
+  if (filtros.estadoCierre) {
+    consulta = consulta.eq("estado_cierre", filtros.estadoCierre);
+  }
   if (filtros.criticidad) {
     consulta = consulta.eq("criticidad", filtros.criticidad);
   }
@@ -879,8 +892,230 @@ function aplicarFiltrosSupabase<T extends SupabaseFilterQuery<T>>(
   if (filtros.fechaHasta) {
     consulta = consulta.lte("fecha_iso", filtros.fechaHasta);
   }
+  if (filtros.fechaAntesDe) {
+    consulta = consulta.lt("fecha_iso", filtros.fechaAntesDe);
+  }
+  if (filtros.fechaCierreDesde) {
+    consulta = consulta.gte("fecha_cierre", filtros.fechaCierreDesde);
+  }
+  if (filtros.fechaCierreHasta) {
+    consulta = consulta.lte("fecha_cierre", filtros.fechaCierreHasta);
+  }
 
   return consulta;
+}
+
+const ESTADOS_BACKLOG_GESTION_VIGENTE: EstadoHallazgoCentral[] = [
+  "REPORTADO",
+  "ABIERTO",
+  "EN_SEGUIMIENTO",
+];
+
+function fechaLecturaGestion(valor: unknown) {
+  return fechaSoloSupabase(valor) || "";
+}
+
+function fechaReporteGestionVigente(hallazgo: HallazgoCentral) {
+  return fechaLecturaGestion(
+    hallazgo.fechaHoraReporteISO ||
+      hallazgo.fechaReporte ||
+      hallazgo.fechaCreacion ||
+      hallazgo.createdAt
+  );
+}
+
+function fechaCierreGestionVigente(hallazgo: HallazgoCentral) {
+  return fechaLecturaGestion(hallazgo.seguimientoCierre?.fechaCierre);
+}
+
+function estaDentroPeriodoGestion(fecha: string, desde: string, hasta: string) {
+  return Boolean(fecha) && fecha >= desde && fecha <= hasta;
+}
+
+function esHallazgoNoCerradoGestion(hallazgo: HallazgoCentral) {
+  return hallazgo.estado !== "CERRADO" && hallazgo.estado !== "ANULADO";
+}
+
+function clasificarOrigenGestionVigente(
+  hallazgo: HallazgoCentral,
+  periodoDesde: string,
+  periodoHasta: string
+) {
+  const fechaReporte = fechaReporteGestionVigente(hallazgo);
+  const fechaCierre = fechaCierreGestionVigente(hallazgo);
+  const esDelPeriodo = estaDentroPeriodoGestion(
+    fechaReporte,
+    periodoDesde,
+    periodoHasta
+  );
+  const esBacklogAnterior =
+    Boolean(fechaReporte) &&
+    fechaReporte < periodoDesde &&
+    esHallazgoNoCerradoGestion(hallazgo);
+  const esCerradoDelPeriodo =
+    hallazgo.estado === "CERRADO" &&
+    estaDentroPeriodoGestion(fechaCierre, periodoDesde, periodoHasta);
+  const origenGestion: OrigenGestionVigente[] = [];
+
+  if (esDelPeriodo) origenGestion.push("periodo");
+  if (esBacklogAnterior) origenGestion.push("backlogAnterior");
+  if (esCerradoDelPeriodo) origenGestion.push("cerradoDelPeriodo");
+  if (origenGestion.length > 0) origenGestion.push("gestionVigente");
+
+  return {
+    origenGestion,
+    esBacklogAnterior,
+    esDelPeriodo,
+    esCerradoDelPeriodo,
+  };
+}
+
+function claveHallazgoGestionVigente(hallazgo: HallazgoCentral) {
+  if (hallazgo.id) return `id:${hallazgo.id}`;
+  if (hallazgo.codigo) return `codigo:${hallazgo.codigo}`;
+
+  return [
+    "fallback",
+    hallazgo.codigo,
+    hallazgo.fechaHoraReporteISO || hallazgo.fechaReporte || hallazgo.fechaCreacion,
+    hallazgo.empresa,
+    hallazgo.obra,
+  ].join(":");
+}
+
+function combinarHallazgosGestionVigente(
+  hallazgos: HallazgoCentral[],
+  periodoDesde: string,
+  periodoHasta: string
+): HallazgoGestionVigente[] {
+  const mapa = new Map<string, HallazgoGestionVigente>();
+
+  for (const hallazgo of hallazgos) {
+    const clasificacion = clasificarOrigenGestionVigente(
+      hallazgo,
+      periodoDesde,
+      periodoHasta
+    );
+
+    if (clasificacion.origenGestion.length === 0) continue;
+
+    const clave = claveHallazgoGestionVigente(hallazgo);
+    const existente = mapa.get(clave);
+
+    if (!existente) {
+      mapa.set(clave, {
+        ...hallazgo,
+        ...clasificacion,
+      });
+      continue;
+    }
+
+    const origenGestion = Array.from(
+      new Set([...existente.origenGestion, ...clasificacion.origenGestion])
+    );
+
+    mapa.set(clave, {
+      ...existente,
+      origenGestion,
+      esBacklogAnterior:
+        existente.esBacklogAnterior || clasificacion.esBacklogAnterior,
+      esDelPeriodo: existente.esDelPeriodo || clasificacion.esDelPeriodo,
+      esCerradoDelPeriodo:
+        existente.esCerradoDelPeriodo || clasificacion.esCerradoDelPeriodo,
+    });
+  }
+
+  return Array.from(mapa.values()).sort((a, b) =>
+    fechaReporteGestionVigente(b).localeCompare(fechaReporteGestionVigente(a))
+  );
+}
+
+function filtrosBaseGestionVigente(
+  filtros: HallazgosReadFilters
+): FiltrosHallazgosCentrales {
+  return {
+    empresa: filtros.empresaReportante,
+    obra: filtros.obra,
+    area: filtros.area,
+    criticidad: filtros.criticidad,
+    estadoCierre: filtros.estadoCierre,
+    limit: filtros.limit || 500,
+  };
+}
+
+export async function cargarHallazgosGestionVigente(
+  filtros: HallazgosReadFilters
+): Promise<ResultadoRepositorioCentral<HallazgoGestionVigente[]>> {
+  const periodoDesde = fechaLecturaGestion(filtros.periodoDesde);
+  const periodoHasta = fechaLecturaGestion(filtros.periodoHasta);
+
+  if (!periodoDesde || !periodoHasta) {
+    return {
+      ok: false,
+      error:
+        "Periodo invalido para lectura de gestion vigente. Debe informar periodoDesde y periodoHasta en formato de fecha valido.",
+      origen: "central-disabled",
+    };
+  }
+
+  const filtrosBase = filtrosBaseGestionVigente(filtros);
+  const consultas: Array<Promise<ResultadoRepositorioCentral<HallazgoCentral[]>>> = [
+    listarHallazgosCentrales({
+      ...filtrosBase,
+      fechaDesde: periodoDesde,
+      fechaHasta: periodoHasta,
+    }),
+    listarHallazgosCentrales({
+      ...filtrosBase,
+      estado: "CERRADO",
+      fechaCierreDesde: periodoDesde,
+      fechaCierreHasta: periodoHasta,
+    }),
+  ];
+
+  if (filtros.incluirBacklogNoCerrado) {
+    for (const estado of ESTADOS_BACKLOG_GESTION_VIGENTE) {
+      consultas.push(
+        listarHallazgosCentrales({
+          ...filtrosBase,
+          estado,
+          fechaAntesDe: periodoDesde,
+        })
+      );
+    }
+  }
+
+  const respuestas = await Promise.all(consultas);
+  const error = respuestas.find((respuesta) => !respuesta.ok);
+
+  if (error && !error.ok) {
+    return {
+      ok: false,
+      error: error.error,
+      origen: error.origen,
+      detalle: error.detalle,
+    };
+  }
+
+  const hallazgos = respuestas.flatMap((respuesta) =>
+    respuesta.ok ? respuesta.data : []
+  );
+
+  return {
+    ok: true,
+    data: combinarHallazgosGestionVigente(
+      hallazgos,
+      periodoDesde,
+      periodoHasta
+    ),
+    origen: respuestas.some(
+      (respuesta) => respuesta.ok && respuesta.origen === "supabase"
+    )
+      ? "supabase"
+      : "central-disabled",
+    mensaje:
+      "Lectura pasiva de gestion vigente. No conectada a UI ni a consultas actuales del panel.",
+  };
 }
 
 export async function listarHallazgosCentrales(
@@ -1262,6 +1497,7 @@ export function prepararPuntosMapaGps(
 
 export type RepositorioCentralHallazgos = {
   listarHallazgosCentrales: typeof listarHallazgosCentrales;
+  cargarHallazgosGestionVigente: typeof cargarHallazgosGestionVigente;
   obtenerHallazgoCentralPorId: typeof obtenerHallazgoCentralPorId;
   obtenerHallazgoCentralPorCodigo: typeof obtenerHallazgoCentralPorCodigo;
   crearHallazgoCentral: typeof crearHallazgoCentral;
@@ -1277,6 +1513,7 @@ export type RepositorioCentralHallazgos = {
 
 export const repositorioCentralHallazgos: RepositorioCentralHallazgos = {
   listarHallazgosCentrales,
+  cargarHallazgosGestionVigente,
   obtenerHallazgoCentralPorId,
   obtenerHallazgoCentralPorCodigo,
   crearHallazgoCentral,

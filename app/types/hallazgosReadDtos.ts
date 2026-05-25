@@ -1,4 +1,5 @@
 import type { HallazgosReadFilters } from "./hallazgosReadFilters";
+import type { HallazgoCentral } from "./hallazgoCentral";
 
 /**
  * Passive DTO contracts for future high-volume read layers.
@@ -100,4 +101,17 @@ export type InformeGerencialDto = {
     hasta: string;
   };
   incluyeBacklog: boolean;
+};
+
+export type OrigenGestionVigente =
+  | "periodo"
+  | "backlogAnterior"
+  | "cerradoDelPeriodo"
+  | "gestionVigente";
+
+export type HallazgoGestionVigente = HallazgoCentral & {
+  origenGestion: OrigenGestionVigente[];
+  esBacklogAnterior: boolean;
+  esDelPeriodo: boolean;
+  esCerradoDelPeriodo: boolean;
 };
