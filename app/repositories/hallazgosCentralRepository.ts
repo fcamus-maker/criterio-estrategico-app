@@ -204,6 +204,39 @@ function listaJson(valor: unknown): Record<string, unknown>[] {
     : [];
 }
 
+function listaValores(valor: unknown): unknown[] {
+  if (Array.isArray(valor)) return valor;
+  return valor === undefined || valor === null ? [] : [valor];
+}
+
+function textoEvidenciaEsUrl(valor: string) {
+  return /^(https?:|data:image\/|blob:)/i.test(valor);
+}
+
+function evidenciaDesdeReferencia(
+  valor: unknown,
+  origenCampo?: string
+): EvidenciaHallazgoCentral | null {
+  const registro = registroJson(valor);
+  if (registro) return evidenciaDesdeRegistro(registro);
+
+  const referencia = texto(valor);
+  if (!referencia) return null;
+
+  const partes = referencia.split("/");
+  const nombre = partes[partes.length - 1] || referencia;
+
+  return {
+    nombre,
+    bucket: BUCKET_EVIDENCIAS,
+    url: textoEvidenciaEsUrl(referencia) ? referencia : "",
+    dataUrl: referencia.startsWith("data:image/") ? referencia : "",
+    storagePath: textoEvidenciaEsUrl(referencia) ? "" : referencia,
+    estadoSubida: "subida",
+    descripcion: origenCampo ? `Evidencia registrada en ${origenCampo}.` : "",
+  };
+}
+
 function evidenciaDesdeRegistro(
   item: Record<string, unknown>
 ): EvidenciaHallazgoCentral {
@@ -212,9 +245,27 @@ function evidenciaDesdeRegistro(
     nombre: texto(item.nombre || item.name || item.filename),
     tipo: texto(item.tipo || item.contentType || item.content_type),
     bucket: texto(item.bucket, BUCKET_EVIDENCIAS),
-    url: texto(item.url || item.signedUrl || item.signed_url),
+    url: texto(
+      item.url ||
+        item.signedUrl ||
+        item.signed_url ||
+        item.publicUrl ||
+        item.public_url ||
+        item.fotoUrl ||
+        item.foto_url ||
+        item.downloadUrl ||
+        item.download_url ||
+        item.fotosUrl ||
+        item.fotoUrl
+    ),
+    dataUrl: texto(item.dataUrl || item.data_url || item.base64),
     storagePath: texto(
-      item.storagePath || item.storage_path || item.path || item.ruta_storage
+      item.storagePath ||
+        item.storage_path ||
+        item.path ||
+        item.ruta_storage ||
+        item.storagePathCompleto ||
+        item.storage_path_completo
     ),
     tamanoBytes: numero(item.tamanoBytes || item.size || item.size_bytes),
     indice: numero(item.indice || item.index),
@@ -227,6 +278,92 @@ function evidenciaDesdeRegistro(
     origen: texto(item.origen) as EvidenciaHallazgoCentral["origen"],
     error: texto(item.error),
   };
+}
+
+const CAMPOS_LISTA_EVIDENCIAS = new Set([
+  "evidencias",
+  "evidencias_storage",
+  "evidenciasstorage",
+  "evidenciasfotograficas",
+  "evidenciafotografica",
+  "fotos",
+  "fotos_url",
+  "fotos_urls",
+  "fotosurl",
+  "fotosurls",
+  "evidenciaurls",
+  "imagenes",
+  "imagenesurl",
+  "imagenesurls",
+  "archivos",
+  "adjuntos",
+  "media",
+  "storage_paths",
+  "storagepaths",
+  "evidencia_storage_paths",
+  "evidenciastoragepaths",
+]);
+
+const CAMPOS_CONTENEDORES_EVIDENCIAS = new Set([
+  "raw_mobile_v2",
+  "metadata",
+  "payload",
+  "informe_final",
+  "datos_originales",
+  "reporte",
+  "reporte_original",
+  "formulario",
+  "detalle",
+]);
+
+function normalizarClaveEvidencia(clave: string) {
+  return clave
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9_]/g, "")
+    .toLowerCase();
+}
+
+function extraerCandidatasEvidencia(
+  valor: unknown,
+  origenCampo = "",
+  profundidad = 0
+): EvidenciaHallazgoCentral[] {
+  if (profundidad > 4) return [];
+
+  const registro = registroJson(valor);
+  if (!registro) {
+    return listaValores(valor)
+      .map((item) => evidenciaDesdeReferencia(item, origenCampo))
+      .filter((item): item is EvidenciaHallazgoCentral => Boolean(item));
+  }
+
+  const evidencias: EvidenciaHallazgoCentral[] = [];
+  for (const [clave, contenido] of Object.entries(registro)) {
+    const claveNormalizada = normalizarClaveEvidencia(clave);
+
+    if (CAMPOS_LISTA_EVIDENCIAS.has(claveNormalizada)) {
+      for (const item of listaValores(contenido)) {
+        const evidencia = evidenciaDesdeReferencia(item, clave);
+        if (evidencia) evidencias.push(evidencia);
+      }
+    }
+
+    if (
+      CAMPOS_CONTENEDORES_EVIDENCIAS.has(claveNormalizada) ||
+      CAMPOS_LISTA_EVIDENCIAS.has(claveNormalizada)
+    ) {
+      evidencias.push(
+        ...extraerCandidatasEvidencia(
+          contenido,
+          origenCampo ? `${origenCampo}.${clave}` : clave,
+          profundidad + 1
+        )
+      );
+    }
+  }
+
+  return evidencias;
 }
 
 function seguimientoCierreDesdeFilaSupabase(
@@ -333,21 +470,16 @@ function seguimientoCierreDesdeFilaSupabase(
 function evidenciasDesdeFilaSupabase(
   fila: Record<string, unknown>
 ): EvidenciaHallazgoCentral[] {
-  const rawMobile = registroJson(fila.raw_mobile_v2);
-  const candidatas = [
-    ...listaJson(fila.evidencias),
-    ...listaJson(fila.fotos),
-    ...listaJson(rawMobile?.evidencias),
-    ...listaJson(rawMobile?.fotos),
-  ];
+  const candidatas = extraerCandidatasEvidencia(fila);
 
   const evidencias: EvidenciaHallazgoCentral[] = [];
   const claves = new Set<string>();
 
   for (const candidata of candidatas) {
-    const evidencia = evidenciaDesdeRegistro(candidata);
+    const evidencia = candidata;
     const clave =
       evidencia.url ||
+      evidencia.dataUrl ||
       evidencia.storagePath ||
       evidencia.nombre ||
       evidencia.id ||

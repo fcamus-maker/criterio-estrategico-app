@@ -2289,6 +2289,8 @@ const [destinatarioCorreoSeguimiento, setDestinatarioCorreoSeguimiento] = useSta
 const [mensajeAccionSeguimiento, setMensajeAccionSeguimiento] = useState("");
 const [mostrarGestionCierre, setMostrarGestionCierre] = useState(false);
 const [gestionCierreLocal, setGestionCierreLocal] = useState<Record<string, GestionCierreLocal>>({});
+const [evidenciaEnVisor, setEvidenciaEnVisor] = useState<EvidenciaPanel | null>(null);
+const [evidenciasNoDisponibles, setEvidenciasNoDisponibles] = useState<Record<string, boolean>>({});
 const [gestionCierreDraft, setGestionCierreDraft] = useState<GestionCierreDraft>({
   responsableCorreccionTipo: "Empresa contratista",
   responsableCorreccionEmpresa: "",
@@ -9755,37 +9757,135 @@ style={{
 
   {(() => {
     const evidencias = obtenerEvidenciasPanel(hallazgoActivo);
-    const visibles = evidencias.filter((evidencia) => evidencia.url).slice(0, 3);
+    const visibles = evidencias.filter((evidencia) => evidencia.url);
+    const miniaturas = visibles.slice(0, 3);
+    const restantes = Math.max(visibles.length - miniaturas.length, 0);
+    const noRenderizables = Math.max(evidencias.length - visibles.length, 0);
 
-    if (visibles.length > 0) {
+    if (miniaturas.length > 0) {
       return (
-        <div
-          style={{
-            display: "flex",
-            gap: "8px",
-            flexWrap: "wrap",
-          }}
-        >
-          {visibles.map((evidencia, index) => (
-            <img
-              key={evidencia.url || evidencia.storagePath || index}
-              src={evidencia.url || ""}
-              alt={`Evidencia ${index + 1}`}
+        <div>
+          <div
+            style={{
+              fontSize: "12px",
+              lineHeight: 1.35,
+              color: tema.textoSuave,
+              marginBottom: "8px",
+            }}
+          >
+            {evidencias.length} evidencia(s) registrada(s)
+          </div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+              gap: "8px",
+            }}
+          >
+            {miniaturas.map((evidencia, index) => {
+              const clave = evidencia.url || evidencia.storagePath || evidencia.nombre || String(index);
+              const imagenNoDisponible = Boolean(evidenciasNoDisponibles[clave]);
+
+              return (
+                <button
+                  key={clave}
+                  type="button"
+                  onClick={() => {
+                    if (!imagenNoDisponible) setEvidenciaEnVisor(evidencia);
+                  }}
+                  style={{
+                    position: "relative",
+                    aspectRatio: "1 / 1",
+                    width: "100%",
+                    overflow: "hidden",
+                    borderRadius: "12px",
+                    border: tema.borde,
+                    background: tema.tarjetaSuave,
+                    padding: 0,
+                    cursor: imagenNoDisponible ? "default" : "zoom-in",
+                  }}
+                  aria-label={`Abrir evidencia ${index + 1}`}
+                >
+                  {imagenNoDisponible ? (
+                    <span
+                      style={{
+                        display: "flex",
+                        height: "100%",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        padding: "8px",
+                        textAlign: "center",
+                        fontSize: "10px",
+                        lineHeight: 1.25,
+                        color: tema.textoSuave,
+                      }}
+                    >
+                      {t("Evidencia no disponible para visualización")}
+                    </span>
+                  ) : (
+                    <img
+                      src={evidencia.url || ""}
+                      alt={`Evidencia ${index + 1}`}
+                      loading="lazy"
+                      onError={() =>
+                        setEvidenciasNoDisponibles((actual) => ({
+                          ...actual,
+                          [clave]: true,
+                        }))
+                      }
+                      style={{
+                        display: "block",
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                      }}
+                    />
+                  )}
+                  {restantes > 0 && index === miniaturas.length - 1 ? (
+                    <span
+                      style={{
+                        position: "absolute",
+                        inset: 0,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        background: "rgba(2,6,23,0.62)",
+                        color: "#ffffff",
+                        fontSize: "18px",
+                        fontWeight: 900,
+                      }}
+                    >
+                      +{restantes}
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+          {noRenderizables > 0 ? (
+            <div
               style={{
-                width: "78px",
-                height: "78px",
-                objectFit: "cover",
-                borderRadius: "10px",
-	              border: tema.borde,
-	              background: tema.tarjetaSuave,
+                marginTop: "8px",
+                fontSize: "11px",
+                lineHeight: 1.35,
+                color: tema.textoSuave,
               }}
-            />
-          ))}
+            >
+              {noRenderizables} evidencia(s) sin URL disponible.
+            </div>
+          ) : null}
         </div>
       );
     }
 
     if (evidencias.length > 0) {
+      const tieneReferenciaRenderizable = evidencias.some(
+        (evidencia) => evidencia.url || evidencia.storagePath
+      );
+      const mensajeFallback = tieneReferenciaRenderizable
+        ? evidencias[0]?.mensajeVisualizacion
+        : "La evidencia está registrada, pero no existe URL/path disponible para renderizar.";
+
       return (
         <div
           style={{
@@ -9801,7 +9901,7 @@ style={{
           <div style={{ fontWeight: 800, color: tema.texto, marginBottom: "3px" }}>
             {evidencias.length} evidencia(s) registrada(s)
           </div>
-          <div>{evidencias[0]?.mensajeVisualizacion}</div>
+          <div>{t(mensajeFallback)}</div>
         </div>
       );
     }
@@ -9867,6 +9967,104 @@ style={{
           </aside>
         </div>
       </div>
+      {evidenciaEnVisor?.url ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={t("Evidencia fotográfica")}
+          onClick={() => setEvidenciaEnVisor(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 80,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "24px",
+            background: "rgba(2,6,23,0.78)",
+            backdropFilter: "blur(10px)",
+          }}
+        >
+          <div
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              width: "min(920px, 100%)",
+              maxHeight: "88vh",
+              borderRadius: "18px",
+              border: tema.borde,
+              background: tema.tarjeta,
+              boxShadow: "0 28px 70px rgba(0,0,0,0.45)",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "12px",
+                padding: "12px 14px",
+                borderBottom: tema.borde,
+              }}
+            >
+              <div
+                style={{
+                  minWidth: 0,
+                  fontSize: "13px",
+                  fontWeight: 800,
+                  color: tema.texto,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {evidenciaEnVisor.nombre || t("Evidencia fotográfica")}
+              </div>
+              <button
+                type="button"
+                onClick={() => setEvidenciaEnVisor(null)}
+                style={{
+                  flex: "0 0 auto",
+                  width: "34px",
+                  height: "34px",
+                  borderRadius: "10px",
+                  border: tema.borde,
+                  background: tema.tarjetaSuave,
+                  color: tema.texto,
+                  cursor: "pointer",
+                  fontSize: "18px",
+                  lineHeight: 1,
+                  fontWeight: 900,
+                }}
+                aria-label={t("Cerrar visor")}
+              >
+                x
+              </button>
+            </div>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                maxHeight: "calc(88vh - 59px)",
+                background: "rgba(2,6,23,0.38)",
+              }}
+            >
+              <img
+                src={evidenciaEnVisor.url}
+                alt={evidenciaEnVisor.nombre || t("Evidencia fotográfica")}
+                onError={() => setEvidenciaEnVisor(null)}
+                style={{
+                  display: "block",
+                  maxWidth: "100%",
+                  maxHeight: "calc(88vh - 59px)",
+                  objectFit: "contain",
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }
