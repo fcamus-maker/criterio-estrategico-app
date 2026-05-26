@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   guardarHistorialLivianoV2,
   guardarReporteActualV2,
+  hidratarReporteConEvidenciasLocalesV2,
   leerReporteActualV2,
   type ReporteV2Storage,
 } from "../storageReporteV2";
@@ -17,6 +18,10 @@ type FotoV2 = {
   storagePath?: string;
   dataUrlOmitida?: boolean;
   storagePendiente?: boolean;
+  estadoSubida?: "pendiente" | "subiendo" | "subida" | "error";
+  error?: string;
+  localBlobKey?: string;
+  intentos?: number;
   fechaCarga: string;
 };
 
@@ -118,13 +123,16 @@ function obtenerEstiloCriticidad(criticidad?: string) {
 function mensajeUsuarioGuardado(detalle: DetalleGuardadoV2) {
   if (detalle.centralOk) {
     if ((detalle.evidenciasPendientes || 0) > 0) {
-      return "Reporte enviado correctamente. Una evidencia quedó pendiente de carga. Se intentará sincronizar nuevamente.";
+      return `Reporte enviado correctamente. ${detalle.evidenciasPendientes} evidencia(s) quedaron pendientes de carga.`;
     }
 
     return "Reporte enviado correctamente. El hallazgo fue guardado y sincronizado. Evidencias recibidas.";
   }
 
-  return "Reporte guardado. La sincronización quedó pendiente y se intentará nuevamente.";
+  const error = detalle.errorCentral || detalle.errorEvidencias;
+  return error
+    ? `Reporte guardado localmente. ${error}`
+    : "Reporte guardado. La sincronización quedó pendiente y se intentará nuevamente.";
 }
 
 export default function InformeFinalV2Page() {
@@ -142,12 +150,22 @@ export default function InformeFinalV2Page() {
   const guardandoRef = useRef(false);
 
   useEffect(() => {
-    const frameId = window.requestAnimationFrame(() => {
-      setReporte(leerReporteActualV2() as ReporteV2 | null);
+    let activo = true;
+    const frameId = window.requestAnimationFrame(async () => {
+      const reporteActual = leerReporteActualV2();
+      const hidratado = reporteActual
+        ? await hidratarReporteConEvidenciasLocalesV2(reporteActual)
+        : null;
+
+      if (!activo) return;
+      setReporte(hidratado as ReporteV2 | null);
       setCargado(true);
     });
 
-    return () => window.cancelAnimationFrame(frameId);
+    return () => {
+      activo = false;
+      window.cancelAnimationFrame(frameId);
+    };
   }, []);
 
   const feedbackBoton = (id: string) => ({
@@ -226,6 +244,7 @@ export default function InformeFinalV2Page() {
   const fotos = Array.isArray(reporte?.fotos) ? reporte.fotos : [];
   const fotosVisibles = fotos.filter((foto) => foto.dataUrl || foto.url);
   const fotosPendientes = Math.max(fotos.length - fotosVisibles.length, 0);
+  const fotosSinRespaldoStorage = fotos.filter((foto) => !foto.storagePath && !foto.url).length;
   const criticidad = reporte?.evaluacion?.criticidad || "BAJO";
   const estiloCriticidad = obtenerEstiloCriticidad(criticidad);
 
@@ -449,6 +468,12 @@ export default function InformeFinalV2Page() {
                   intentará sincronizar nuevamente.
                 </div>
               )}
+              {!guardado && fotosSinRespaldoStorage > 0 && (
+                <div style={{ marginTop: "8px", fontSize: "12px", opacity: 0.76, lineHeight: 1.4 }}>
+                  {fotosSinRespaldoStorage} evidencia(s) se respaldarán en Storage al guardar.
+                  Si la subida falla, quedarán marcadas como pendientes y no como evidencia disponible.
+                </div>
+              )}
             </section>
 
             <section style={cardStyle}>
@@ -655,7 +680,7 @@ export default function InformeFinalV2Page() {
                   {(detalleGuardado.evidenciasIntentadas || 0) > 0 && (
                     <div>
                       {(detalleGuardado.evidenciasPendientes || 0) > 0
-                        ? "Una evidencia quedó pendiente de carga. Se intentará sincronizar nuevamente."
+                        ? `${detalleGuardado.evidenciasPendientes} evidencia(s) quedaron pendientes de carga.`
                         : "Evidencias recibidas."}
                     </div>
                   )}

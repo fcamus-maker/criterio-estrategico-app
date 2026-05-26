@@ -2,13 +2,20 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { leerReporteActualV2, type ReporteV2Storage } from "../storageReporteV2";
+import {
+  hidratarReporteConEvidenciasLocalesV2,
+  leerReporteActualV2,
+  type ReporteV2Storage,
+} from "../storageReporteV2";
 
 type FotoV2 = {
   id: string;
   nombre: string;
   tipo: string;
-  dataUrl: string;
+  dataUrl?: string;
+  storagePath?: string;
+  estadoSubida?: "pendiente" | "subiendo" | "subida" | "error";
+  storagePendiente?: boolean;
   fechaCarga: string;
 };
 
@@ -161,12 +168,22 @@ export default function ResultadoV2Page() {
     : null;
 
   useEffect(() => {
-    const frameId = window.requestAnimationFrame(() => {
-      setReporte(leerReporteActualV2() as ReporteV2 | null);
+    let activo = true;
+    const frameId = window.requestAnimationFrame(async () => {
+      const reporteActual = leerReporteActualV2();
+      const hidratado = reporteActual
+        ? await hidratarReporteConEvidenciasLocalesV2(reporteActual)
+        : null;
+
+      if (!activo) return;
+      setReporte(hidratado as ReporteV2 | null);
       setCargado(true);
     });
 
-    return () => window.cancelAnimationFrame(frameId);
+    return () => {
+      activo = false;
+      window.cancelAnimationFrame(frameId);
+    };
   }, []);
 
   const feedbackBoton = (id: string) => ({

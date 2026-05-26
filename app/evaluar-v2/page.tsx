@@ -8,9 +8,15 @@ import {
   usePlatformPreferences,
 } from "../services/platformPreferences";
 import { cerrarSesionCE } from "../services/authProfileService";
+import {
+  comprimirFotoPerfilUsuario,
+  quitarFotoPerfilUsuarioActual,
+  subirFotoPerfilUsuarioActual,
+} from "../services/profilePhotoService";
 import PwaInstallCard from "../components/PwaInstallCard";
 import {
   cargarSupervisorV2UsuarioActual,
+  cargarSupervisorV2LocalReciente,
   crearCodigoReporteMovil,
   guardarSupervisorV2EnClave,
   perfilSupervisorV2Completo,
@@ -28,9 +34,6 @@ type SupervisorV2 = {
 };
 
 const STORAGE_HISTORIAL = "ce_mobile_v2_historial_reportes";
-
-const FOTO_SUPERVISOR_MAX_PX = 320;
-const FOTO_SUPERVISOR_QUALITY = 0.64;
 
 const textosMobileEn: Record<string, string> = {
   "Supervisor activo": "Active supervisor",
@@ -86,54 +89,6 @@ function cargarHistorial(): Array<{ estado?: string; estadoCierre?: string }> {
   }
 }
 
-function comprimirFotoSupervisor(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    if (!file.type.startsWith("image/")) {
-      reject(new Error("El archivo seleccionado no es una imagen."));
-      return;
-    }
-
-    const reader = new FileReader();
-
-    reader.onload = () => {
-      const image = new Image();
-
-      image.onload = () => {
-        const escala = Math.min(
-          1,
-          FOTO_SUPERVISOR_MAX_PX / Math.max(image.width, image.height)
-        );
-        const width = Math.max(1, Math.round(image.width * escala));
-        const height = Math.max(1, Math.round(image.height * escala));
-        const canvas = document.createElement("canvas");
-        const context = canvas.getContext("2d");
-
-        if (!context) {
-          reject(new Error("No se pudo procesar la fotografía."));
-          return;
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-        context.drawImage(image, 0, 0, width, height);
-        resolve(canvas.toDataURL("image/jpeg", FOTO_SUPERVISOR_QUALITY));
-      };
-
-      image.onerror = () => {
-        reject(new Error("No se pudo leer la fotografía seleccionada."));
-      };
-
-      image.src = String(reader.result || "");
-    };
-
-    reader.onerror = () => {
-      reject(new Error("No se pudo cargar la fotografía del supervisor."));
-    };
-
-    reader.readAsDataURL(file);
-  });
-}
-
 export default function EvaluarV2HomePage() {
   const router = useRouter();
   const preferencias = usePlatformPreferences();
@@ -155,8 +110,30 @@ export default function EvaluarV2HomePage() {
   const [claveSupervisor, setClaveSupervisor] = useState("");
   const [navegandoReporte, setNavegandoReporte] = useState(false);
   const [cerrandoSesion, setCerrandoSesion] = useState(false);
+  const [guardandoSupervisor, setGuardandoSupervisor] = useState(false);
+  const [fotoPerfilArchivo, setFotoPerfilArchivo] = useState<File | null>(null);
+  const [fotoPerfilPreview, setFotoPerfilPreview] = useState("");
+  const [ajusteFotoPerfil, setAjusteFotoPerfil] = useState({
+    zoom: 1,
+    offsetX: 0,
+    offsetY: 0,
+  });
+  const [fotoPerfilQuitada, setFotoPerfilQuitada] = useState(false);
 
   useEffect(() => {
+    const localReciente = cargarSupervisorV2LocalReciente();
+    if (localReciente) {
+      const supervisorLocal = localReciente.supervisor;
+      setSupervisor(supervisorLocal);
+      setDraft(supervisorLocal);
+      setClaveSupervisor(localReciente.clave);
+      setPerfilSupervisorGuardado(
+        localReciente.tienePerfilGuardado &&
+          perfilSupervisorV2Completo(supervisorLocal)
+      );
+    }
+    setHistorial(cargarHistorial());
+
     const frameId = window.requestAnimationFrame(async () => {
       const contexto = await cargarSupervisorV2UsuarioActual();
       const supervisorGuardado = contexto.supervisor;
@@ -165,14 +142,24 @@ export default function EvaluarV2HomePage() {
         perfilSupervisorV2Completo(supervisorGuardado);
       setSupervisor(supervisorGuardado);
       setDraft(supervisorGuardado);
-      setHistorial(cargarHistorial());
       setClaveSupervisor(contexto.clave);
       setPerfilSupervisorGuardado(tienePerfil);
       setEditorPerfilAbierto(false);
+      setFotoPerfilArchivo(null);
+      setFotoPerfilPreview("");
+      setFotoPerfilQuitada(false);
     });
 
     return () => window.cancelAnimationFrame(frameId);
   }, []);
+
+  useEffect(() => {
+    return () => {
+      if (fotoPerfilPreview.startsWith("blob:")) {
+        URL.revokeObjectURL(fotoPerfilPreview);
+      }
+    };
+  }, [fotoPerfilPreview]);
 
   const contadores = useMemo(() => {
     const reportados = historial.length;
@@ -197,8 +184,23 @@ export default function EvaluarV2HomePage() {
 
     return crearCodigoReporteMovil(supervisor, contadores.reportados + 1);
   }, [contadores.reportados, perfilSupervisorGuardado, supervisor]);
+  const inicialSupervisor =
+    supervisor.nombre
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((parte) => parte.charAt(0).toUpperCase())
+      .join("") || "CE";
 
-  const guardarSupervisor = () => {
+  const esFotoTemporal = (foto: string) =>
+    foto.startsWith("blob:") || foto.startsWith("data:");
+
+  const guardarSupervisor = async () => {
+    if (guardandoSupervisor) return;
+
+    const fotoPersistenteActual = esFotoTemporal(supervisor.foto)
+      ? ""
+      : supervisor.foto;
     const actualizado: SupervisorV2 = {
       nombre: draft.nombre.trim(),
       cargo: draft.cargo.trim(),
@@ -206,7 +208,7 @@ export default function EvaluarV2HomePage() {
       obra: draft.obra.trim(),
       siglaEmpresa: draft.siglaEmpresa.trim().toUpperCase(),
       siglaProyecto: draft.siglaProyecto.trim().toUpperCase(),
-      foto: draft.foto,
+      foto: esFotoTemporal(draft.foto) ? fotoPersistenteActual : draft.foto,
     };
 
     if (!perfilSupervisorV2Completo(actualizado)) {
@@ -217,13 +219,47 @@ export default function EvaluarV2HomePage() {
       return;
     }
 
+    setGuardandoSupervisor(true);
+
+    if (fotoPerfilArchivo) {
+      setMensaje("Preparando fotografía de perfil...");
+      let fotoComprimida;
+
+      try {
+        fotoComprimida = await comprimirFotoPerfilUsuario(
+          fotoPerfilArchivo,
+          ajusteFotoPerfil
+        );
+      } catch {
+        setMensaje("No se pudo ajustar la fotografía. Intenta con otra imagen.");
+        setGuardandoSupervisor(false);
+        return;
+      }
+
+      const resultadoFoto = await subirFotoPerfilUsuarioActual(fotoComprimida);
+      actualizado.foto = resultadoFoto.ok
+        ? resultadoFoto.fotoUrl
+        : fotoComprimida.dataUrl;
+    } else if (fotoPerfilQuitada) {
+      await quitarFotoPerfilUsuarioActual();
+      actualizado.foto = "";
+    }
+
     try {
       guardarSupervisorV2EnClave(claveSupervisor, actualizado);
       setSupervisor(actualizado);
       setDraft(actualizado);
       setPerfilSupervisorGuardado(true);
+      setFotoPerfilArchivo(null);
+      setFotoPerfilPreview("");
+      setFotoPerfilQuitada(false);
+      setAjusteFotoPerfil({ zoom: 1, offsetX: 0, offsetY: 0 });
       setEditorPerfilAbierto(false);
-      setMensaje("Supervisor guardado.");
+      setMensaje(
+        fotoPerfilArchivo && actualizado.foto.startsWith("data:")
+          ? "Supervisor guardado con foto local. El respaldo remoto queda pendiente."
+          : "Supervisor guardado."
+      );
       vibrarOk();
     } catch {
       const sinFoto: SupervisorV2 = {
@@ -236,6 +272,10 @@ export default function EvaluarV2HomePage() {
         setSupervisor(sinFoto);
         setDraft(sinFoto);
         setPerfilSupervisorGuardado(true);
+        setFotoPerfilArchivo(null);
+        setFotoPerfilPreview("");
+        setFotoPerfilQuitada(false);
+        setAjusteFotoPerfil({ zoom: 1, offsetX: 0, offsetY: 0 });
         setEditorPerfilAbierto(false);
         setMensaje(
           "Datos guardados sin fotografía. Safari no permitió almacenar la imagen por límite de espacio."
@@ -246,6 +286,8 @@ export default function EvaluarV2HomePage() {
           "No se pudo guardar el perfil por límite de almacenamiento del navegador."
         );
       }
+    } finally {
+      setGuardandoSupervisor(false);
     }
   };
 
@@ -258,15 +300,20 @@ export default function EvaluarV2HomePage() {
       return;
     }
 
-    setMensaje("Procesando fotografía del supervisor...");
-
     try {
-      const fotoComprimida = await comprimirFotoSupervisor(file);
+      if (fotoPerfilPreview.startsWith("blob:")) {
+        URL.revokeObjectURL(fotoPerfilPreview);
+      }
+      const previewUrl = URL.createObjectURL(file);
       setDraft((actual) => ({
         ...actual,
-        foto: fotoComprimida,
+        foto: previewUrl,
       }));
-      setMensaje("Fotografía del supervisor cargada. Presiona guardar.");
+      setFotoPerfilArchivo(file);
+      setFotoPerfilPreview(previewUrl);
+      setAjusteFotoPerfil({ zoom: 1, offsetX: 0, offsetY: 0 });
+      setFotoPerfilQuitada(false);
+      setMensaje("Ajusta la fotografía y presiona guardar.");
       vibrarOk();
     } catch {
       setMensaje(
@@ -338,6 +385,8 @@ export default function EvaluarV2HomePage() {
 
   const pageStyle = {
     minHeight: "100vh",
+    width: "100%",
+    maxWidth: "100vw",
     background:
       temaClaro
         ? "radial-gradient(circle at 50% 0%, rgba(37,99,235,0.16) 0%, #f8fafc 42%, #eaf2ff 100%)"
@@ -346,11 +395,13 @@ export default function EvaluarV2HomePage() {
     fontFamily: "Arial, sans-serif",
     overflowX: "hidden" as const,
     touchAction: "pan-y" as const,
+    position: "relative" as const,
   };
 
   const containerStyle = {
     width: "100%",
     maxWidth: "430px",
+    minWidth: 0,
     margin: "0 auto",
     padding: "16px 16px calc(96px + env(safe-area-inset-bottom))",
     boxSizing: "border-box" as const,
@@ -369,6 +420,7 @@ export default function EvaluarV2HomePage() {
     padding: "16px",
     boxSizing: "border-box" as const,
     maxWidth: "100%",
+    minWidth: 0,
     overflowX: "hidden" as const,
   };
 
@@ -469,7 +521,7 @@ export default function EvaluarV2HomePage() {
                 fontWeight: 900,
               }}
             >
-              {!supervisor.foto && "CE"}
+              {!supervisor.foto && inicialSupervisor}
             </div>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: "12px", fontWeight: 900, opacity: 0.7 }}>
@@ -682,25 +734,33 @@ export default function EvaluarV2HomePage() {
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "58px 1fr",
-                  alignItems: "center",
+                  gridTemplateColumns: fotoPerfilArchivo ? "1fr" : "58px 1fr",
+                  alignItems: fotoPerfilArchivo ? "stretch" : "center",
                   gap: "12px",
                   padding: "10px",
                   borderRadius: "16px",
                   background: "rgba(255,255,255,0.08)",
                   border: "1px solid rgba(255,255,255,0.14)",
+                  width: "100%",
+                  maxWidth: "100%",
+                  minWidth: 0,
+                  boxSizing: "border-box",
+                  overflow: "hidden",
+                  touchAction: "pan-y",
                 }}
               >
                 <div
                   style={{
                     width: "58px",
                     height: "58px",
+                    maxWidth: "100%",
                     borderRadius: "14px",
                     background: `url(${draft.foto}) center / cover no-repeat`,
                     border: "1px solid rgba(255,255,255,0.20)",
+                    boxSizing: "border-box",
                   }}
                 />
-                <div>
+                <div style={{ minWidth: 0, maxWidth: "100%" }}>
                   <div style={{ fontSize: "13px", fontWeight: 800 }}>
                     {t("Fotografía cargada y optimizada")}
                   </div>
@@ -708,6 +768,9 @@ export default function EvaluarV2HomePage() {
                     type="button"
                     onClick={() => {
                       setDraft((actual) => ({ ...actual, foto: "" }));
+                      setFotoPerfilArchivo(null);
+                      setFotoPerfilPreview("");
+                      setFotoPerfilQuitada(true);
                       setMensaje("Fotografía quitada. Presiona guardar.");
                       vibrarOk();
                     }}
@@ -728,6 +791,117 @@ export default function EvaluarV2HomePage() {
                     {t("Quitar foto")}
                   </button>
                 </div>
+                {fotoPerfilArchivo && (
+                  <div
+                    style={{
+                      display: "grid",
+                      gap: "12px",
+                      justifyItems: "center",
+                      paddingTop: "4px",
+                      width: "100%",
+                      maxWidth: "100%",
+                      minWidth: 0,
+                      overflow: "hidden",
+                      boxSizing: "border-box",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: "min(178px, 72vw)",
+                        height: "min(178px, 72vw)",
+                        borderRadius: "50%",
+                        overflow: "hidden",
+                        border: "2px solid rgba(255,255,255,0.24)",
+                        boxShadow: "0 12px 24px rgba(0,0,0,0.24)",
+                        background: "rgba(255,255,255,0.08)",
+                        boxSizing: "border-box",
+                        flexShrink: 0,
+                        touchAction: "none",
+                      }}
+                    >
+                      <img
+                        src={draft.foto}
+                        alt={t("Fotografía del supervisor")}
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "cover",
+                          display: "block",
+                          transform: `translate(${-ajusteFotoPerfil.offsetX * 22}%, ${-ajusteFotoPerfil.offsetY * 22}%) scale(${ajusteFotoPerfil.zoom})`,
+                          transformOrigin: "center",
+                          pointerEvents: "none",
+                          userSelect: "none",
+                        }}
+                      />
+                    </div>
+                    {[
+                      {
+                        label: "Zoom",
+                        min: 1,
+                        max: 2.5,
+                        step: 0.05,
+                        value: ajusteFotoPerfil.zoom,
+                        campo: "zoom" as const,
+                      },
+                      {
+                        label: "Horizontal",
+                        min: -1,
+                        max: 1,
+                        step: 0.05,
+                        value: ajusteFotoPerfil.offsetX,
+                        campo: "offsetX" as const,
+                      },
+                      {
+                        label: "Vertical",
+                        min: -1,
+                        max: 1,
+                        step: 0.05,
+                        value: ajusteFotoPerfil.offsetY,
+                        campo: "offsetY" as const,
+                      },
+                    ].map((control) => (
+                      <label
+                        key={control.campo}
+                        style={{
+                          width: "100%",
+                          maxWidth: "100%",
+                          minWidth: 0,
+                          display: "grid",
+                          gap: "6px",
+                          fontSize: "12px",
+                          fontWeight: 900,
+                          opacity: 0.86,
+                          boxSizing: "border-box",
+                          overflow: "hidden",
+                        }}
+                      >
+                        {control.label}
+                        <input
+                          type="range"
+                          min={control.min}
+                          max={control.max}
+                          step={control.step}
+                          value={control.value}
+                          onChange={(event) =>
+                            setAjusteFotoPerfil((actual) => ({
+                              ...actual,
+                              [control.campo]: Number(event.target.value),
+                            }))
+                          }
+                          style={{
+                            display: "block",
+                            width: "100%",
+                            maxWidth: "100%",
+                            minWidth: 0,
+                            boxSizing: "border-box",
+                            margin: 0,
+                            touchAction: "manipulation",
+                          }}
+                        />
+                      </label>
+                    ))}
+                  </div>
+                )}
               </div>
             ) : (
               <div
@@ -748,15 +922,17 @@ export default function EvaluarV2HomePage() {
             <button
               type="button"
               onClick={guardarSupervisor}
+              disabled={guardandoSupervisor}
               {...feedbackBoton("guardar-supervisor")}
               style={{
                 ...buttonStyle,
                 color: "white",
                 background: "linear-gradient(135deg, #2563eb, #1d4ed8)",
+                opacity: guardandoSupervisor ? 0.72 : 1,
                 ...estiloFeedback("guardar-supervisor"),
               }}
             >
-              {t("Guardar supervisor")}
+              {guardandoSupervisor ? t("Procesando fotografía del supervisor...") : t("Guardar supervisor")}
             </button>
 
             <div

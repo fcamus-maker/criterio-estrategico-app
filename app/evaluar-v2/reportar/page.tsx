@@ -4,7 +4,9 @@ import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
   cargarHistorialLivianoV2,
+  eliminarEvidenciaLocalV2,
   guardarReporteActualV2,
+  prepararReporteConEvidenciasLocalesV2,
 } from "../storageReporteV2";
 import {
   cargarSupervisorV2UsuarioActual,
@@ -20,6 +22,14 @@ type FotoV2 = {
   tipo: "image/jpeg";
   dataUrl: string;
   fechaCarga: string;
+  fechaCaptura: string;
+  tamanoBytes?: number;
+  pesoBytes?: number;
+  estadoSubida?: "pendiente" | "subiendo" | "subida" | "error";
+  storagePendiente?: boolean;
+  localBlobKey?: string;
+  origen?: string;
+  intentos?: number;
 };
 
 type UbicacionV2 = {
@@ -31,6 +41,11 @@ type UbicacionV2 = {
   motivoGeolocalizacion?: string;
 };
 
+const FOTO_MAX_LADO_PX = 1280;
+const FOTO_CALIDAD_JPEG = 0.72;
+const FOTO_OBJETIVO_BYTES = 1024 * 1024;
+const FOTO_MIN_LADO_REAJUSTE_PX = 960;
+
 function vibrarOk() {
   if (typeof navigator !== "undefined" && "vibrate" in navigator) {
     navigator.vibrate(20);
@@ -39,6 +54,23 @@ function vibrarOk() {
 
 function obtenerTotalHistorial() {
   return cargarHistorialLivianoV2().length;
+}
+
+function estimarBytesDataUrl(dataUrl: string) {
+  return Math.max(
+    0,
+    Math.round((((dataUrl.split(",")[1] || "").length * 3) / 4))
+  );
+}
+
+function nombreJPEG(nombreOriginal: string | undefined) {
+  const base = String(nombreOriginal || "fotografia")
+    .replace(/\.[^.]+$/, "")
+    .replace(/[^a-zA-Z0-9._-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^[-.]+|[-.]+$/g, "");
+
+  return `${base || "fotografia"}.jpg`;
 }
 
 function comprimirFoto(file: File): Promise<FotoV2> {
@@ -52,15 +84,13 @@ function comprimirFoto(file: File): Promise<FotoV2> {
       image.onerror = () =>
         reject(new Error("No se pudo procesar la fotografía."));
       image.onload = () => {
-        const maxWidth = 1200;
-        const maxHeight = 1200;
         const ratio = Math.min(
-          maxWidth / image.width,
-          maxHeight / image.height,
+          FOTO_MAX_LADO_PX / image.width,
+          FOTO_MAX_LADO_PX / image.height,
           1
         );
-        const width = Math.round(image.width * ratio);
-        const height = Math.round(image.height * ratio);
+        let width = Math.round(image.width * ratio);
+        let height = Math.round(image.height * ratio);
         const canvas = document.createElement("canvas");
         const context = canvas.getContext("2d");
 
@@ -69,16 +99,43 @@ function comprimirFoto(file: File): Promise<FotoV2> {
           return;
         }
 
-        canvas.width = width;
-        canvas.height = height;
-        context.drawImage(image, 0, 0, width, height);
+        const exportarJPEG = () => {
+          canvas.width = width;
+          canvas.height = height;
+          context.drawImage(image, 0, 0, width, height);
+          return canvas.toDataURL("image/jpeg", FOTO_CALIDAD_JPEG);
+        };
+
+        let dataUrl = exportarJPEG();
+        while (
+          estimarBytesDataUrl(dataUrl) > FOTO_OBJETIVO_BYTES &&
+          Math.max(width, height) > FOTO_MIN_LADO_REAJUSTE_PX
+        ) {
+          const factor = Math.max(
+            FOTO_MIN_LADO_REAJUSTE_PX / Math.max(width, height),
+            0.88
+          );
+          width = Math.max(1, Math.round(width * factor));
+          height = Math.max(1, Math.round(height * factor));
+          dataUrl = exportarJPEG();
+        }
+
+        const fechaCaptura = new Date().toISOString();
+        const tamanoBytes = estimarBytesDataUrl(dataUrl);
 
         resolve({
           id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-          nombre: file.name || "fotografia.jpg",
+          nombre: nombreJPEG(file.name),
           tipo: "image/jpeg",
-          dataUrl: canvas.toDataURL("image/jpeg", 0.72),
-          fechaCarga: new Date().toISOString(),
+          dataUrl,
+          fechaCarga: fechaCaptura,
+          fechaCaptura,
+          tamanoBytes,
+          pesoBytes: tamanoBytes,
+          estadoSubida: "pendiente",
+          storagePendiente: true,
+          origen: "mobile-v2",
+          intentos: 0,
         });
       };
 
@@ -157,7 +214,19 @@ export default function ReportarV2Page() {
       }
 
       const comprimidas = await Promise.all(seleccionadas.map(comprimirFoto));
-      setFotos((actuales) => [...actuales, ...comprimidas].slice(0, 3));
+      const combinadas = [...fotos, ...comprimidas].slice(0, 3);
+      const preparadas = await prepararReporteConEvidenciasLocalesV2({
+        fotos: combinadas,
+      });
+
+      if (!preparadas.ok) {
+        setError(
+          "La fotografía fue procesada, pero no se pudo conservar para reintento. Intenta nuevamente."
+        );
+        return;
+      }
+
+      setFotos((preparadas.reporte.fotos || []) as FotoV2[]);
       setMensaje("Fotografía cargada correctamente.");
     } catch {
       setError("No se pudo cargar la fotografía seleccionada.");
@@ -168,6 +237,8 @@ export default function ReportarV2Page() {
   };
 
   const eliminarFoto = (fotoId: string) => {
+    const foto = fotos.find((item) => item.id === fotoId);
+    void eliminarEvidenciaLocalV2(foto?.localBlobKey);
     setFotos((actuales) => actuales.filter((foto) => foto.id !== fotoId));
     setMensaje("Fotografía eliminada.");
     setError("");
@@ -233,7 +304,7 @@ export default function ReportarV2Page() {
     );
   };
 
-  const validarReporte = () => {
+  const validarReporte = async () => {
     if (navegando) return;
 
     setError("");
@@ -310,7 +381,15 @@ export default function ReportarV2Page() {
       mensajeValidacion: "Reporte válido para continuar.",
     };
 
-    guardarReporteActualV2(reporteV2);
+    const reportePreparado = await prepararReporteConEvidenciasLocalesV2(reporteV2);
+    if (!reportePreparado.ok) {
+      setError(
+        "No se pudo conservar la evidencia fotográfica para reintento. Intenta nuevamente antes de continuar."
+      );
+      return;
+    }
+
+    guardarReporteActualV2(reportePreparado.reporte);
     setMensaje("Reporte válido para continuar.");
     setNavegando(true);
     vibrarOk();

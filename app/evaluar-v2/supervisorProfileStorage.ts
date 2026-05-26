@@ -1,6 +1,9 @@
 import { obtenerAuthProfileActual } from "@/app/services/authProfileService";
 import type { ProfileCE } from "@/app/types/authRoles";
 
+const STORAGE_SUPERVISOR_ULTIMO = "ce_mobile_v2_supervisor_ultimo";
+const PREFIJO_SUPERVISOR_USUARIO = "ce_mobile_v2_supervisor_";
+
 export type SupervisorV2 = {
   nombre: string;
   cargo: string;
@@ -46,6 +49,7 @@ export function crearCodigoReporteMovil(
 function normalizarSupervisor(valor: unknown, fallback: SupervisorV2) {
   const guardado =
     valor && typeof valor === "object" ? (valor as Partial<SupervisorV2>) : {};
+  const fotoLocal = String(guardado.foto || "");
 
   return {
     nombre: String(guardado.nombre || fallback.nombre || ""),
@@ -54,7 +58,7 @@ function normalizarSupervisor(valor: unknown, fallback: SupervisorV2) {
     obra: String(guardado.obra || fallback.obra || ""),
     siglaEmpresa: String(guardado.siglaEmpresa || fallback.siglaEmpresa || ""),
     siglaProyecto: String(guardado.siglaProyecto || fallback.siglaProyecto || ""),
-    foto: String(guardado.foto || fallback.foto || ""),
+    foto: String(fallback.foto || fotoLocal || ""),
   };
 }
 
@@ -70,7 +74,50 @@ function supervisorDesdeProfile(perfil: ProfileCE | null): SupervisorV2 {
 }
 
 export function claveSupervisorV2PorUsuario(userId: string) {
-  return `ce_mobile_v2_supervisor_${encodeURIComponent(userId)}`;
+  return `${PREFIJO_SUPERVISOR_USUARIO}${encodeURIComponent(userId)}`;
+}
+
+function leerSupervisorEnClave(clave: string, fallback = SUPERVISOR_V2_VACIO) {
+  if (typeof window === "undefined" || !clave) return null;
+
+  try {
+    const guardado = JSON.parse(window.localStorage.getItem(clave) || "null");
+    if (!guardado || typeof guardado !== "object") return null;
+    return normalizarSupervisor(guardado, fallback);
+  } catch {
+    return null;
+  }
+}
+
+export function cargarSupervisorV2LocalReciente() {
+  if (typeof window === "undefined") return null;
+
+  const claveUltima = window.localStorage.getItem(STORAGE_SUPERVISOR_ULTIMO);
+  const supervisorUltimo = leerSupervisorEnClave(claveUltima || "");
+
+  if (supervisorUltimo) {
+    return {
+      supervisor: supervisorUltimo,
+      clave: claveUltima || "",
+      tienePerfilGuardado: true,
+    };
+  }
+
+  for (let indice = 0; indice < window.localStorage.length; indice += 1) {
+    const clave = window.localStorage.key(indice) || "";
+    if (!clave.startsWith(PREFIJO_SUPERVISOR_USUARIO)) continue;
+
+    const supervisor = leerSupervisorEnClave(clave);
+    if (supervisor) {
+      return {
+        supervisor,
+        clave,
+        tienePerfilGuardado: true,
+      };
+    }
+  }
+
+  return null;
 }
 
 export async function cargarSupervisorV2UsuarioActual() {
@@ -90,13 +137,11 @@ export async function cargarSupervisorV2UsuarioActual() {
   }
 
   try {
-    const guardado = JSON.parse(window.localStorage.getItem(clave) || "null");
-    const tienePerfilGuardado = Boolean(guardado && typeof guardado === "object");
+    const supervisorGuardado = leerSupervisorEnClave(clave, fallback);
+    const tienePerfilGuardado = Boolean(supervisorGuardado);
 
     return {
-      supervisor: tienePerfilGuardado
-        ? normalizarSupervisor(guardado, fallback)
-        : fallback,
+      supervisor: supervisorGuardado || fallback,
       tienePerfilGuardado,
       clave,
       perfil: auth.perfil,
@@ -122,4 +167,5 @@ export function guardarSupervisorV2EnClave(
   }
 
   window.localStorage.setItem(clave, JSON.stringify(supervisor));
+  window.localStorage.setItem(STORAGE_SUPERVISOR_ULTIMO, clave);
 }

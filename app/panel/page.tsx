@@ -25,7 +25,13 @@ import {
   readPlatformPreferences,
   savePlatformPreferences,
 } from "../services/platformPreferences";
-import { cerrarSesionCE } from "../services/authProfileService";
+import { cerrarSesionCE, obtenerAuthProfileActual } from "../services/authProfileService";
+import {
+  comprimirFotoPerfilUsuario,
+  quitarFotoPerfilUsuarioActual,
+  subirFotoPerfilUsuarioActual,
+  type FotoPerfilComprimida,
+} from "../services/profilePhotoService";
 
 type HallazgoPanelExtendido = HallazgoPanel & {
   area?: string;
@@ -2339,7 +2345,11 @@ const [correoPerfilDraft, setCorreoPerfilDraft] = useState(usuarioMock.correo ||
 const [fotoPerfilDraft, setFotoPerfilDraft] = useState<string | null>(usuarioMock.foto || null);
 const [fotoPerfilInputKey, setFotoPerfilInputKey] = useState(0);
 const [guardadoPerfil, setGuardadoPerfil] = useState(false);
+const [guardandoPerfil, setGuardandoPerfil] = useState(false);
 const [fotoPerfilCargada, setFotoPerfilCargada] = useState(false);
+const [fotoPerfilPendiente, setFotoPerfilPendiente] =
+  useState<FotoPerfilComprimida | null>(null);
+const [fotoPerfilQuitada, setFotoPerfilQuitada] = useState(false);
 const [errorPerfil, setErrorPerfil] = useState("");
 const [cerrandoSesionPerfil, setCerrandoSesionPerfil] = useState(false);
 const [campoPerfilActivo, setCampoPerfilActivo] = useState<
@@ -2366,42 +2376,73 @@ const salirEditorPerfil = () => {
   setGuardadoPerfil(false);
   setErrorPerfil("");
   setFotoPerfilCargada(false);
+  setFotoPerfilPendiente(null);
+  setFotoPerfilQuitada(false);
   setCampoPerfilActivo(null);
   setControlPerfilActivo(null);
 };
-const cargarFotoPerfil = (archivo: File | undefined) => {
+const cargarFotoPerfil = async (archivo: File | undefined) => {
   if (!archivo) return;
 
-  const lector = new FileReader();
-  lector.onload = () => {
-    if (typeof lector.result === "string") {
-      setFotoPerfilDraft(lector.result);
-      setFotoPerfilCargada(true);
-      setErrorPerfil("");
-    }
-  };
-  lector.readAsDataURL(archivo);
+  setErrorPerfil("");
+
+  try {
+    const fotoComprimida = await comprimirFotoPerfilUsuario(archivo);
+    setFotoPerfilDraft(fotoComprimida.dataUrl);
+    setFotoPerfilPendiente(fotoComprimida);
+    setFotoPerfilQuitada(false);
+    setFotoPerfilCargada(true);
+  } catch {
+    setErrorPerfil("No se pudo procesar la foto de perfil.");
+    setFotoPerfilCargada(false);
+  }
 };
 const quitarFotoPerfil = () => {
   setFotoPerfilDraft(null);
+  setFotoPerfilPendiente(null);
+  setFotoPerfilQuitada(true);
   setErrorPerfil("");
   setFotoPerfilCargada(false);
   setFotoPerfilInputKey((valor) => valor + 1);
 };
-const guardarPerfil = () => {
+const guardarPerfil = async () => {
+  if (guardandoPerfil) return;
+
   const nombreFinal = nombrePerfilDraft.trim() || "Freddy Camus";
   const cargoFinal = cargoPerfilDraft.trim() || "Ingeniero en Prevención de Riesgos";
   const empresaFinal = empresaPerfilDraft.trim() || "Criterio Estratégico";
   const rolFinal = rolPerfilDraft.trim() || "Administrador ejecutivo";
   const telefonoFinal = telefonoPerfilDraft.trim() || "+56 9 1234 5678";
   const correoFinal = correoPerfilDraft.trim() || "freddy.camus@criterioestrategico.cl";
-  const fotoFinal = fotoPerfilDraft || null;
-  const limiteFotoPerfil = 1.5 * 1024 * 1024;
+  let fotoFinal = fotoPerfilDraft || null;
 
-  if (fotoFinal && fotoFinal.length > limiteFotoPerfil) {
-    setErrorPerfil("La foto es demasiado pesada. Selecciona una imagen más liviana.");
-    setGuardadoPerfil(false);
-    return;
+  setGuardandoPerfil(true);
+  setErrorPerfil("");
+
+  if (fotoPerfilPendiente) {
+    const resultadoFoto = await subirFotoPerfilUsuarioActual(fotoPerfilPendiente);
+
+    if (!resultadoFoto.ok) {
+      setErrorPerfil(resultadoFoto.error);
+      setGuardadoPerfil(false);
+      setGuardandoPerfil(false);
+      return;
+    }
+
+    fotoFinal = resultadoFoto.fotoUrl;
+  } else if (fotoPerfilQuitada) {
+    const resultadoFoto = await quitarFotoPerfilUsuarioActual();
+
+    if (!resultadoFoto.ok) {
+      setErrorPerfil(resultadoFoto.error);
+      setGuardadoPerfil(false);
+      setGuardandoPerfil(false);
+      return;
+    }
+
+    fotoFinal = null;
+  } else if (fotoFinal?.startsWith("data:")) {
+    fotoFinal = null;
   }
 
   const profileToSave: PanelProfilePersistido = {
@@ -2417,6 +2458,7 @@ const guardarPerfil = () => {
   if (typeof window === "undefined") {
     setErrorPerfil("No se pudo guardar el perfil en este navegador");
     setGuardadoPerfil(false);
+    setGuardandoPerfil(false);
     return;
   }
 
@@ -2427,11 +2469,13 @@ const guardarPerfil = () => {
     if (!savedProfile) {
       setErrorPerfil("No se pudo guardar el perfil en este navegador");
       setGuardadoPerfil(false);
+      setGuardandoPerfil(false);
       return;
     }
   } catch {
     setErrorPerfil("No se pudo guardar el perfil en este navegador");
     setGuardadoPerfil(false);
+    setGuardandoPerfil(false);
     return;
   }
 
@@ -2456,6 +2500,9 @@ const guardarPerfil = () => {
   setErrorPerfil("");
   setGuardadoPerfil(true);
   setFotoPerfilCargada(false);
+  setFotoPerfilPendiente(null);
+  setFotoPerfilQuitada(false);
+  setGuardandoPerfil(false);
   setCampoPerfilActivo(null);
   setControlPerfilActivo(null);
   setMostrarEditorPerfil(false);
@@ -2480,18 +2527,38 @@ const cerrarSesionDesdePerfil = async () => {
 useEffect(() => {
   if (typeof window === "undefined") return;
 
-  const perfilGuardado = window.localStorage.getItem(PANEL_PROFILE_STORAGE_KEY);
-  if (!perfilGuardado) return;
+  let activo = true;
 
-  try {
-    const perfil = JSON.parse(perfilGuardado) as Partial<PanelProfilePersistido>;
-    const nombreGuardado = perfil.nombrePerfil?.trim() || "Freddy Camus";
-    const cargoGuardado = perfil.cargoPerfil?.trim() || "Ingeniero en Prevención de Riesgos";
+  async function cargarPerfilPanel() {
+    let perfil: Partial<PanelProfilePersistido> = {};
+
+    try {
+      const perfilGuardado = window.localStorage.getItem(PANEL_PROFILE_STORAGE_KEY);
+      perfil = perfilGuardado
+        ? (JSON.parse(perfilGuardado) as Partial<PanelProfilePersistido>)
+        : {};
+    } catch {
+      console.warn("No se pudo leer ce_panel_profile desde localStorage.");
+    }
+
+    const auth = await obtenerAuthProfileActual();
+    if (!activo) return;
+
+    const fotoLocal =
+      typeof perfil.fotoPerfil === "string" && !perfil.fotoPerfil.startsWith("data:")
+        ? perfil.fotoPerfil
+        : "";
+    const nombreGuardado =
+      auth.perfil?.nombre || perfil.nombrePerfil?.trim() || "Freddy Camus";
+    const cargoGuardado =
+      auth.perfil?.cargo || perfil.cargoPerfil?.trim() || "Ingeniero en Prevención de Riesgos";
     const empresaGuardada = perfil.empresaPerfil?.trim() || "Criterio Estratégico";
-    const rolGuardado = perfil.rolPerfil?.trim() || "Administrador ejecutivo";
-    const telefonoGuardado = perfil.telefonoPerfil?.trim() || "+56 9 1234 5678";
-    const correoGuardado = perfil.correoPerfil?.trim() || "freddy.camus@criterioestrategico.cl";
-    const fotoGuardada = typeof perfil.fotoPerfil === "string" ? perfil.fotoPerfil : "";
+    const rolGuardado = auth.perfil?.rol || perfil.rolPerfil?.trim() || "Administrador ejecutivo";
+    const telefonoGuardado =
+      auth.perfil?.telefono || perfil.telefonoPerfil?.trim() || "+56 9 1234 5678";
+    const correoGuardado =
+      auth.perfil?.email || perfil.correoPerfil?.trim() || "freddy.camus@criterioestrategico.cl";
+    const fotoGuardada = auth.perfil?.fotoUrl || fotoLocal;
 
     setUsuario((actual) => ({
       ...actual,
@@ -2517,10 +2584,13 @@ useEffect(() => {
     setTelefonoPerfilDraft(telefonoGuardado);
     setCorreoPerfilDraft(correoGuardado);
     setFotoPerfilDraft(fotoGuardada || null);
-  } catch {
-    console.warn("No se pudo leer ce_panel_profile desde localStorage.");
-    return;
   }
+
+  void cargarPerfilPanel();
+
+  return () => {
+    activo = false;
+  };
 }, []);
 useEffect(() => {
   if (!guardadoPerfil) return;
@@ -5202,7 +5272,7 @@ const riesgoOperativoPrincipal =
               key={fotoPerfilInputKey}
               id="foto-perfil-panel"
               type="file"
-              accept="image/png,image/jpeg,image/jpg,image/svg+xml"
+              accept="image/png,image/jpeg,image/jpg,image/webp"
               onChange={(e) => cargarFotoPerfil(e.target.files?.[0])}
               style={{ display: "none" }}
             />
@@ -5452,13 +5522,18 @@ const riesgoOperativoPrincipal =
         <button
           type="button"
           onClick={guardarPerfil}
+          disabled={guardandoPerfil}
           onMouseEnter={() => activarControlPerfil("guardar")}
           onMouseLeave={desactivarControlPerfil}
           onFocus={() => activarControlPerfil("guardar")}
           onBlur={desactivarControlPerfil}
-          style={perfilButtonStyle("guardar", "primary")}
+          style={{
+            ...perfilButtonStyle("guardar", "primary"),
+            opacity: guardandoPerfil ? 0.72 : 1,
+            cursor: guardandoPerfil ? "default" : "pointer",
+          }}
         >
-          {t("Guardar perfil")}
+          {guardandoPerfil ? t("Guardando perfil...") : t("Guardar perfil")}
         </button>
       </div>
     </div>
@@ -9761,6 +9836,14 @@ style={{
     const miniaturas = visibles.slice(0, 3);
     const restantes = Math.max(visibles.length - miniaturas.length, 0);
     const noRenderizables = Math.max(evidencias.length - visibles.length, 0);
+    const pendientesSync = evidencias.filter(
+      (evidencia) =>
+        evidencia.estadoSubida === "pendiente" ||
+        evidencia.estadoSubida === "subiendo"
+    ).length;
+    const fallidasSync = evidencias.filter(
+      (evidencia) => evidencia.estadoSubida === "error"
+    ).length;
 
     if (miniaturas.length > 0) {
       return (
@@ -9871,7 +9954,11 @@ style={{
                 color: tema.textoSuave,
               }}
             >
-              {noRenderizables} evidencia(s) sin URL disponible.
+              {pendientesSync > 0
+                ? `${pendientesSync} evidencia(s) pendiente(s) de sincronización.`
+                : fallidasSync > 0
+                  ? `${fallidasSync} evidencia(s) fallida(s), sin URL disponible.`
+                  : `${noRenderizables} evidencia(s) sin URL disponible.`}
             </div>
           ) : null}
         </div>
@@ -9882,9 +9969,16 @@ style={{
       const tieneReferenciaRenderizable = evidencias.some(
         (evidencia) => evidencia.url || evidencia.storagePath
       );
-      const mensajeFallback = tieneReferenciaRenderizable
+      const evidenciaConEstado = evidencias.find(
+        (evidencia) =>
+          evidencia.estadoSubida === "pendiente" ||
+          evidencia.estadoSubida === "subiendo" ||
+          evidencia.estadoSubida === "error"
+      );
+      const mensajeFallback = evidenciaConEstado?.mensajeVisualizacion ||
+        (tieneReferenciaRenderizable
         ? evidencias[0]?.mensajeVisualizacion
-        : "La evidencia está registrada, pero no existe URL/path disponible para renderizar.";
+        : "La evidencia está registrada, pero no existe URL/path disponible para renderizar.");
 
       return (
         <div

@@ -20,11 +20,17 @@ export type FotoReporteV2Central = {
   url?: string;
   storagePath?: string;
   tamanoBytes?: number;
+  pesoBytes?: number;
   indice?: number;
-  estadoSubida?: "subida" | "pendiente" | "error";
+  estadoSubida?: "pendiente" | "subiendo" | "subida" | "error";
   fechaCarga?: string;
+  fechaCaptura?: string;
+  fechaSubida?: string;
   dataUrlOmitida?: boolean;
   storagePendiente?: boolean;
+  localBlobKey?: string;
+  origen?: string;
+  intentos?: number;
   error?: string;
 };
 
@@ -209,16 +215,23 @@ function evidenciasDesdeFotos(
       bucket: texto(foto.bucket),
       url: texto(foto.url),
       storagePath: texto(foto.storagePath),
-      tamanoBytes: foto.tamanoBytes,
+      tamanoBytes: foto.tamanoBytes || foto.pesoBytes,
+      pesoBytes: foto.pesoBytes || foto.tamanoBytes,
       indice: foto.indice,
       estadoSubida: foto.estadoSubida,
       descripcion:
         foto.estadoSubida === "error"
           ? "Evidencia fotografica pendiente por error de Storage."
+          : foto.estadoSubida === "pendiente" || foto.storagePendiente
+            ? "Evidencia fotografica pendiente de sincronizacion."
           : foto.dataUrl || foto.dataUrlOmitida || foto.storagePendiente
             ? "Evidencia fotografica pendiente de carga a Storage."
             : "",
       fechaCarga: texto(foto.fechaCarga),
+      fechaCaptura: texto(foto.fechaCaptura || foto.fechaCarga),
+      fechaSubida: texto(foto.fechaSubida),
+      localBlobKey: texto(foto.localBlobKey),
+      intentos: foto.intentos,
       origen: "mobile-v2" as const,
       error: texto(foto.error),
     }))

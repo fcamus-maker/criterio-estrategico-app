@@ -9,6 +9,10 @@ export type EvidenciaPanel = {
   storagePath?: string;
   estadoSubida?: string;
   descripcion?: string;
+  fechaCaptura?: string;
+  fechaSubida?: string;
+  intentos?: number;
+  localBlobKey?: string;
   disponibleVisualmente: boolean;
   mensajeVisualizacion: string;
 };
@@ -39,11 +43,16 @@ export function normalizarEvidenciasPanel(
     claves.add(clave);
 
     const disponibleVisualmente = Boolean(url);
+    const estadoSubida = texto(evidencia.estadoSubida);
     const mensajeVisualizacion = disponibleVisualmente
       ? "Evidencia fotográfica disponible."
-      : storagePath
-        ? "Evidencia subida a Storage, pero no disponible para visualización por permisos actuales."
-        : "Evidencia registrada, pendiente de visualización.";
+      : estadoSubida === "pendiente" || estadoSubida === "subiendo"
+        ? "Evidencia pendiente de sincronización."
+        : estadoSubida === "error"
+          ? "Evidencia fallida; no hay URL/path disponible para visualización."
+          : storagePath
+            ? "Evidencia subida a Storage, pero no disponible para visualización por permisos actuales."
+            : "Evidencia registrada, pendiente de visualización.";
 
     vistas.push({
       id: texto(evidencia.id),
@@ -52,8 +61,12 @@ export function normalizarEvidenciasPanel(
       bucket: texto(evidencia.bucket),
       url,
       storagePath,
-      estadoSubida: texto(evidencia.estadoSubida),
+      estadoSubida,
       descripcion: texto(evidencia.descripcion),
+      fechaCaptura: texto(evidencia.fechaCaptura),
+      fechaSubida: texto(evidencia.fechaSubida),
+      intentos: evidencia.intentos,
+      localBlobKey: texto(evidencia.localBlobKey),
       disponibleVisualmente,
       mensajeVisualizacion,
     });

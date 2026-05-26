@@ -1,7 +1,10 @@
 import {
   crearReporteCentralLivianoV2,
+  eliminarEvidenciaLocalV2,
   guardarHistorialLivianoV2,
   guardarReporteActualV2,
+  hidratarReporteConEvidenciasLocalesV2,
+  prepararReporteConEvidenciasLocalesV2,
   type ReporteV2Storage,
 } from "../evaluar-v2/storageReporteV2";
 import { intentarGuardarReporteV2EnRepositorioCentral } from "./guardarReporteV2Central";
@@ -10,6 +13,8 @@ import {
   obtenerTablaDestinoHallazgosCentral,
   subirEvidenciaHallazgo,
 } from "../repositories/hallazgosCentralRepository";
+import { rolPuedeEntrarEvaluarV2CE } from "./authAccess";
+import { obtenerAuthProfileActual } from "./authProfileService";
 
 export type ResultadoGuardadoReporteV2 = {
   localOk: boolean;
@@ -39,7 +44,45 @@ function sanitizarError(error: unknown) {
   return String(error || "Error desconocido").slice(0, 240);
 }
 
+async function validarSesionReporteMovil() {
+  const auth = await obtenerAuthProfileActual();
+
+  if (!auth.autenticado) {
+    return {
+      ok: false as const,
+      mensaje:
+        auth.error ||
+        "Debes iniciar sesion para guardar y subir evidencias fotograficas.",
+    };
+  }
+
+  if (!auth.perfil) {
+    return {
+      ok: false as const,
+      mensaje:
+        auth.error ||
+        "La sesion esta activa, pero no hay perfil habilitado para reportar.",
+    };
+  }
+
+  if (!rolPuedeEntrarEvaluarV2CE(auth.perfil.rol)) {
+    return {
+      ok: false as const,
+      mensaje: "Tu rol no esta habilitado para reportar desde la app movil.",
+    };
+  }
+
+  return {
+    ok: true as const,
+    rol: auth.perfil.rol,
+  };
+}
+
 function extensionDesdeFoto(nombre?: string, tipo?: string) {
+  if (tipo === "image/jpeg") return "jpg";
+  if (tipo === "image/png") return "png";
+  if (tipo === "image/webp") return "webp";
+
   const extensionNombre = String(nombre || "")
     .split(".")
     .pop()
@@ -47,8 +90,6 @@ function extensionDesdeFoto(nombre?: string, tipo?: string) {
     .replace(/[^a-z0-9]/g, "");
 
   if (extensionNombre && extensionNombre.length <= 5) return extensionNombre;
-  if (tipo === "image/png") return "png";
-  if (tipo === "image/webp") return "webp";
   return "jpg";
 }
 
@@ -71,6 +112,14 @@ async function prepararEvidenciasStorage(
   let pendientes = 0;
   const errores: string[] = [];
 
+  logDesarrollo("Storage evidencias preparacion", {
+    codigo,
+    total: fotos.length,
+    conDataUrl: fotos.filter((foto) => Boolean(foto.dataUrl)).length,
+    conStoragePath: fotos.filter((foto) => Boolean(foto.storagePath)).length,
+    conLocalBlobKey: fotos.filter((foto) => Boolean(foto.localBlobKey)).length,
+  });
+
   for (const [index, foto] of fotos.entries()) {
     const indice = index + 1;
     const idBase = foto.id || `foto-${indice}`;
@@ -85,6 +134,8 @@ async function prepararEvidenciasStorage(
       indice,
       origen: "mobile-v2" as const,
       fechaCarga: foto.fechaCarga || new Date().toISOString(),
+      fechaCaptura: foto.fechaCaptura || foto.fechaCarga || new Date().toISOString(),
+      intentos: foto.intentos || 0,
     };
 
     if (foto.storagePath) {
@@ -96,6 +147,7 @@ async function prepararEvidenciasStorage(
         url: foto.url,
         estadoSubida: "subida" as const,
         storagePendiente: false,
+        fechaSubida: foto.fechaSubida || foto.fechaCarga || new Date().toISOString(),
       };
       const { dataUrl, ...metadataCentral } = metadata;
       void dataUrl;
@@ -110,6 +162,9 @@ async function prepararEvidenciasStorage(
         ...metadataBase,
         estadoSubida: "pendiente" as const,
         storagePendiente: true,
+        error: foto.localBlobKey
+          ? "Evidencia pendiente: imagen local no disponible para subir en este intento."
+          : "Evidencia pendiente sin respaldo local recuperable.",
       };
       fotosCentral.push(metadata);
       fotosLocal.push(metadata);
@@ -121,9 +176,11 @@ async function prepararEvidenciasStorage(
       logDesarrollo("Storage evidencia intentando", {
         codigo,
         indice,
+        evidenciaId,
         nombre,
         tipo,
         tamanoBytes: archivo.size,
+        localBlobKey: foto.localBlobKey,
       });
 
       const resultado = await subirEvidenciaHallazgo({
@@ -144,17 +201,23 @@ async function prepararEvidenciasStorage(
           storagePath: resultado.data.storagePath,
           url: resultado.data.url,
           tamanoBytes: archivo.size,
+          pesoBytes: archivo.size,
           estadoSubida: "subida" as const,
           storagePendiente: false,
+          fechaSubida: new Date().toISOString(),
           fechaCarga: new Date().toISOString(),
+          intentos: (foto.intentos || 0) + 1,
         };
         const { dataUrl, ...metadataCentral } = metadata;
         void dataUrl;
         fotosCentral.push(metadataCentral);
         fotosLocal.push({ ...metadata, dataUrl: foto.dataUrl });
+        await eliminarEvidenciaLocalV2(foto.localBlobKey);
         logDesarrollo("Storage evidencia OK", {
           codigo,
           indice,
+          evidenciaId,
+          bucket: resultado.data.bucket,
           storagePath: resultado.data.storagePath,
         });
       } else {
@@ -164,8 +227,10 @@ async function prepararEvidenciasStorage(
           ...metadataBase,
           bucket: "hallazgos-evidencias",
           tamanoBytes: archivo.size,
-          estadoSubida: "error" as const,
+          pesoBytes: archivo.size,
+          estadoSubida: foto.localBlobKey ? ("pendiente" as const) : ("error" as const),
           storagePendiente: true,
+          intentos: (foto.intentos || 0) + 1,
           error: resultado.error,
         };
         const { dataUrl, ...metadataCentral } = metadata;
@@ -175,6 +240,8 @@ async function prepararEvidenciasStorage(
         logDesarrollo("Storage evidencia ERROR", {
           codigo,
           indice,
+          evidenciaId,
+          localBlobKey: foto.localBlobKey,
           error: resultado.error,
         });
       }
@@ -185,15 +252,22 @@ async function prepararEvidenciasStorage(
       const metadata = {
         ...metadataBase,
         bucket: "hallazgos-evidencias",
-        estadoSubida: "error" as const,
+        estadoSubida: foto.localBlobKey ? ("pendiente" as const) : ("error" as const),
         storagePendiente: true,
+        intentos: (foto.intentos || 0) + 1,
         error: mensaje,
       };
       const { dataUrl, ...metadataCentral } = metadata;
       void dataUrl;
       fotosCentral.push(metadataCentral);
       fotosLocal.push({ ...metadata, dataUrl: foto.dataUrl });
-      logDesarrollo("Storage evidencia ERROR", { codigo, indice, error: mensaje });
+      logDesarrollo("Storage evidencia ERROR", {
+        codigo,
+        indice,
+        evidenciaId,
+        localBlobKey: foto.localBlobKey,
+        error: mensaje,
+      });
     }
   }
 
@@ -221,7 +295,9 @@ export async function guardarReporteV2Completo(
   const estadoRepositorio = obtenerEstadoRepositorioCentral();
   const tablaDestino = obtenerTablaDestinoHallazgosCentral();
   const reporteBase: ReporteV2Storage = {
-    ...reporte,
+    ...(await prepararReporteConEvidenciasLocalesV2(
+      await hidratarReporteConEvidenciasLocalesV2(reporte)
+    )).reporte,
     estado: "abierto",
     estadoCierre: "abierto",
     fechaGuardado,
@@ -236,6 +312,54 @@ export async function guardarReporteV2Completo(
     supabaseHabilitado: estadoRepositorio.habilitado,
     supabaseConfigurado: estadoRepositorio.configurado,
     banderaSupabaseActiva: estadoRepositorio.banderaActiva,
+  });
+
+  const sesionReporte = await validarSesionReporteMovil();
+
+  if (!sesionReporte.ok) {
+    const fotos = Array.isArray(reporteBase.fotos) ? reporteBase.fotos : [];
+    const evidenciasPendientes = fotos.filter(
+      (foto) => foto.dataUrl || foto.storagePath || foto.localBlobKey
+    ).length;
+    const mensaje = sesionReporte.mensaje;
+    const reporteLocal: ReporteV2Storage = {
+      ...reporteBase,
+      sincronizacionCentral: {
+        estado: "pendiente",
+        mensaje,
+        fecha: new Date().toISOString(),
+      },
+    };
+    const historialOk = guardarHistorialLivianoV2(reporteLocal);
+    const actualOk = guardarReporteActualV2(reporteLocal);
+
+    logDesarrollo("sesion requerida para subir evidencias", {
+      codigo,
+      evidenciasPendientes,
+      error: mensaje,
+    });
+
+    return {
+      localOk: historialOk || actualOk,
+      centralOk: false,
+      centralPendiente: true,
+      evidenciasIntentadas: evidenciasPendientes,
+      evidenciasSubidas: 0,
+      evidenciasPendientes,
+      errorCentral: mensaje,
+      errorEvidencias: mensaje,
+      codigo,
+      mensaje,
+      tablaDestino,
+      supabaseHabilitado: estadoRepositorio.habilitado,
+      supabaseConfigurado: estadoRepositorio.configurado,
+      banderaSupabaseActiva: estadoRepositorio.banderaActiva,
+    };
+  }
+
+  logDesarrollo("sesion reporte movil OK", {
+    codigo,
+    rol: sesionReporte.rol,
   });
 
   const evidenciasStorage = await prepararEvidenciasStorage(reporteBase, codigo);

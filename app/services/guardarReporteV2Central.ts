@@ -3,6 +3,7 @@ import {
   type ReporteV2CentralEntrada,
 } from "../adapters/reporteV2ToHallazgoCentral";
 import {
+  actualizarHallazgoCentral,
   crearHallazgoCentral,
   obtenerHallazgoCentralPorCodigo,
   obtenerEstadoRepositorioCentral,
@@ -45,11 +46,35 @@ export async function intentarGuardarReporteV2EnRepositorioCentral(
     const existente = await obtenerHallazgoCentralPorCodigo(hallazgoCentral.codigo);
 
     if (existente.ok && existente.data) {
+      const tieneEvidenciasEntrantes = Boolean(hallazgoCentral.evidencias?.length);
+      const requiereActualizarEvidencias = tieneEvidenciasEntrantes &&
+        JSON.stringify(existente.data.evidencias || []) !==
+          JSON.stringify(hallazgoCentral.evidencias || []);
+
       if (process.env.NODE_ENV !== "production") {
         console.info("[mobile-v2] hallazgo central existente", {
           codigo: hallazgoCentral.codigo,
           id: existente.data.id,
+          requiereActualizarEvidencias,
         });
+      }
+
+      if (requiereActualizarEvidencias && existente.data.id) {
+        const actualizado = await actualizarHallazgoCentral(existente.data.id, {
+          evidencias: hallazgoCentral.evidencias,
+          rawMobileV2: hallazgoCentral.rawMobileV2,
+          fechaActualizacion: new Date().toISOString(),
+        });
+
+        if (actualizado.ok) {
+          return {
+            hallazgoCentral: actualizado.data,
+            resultado: {
+              ...actualizado,
+              mensaje: "Hallazgo central existente actualizado con metadata de evidencias.",
+            },
+          };
+        }
       }
 
       return {

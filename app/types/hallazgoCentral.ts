@@ -55,9 +55,14 @@ export type EvidenciaHallazgoCentral = {
   storagePath?: string;
   tamanoBytes?: number;
   indice?: number;
-  estadoSubida?: "subida" | "pendiente" | "error";
+  estadoSubida?: "pendiente" | "subiendo" | "subida" | "error";
   descripcion?: string;
   fechaCarga?: string;
+  fechaCaptura?: string;
+  fechaSubida?: string;
+  pesoBytes?: number;
+  intentos?: number;
+  localBlobKey?: string;
   origen?: OrigenHallazgoCentral;
   error?: string;
 };

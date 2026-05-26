@@ -160,6 +160,38 @@ function falloSupabase<T>(
   };
 }
 
+function detalleErrorSupabase(error: unknown) {
+  if (!error || typeof error !== "object") return texto(error, "Error desconocido");
+
+  const registro = error as {
+    message?: unknown;
+    error?: unknown;
+    details?: unknown;
+    hint?: unknown;
+    statusCode?: unknown;
+    status?: unknown;
+    name?: unknown;
+  };
+  const partes = [
+    registro.message,
+    registro.error,
+    registro.details,
+    registro.hint,
+    registro.statusCode ? `statusCode=${registro.statusCode}` : "",
+    registro.status ? `status=${registro.status}` : "",
+    registro.name,
+  ]
+    .map((valor) => texto(valor))
+    .filter(Boolean);
+
+  return partes.length ? partes.join(" · ") : "Error desconocido";
+}
+
+function tamanoArchivoStorage(archivo: SubirEvidenciaHallazgoInput["archivo"]) {
+  if (archivo instanceof Blob) return archivo.size;
+  return archivo.byteLength;
+}
+
 function texto(valor: unknown, fallback = "") {
   const limpio = String(valor ?? "").trim();
   return limpio || fallback;
@@ -275,6 +307,11 @@ function evidenciaDesdeRegistro(
     ) as EvidenciaHallazgoCentral["estadoSubida"],
     descripcion: texto(item.descripcion || item.description),
     fechaCarga: texto(item.fechaCarga || item.fecha_carga || item.created_at),
+    fechaCaptura: texto(item.fechaCaptura || item.fecha_captura),
+    fechaSubida: texto(item.fechaSubida || item.fecha_subida),
+    pesoBytes: numero(item.pesoBytes || item.peso_bytes),
+    intentos: numero(item.intentos || item.reintentos),
+    localBlobKey: texto(item.localBlobKey || item.local_blob_key),
     origen: texto(item.origen) as EvidenciaHallazgoCentral["origen"],
     error: texto(item.error),
   };
@@ -1536,6 +1573,16 @@ export async function subirEvidenciaHallazgo(
     "jpg"
   );
   const storagePath = `empresa/${empresa}/obra/${obra}/hallazgo/${codigo}/${evidenciaId}.${extension}`;
+  const tamanoBytes = tamanoArchivoStorage(input.archivo);
+
+  if (process.env.NODE_ENV !== "production") {
+    console.info("[hallazgos_central] upload evidencia intento", {
+      bucket: BUCKET_EVIDENCIAS,
+      storagePath,
+      contentType: input.contentType || "image/jpeg",
+      tamanoBytes,
+    });
+  }
 
   try {
     const { data, error } = await cliente.storage
@@ -1546,7 +1593,28 @@ export async function subirEvidenciaHallazgo(
       });
 
     if (error) {
-      return falloSupabase(error, "No se pudo subir evidencia a Storage.");
+      const detalle = detalleErrorSupabase(error);
+
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("[hallazgos_central] upload evidencia error", {
+          bucket: BUCKET_EVIDENCIAS,
+          storagePath,
+          contentType: input.contentType || "image/jpeg",
+          tamanoBytes,
+          error: detalle,
+        });
+      }
+
+      return falloSupabase(error, `No se pudo subir evidencia a Storage: ${detalle}`);
+    }
+
+    if (process.env.NODE_ENV !== "production") {
+      console.info("[hallazgos_central] upload evidencia ok", {
+        bucket: BUCKET_EVIDENCIAS,
+        storagePath: data.path,
+        contentType: input.contentType || "image/jpeg",
+        tamanoBytes,
+      });
     }
 
     return {
@@ -1558,7 +1626,19 @@ export async function subirEvidenciaHallazgo(
       origen: "supabase",
     };
   } catch (error) {
-    return falloSupabase(error, "Fallo inesperado subiendo evidencia Storage.");
+    const detalle = detalleErrorSupabase(error);
+
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("[hallazgos_central] upload evidencia excepcion", {
+        bucket: BUCKET_EVIDENCIAS,
+        storagePath,
+        contentType: input.contentType || "image/jpeg",
+        tamanoBytes,
+        error: detalle,
+      });
+    }
+
+    return falloSupabase(error, `Fallo inesperado subiendo evidencia Storage: ${detalle}`);
   }
 }
 
