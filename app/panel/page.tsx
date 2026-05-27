@@ -1,9 +1,10 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useState, type ChangeEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import { analizarRadarPreventivo } from "../analytics/radarPreventivo";
 import type {
+  BitacoraHallazgoCentral,
   CriticidadHallazgoCentral,
   EstadoCierreCentral,
   EstadoHallazgoCentral,
@@ -17,8 +18,10 @@ import {
   type EvidenciaPanel,
 } from "./evidenciasPanel";
 import { cargarHallazgosPanelConFuentesOpcionales } from "./sources/hallazgosPanelSource";
+import { adaptarHallazgosCentralesAHallazgosPanel } from "../adapters/hallazgoCentralToHallazgoPanel";
 import {
   actualizarHallazgoCentral,
+  listarHallazgosCentrales,
   obtenerHallazgoCentralPorCodigo,
 } from "../repositories/hallazgosCentralRepository";
 import {
@@ -51,6 +54,14 @@ type HallazgoPanelExtendido = HallazgoPanel & {
   evidenciasPanel?: EvidenciaPanel[];
   totalEvidencias?: number;
   evidenciasPendientesVisualizacion?: number;
+  borradoLogico?: {
+    fechaHora?: string;
+    motivo?: string;
+    usuarioNombre?: string;
+    usuarioEmail?: string;
+    usuarioRol?: string;
+    estadoAnterior?: string;
+  };
 };
 
 function generarEvidenciasInformeHtml(
@@ -102,6 +113,25 @@ function generarEvidenciasInformeHtml(
   }
 
   return `<div class="text" style="color:#6b7280;">Sin evidencia fotográfica adjunta.</div>`;
+}
+
+function identidadHallazgoPanel(hallazgo?: Partial<HallazgoPanelExtendido> | null) {
+  const id = String(hallazgo?.id || "").trim();
+  const codigo = String(hallazgo?.codigo || "").trim();
+  return id || codigo;
+}
+
+function esMismoHallazgoPanel(
+  actual?: Partial<HallazgoPanelExtendido> | null,
+  candidato?: Partial<HallazgoPanelExtendido> | null
+) {
+  const actualId = String(actual?.id || "").trim();
+  const candidatoId = String(candidato?.id || "").trim();
+  if (actualId && candidatoId) return actualId === candidatoId;
+
+  const actualCodigo = String(actual?.codigo || "").trim();
+  const candidatoCodigo = String(candidato?.codigo || "").trim();
+  return Boolean(actualCodigo && candidatoCodigo && actualCodigo === candidatoCodigo);
 }
 
 function chipColor(tipo: string) {
@@ -738,6 +768,40 @@ const [filasPanel, setFilasPanel] = useState<HallazgoPanelExtendido[]>(hallazgos
     "Sin evidencia fotográfica": "No photo evidence",
     "Medida inmediata": "Immediate action",
     "Descargar PDF": "Download PDF",
+    "Borrar hallazgo": "Delete finding",
+    "Más acciones": "More actions",
+    "Ver borrados": "View deleted",
+    "Volver a activos": "Back to active",
+    "Vista de borrados": "Deleted view",
+    "Jerarquía autorizada: super_admin_ce": "Authorized hierarchy: super_admin_ce",
+    "Solo la jerarquía super_admin_ce puede revisar anulaciones.": "Only the super_admin_ce hierarchy can review voided findings.",
+    "Cargando borrados...": "Loading deleted findings...",
+    "No se pudieron cargar los hallazgos borrados.": "Deleted findings could not be loaded.",
+    "Trazabilidad del borrado": "Deletion traceability",
+    "Motivo registrado": "Recorded reason",
+    "Ejecutado por": "Executed by",
+    "Perfil ejecutor": "Executor profile",
+    "Correo ejecutor": "Executor email",
+    "Fecha de borrado": "Deletion date",
+    "Estado anterior": "Previous status",
+    Restaurar: "Restore",
+    "Restaurando...": "Restoring...",
+    "Restaurar hallazgo": "Restore finding",
+    "Detalle de borrado": "Deletion detail",
+    "Cerrar detalle": "Close detail",
+    "Hallazgo restaurado correctamente.": "Finding restored successfully.",
+    "No se pudo restaurar el hallazgo.": "The finding could not be restored.",
+    "Borrado controlado de hallazgo": "Controlled finding deletion",
+    "Motivo del borrado": "Deletion reason",
+    "Confirmar borrado": "Confirm deletion",
+    "Borrando...": "Deleting...",
+    "Hallazgo anulado correctamente.": "Finding voided successfully.",
+    "El motivo es obligatorio para mantener trazabilidad.": "The reason is required to keep traceability.",
+    "Solo super_admin_ce puede borrar hallazgos con trazabilidad.": "Only super_admin_ce can delete findings with traceability.",
+    "No se pudo confirmar el hallazgo en Supabase.": "The finding could not be confirmed in Supabase.",
+    "La anulación quedó registrada en bitácora interna.": "The voiding was recorded in the internal log.",
+    "Esta acción no borra evidencias ni archivos de Storage.": "This action does not delete evidence or Storage files.",
+    "Escribe el motivo operacional, administrativo o de duplicidad.": "Write the operational, administrative or duplicate reason.",
     "Sin datos": "No data",
     "Sin definir": "Undefined",
     Pendiente: "Pending",
@@ -2303,6 +2367,21 @@ const [mostrarGestionCierre, setMostrarGestionCierre] = useState(false);
 const [gestionCierreLocal, setGestionCierreLocal] = useState<Record<string, GestionCierreLocal>>({});
 const [evidenciaEnVisor, setEvidenciaEnVisor] = useState<EvidenciaPanel | null>(null);
 const [evidenciasNoDisponibles, setEvidenciasNoDisponibles] = useState<Record<string, boolean>>({});
+const [hallazgoBorradoActivo, setHallazgoBorradoActivo] = useState<HallazgoPanelExtendido | null>(null);
+const [motivoBorradoHallazgo, setMotivoBorradoHallazgo] = useState("");
+const [errorBorradoHallazgo, setErrorBorradoHallazgo] = useState("");
+const [guardandoBorradoHallazgo, setGuardandoBorradoHallazgo] = useState(false);
+const [mensajeBorradoHallazgo, setMensajeBorradoHallazgo] = useState("");
+const [menuBorradoHallazgoCodigo, setMenuBorradoHallazgoCodigo] = useState("");
+const [vistaBorradosActiva, setVistaBorradosActiva] = useState(false);
+const [cargandoVistaBorrados, setCargandoVistaBorrados] = useState(false);
+const [errorVistaBorrados, setErrorVistaBorrados] = useState("");
+const [guardandoRestauracionHallazgo, setGuardandoRestauracionHallazgo] = useState(false);
+const [errorRestauracionHallazgo, setErrorRestauracionHallazgo] = useState("");
+const [hallazgoAuditoriaActivo, setHallazgoAuditoriaActivo] = useState<HallazgoPanelExtendido | null>(null);
+const listadoReportesRef = useRef<HTMLDivElement | null>(null);
+const panelDerechoRef = useRef<HTMLElement | null>(null);
+const [alturaListadoReportes, setAlturaListadoReportes] = useState(740);
 const [gestionCierreDraft, setGestionCierreDraft] = useState<GestionCierreDraft>({
   responsableCorreccionTipo: "Empresa contratista",
   responsableCorreccionEmpresa: "",
@@ -2324,6 +2403,11 @@ const [errorGestionCierre, setErrorGestionCierre] = useState("");
 const [guardandoGestionCierre, setGuardandoGestionCierre] = useState(false);
 const [mostrarNotificaciones, setMostrarNotificaciones] = useState(false);
 const [notificacionActiva, setNotificacionActiva] = useState<NotificacionPanel | null>(null);
+const [authPerfilPanel, setAuthPerfilPanel] = useState<{
+  id?: string;
+  rol?: string;
+  email?: string | null;
+}>({});
 const [usuario, setUsuario] = useState({
   ...usuarioMock,
   nombre: usuarioMock.nombre || "Freddy Camus",
@@ -2651,6 +2735,12 @@ useEffect(() => {
     const auth = await obtenerAuthProfileActual();
     if (!activo) return;
 
+    setAuthPerfilPanel({
+      id: auth.perfil?.id || auth.usuario?.id,
+      rol: auth.perfil?.rol,
+      email: auth.perfil?.email || auth.usuario?.email,
+    });
+
     const nombreGuardado =
       auth.perfil?.nombre || perfil.nombrePerfil?.trim() || "Freddy Camus";
     const cargoGuardado =
@@ -2832,8 +2922,26 @@ const opcionesEstado = ["TODOS", ...new Set(filas.map((item) => item.estado))];
 const opcionesCriticidad = ["TODAS", ...new Set(filas.map((item) => item.criticidad))];
 const opcionesTipoHallazgo = ["TODOS", ...new Set(filas.map((item) => item.tipoHallazgo))];
 
+const timestampHallazgoPanel = (item: { fechaISO?: string; fechaHora?: string }) => {
+  const timestampIso = new Date(String(item.fechaISO || "")).getTime();
+  if (Number.isFinite(timestampIso)) return timestampIso;
+
+  const match = String(item.fechaHora || "").match(/^(\d{2})[-/](\d{2})[-/](\d{4})/);
+  if (match) {
+    const [, dia, mes, anio] = match;
+    const fecha = new Date(Number(anio), Number(mes) - 1, Number(dia));
+    const timestamp = fecha.getTime();
+    if (Number.isFinite(timestamp)) return timestamp;
+  }
+
+  return undefined;
+};
+
+const timestampsFilas = filas
+  .map(timestampHallazgoPanel)
+  .filter((timestamp): timestamp is number => typeof timestamp === "number");
 const fechaBase = new Date(
-  Math.max(...filas.map((item) => new Date(item.fechaISO).getTime()))
+  timestampsFilas.length > 0 ? Math.max(...timestampsFilas) : Date.now()
 );
 
 const inicioDia = new Date(fechaBase);
@@ -2852,7 +2960,8 @@ const inicioMes = new Date(
 );
 
 const filasBase = filas.filter((item) => {
-  const fechaItem = new Date(item.fechaISO);
+  const timestampItem = timestampHallazgoPanel(item);
+  const fechaItem = timestampItem ? new Date(timestampItem) : null;
 
   const cumpleEmpresa =
     filtroEmpresa === "TODAS" || item.empresa === filtroEmpresa;
@@ -2872,11 +2981,11 @@ const filasBase = filas.filter((item) => {
 
   const cumpleFechaDesde =
     !filtroFechaDesde ||
-    fechaItem >= new Date(`${filtroFechaDesde}T00:00:00`);
+    (fechaItem !== null && fechaItem >= new Date(`${filtroFechaDesde}T00:00:00`));
 
   const cumpleFechaHasta =
     !filtroFechaHasta ||
-    fechaItem <= new Date(`${filtroFechaHasta}T23:59:59`);
+    (fechaItem !== null && fechaItem <= new Date(`${filtroFechaHasta}T23:59:59`));
 
   return (
     cumpleEmpresa &&
@@ -2890,18 +2999,19 @@ const filasBase = filas.filter((item) => {
 });
 
 const filasFiltradas = filasBase.filter((item) => {
-  const fecha = new Date(item.fechaISO);
+  const timestamp = timestampHallazgoPanel(item);
+  const fecha = timestamp ? new Date(timestamp) : null;
 
   if (filtroRapido === "HOY") {
-    return fecha >= inicioDia && fecha <= finDia;
+    return fecha !== null && fecha >= inicioDia && fecha <= finDia;
   }
 
   if (filtroRapido === "SEMANA") {
-    return fecha >= inicioSemana && fecha <= finDia;
+    return fecha !== null && fecha >= inicioSemana && fecha <= finDia;
   }
 
   if (filtroRapido === "MES") {
-    return fecha >= inicioMes && fecha <= finDia;
+    return fecha !== null && fecha >= inicioMes && fecha <= finDia;
   }
 
   return true;
@@ -3632,6 +3742,302 @@ const tipoResponsableCentralDesdeGestion = (
   return "otro";
 };
 
+const puedeBorrarHallazgos = authPerfilPanel.rol === "super_admin_ce";
+
+const estadoCentralDesdePanel = (estado?: string): EstadoHallazgoCentral => {
+  if (estado === "EN SEGUIMIENTO" || estado === "EN_SEGUIMIENTO") return "EN_SEGUIMIENTO";
+  if (estado === "CERRADO") return "CERRADO";
+  if (estado === "REPORTADO") return "REPORTADO";
+  if (estado === "ANULADO") return "ANULADO";
+  return "ABIERTO";
+};
+
+const cargarVistaHallazgosActivos = async () => {
+  setCargandoVistaBorrados(true);
+  setErrorVistaBorrados("");
+  setErrorRestauracionHallazgo("");
+
+  try {
+    const hallazgos = await cargarHallazgosPanelConFuentesOpcionales(hallazgosMock);
+    setFilasPanel(hallazgos);
+    setVistaBorradosActiva(false);
+    limpiarFiltros();
+  } catch {
+    setErrorVistaBorrados("No se pudo volver a cargar hallazgos activos.");
+  } finally {
+    setCargandoVistaBorrados(false);
+  }
+};
+
+const cargarVistaHallazgosBorrados = async () => {
+  if (!puedeBorrarHallazgos) {
+    setErrorVistaBorrados(t("Solo la jerarquía super_admin_ce puede revisar anulaciones."));
+    return;
+  }
+
+  setCargandoVistaBorrados(true);
+  setErrorVistaBorrados("");
+  setErrorRestauracionHallazgo("");
+  setMensajeBorradoHallazgo("");
+  setMenuBorradoHallazgoCodigo("");
+
+  try {
+    const respuesta = await listarHallazgosCentrales({
+      estado: "ANULADO",
+      limit: 500,
+    });
+
+    if (!respuesta.ok) {
+      setErrorVistaBorrados(t("No se pudieron cargar los hallazgos borrados."));
+      return;
+    }
+
+    const hallazgosBorrados = adaptarHallazgosCentralesAHallazgosPanel(respuesta.data);
+    setFilasPanel(hallazgosBorrados);
+    if (hallazgosBorrados.length > 0) {
+      setHallazgoActivo(hallazgosBorrados[0]);
+      setVistaDerecha("informe");
+    }
+    setVistaBorradosActiva(true);
+    limpiarFiltros();
+  } catch {
+    setErrorVistaBorrados(t("No se pudieron cargar los hallazgos borrados."));
+  } finally {
+    setCargandoVistaBorrados(false);
+  }
+};
+
+const restaurarHallazgoBorrado = async (hallazgo: HallazgoPanelExtendido) => {
+  if (!puedeBorrarHallazgos) {
+    setErrorRestauracionHallazgo(t("Solo la jerarquía super_admin_ce puede revisar anulaciones."));
+    return;
+  }
+
+  setGuardandoRestauracionHallazgo(true);
+  setErrorRestauracionHallazgo("");
+  setMensajeBorradoHallazgo("");
+
+  const hallazgoPersistente = await obtenerHallazgoCentralPorCodigo(hallazgo.codigo);
+
+  if (!hallazgoPersistente.ok || !hallazgoPersistente.data?.id) {
+    setErrorRestauracionHallazgo(t("No se pudo restaurar el hallazgo."));
+    setGuardandoRestauracionHallazgo(false);
+    return;
+  }
+
+  const eventoBorrado = [...(hallazgoPersistente.data.bitacora || [])]
+    .reverse()
+    .find((evento) => evento.accion === "hallazgo_anulado_pc");
+  const estadoRestaurado = estadoCentralDesdePanel(
+    String(eventoBorrado?.estadoAnterior || hallazgo.borradoLogico?.estadoAnterior || "ABIERTO")
+  );
+  const fechaHoraIso = new Date().toISOString();
+  const usuarioAuditoria = {
+    id: authPerfilPanel.id || "",
+    nombre: usuario?.nombre || "Usuario autorizado",
+    email: authPerfilPanel.email || usuario?.correo || "",
+    rol: authPerfilPanel.rol || usuario?.rol || "",
+  };
+  const idEvento =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `restauracion-${Date.now()}`;
+  const rawPanelPrevio =
+    hallazgoPersistente.data.rawPanel &&
+    typeof hallazgoPersistente.data.rawPanel === "object"
+      ? hallazgoPersistente.data.rawPanel
+      : {};
+  const eventoRestauracion: BitacoraHallazgoCentral = {
+    id: idEvento,
+    fechaHora: fechaHoraIso,
+    usuario:
+      usuarioAuditoria.email ||
+      usuarioAuditoria.nombre ||
+      "Usuario autorizado",
+    accion: "hallazgo_restaurado_pc",
+    resumen: `Hallazgo restaurado desde vista de borrados. Estado restaurado: ${estadoRestaurado}`,
+    estadoAnterior: "ANULADO",
+    estadoNuevo: estadoRestaurado,
+    camposModificados: ["estado", "bitacora", "raw_panel"],
+    metadata: {
+      origen: "panel-pc",
+      usuario: usuarioAuditoria,
+      codigo: hallazgoPersistente.data.codigo,
+      borradoOriginal: hallazgo.borradoLogico || null,
+    },
+  };
+
+  const resultado = await actualizarHallazgoCentral(
+    hallazgoPersistente.data.id,
+    {
+      estado: estadoRestaurado,
+      bitacora: [
+        ...(hallazgoPersistente.data.bitacora || []),
+        eventoRestauracion,
+      ],
+      rawPanel: {
+        ...rawPanelPrevio,
+        restauracionLogica: {
+          fechaHora: fechaHoraIso,
+          usuario: usuarioAuditoria,
+          accion: "hallazgo_restaurado_pc",
+          estadoRestaurado,
+        },
+      },
+    }
+  );
+
+  if (!resultado.ok) {
+    setErrorRestauracionHallazgo(t("No se pudo restaurar el hallazgo."));
+    setGuardandoRestauracionHallazgo(false);
+    return;
+  }
+
+  setFilasPanel((actual) => actual.filter((item) => item.codigo !== hallazgo.codigo));
+  setHallazgoAuditoriaActivo(null);
+  setGuardandoRestauracionHallazgo(false);
+};
+
+const abrirInformeHallazgoPanel = (hallazgo: HallazgoPanelExtendido) => {
+  const hallazgoSeleccionado = { ...hallazgo };
+  setHallazgoActivo(hallazgoSeleccionado);
+  setVistaPrincipal("panel");
+  setVistaDerecha("informe");
+  setMostrarGestionCierre(false);
+  setHallazgoBorradoActivo(null);
+  setMenuBorradoHallazgoCodigo("");
+  setErrorRestauracionHallazgo("");
+  if (vistaBorradosActiva) {
+    setHallazgoAuditoriaActivo(hallazgoSeleccionado);
+  }
+};
+
+const abrirBorradoHallazgo = (hallazgo: HallazgoPanelExtendido) => {
+  setErrorBorradoHallazgo("");
+  setMensajeBorradoHallazgo("");
+  setMotivoBorradoHallazgo("");
+  setMenuBorradoHallazgoCodigo("");
+
+  if (!puedeBorrarHallazgos) {
+    setErrorBorradoHallazgo(t("Solo super_admin_ce puede borrar hallazgos con trazabilidad."));
+    return;
+  }
+
+  setHallazgoBorradoActivo(hallazgo);
+};
+
+const cerrarBorradoHallazgo = () => {
+  if (guardandoBorradoHallazgo) return;
+  setHallazgoBorradoActivo(null);
+  setMotivoBorradoHallazgo("");
+  setErrorBorradoHallazgo("");
+  setMenuBorradoHallazgoCodigo("");
+};
+
+const confirmarBorradoHallazgo = async () => {
+  if (!hallazgoBorradoActivo) return;
+
+  const motivo = motivoBorradoHallazgo.trim();
+
+  if (!puedeBorrarHallazgos) {
+    setErrorBorradoHallazgo(t("Solo super_admin_ce puede borrar hallazgos con trazabilidad."));
+    return;
+  }
+
+  if (motivo.length < 12) {
+    setErrorBorradoHallazgo(t("El motivo es obligatorio para mantener trazabilidad."));
+    return;
+  }
+
+  setGuardandoBorradoHallazgo(true);
+  setErrorBorradoHallazgo("");
+
+  const hallazgoPersistente = await obtenerHallazgoCentralPorCodigo(
+    hallazgoBorradoActivo.codigo
+  );
+
+  if (!hallazgoPersistente.ok || !hallazgoPersistente.data?.id) {
+    setErrorBorradoHallazgo(t("No se pudo confirmar el hallazgo en Supabase."));
+    setGuardandoBorradoHallazgo(false);
+    return;
+  }
+
+  const fechaHoraIso = new Date().toISOString();
+  const userAgent =
+    typeof window !== "undefined" ? window.navigator.userAgent : "";
+  const usuarioAuditoria = {
+    id: authPerfilPanel.id || "",
+    nombre: usuario?.nombre || "Usuario autorizado",
+    email: authPerfilPanel.email || usuario?.correo || "",
+    rol: authPerfilPanel.rol || usuario?.rol || "",
+  };
+  const idEvento =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `borrado-${Date.now()}`;
+  const eventoBitacora: BitacoraHallazgoCentral = {
+    id: idEvento,
+    fechaHora: fechaHoraIso,
+    usuario:
+      usuarioAuditoria.email ||
+      usuarioAuditoria.nombre ||
+      "Usuario autorizado",
+    accion: "hallazgo_anulado_pc",
+    resumen: `Hallazgo anulado desde plataforma PC. Motivo: ${motivo}`,
+    estadoAnterior: hallazgoPersistente.data.estado,
+    estadoNuevo: "ANULADO",
+    camposModificados: ["estado", "bitacora", "raw_panel"],
+    metadata: {
+      origen: "panel-pc",
+      motivo,
+      usuario: usuarioAuditoria,
+      userAgent,
+      codigo: hallazgoPersistente.data.codigo,
+      noBorraEvidenciasStorage: true,
+    },
+  };
+  const rawPanelPrevio =
+    hallazgoPersistente.data.rawPanel &&
+    typeof hallazgoPersistente.data.rawPanel === "object"
+      ? hallazgoPersistente.data.rawPanel
+      : {};
+
+  const resultado = await actualizarHallazgoCentral(
+    hallazgoPersistente.data.id,
+    {
+      estado: "ANULADO",
+      bitacora: [...(hallazgoPersistente.data.bitacora || []), eventoBitacora],
+      rawPanel: {
+        ...rawPanelPrevio,
+        borradoLogico: {
+          fechaHora: fechaHoraIso,
+          motivo,
+          usuario: usuarioAuditoria,
+          accion: "hallazgo_anulado_pc",
+          visibleEnPanel: false,
+          noBorraEvidenciasStorage: true,
+        },
+      },
+    }
+  );
+
+  if (!resultado.ok) {
+    setErrorBorradoHallazgo(
+      "No se pudo registrar el borrado controlado en Supabase. Intenta nuevamente."
+    );
+    setGuardandoBorradoHallazgo(false);
+    return;
+  }
+
+  setFilasPanel((actual) =>
+    actual.filter((item) => item.codigo !== hallazgoBorradoActivo.codigo)
+  );
+  setHallazgoBorradoActivo(null);
+  setMotivoBorradoHallazgo("");
+  setMensajeBorradoHallazgo(t("Hallazgo anulado correctamente."));
+  setGuardandoBorradoHallazgo(false);
+};
+
 const guardarGestionCierre = async () => {
   if (!hallazgoSeguimientoActivo) return;
 
@@ -3999,7 +4405,9 @@ const totalCriticidad = criticidadResumen.reduce(
 const fechaBaseEvolucion =
   filasFiltradas.length > 0
     ? new Date(
-        Math.max(...filasFiltradas.map((item) => new Date(item.fechaISO).getTime()))
+        Math.max(
+          ...filasFiltradas.map((item) => timestampHallazgoPanel(item) || fechaBase.getTime())
+        )
       )
     : fechaBase;
 
@@ -4012,7 +4420,9 @@ const evolucionDiaria = Array.from({ length: 7 }, (_, index) => {
   finDia.setHours(23, 59, 59, 999);
 
   const total = filasFiltradas.filter((item) => {
-    const actual = new Date(item.fechaISO);
+    const timestamp = timestampHallazgoPanel(item);
+    if (!timestamp) return false;
+    const actual = new Date(timestamp);
     return actual >= fecha && actual <= finDia;
   }).length;
 
@@ -4021,6 +4431,7 @@ const evolucionDiaria = Array.from({ length: 7 }, (_, index) => {
     .replace(".", "");
 
   return {
+    fechaClave: fecha.toISOString().slice(0, 10),
     etiqueta: etiqueta.charAt(0).toUpperCase() + etiqueta.slice(1),
     total,
   };
@@ -4336,14 +4747,65 @@ useEffect(() => {
     return;
   }
 
-  const existeEnFiltro = filasFiltradas.some(
-    (item) => item.id === hallazgoActivo.id
+  const existeEnFiltro = filasFiltradas.some((item) =>
+    esMismoHallazgoPanel(item, hallazgoActivo)
   );
 
   if (!existeEnFiltro) {
     setHallazgoActivo(filasFiltradas[0]);
   }
 }, [filasFiltradas, hallazgoActivo]);
+
+useEffect(() => {
+  if (vistaPrincipal !== "panel") return;
+
+  let frame = 0;
+
+  const medirAlturaListado = () => {
+    window.cancelAnimationFrame(frame);
+    frame = window.requestAnimationFrame(() => {
+      const listado = listadoReportesRef.current;
+      const panelDerecho = panelDerechoRef.current;
+      if (!listado || !panelDerecho) return;
+
+      const listadoTop = listado.getBoundingClientRect().top;
+      const panelDerechoBottom = panelDerecho.getBoundingClientRect().bottom;
+      const alturaCalculada = Math.round(panelDerechoBottom - listadoTop);
+      const alturaSegura = Math.min(1120, Math.max(420, alturaCalculada));
+
+      setAlturaListadoReportes((actual) =>
+        Math.abs(actual - alturaSegura) > 2 ? alturaSegura : actual
+      );
+    });
+  };
+
+  medirAlturaListado();
+  window.addEventListener("resize", medirAlturaListado);
+
+  const observador =
+    typeof ResizeObserver !== "undefined"
+      ? new ResizeObserver(medirAlturaListado)
+      : null;
+
+  if (observador) {
+    if (listadoReportesRef.current) observador.observe(listadoReportesRef.current);
+    if (panelDerechoRef.current) observador.observe(panelDerechoRef.current);
+  }
+
+  return () => {
+    window.cancelAnimationFrame(frame);
+    window.removeEventListener("resize", medirAlturaListado);
+    observador?.disconnect();
+  };
+}, [
+  filasFiltradas.length,
+  hallazgoActivo,
+  mensajeBorradoHallazgo,
+  vistaBorradosActiva,
+  vistaDerecha,
+  vistaPrincipal,
+]);
+
 const kpis = [
   {
     id: "total-reportes",
@@ -6918,6 +7380,80 @@ style={{
   })}
 </div>
 
+{puedeBorrarHallazgos ? (
+  <div
+    style={{
+      display: "grid",
+      gap: "8px",
+      padding: "12px",
+      borderRadius: "16px",
+      border: temaClaro
+        ? "1px solid rgba(100,116,139,0.20)"
+        : "1px solid rgba(148,163,184,0.20)",
+      background: tema.tarjetaSuave,
+    }}
+  >
+    <button
+      type="button"
+      onClick={
+        vistaBorradosActiva
+          ? cargarVistaHallazgosActivos
+          : cargarVistaHallazgosBorrados
+      }
+      disabled={cargandoVistaBorrados}
+      style={{
+        width: "100%",
+        minHeight: "48px",
+        padding: "11px 12px",
+        borderRadius: "14px",
+        border: temaClaro
+          ? "1px solid rgba(15,23,42,0.16)"
+          : "1px solid rgba(226,232,240,0.18)",
+        cursor: cargandoVistaBorrados ? "not-allowed" : "pointer",
+        background: vistaBorradosActiva
+          ? "linear-gradient(180deg, rgba(59,130,246,0.22) 0%, rgba(37,99,235,0.14) 100%)"
+          : tema.tarjetaElevada,
+        color: tema.texto,
+        fontSize: "12px",
+        fontWeight: 900,
+        display: "grid",
+        gap: "4px",
+        textAlign: "left",
+      }}
+    >
+      <span>
+        {cargandoVistaBorrados
+          ? t("Cargando borrados...")
+          : vistaBorradosActiva
+            ? t("Volver a activos")
+            : t("Ver borrados")}
+      </span>
+      <span
+        style={{
+          fontSize: "10px",
+          color: tema.textoSuave,
+          fontWeight: 800,
+        }}
+      >
+        {t("Jerarquía autorizada: super_admin_ce")}
+      </span>
+    </button>
+
+    {errorVistaBorrados ? (
+      <div
+        style={{
+          color: temaClaro ? "#b91c1c" : "#fecaca",
+          fontSize: "11px",
+          fontWeight: 800,
+          lineHeight: 1.35,
+        }}
+      >
+        {errorVistaBorrados}
+      </div>
+    ) : null}
+  </div>
+) : null}
+
   <div
     style={{
       flex: 1,
@@ -7815,7 +8351,7 @@ style={{
 
       return (
         <div
-          key={item.etiqueta}
+          key={item.fechaClave}
           style={{
             flex: 1,
             display: "flex",
@@ -8118,22 +8654,64 @@ style={{
               </div>
             </div>
 
+            {mensajeBorradoHallazgo ? (
+              <div
+                style={{
+                  padding: "12px 14px",
+                  borderRadius: "14px",
+                  border: temaClaro
+                    ? "1px solid rgba(22,163,74,0.24)"
+                    : "1px solid rgba(74,222,128,0.28)",
+                  background: temaClaro
+                    ? "rgba(220,252,231,0.76)"
+                    : "rgba(22,101,52,0.22)",
+                  color: temaClaro ? "#166534" : "#bbf7d0",
+                  fontSize: "12px",
+                  fontWeight: 800,
+                }}
+              >
+                {mensajeBorradoHallazgo} {t("La anulación quedó registrada en bitácora interna.")}
+              </div>
+            ) : null}
+
+            {vistaBorradosActiva ? (
+              <div
+                style={{
+                  padding: "12px 14px",
+                  borderRadius: "14px",
+                  border: temaClaro
+                    ? "1px solid rgba(37,99,235,0.22)"
+                    : "1px solid rgba(96,165,250,0.28)",
+                  background: temaClaro
+                    ? "rgba(219,234,254,0.72)"
+                    : "rgba(30,64,175,0.22)",
+                  color: temaClaro ? "#1e3a8a" : "#bfdbfe",
+                  fontSize: "12px",
+                  fontWeight: 850,
+                  lineHeight: 1.45,
+                }}
+              >
+                {t("Vista de borrados")} · {t("Jerarquía autorizada: super_admin_ce")}
+              </div>
+            ) : null}
+
             <div
+              ref={listadoReportesRef}
               className="ce-panel-table"
               style={{
                 ...panelSurfaceStyle,
                 overflow: "hidden",
-                overflowX: "auto",
                 display: "flex",
                 flexDirection: "column",
                 minHeight: "0",
+                height: `${alturaListadoReportes}px`,
               }}
             >
               <div
                 style={{
                   display: "grid",
                   gridTemplateColumns:
-                    "1.45fr 1.2fr 1.45fr 0.9fr 1.05fr 1.25fr 0.9fr",
+                    "minmax(108px, 1.35fr) minmax(92px, 1fr) minmax(118px, 1.22fr) minmax(76px, 0.74fr) minmax(86px, 0.88fr) minmax(112px, 1.05fr) minmax(92px, 0.78fr)",
                   gap: "10px",
                   padding: "14px 16px",
 	                  background: tema.tarjetaSuave,
@@ -8142,7 +8720,9 @@ style={{
                   letterSpacing: "0.7px",
                   textTransform: "uppercase",
                   color: tema.textoSuave,
-                  minWidth: "860px",
+                  minWidth: 0,
+                  width: "100%",
+                  flex: "0 0 auto",
                 }}
               >
 	                <div>{t("Código")}</div>
@@ -8154,6 +8734,15 @@ style={{
 	                <div>{t("Acción")}</div>
               </div>
 
+              <div
+                style={{
+                  overflowY: "auto",
+                  overflowX: "hidden",
+                  overscrollBehavior: "contain",
+                  minHeight: 0,
+                  flex: "1 1 auto",
+                }}
+              >
              {filasFiltradas.length === 0 ? (
   <div
     style={{
@@ -8167,25 +8756,34 @@ style={{
 	    {t("No hay hallazgos para el filtro seleccionado.")}
   </div>
 ) : (
-  filasFiltradas.map((fila) => {
+  filasFiltradas.map((fila, index) => {
     const chip = chipColor(fila.criticidad);
     const fechaCompromiso = (fila as typeof fila & { fechaCompromiso?: string }).fechaCompromiso || "";
     const semaforoFila = semaforoVencimiento(fechaCompromiso, fila.estado);
+    const filaSeleccionada = esMismoHallazgoPanel(fila, hallazgoActivo);
 
     return (
       <div
-        key={fila.codigo}
+        key={identidadHallazgoPanel(fila) || `hallazgo-${index}`}
         style={{
           display: "grid",
           gridTemplateColumns:
-            "1.45fr 1.2fr 1.45fr 0.9fr 1.05fr 1.25fr 0.9fr",
+            "minmax(108px, 1.35fr) minmax(92px, 1fr) minmax(118px, 1.22fr) minmax(76px, 0.74fr) minmax(86px, 0.88fr) minmax(112px, 1.05fr) minmax(92px, 0.78fr)",
           gap: "10px",
           padding: "16px",
-	          borderTop: tema.bordeSutil,
+          borderTop: tema.bordeSutil,
+          background: filaSeleccionada
+            ? temaClaro
+              ? "rgba(37,99,235,0.06)"
+              : "rgba(96,165,250,0.08)"
+            : "transparent",
           alignItems: "center",
           fontSize: "13px",
-          minWidth: "860px",
+          minWidth: 0,
+          width: "100%",
+          cursor: "pointer",
         }}
+        onClick={() => abrirInformeHallazgoPanel(fila)}
       >
         <div style={{ fontWeight: 800 }}>{fila.codigo}</div>
         <div>{fila.empresa}</div>
@@ -8236,12 +8834,22 @@ style={{
 </div>
         <div>{fila.fechaHora}</div>
 
-        <div>
+        <div
+          style={{
+            position: "relative",
+            display: "grid",
+            gridTemplateColumns:
+              puedeBorrarHallazgos && !vistaBorradosActiva ? "1fr 34px" : "1fr",
+            gap: "8px",
+            alignItems: "center",
+          }}
+        >
           <button
-            onClick={() => {
-  setHallazgoActivo(fila);
-  setVistaDerecha("informe");
-}}
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              abrirInformeHallazgoPanel(fila);
+            }}
             style={{
               width: "100%",
               padding: "10px 10px",
@@ -8256,15 +8864,89 @@ style={{
           >
 	            {t("Ver informe")}
           </button>
+          {puedeBorrarHallazgos && !vistaBorradosActiva ? (
+            <>
+              <button
+                type="button"
+                aria-label={t("Más acciones")}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setMenuBorradoHallazgoCodigo((actual) =>
+                    actual === fila.codigo ? "" : fila.codigo
+                  );
+                }}
+                style={{
+                  width: "34px",
+                  height: "34px",
+                  borderRadius: "12px",
+                  border: temaClaro
+                    ? "1px solid rgba(100,116,139,0.24)"
+                    : "1px solid rgba(148,163,184,0.26)",
+                  cursor: "pointer",
+                  fontWeight: 900,
+                  fontSize: "18px",
+                  lineHeight: 1,
+                  background: tema.tarjetaSuave,
+                  color: tema.texto,
+                }}
+              >
+                ...
+              </button>
+              {menuBorradoHallazgoCodigo === fila.codigo ? (
+                <div
+                  style={{
+                    position: "absolute",
+                    right: 0,
+                    top: "42px",
+                    zIndex: 30,
+                    minWidth: "116px",
+                    padding: "6px",
+                    borderRadius: "12px",
+                    border: tema.borde,
+                    background: temaClaro ? "#ffffff" : "rgba(15,23,42,0.98)",
+                    boxShadow: temaClaro
+                      ? "0 16px 36px rgba(15,23,42,0.16)"
+                      : "0 18px 42px rgba(0,0,0,0.42)",
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      abrirBorradoHallazgo(fila);
+                    }}
+                    style={{
+                      width: "100%",
+                      padding: "9px 10px",
+                      borderRadius: "9px",
+                      border: "none",
+                      cursor: "pointer",
+                      textAlign: "left",
+                      fontWeight: 900,
+                      fontSize: "12px",
+                      background: temaClaro
+                        ? "rgba(254,226,226,0.76)"
+                        : "rgba(127,29,29,0.34)",
+                      color: temaClaro ? "#991b1b" : "#fecaca",
+                    }}
+                  >
+                    BORRAR
+                  </button>
+                </div>
+              ) : null}
+            </>
+          ) : null}
         </div>
       </div>
     );
   })
 )}
+              </div>
             </div>
           </section>
 
           <aside
+            ref={panelDerechoRef}
             className="ce-panel-right-rail"
             style={{
               ...panelSurfaceStyle,
@@ -9924,6 +10606,102 @@ style={{
         {hallazgoActivo.codigo}
       </div>
     </div>
+    {vistaBorradosActiva ? (
+      <div
+        style={{
+          padding: "14px",
+          borderRadius: "16px",
+          background: temaClaro
+            ? "rgba(254,242,242,0.88)"
+            : "rgba(127,29,29,0.22)",
+          border: temaClaro
+            ? "1px solid rgba(185,28,28,0.22)"
+            : "1px solid rgba(248,113,113,0.28)",
+          marginBottom: "14px",
+          display: "grid",
+          gap: "10px",
+        }}
+      >
+        <div
+          style={{
+            fontSize: "13px",
+            fontWeight: 950,
+            color: temaClaro ? "#7f1d1d" : "#fecaca",
+          }}
+        >
+          {t("Trazabilidad del borrado")}
+        </div>
+
+        {[
+          [t("Motivo registrado"), hallazgoActivo.borradoLogico?.motivo || t("Sin datos")],
+          [t("Ejecutado por"), hallazgoActivo.borradoLogico?.usuarioNombre || t("Sin datos")],
+          [t("Perfil ejecutor"), hallazgoActivo.borradoLogico?.usuarioRol || t("Sin datos")],
+          [t("Correo ejecutor"), hallazgoActivo.borradoLogico?.usuarioEmail || t("Sin datos")],
+          [t("Fecha de borrado"), hallazgoActivo.borradoLogico?.fechaHora || t("Sin datos")],
+          [t("Estado anterior"), hallazgoActivo.borradoLogico?.estadoAnterior || "ABIERTO"],
+        ].map(([titulo, valor]) => (
+          <div key={titulo}>
+            <div
+              style={{
+                fontSize: "10px",
+                opacity: 0.72,
+                marginBottom: "3px",
+                fontWeight: 900,
+                textTransform: "uppercase",
+              }}
+            >
+              {titulo}
+            </div>
+            <div
+              style={{
+                fontSize: "12px",
+                fontWeight: 800,
+                lineHeight: 1.35,
+                color: tema.texto,
+                overflowWrap: "anywhere",
+              }}
+            >
+              {valor}
+            </div>
+          </div>
+        ))}
+
+        {errorRestauracionHallazgo ? (
+          <div
+            style={{
+              color: temaClaro ? "#b91c1c" : "#fecaca",
+              fontSize: "12px",
+              fontWeight: 850,
+            }}
+          >
+            {errorRestauracionHallazgo}
+          </div>
+        ) : null}
+
+        {puedeBorrarHallazgos ? (
+          <button
+            type="button"
+            onClick={() => restaurarHallazgoBorrado(hallazgoActivo)}
+            disabled={guardandoRestauracionHallazgo}
+            style={{
+              width: "100%",
+              padding: "12px 14px",
+              borderRadius: "14px",
+              border: "none",
+              cursor: guardandoRestauracionHallazgo ? "not-allowed" : "pointer",
+              fontWeight: 950,
+              background: "linear-gradient(180deg, #22c55e 0%, #15803d 100%)",
+              color: "#f0fdf4",
+              boxShadow: "0 10px 22px rgba(21,128,61,0.24)",
+            }}
+          >
+            {guardandoRestauracionHallazgo
+              ? t("Restaurando...")
+              : t("Restaurar hallazgo")}
+          </button>
+        ) : null}
+      </div>
+    ) : null}
 <div style={{ marginBottom: "14px" }}>
   <div
     style={{
@@ -10269,6 +11047,358 @@ style={{
           </aside>
         </div>
       </div>
+      {hallazgoAuditoriaActivo ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={t("Detalle de borrado")}
+          onClick={() => {
+            if (!guardandoRestauracionHallazgo) setHallazgoAuditoriaActivo(null);
+          }}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 92,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "24px",
+            background: "rgba(2,6,23,0.76)",
+            backdropFilter: "blur(12px)",
+          }}
+        >
+          <div
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              width: "min(640px, 100%)",
+              maxHeight: "88vh",
+              overflowY: "auto",
+              borderRadius: "22px",
+              border: tema.borde,
+              background: tema.tarjeta,
+              boxShadow: "0 28px 70px rgba(0,0,0,0.45)",
+            }}
+          >
+            <div
+              style={{
+                padding: "20px 22px",
+                borderBottom: tema.borde,
+                display: "flex",
+                justifyContent: "space-between",
+                gap: "14px",
+                alignItems: "flex-start",
+              }}
+            >
+              <div>
+                <div
+                  style={{
+                    fontSize: "20px",
+                    fontWeight: 950,
+                    color: tema.texto,
+                    marginBottom: "6px",
+                  }}
+                >
+                  {t("Detalle de borrado")}
+                </div>
+                <div
+                  style={{
+                    fontSize: "13px",
+                    color: tema.textoSuave,
+                    fontWeight: 800,
+                  }}
+                >
+                  {hallazgoAuditoriaActivo.codigo} · {hallazgoAuditoriaActivo.empresa}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setHallazgoAuditoriaActivo(null)}
+                disabled={guardandoRestauracionHallazgo}
+                style={{
+                  border: tema.borde,
+                  borderRadius: "12px",
+                  background: tema.tarjetaSuave,
+                  color: tema.texto,
+                  cursor: guardandoRestauracionHallazgo ? "not-allowed" : "pointer",
+                  fontSize: "12px",
+                  fontWeight: 900,
+                  padding: "9px 10px",
+                }}
+              >
+                {t("Cerrar detalle")}
+              </button>
+            </div>
+
+            <div style={{ padding: "22px", display: "grid", gap: "14px" }}>
+              <div
+                style={{
+                  padding: "13px 14px",
+                  borderRadius: "16px",
+                  background: temaClaro
+                    ? "rgba(254,242,242,0.88)"
+                    : "rgba(127,29,29,0.22)",
+                  border: temaClaro
+                    ? "1px solid rgba(185,28,28,0.22)"
+                    : "1px solid rgba(248,113,113,0.28)",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "13px",
+                    fontWeight: 950,
+                    color: temaClaro ? "#7f1d1d" : "#fecaca",
+                    marginBottom: "10px",
+                  }}
+                >
+                  {t("Trazabilidad del borrado")}
+                </div>
+                <div style={{ display: "grid", gap: "10px" }}>
+                  {[
+                    [t("Motivo registrado"), hallazgoAuditoriaActivo.borradoLogico?.motivo || t("Sin datos")],
+                    [t("Ejecutado por"), hallazgoAuditoriaActivo.borradoLogico?.usuarioNombre || t("Sin datos")],
+                    [t("Perfil ejecutor"), hallazgoAuditoriaActivo.borradoLogico?.usuarioRol || t("Sin datos")],
+                    [t("Correo ejecutor"), hallazgoAuditoriaActivo.borradoLogico?.usuarioEmail || t("Sin datos")],
+                    [t("Fecha de borrado"), hallazgoAuditoriaActivo.borradoLogico?.fechaHora || t("Sin datos")],
+                    [t("Estado anterior"), hallazgoAuditoriaActivo.borradoLogico?.estadoAnterior || "ABIERTO"],
+                  ].map(([titulo, valor]) => (
+                    <div key={titulo}>
+                      <div
+                        style={{
+                          fontSize: "10px",
+                          opacity: 0.72,
+                          marginBottom: "3px",
+                          fontWeight: 900,
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        {titulo}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "13px",
+                          fontWeight: 800,
+                          lineHeight: 1.35,
+                          color: tema.texto,
+                          overflowWrap: "anywhere",
+                        }}
+                      >
+                        {valor}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {errorRestauracionHallazgo ? (
+                <div
+                  style={{
+                    color: temaClaro ? "#b91c1c" : "#fecaca",
+                    fontSize: "12px",
+                    fontWeight: 850,
+                  }}
+                >
+                  {errorRestauracionHallazgo}
+                </div>
+              ) : null}
+
+              <button
+                type="button"
+                onClick={() => restaurarHallazgoBorrado(hallazgoAuditoriaActivo)}
+                disabled={guardandoRestauracionHallazgo}
+                style={{
+                  width: "100%",
+                  padding: "13px 14px",
+                  borderRadius: "14px",
+                  border: "none",
+                  cursor: guardandoRestauracionHallazgo ? "not-allowed" : "pointer",
+                  fontWeight: 950,
+                  background: "linear-gradient(180deg, #22c55e 0%, #15803d 100%)",
+                  color: "#f0fdf4",
+                  boxShadow: "0 10px 22px rgba(21,128,61,0.24)",
+                }}
+              >
+                {guardandoRestauracionHallazgo
+                  ? t("Restaurando...")
+                  : t("Restaurar hallazgo")}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {hallazgoBorradoActivo ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={t("Borrado controlado de hallazgo")}
+          onClick={cerrarBorradoHallazgo}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 90,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "24px",
+            background: "rgba(2,6,23,0.76)",
+            backdropFilter: "blur(12px)",
+          }}
+        >
+          <div
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              width: "min(560px, 100%)",
+              borderRadius: "22px",
+              border: tema.borde,
+              background: tema.tarjeta,
+              boxShadow: "0 28px 70px rgba(0,0,0,0.45)",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                padding: "20px 22px",
+                borderBottom: tema.borde,
+                display: "grid",
+                gap: "8px",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "20px",
+                  fontWeight: 900,
+                  color: tema.texto,
+                }}
+              >
+                {t("Borrado controlado de hallazgo")}
+              </div>
+              <div
+                style={{
+                  fontSize: "13px",
+                  lineHeight: 1.5,
+                  color: tema.textoSuave,
+                  fontWeight: 700,
+                }}
+              >
+                {hallazgoBorradoActivo.codigo} · {hallazgoBorradoActivo.empresa}
+              </div>
+            </div>
+
+            <div style={{ padding: "22px", display: "grid", gap: "14px" }}>
+              <div
+                style={{
+                  padding: "12px 14px",
+                  borderRadius: "14px",
+                  border: temaClaro
+                    ? "1px solid rgba(185,28,28,0.20)"
+                    : "1px solid rgba(248,113,113,0.28)",
+                  background: temaClaro
+                    ? "rgba(254,242,242,0.86)"
+                    : "rgba(127,29,29,0.22)",
+                  color: temaClaro ? "#7f1d1d" : "#fecaca",
+                  fontSize: "12px",
+                  lineHeight: 1.5,
+                  fontWeight: 800,
+                }}
+              >
+                {t("Esta acción no borra evidencias ni archivos de Storage.")}
+              </div>
+
+              <label style={{ display: "grid", gap: "8px" }}>
+                <span
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: 900,
+                    color: tema.texto,
+                  }}
+                >
+                  {t("Motivo del borrado")}
+                </span>
+                <textarea
+                  value={motivoBorradoHallazgo}
+                  onChange={(event) => {
+                    setMotivoBorradoHallazgo(event.target.value);
+                    setErrorBorradoHallazgo("");
+                  }}
+                  placeholder={t("Escribe el motivo operacional, administrativo o de duplicidad.")}
+                  rows={5}
+                  style={{
+                    width: "100%",
+                    resize: "vertical",
+                    minHeight: "118px",
+                    borderRadius: "14px",
+                    border: tema.borde,
+                    padding: "12px 14px",
+                    background: temaClaro ? "#ffffff" : "rgba(15,23,42,0.84)",
+                    color: tema.texto,
+                    outline: "none",
+                    fontSize: "14px",
+                    lineHeight: 1.45,
+                    fontWeight: 650,
+                  }}
+                />
+              </label>
+
+              {errorBorradoHallazgo ? (
+                <div
+                  style={{
+                    color: temaClaro ? "#b91c1c" : "#fecaca",
+                    fontSize: "12px",
+                    fontWeight: 800,
+                  }}
+                >
+                  {errorBorradoHallazgo}
+                </div>
+              ) : null}
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "10px",
+                  marginTop: "4px",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={cerrarBorradoHallazgo}
+                  disabled={guardandoBorradoHallazgo}
+                  style={{
+                    padding: "12px 14px",
+                    borderRadius: "14px",
+                    border: tema.borde,
+                    cursor: guardandoBorradoHallazgo ? "not-allowed" : "pointer",
+                    fontWeight: 900,
+                    background: tema.tarjetaSuave,
+                    color: tema.texto,
+                  }}
+                >
+                  {t("Cancelar")}
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmarBorradoHallazgo}
+                  disabled={guardandoBorradoHallazgo}
+                  style={{
+                    padding: "12px 14px",
+                    borderRadius: "14px",
+                    border: "none",
+                    cursor: guardandoBorradoHallazgo ? "not-allowed" : "pointer",
+                    fontWeight: 900,
+                    background: "linear-gradient(180deg, #ef4444 0%, #991b1b 100%)",
+                    color: "#fff1f2",
+                    boxShadow: "0 12px 24px rgba(153,27,27,0.28)",
+                  }}
+                >
+                  {guardandoBorradoHallazgo
+                    ? t("Borrando...")
+                    : t("Confirmar borrado")}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {evidenciaEnVisor?.url ? (
         <div
           role="dialog"
