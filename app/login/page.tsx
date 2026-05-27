@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
   iniciarSesionConPasswordCE,
@@ -8,6 +8,42 @@ import {
 } from "@/app/services/authProfileService";
 import type { RoleCE } from "@/app/types/authRoles";
 import PwaInstallCard from "@/app/components/PwaInstallCard";
+
+const LOGIN_DRAFT_STORAGE_KEY = "ce_login_draft";
+
+type LoginDraft = {
+  email: string;
+  password: string;
+};
+
+function leerLoginDraft(): LoginDraft | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const draft = JSON.parse(
+      window.sessionStorage.getItem(LOGIN_DRAFT_STORAGE_KEY) || "null"
+    );
+
+    if (!draft || typeof draft !== "object") return null;
+
+    return {
+      email: String((draft as Partial<LoginDraft>).email || ""),
+      password: String((draft as Partial<LoginDraft>).password || ""),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function guardarLoginDraft(draft: LoginDraft) {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.setItem(LOGIN_DRAFT_STORAGE_KEY, JSON.stringify(draft));
+}
+
+function limpiarLoginDraft() {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.removeItem(LOGIN_DRAFT_STORAGE_KEY);
+}
 
 function rutaPorRol(rol?: RoleCE | null) {
   switch (rol) {
@@ -28,18 +64,56 @@ function rutaPorRol(rol?: RoleCE | null) {
 export default function LoginPage() {
   const router = useRouter();
   const t = (texto: string) => texto;
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const emailInputRef = useRef<HTMLInputElement | null>(null);
+  const passwordInputRef = useRef<HTMLInputElement | null>(null);
   const [mostrarPassword, setMostrarPassword] = useState(false);
   const [mensaje, setMensaje] = useState("");
   const [cargando, setCargando] = useState(false);
 
-  const enviarPassword = async () => {
+  useEffect(() => {
+    const draft = leerLoginDraft();
+    const emailInput = emailInputRef.current;
+    const passwordInput = passwordInputRef.current;
+
+    if (draft) {
+      if (emailInput) emailInput.value = draft.email;
+      if (passwordInput) passwordInput.value = draft.password;
+    }
+
+    const guardarDesdeDom = () => {
+      guardarLoginDraft({
+        email: emailInput?.value || "",
+        password: passwordInput?.value || "",
+      });
+    };
+
+    emailInput?.addEventListener("input", guardarDesdeDom);
+    passwordInput?.addEventListener("input", guardarDesdeDom);
+
+    return () => {
+      emailInput?.removeEventListener("input", guardarDesdeDom);
+      passwordInput?.removeEventListener("input", guardarDesdeDom);
+    };
+  }, []);
+
+  const guardarBorradorActual = () => {
+    guardarLoginDraft({
+      email: emailInputRef.current?.value || "",
+      password: passwordInputRef.current?.value || "",
+    });
+  };
+
+  const enviarPassword = async (event?: FormEvent<HTMLFormElement>) => {
+    event?.preventDefault();
     if (cargando) return;
 
     setCargando(true);
     setMensaje("");
-    const resultado = await iniciarSesionConPasswordCE(email.trim(), password);
+    const email = emailInputRef.current?.value.trim() || "";
+    const password = passwordInputRef.current?.value || "";
+    guardarLoginDraft({ email, password });
+
+    const resultado = await iniciarSesionConPasswordCE(email, password);
 
     if (!resultado.ok) {
       setMensaje(`Login pendiente: ${resultado.error}`);
@@ -51,6 +125,7 @@ export default function LoginPage() {
     const ruta = rutaPorRol(estado.perfil?.rol);
 
     if (estado.perfil?.activo && ruta) {
+      limpiarLoginDraft();
       setMensaje(`Sesión iniciada: ${estado.perfil.nombre}. Redirigiendo...`);
       router.replace(ruta);
       return;
@@ -92,14 +167,15 @@ export default function LoginPage() {
           {t("Login preparado para pruebas controladas. No bloquea app móvil ni panel.")}
         </p>
 
-        <div style={{ display: "grid", gap: "12px" }}>
+        <form onSubmit={enviarPassword} style={{ display: "grid", gap: "12px" }}>
           <label style={{ display: "grid", gap: "6px", fontWeight: 800 }}>
             Email
             <input
-              value={email}
+              ref={emailInputRef}
               type="email"
               autoComplete="email"
-              onChange={(event) => setEmail(event.target.value)}
+              defaultValue=""
+              onInput={guardarBorradorActual}
               style={{
                 borderRadius: "12px",
                 border: "1px solid rgba(255,255,255,0.18)",
@@ -125,10 +201,11 @@ export default function LoginPage() {
               }}
             >
               <input
-                value={password}
+                ref={passwordInputRef}
                 type={mostrarPassword ? "text" : "password"}
                 autoComplete="current-password"
-                onChange={(event) => setPassword(event.target.value)}
+                defaultValue=""
+                onInput={guardarBorradorActual}
                 style={{
                   minWidth: 0,
                   border: "none",
@@ -163,8 +240,7 @@ export default function LoginPage() {
           </label>
 
           <button
-            type="button"
-            onClick={enviarPassword}
+            type="submit"
             disabled={cargando}
             style={{
               border: "none",
@@ -179,7 +255,7 @@ export default function LoginPage() {
           >
             {cargando ? t("Validando...") : t("Entrar")}
           </button>
-        </div>
+        </form>
 
         {mensaje && (
           <div
