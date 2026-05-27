@@ -21,7 +21,7 @@ export type AjusteFotoPerfil = {
 };
 
 export type ResultadoFotoPerfil =
-  | { ok: true; fotoUrl: string; storagePath?: string }
+  | { ok: true; fotoUrl: string; storagePath?: string; origen?: "storage" | "profile_inline" }
   | { ok: false; error: string };
 
 function sanitizarError(error: unknown) {
@@ -53,6 +53,22 @@ async function exportarAvatarJPEG(
   const dataUrl = canvas.toDataURL("image/jpeg", calidad);
   const blob = await dataUrlABlob(dataUrl);
   return { dataUrl, blob };
+}
+
+function errorBucketNoEncontrado(error: unknown) {
+  const mensaje = sanitizarError(error).toLowerCase();
+  return mensaje.includes("bucket not found") || mensaje.includes("bucket not_found");
+}
+
+async function actualizarFotoUrlPerfilActual(
+  cliente: NonNullable<Awaited<ReturnType<typeof obtenerSupabaseCliente>>>,
+  userId: string,
+  fotoUrl: string | null
+) {
+  return cliente
+    .from("profiles")
+    .update({ foto_url: fotoUrl })
+    .eq("id", userId);
 }
 
 export function comprimirFotoPerfilUsuario(
@@ -174,6 +190,27 @@ export async function subirFotoPerfilUsuarioActual(
       });
 
     if (uploadError) {
+      if (errorBucketNoEncontrado(uploadError)) {
+        const { error: inlineUpdateError } = await actualizarFotoUrlPerfilActual(
+          cliente,
+          auth.usuario.id,
+          foto.dataUrl
+        );
+
+        if (inlineUpdateError) {
+          return {
+            ok: false,
+            error: `No existe el bucket ${BUCKET_FOTOS_PERFIL} y tampoco se pudo asociar la foto al perfil: ${sanitizarError(inlineUpdateError)}`,
+          };
+        }
+
+        return {
+          ok: true,
+          fotoUrl: foto.dataUrl,
+          origen: "profile_inline",
+        };
+      }
+
       return {
         ok: false,
         error: `No se pudo subir la foto de perfil: ${sanitizarError(uploadError)}`,
@@ -192,10 +229,11 @@ export async function subirFotoPerfilUsuarioActual(
       };
     }
 
-    const { error: updateError } = await cliente
-      .from("profiles")
-      .update({ foto_url: fotoUrl })
-      .eq("id", auth.usuario.id);
+    const { error: updateError } = await actualizarFotoUrlPerfilActual(
+      cliente,
+      auth.usuario.id,
+      fotoUrl
+    );
 
     if (updateError) {
       return {
@@ -204,7 +242,7 @@ export async function subirFotoPerfilUsuarioActual(
       };
     }
 
-    return { ok: true, fotoUrl, storagePath };
+    return { ok: true, fotoUrl, storagePath, origen: "storage" };
   } catch (error) {
     return {
       ok: false,
@@ -229,10 +267,11 @@ export async function quitarFotoPerfilUsuarioActual(): Promise<ResultadoFotoPerf
   }
 
   try {
-    const { error } = await cliente
-      .from("profiles")
-      .update({ foto_url: null })
-      .eq("id", auth.usuario.id);
+    const { error } = await actualizarFotoUrlPerfilActual(
+      cliente,
+      auth.usuario.id,
+      null
+    );
 
     if (error) {
       return {

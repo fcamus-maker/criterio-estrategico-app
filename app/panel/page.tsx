@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import { analizarRadarPreventivo } from "../analytics/radarPreventivo";
 import type {
@@ -30,7 +30,6 @@ import {
   comprimirFotoPerfilUsuario,
   quitarFotoPerfilUsuarioActual,
   subirFotoPerfilUsuarioActual,
-  type FotoPerfilComprimida,
 } from "../services/profilePhotoService";
 
 type HallazgoPanelExtendido = HallazgoPanel & {
@@ -410,6 +409,13 @@ const [filasPanel, setFilasPanel] = useState<HallazgoPanelExtendido[]>(hallazgos
     "Perfil actualizado correctamente": "Profile updated successfully",
     "Los cambios se guardan en este navegador": "Changes are saved in this browser",
     "Foto cargada correctamente": "Photo uploaded successfully",
+    "Ajusta el encuadre y guarda para subir la foto optimizada": "Adjust the framing and save to upload the optimized photo",
+    "La foto se guarda en el perfil real del usuario": "The photo is saved to the real user profile",
+    "No se pudo cargar la foto de perfil.": "The profile photo could not be loaded.",
+    "No se pudo ajustar la foto de perfil. Intenta con otra imagen.": "The profile photo could not be adjusted. Try another image.",
+    Zoom: "Zoom",
+    "Posición horizontal": "Horizontal position",
+    "Posición vertical": "Vertical position",
     "No se pudo guardar el perfil en este navegador": "The profile could not be saved in this browser",
     "La foto es demasiado pesada. Selecciona una imagen más liviana.": "The photo is too large. Select a smaller image.",
     "Actualiza los datos visibles del usuario en el panel lateral": "Update the user details visible in the side panel",
@@ -2347,9 +2353,13 @@ const [fotoPerfilInputKey, setFotoPerfilInputKey] = useState(0);
 const [guardadoPerfil, setGuardadoPerfil] = useState(false);
 const [guardandoPerfil, setGuardandoPerfil] = useState(false);
 const [fotoPerfilCargada, setFotoPerfilCargada] = useState(false);
-const [fotoPerfilPendiente, setFotoPerfilPendiente] =
-  useState<FotoPerfilComprimida | null>(null);
+const [fotoPerfilArchivo, setFotoPerfilArchivo] = useState<File | null>(null);
 const [fotoPerfilQuitada, setFotoPerfilQuitada] = useState(false);
+const [ajusteFotoPerfil, setAjusteFotoPerfil] = useState({
+  zoom: 1,
+  offsetX: 0,
+  offsetY: 0,
+});
 const [errorPerfil, setErrorPerfil] = useState("");
 const [cerrandoSesionPerfil, setCerrandoSesionPerfil] = useState(false);
 const [campoPerfilActivo, setCampoPerfilActivo] = useState<
@@ -2359,6 +2369,10 @@ const [controlPerfilActivo, setControlPerfilActivo] = useState<string | null>(nu
 const inicialUsuario = (usuario.nombre.trim() || "Freddy Camus").charAt(0).toUpperCase();
 const inicialPerfil = (nombrePerfilDraft.trim() || "Freddy Camus").charAt(0).toUpperCase();
 const abrirEditorPerfil = () => {
+  if (fotoPerfilDraft?.startsWith("blob:")) {
+    URL.revokeObjectURL(fotoPerfilDraft);
+  }
+
   setNombrePerfilDraft(nombrePerfil || "Freddy Camus");
   setCargoPerfilDraft(cargoPerfil || "Ingeniero en Prevención de Riesgos");
   setEmpresaPerfilDraft(empresaPerfil || "Criterio Estratégico");
@@ -2369,38 +2383,61 @@ const abrirEditorPerfil = () => {
   setGuardadoPerfil(false);
   setErrorPerfil("");
   setFotoPerfilCargada(false);
+  setFotoPerfilArchivo(null);
+  setFotoPerfilQuitada(false);
+  setAjusteFotoPerfil({ zoom: 1, offsetX: 0, offsetY: 0 });
   setMostrarEditorPerfil(true);
 };
 const salirEditorPerfil = () => {
+  if (fotoPerfilDraft?.startsWith("blob:")) {
+    URL.revokeObjectURL(fotoPerfilDraft);
+  }
+
   setMostrarEditorPerfil(false);
   setGuardadoPerfil(false);
   setErrorPerfil("");
   setFotoPerfilCargada(false);
-  setFotoPerfilPendiente(null);
+  setFotoPerfilDraft(fotoPerfil || null);
+  setFotoPerfilArchivo(null);
   setFotoPerfilQuitada(false);
+  setAjusteFotoPerfil({ zoom: 1, offsetX: 0, offsetY: 0 });
   setCampoPerfilActivo(null);
   setControlPerfilActivo(null);
 };
-const cargarFotoPerfil = async (archivo: File | undefined) => {
+const cargarFotoPerfil = (event: ChangeEvent<HTMLInputElement>) => {
+  const archivo = event.currentTarget.files?.[0];
+
   if (!archivo) return;
 
   setErrorPerfil("");
 
   try {
-    const fotoComprimida = await comprimirFotoPerfilUsuario(archivo);
-    setFotoPerfilDraft(fotoComprimida.dataUrl);
-    setFotoPerfilPendiente(fotoComprimida);
+    if (fotoPerfilDraft?.startsWith("blob:")) {
+      URL.revokeObjectURL(fotoPerfilDraft);
+    }
+
+    const previewUrl = URL.createObjectURL(archivo);
+    setFotoPerfilDraft(previewUrl);
+    setFotoPerfilArchivo(archivo);
     setFotoPerfilQuitada(false);
+    setAjusteFotoPerfil({ zoom: 1, offsetX: 0, offsetY: 0 });
     setFotoPerfilCargada(true);
   } catch {
-    setErrorPerfil("No se pudo procesar la foto de perfil.");
+    setErrorPerfil("No se pudo cargar la foto de perfil.");
     setFotoPerfilCargada(false);
+  } finally {
+    event.currentTarget.value = "";
   }
 };
 const quitarFotoPerfil = () => {
+  if (fotoPerfilDraft?.startsWith("blob:")) {
+    URL.revokeObjectURL(fotoPerfilDraft);
+  }
+
   setFotoPerfilDraft(null);
-  setFotoPerfilPendiente(null);
+  setFotoPerfilArchivo(null);
   setFotoPerfilQuitada(true);
+  setAjusteFotoPerfil({ zoom: 1, offsetX: 0, offsetY: 0 });
   setErrorPerfil("");
   setFotoPerfilCargada(false);
   setFotoPerfilInputKey((valor) => valor + 1);
@@ -2419,8 +2456,22 @@ const guardarPerfil = async () => {
   setGuardandoPerfil(true);
   setErrorPerfil("");
 
-  if (fotoPerfilPendiente) {
-    const resultadoFoto = await subirFotoPerfilUsuarioActual(fotoPerfilPendiente);
+  if (fotoPerfilArchivo) {
+    let fotoComprimida;
+
+    try {
+      fotoComprimida = await comprimirFotoPerfilUsuario(
+        fotoPerfilArchivo,
+        ajusteFotoPerfil
+      );
+    } catch {
+      setErrorPerfil("No se pudo ajustar la foto de perfil. Intenta con otra imagen.");
+      setGuardadoPerfil(false);
+      setGuardandoPerfil(false);
+      return;
+    }
+
+    const resultadoFoto = await subirFotoPerfilUsuarioActual(fotoComprimida);
 
     if (!resultadoFoto.ok) {
       setErrorPerfil(resultadoFoto.error);
@@ -2441,7 +2492,7 @@ const guardarPerfil = async () => {
     }
 
     fotoFinal = null;
-  } else if (fotoFinal?.startsWith("data:")) {
+  } else if (fotoFinal?.startsWith("data:") || fotoFinal?.startsWith("blob:")) {
     fotoFinal = null;
   }
 
@@ -2496,12 +2547,17 @@ const guardarPerfil = async () => {
   setTelefonoPerfil(telefonoFinal);
   setCorreoPerfil(correoFinal);
   setFotoPerfil(fotoFinal || "");
+  setFotoPerfilDraft(fotoFinal || null);
 
   setErrorPerfil("");
   setGuardadoPerfil(true);
   setFotoPerfilCargada(false);
-  setFotoPerfilPendiente(null);
+  if (fotoPerfilDraft?.startsWith("blob:")) {
+    URL.revokeObjectURL(fotoPerfilDraft);
+  }
+  setFotoPerfilArchivo(null);
   setFotoPerfilQuitada(false);
+  setAjusteFotoPerfil({ zoom: 1, offsetX: 0, offsetY: 0 });
   setGuardandoPerfil(false);
   setCampoPerfilActivo(null);
   setControlPerfilActivo(null);
@@ -2541,13 +2597,60 @@ useEffect(() => {
       console.warn("No se pudo leer ce_panel_profile desde localStorage.");
     }
 
+    const fotoLocal =
+      typeof perfil.fotoPerfil === "string" && !perfil.fotoPerfil.startsWith("blob:")
+        ? perfil.fotoPerfil
+        : "";
+    const tienePerfilLocal = Boolean(
+      perfil.nombrePerfil ||
+        perfil.cargoPerfil ||
+        perfil.empresaPerfil ||
+        perfil.rolPerfil ||
+        perfil.telefonoPerfil ||
+        perfil.correoPerfil ||
+        fotoLocal
+    );
+
+    if (tienePerfilLocal && activo) {
+      const nombreLocal = perfil.nombrePerfil?.trim() || "Freddy Camus";
+      const cargoLocal =
+        perfil.cargoPerfil?.trim() || "Ingeniero en Prevención de Riesgos";
+      const empresaLocal = perfil.empresaPerfil?.trim() || "Criterio Estratégico";
+      const rolLocal = perfil.rolPerfil?.trim() || "Administrador ejecutivo";
+      const telefonoLocal =
+        perfil.telefonoPerfil?.trim() || "+56 9 1234 5678";
+      const correoLocal =
+        perfil.correoPerfil?.trim() || "freddy.camus@criterioestrategico.cl";
+
+      setUsuario((actual) => ({
+        ...actual,
+        nombre: nombreLocal,
+        cargo: cargoLocal,
+        empresa: empresaLocal,
+        rol: rolLocal,
+        telefono: telefonoLocal,
+        correo: correoLocal,
+        foto: fotoLocal,
+      }));
+      setNombrePerfil(nombreLocal);
+      setCargoPerfil(cargoLocal);
+      setEmpresaPerfil(empresaLocal);
+      setRolPerfil(rolLocal);
+      setTelefonoPerfil(telefonoLocal);
+      setCorreoPerfil(correoLocal);
+      setFotoPerfil(fotoLocal);
+      setNombrePerfilDraft(nombreLocal);
+      setCargoPerfilDraft(cargoLocal);
+      setEmpresaPerfilDraft(empresaLocal);
+      setRolPerfilDraft(rolLocal);
+      setTelefonoPerfilDraft(telefonoLocal);
+      setCorreoPerfilDraft(correoLocal);
+      setFotoPerfilDraft(fotoLocal || null);
+    }
+
     const auth = await obtenerAuthProfileActual();
     if (!activo) return;
 
-    const fotoLocal =
-      typeof perfil.fotoPerfil === "string" && !perfil.fotoPerfil.startsWith("data:")
-        ? perfil.fotoPerfil
-        : "";
     const nombreGuardado =
       auth.perfil?.nombre || perfil.nombrePerfil?.trim() || "Freddy Camus";
     const cargoGuardado =
@@ -2584,6 +2687,23 @@ useEffect(() => {
     setTelefonoPerfilDraft(telefonoGuardado);
     setCorreoPerfilDraft(correoGuardado);
     setFotoPerfilDraft(fotoGuardada || null);
+
+    try {
+      window.localStorage.setItem(
+        PANEL_PROFILE_STORAGE_KEY,
+        JSON.stringify({
+          nombrePerfil: nombreGuardado,
+          cargoPerfil: cargoGuardado,
+          empresaPerfil: empresaGuardada,
+          rolPerfil: rolGuardado,
+          telefonoPerfil: telefonoGuardado,
+          correoPerfil: correoGuardado,
+          fotoPerfil: fotoGuardada || null,
+        } satisfies PanelProfilePersistido)
+      );
+    } catch {
+      console.warn("No se pudo sincronizar ce_panel_profile en localStorage.");
+    }
   }
 
   void cargarPerfilPanel();
@@ -2592,6 +2712,13 @@ useEffect(() => {
     activo = false;
   };
 }, []);
+useEffect(() => {
+  return () => {
+    if (fotoPerfilDraft?.startsWith("blob:")) {
+      URL.revokeObjectURL(fotoPerfilDraft);
+    }
+  };
+}, [fotoPerfilDraft]);
 useEffect(() => {
   if (!guardadoPerfil) return;
 
@@ -5230,6 +5357,12 @@ const riesgoOperativoPrincipal =
                   height: "100%",
                   objectFit: "cover",
                   display: "block",
+                  transform: fotoPerfilArchivo
+                    ? `translate(${-ajusteFotoPerfil.offsetX * 22}%, ${-ajusteFotoPerfil.offsetY * 22}%) scale(${ajusteFotoPerfil.zoom})`
+                    : "none",
+                  transformOrigin: "center",
+                  pointerEvents: "none",
+                  userSelect: "none",
                 }}
               />
             ) : (
@@ -5273,7 +5406,7 @@ const riesgoOperativoPrincipal =
               id="foto-perfil-panel"
               type="file"
               accept="image/png,image/jpeg,image/jpg,image/webp"
-              onChange={(e) => cargarFotoPerfil(e.target.files?.[0])}
+              onChange={cargarFotoPerfil}
               style={{ display: "none" }}
             />
             <label
@@ -5303,6 +5436,79 @@ const riesgoOperativoPrincipal =
               {t("Quitar foto")}
             </button>
           </div>
+          {fotoPerfilArchivo && (
+            <div
+              style={{
+                display: "grid",
+                gap: "9px",
+                padding: "12px",
+                borderRadius: "16px",
+                border: tema.borde,
+                background: temaClaro ? "rgba(255,255,255,0.72)" : "rgba(255,255,255,0.045)",
+              }}
+            >
+              {[
+                {
+                  label: "Zoom",
+                  min: 1,
+                  max: 2.5,
+                  step: 0.05,
+                  value: ajusteFotoPerfil.zoom,
+                  campo: "zoom" as const,
+                },
+                {
+                  label: "Posición horizontal",
+                  min: -1,
+                  max: 1,
+                  step: 0.05,
+                  value: ajusteFotoPerfil.offsetX,
+                  campo: "offsetX" as const,
+                },
+                {
+                  label: "Posición vertical",
+                  min: -1,
+                  max: 1,
+                  step: 0.05,
+                  value: ajusteFotoPerfil.offsetY,
+                  campo: "offsetY" as const,
+                },
+              ].map((control) => (
+                <label
+                  key={control.campo}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "92px minmax(0, 1fr)",
+                    gap: "10px",
+                    alignItems: "center",
+                    color: tema.texto,
+                    fontSize: "12px",
+                    fontWeight: 900,
+                  }}
+                >
+                  <span>{t(control.label)}</span>
+                  <input
+                    type="range"
+                    min={control.min}
+                    max={control.max}
+                    step={control.step}
+                    value={control.value}
+                    onChange={(event) =>
+                      setAjusteFotoPerfil((actual) => ({
+                        ...actual,
+                        [control.campo]: Number(event.target.value),
+                      }))
+                    }
+                    style={{
+                      display: "block",
+                      width: "100%",
+                      minWidth: 0,
+                      margin: 0,
+                    }}
+                  />
+                </label>
+              ))}
+            </div>
+          )}
           <div
             style={{
               fontSize: "12px",
@@ -5311,9 +5517,11 @@ const riesgoOperativoPrincipal =
               fontWeight: 700,
             }}
           >
-            {fotoPerfilCargada
-              ? t("Foto cargada correctamente")
-              : t("Los cambios se guardan en este navegador")}
+            {fotoPerfilArchivo
+              ? t("Ajusta el encuadre y guarda para subir la foto optimizada")
+              : fotoPerfilCargada
+                ? t("Foto cargada correctamente")
+                : t("La foto se guarda en el perfil real del usuario")}
           </div>
         </div>
       </div>

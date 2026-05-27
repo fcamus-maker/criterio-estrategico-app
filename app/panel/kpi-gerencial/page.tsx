@@ -18,6 +18,7 @@ import {
   resolvePlatformTheme,
   usePlatformPreferences,
 } from "../../services/platformPreferences";
+import { obtenerAuthProfileActual } from "../../services/authProfileService";
 
 type HallazgoPanelGerencial = HallazgoPanel & {
   area?: string;
@@ -555,6 +556,7 @@ function fotoPerfilPermitidaInforme(valor?: string) {
   if (!valor) return "";
   const foto = valor.trim();
   if (foto.startsWith("data:image/")) return foto;
+  if (foto.startsWith("http://") || foto.startsWith("https://")) return foto;
   if (foto.startsWith("/") && !foto.startsWith("//")) return foto;
   return "";
 }
@@ -599,6 +601,22 @@ function leerUsuarioGeneradorInforme(): UsuarioGeneradorInforme {
   } catch {
     return fallback;
   }
+}
+
+async function cargarUsuarioGeneradorInforme(): Promise<UsuarioGeneradorInforme> {
+  const local = leerUsuarioGeneradorInforme();
+  const auth = await obtenerAuthProfileActual();
+
+  if (!auth.perfil) return local;
+
+  return {
+    nombre: auth.perfil.nombre || local.nombre,
+    cargo: auth.perfil.cargo || local.cargo,
+    empresa: local.empresa,
+    rol: auth.perfil.rol || local.rol,
+    correo: auth.perfil.email || local.correo,
+    foto: fotoPerfilPermitidaInforme(auth.perfil.fotoUrl || local.foto),
+  };
 }
 
 const notaNormativaInformeGerencial =
@@ -1193,7 +1211,18 @@ export default function KpiGerencialAvanzadoPage() {
     cargarDatos();
   }, []);
   useEffect(() => {
-    setUsuarioGeneradorInforme(leerUsuarioGeneradorInforme());
+    let activo = true;
+
+    async function cargarGenerador() {
+      const generador = await cargarUsuarioGeneradorInforme();
+      if (activo) setUsuarioGeneradorInforme(generador);
+    }
+
+    void cargarGenerador();
+
+    return () => {
+      activo = false;
+    };
   }, []);
 
   const opciones = useMemo(
