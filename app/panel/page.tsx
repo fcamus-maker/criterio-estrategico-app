@@ -6038,7 +6038,7 @@ const riesgoOperativoPrincipal =
     boxShadow: "0 10px 24px rgba(0,0,0,0.18)",
   };
   const seguimientoGridTemplate =
-    "0.78fr 1.15fr 1.08fr 0.82fr 1.15fr 1.08fr 1fr 1.12fr 1fr 1fr 0.82fr";
+    "0.78fr 1.42fr 1.14fr 0.82fr 1fr 1.12fr 1fr 0.82fr";
   const seguimientoHeaderCellStyle: React.CSSProperties = {
     minHeight: "42px",
     padding: "9px 10px",
@@ -9937,7 +9937,7 @@ style={{
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "minmax(0, 1.65fr) minmax(300px, 0.95fr)",
+        gridTemplateColumns: "minmax(0, 1fr) clamp(280px, 23vw, 340px)",
         gap: "16px",
         alignItems: "stretch",
       }}
@@ -9947,6 +9947,7 @@ style={{
           ...premiumPanelStyle,
           overflow: "hidden",
           overflowX: "auto",
+          minWidth: 0,
         }}
       >
         <div
@@ -9959,7 +9960,7 @@ style={{
             fontSize: "10.5px",
             fontWeight: 950,
             textTransform: "uppercase",
-            minWidth: "1280px",
+            minWidth: "1040px",
             letterSpacing: "0",
           }}
         >
@@ -9968,12 +9969,9 @@ style={{
             t("Empresa reportante / Obra"),
             t("Tipo de hallazgo"),
             t("Criticidad"),
-            t("Responsable de la empresa"),
-            t("Empresa involucrada / responsable"),
             t("Fecha compromiso"),
             t("Plazo de cierre"),
             t("Estado seguimiento"),
-            t("Evidencia de cierre"),
             t("Acción"),
           ].map((encabezado) => (
             <div key={encabezado} style={seguimientoHeaderCellStyle}>
@@ -10010,7 +10008,7 @@ style={{
                 borderTop: tema.bordeSutil,
                 alignItems: "center",
                 fontSize: "12px",
-                minWidth: "1280px",
+                minWidth: "1040px",
                 background: activo
                   ? (temaClaro ? "rgba(226,232,240,0.82)" : "rgba(30,41,59,0.62)")
                   : "transparent",
@@ -10035,8 +10033,6 @@ style={{
                   {item.criticidad}
                 </span>
               </div>
-              <div style={{ fontWeight: 800 }}>{t(item.responsableCorreccionNombre)}</div>
-              <div>{item.responsableCorreccionEmpresa}</div>
               <div>{t(item.responsableCierreFechaCompromiso)}</div>
               <div>
                 <span style={seguimientoSemaforoStyle(estadoPlazo)}>
@@ -10067,7 +10063,6 @@ style={{
                   {t(estadoVisual)}
                 </span>
               </div>
-              <div>{t(item.responsableCierreEvidencia)}</div>
               <button
                 type="button"
                 onClick={() => setCodigoSeguimientoActivo(item.codigo)}
@@ -10096,6 +10091,8 @@ style={{
             display: "grid",
             gap: "14px",
             alignSelf: "start",
+            minWidth: 0,
+            overflowWrap: "anywhere",
           }}
         >
           <div>
@@ -10140,7 +10137,7 @@ style={{
               <div style={{ fontSize: "11px", color: tema.textoSuave, fontWeight: 900, marginBottom: "5px" }}>
                 {label}
               </div>
-              <div style={{ fontSize: "13px", fontWeight: 800, lineHeight: 1.35 }}>{value}</div>
+              <div style={{ fontSize: "13px", fontWeight: 800, lineHeight: 1.35, overflowWrap: "anywhere" }}>{value}</div>
             </div>
           ))}
           <button
