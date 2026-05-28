@@ -15,16 +15,40 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL("https://app.criterioestrategico.cl"),
   title: {
-    default: "Criterio Estratégico",
+    default: "Plataforma de Hallazgos | Criterio Estratégico",
     template: "%s | Criterio Estratégico",
   },
   description:
-    "Acceso seguro a la App Criterio Estratégico para reportes móviles, gestión preventiva y panel ejecutivo.",
+    "Gestión ejecutiva de hallazgos, seguimiento de cierre, mapa GPS y KPI gerencial.",
   applicationName: "Criterio Estratégico",
   manifest: "/manifest.webmanifest",
+  openGraph: {
+    type: "website",
+    locale: "es_CL",
+    url: "/login",
+    siteName: "Criterio Estratégico",
+    title: "Plataforma de Hallazgos | Criterio Estratégico",
+    description:
+      "Gestión ejecutiva de hallazgos, seguimiento de cierre, mapa GPS y KPI gerencial.",
+    images: [
+      {
+        url: "/logo.png",
+        width: 641,
+        height: 635,
+        alt: "Criterio Estratégico",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Plataforma de Hallazgos | Criterio Estratégico",
+    description:
+      "Gestión ejecutiva de hallazgos, seguimiento de cierre, mapa GPS y KPI gerencial.",
+    images: ["/logo.png"],
+  },
   appleWebApp: {
     capable: true,
-    title: "Criterio Estratégico",
+    title: "Plataforma de Hallazgos",
     statusBarStyle: "black-translucent",
   },
   icons: {
