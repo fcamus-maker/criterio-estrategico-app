@@ -49,6 +49,14 @@ export type HallazgoPanelDesdeCentral = HallazgoPanel & {
   evidenciasPanel?: EvidenciaPanel[];
   totalEvidencias?: number;
   evidenciasPendientesVisualizacion?: number;
+  borradoLogico?: {
+    fechaHora?: string;
+    motivo?: string;
+    usuarioNombre?: string;
+    usuarioEmail?: string;
+    usuarioRol?: string;
+    estadoAnterior?: string;
+  };
 };
 
 function texto(valor: unknown, fallback = "") {
@@ -66,6 +74,7 @@ function criticidadPanel(
 function estadoPanel(estado: EstadoHallazgoCentral): HallazgoPanel["estado"] {
   if (estado === "EN_SEGUIMIENTO") return "EN SEGUIMIENTO";
   if (estado === "CERRADO") return "CERRADO";
+  if (estado === "ANULADO") return "ANULADO";
   if (estado === "REPORTADO") return "REPORTADO";
   return "ABIERTO";
 }
@@ -123,6 +132,33 @@ function evidenciasRecibidasPanel(hallazgo: HallazgoCentral) {
   return textoEvidencias.length
     ? textoEvidencias.join(", ")
     : "Sin evidencia de cierre";
+}
+
+function objetoRegistro(valor: unknown): Record<string, unknown> {
+  return valor && typeof valor === "object" && !Array.isArray(valor)
+    ? (valor as Record<string, unknown>)
+    : {};
+}
+
+function obtenerBorradoLogico(hallazgo: HallazgoCentral) {
+  const rawPanel = objetoRegistro(hallazgo.rawPanel);
+  const borradoRaw = objetoRegistro(rawPanel.borradoLogico);
+  const eventoBorrado = [...(hallazgo.bitacora || [])]
+    .reverse()
+    .find((evento) => evento.accion === "hallazgo_anulado_pc");
+  const metadata = objetoRegistro(eventoBorrado?.metadata);
+  const usuarioRaw = objetoRegistro(borradoRaw.usuario || metadata.usuario);
+
+  if (!Object.keys(borradoRaw).length && !eventoBorrado) return undefined;
+
+  return {
+    fechaHora: texto(borradoRaw.fechaHora || eventoBorrado?.fechaHora),
+    motivo: texto(borradoRaw.motivo || metadata.motivo),
+    usuarioNombre: texto(usuarioRaw.nombre || eventoBorrado?.usuario),
+    usuarioEmail: texto(usuarioRaw.email),
+    usuarioRol: texto(usuarioRaw.rol),
+    estadoAnterior: texto(eventoBorrado?.estadoAnterior, "ABIERTO"),
+  };
 }
 
 export function adaptarHallazgoCentralAHallazgoPanel(
@@ -219,6 +255,7 @@ export function adaptarHallazgoCentralAHallazgoPanel(
     justificacionCierreSinEvidencia: texto(
       seguimiento?.justificacionCierreSinEvidencia
     ),
+    borradoLogico: obtenerBorradoLogico(hallazgo),
   };
 }
 

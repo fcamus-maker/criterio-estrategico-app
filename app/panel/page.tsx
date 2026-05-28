@@ -404,6 +404,7 @@ const [perfilesActivos, setPerfilesActivos] = useState<Record<PerfilPermiso, boo
 const [guardadoConfig, setGuardadoConfig] = useState(false);
 const [fechaActualizacion, setFechaActualizacion] = useState<Date | null>(null);
 const [filasPanel, setFilasPanel] = useState<HallazgoPanelExtendido[]>(hallazgosMock);
+const [hallazgosAnuladosResumen, setHallazgosAnuladosResumen] = useState<HallazgoPanelExtendido[]>([]);
   const idiomaActivo = idiomaSistema === "en" ? "en" : "es";
   const cambiarModoSistema = (modo: "claro" | "oscuro" | "automatico") => {
     setModoSistema(modo);
@@ -796,6 +797,9 @@ const [filasPanel, setFilasPanel] = useState<HallazgoPanelExtendido[]>(hallazgos
     "Confirmar borrado": "Confirm deletion",
     "Borrando...": "Deleting...",
     "Hallazgo anulado correctamente.": "Finding voided successfully.",
+    "Informes anulados": "Voided reports",
+    "Sin informes borrados": "No deleted reports",
+    TOTAL: "TOTAL",
     "El motivo es obligatorio para mantener trazabilidad.": "The reason is required to keep traceability.",
     "Solo super_admin_ce puede borrar hallazgos con trazabilidad.": "Only super_admin_ce can delete findings with traceability.",
     "No se pudo confirmar el hallazgo en Supabase.": "The finding could not be confirmed in Supabase.",
@@ -1069,6 +1073,50 @@ const [filasPanel, setFilasPanel] = useState<HallazgoPanelExtendido[]>(hallazgos
     };
   }, []);
 
+  useEffect(() => {
+    let activo = true;
+
+    async function cargarResumenHallazgosAnulados() {
+      try {
+        const limitePagina = 500;
+        let offset = 0;
+        const hallazgosAnulados: HallazgoCentral[] = [];
+
+        while (activo) {
+          const respuesta = await listarHallazgosCentrales({
+            estado: "ANULADO",
+            limit: limitePagina,
+            offset,
+          });
+
+          if (!activo) return;
+
+          if (!respuesta.ok) {
+            setHallazgosAnuladosResumen([]);
+            return;
+          }
+
+          hallazgosAnulados.push(...respuesta.data);
+
+          if (respuesta.data.length < limitePagina) break;
+          offset += limitePagina;
+        }
+
+        setHallazgosAnuladosResumen(
+          adaptarHallazgosCentralesAHallazgosPanel(hallazgosAnulados)
+        );
+      } catch {
+        if (activo) setHallazgosAnuladosResumen([]);
+      }
+    }
+
+    void cargarResumenHallazgosAnulados();
+
+    return () => {
+      activo = false;
+    };
+  }, []);
+
   const formatearUltimaActualizacion = (fecha: Date | null) => {
     if (!fecha) return "";
 
@@ -1086,6 +1134,10 @@ const [filasPanel, setFilasPanel] = useState<HallazgoPanelExtendido[]>(hallazgos
   };
   const filas = filasPanel;
 const totalHistoricoHallazgos = filas.length;
+const codigosInformesAnulados = hallazgosAnuladosResumen
+  .map((hallazgo) => String(hallazgo.codigo || identidadHallazgoPanel(hallazgo)).trim())
+  .filter(Boolean);
+const totalInformesAnulados = codigosInformesAnulados.length;
 const totalVencidos = filas.filter(
   (fila) => {
     const fechaCompromiso = (fila as { fechaCompromiso?: string }).fechaCompromiso || "";
@@ -1138,7 +1190,16 @@ const exportarExcel = () => {
   URL.revokeObjectURL(url);
 };
 const generarInformeEmpresaObra = () => {
-  if (filtroEmpresa === "TODAS" && filtroObra === "TODAS") {
+  const hallazgoSeleccionadoParaInforme = hallazgoSeleccionadoInforme;
+  const filasInformeEmpresaObra = hallazgoSeleccionadoParaInforme
+    ? [hallazgoSeleccionadoParaInforme]
+    : filasFiltradas;
+
+  if (
+    !hallazgoSeleccionadoParaInforme &&
+    filtroEmpresa === "TODAS" &&
+    filtroObra === "TODAS"
+  ) {
     window.alert("Seleccione una empresa o una obra para generar el informe.");
     return;
   }
@@ -1164,7 +1225,7 @@ const generarInformeEmpresaObra = () => {
     return `${dia}-${mes}-${anio}`;
   };
 
-  const obtenerFechaBase = (item: (typeof filasFiltradas)[number]) => {
+  const obtenerFechaBase = (item: HallazgoPanelExtendido) => {
     const fechaISO = String(item.fechaISO ?? "").trim();
     if (/^\d{4}-\d{2}-\d{2}/.test(fechaISO)) {
       return fechaISO.slice(0, 10);
@@ -1205,20 +1266,40 @@ const generarInformeEmpresaObra = () => {
     return resultado;
   }
 
+  const inicialesUsuarioInforme = (nombre: string) => {
+    const iniciales = nombre
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((parte) => parte.charAt(0).toUpperCase())
+      .join("");
+    return iniciales || "CE";
+  };
+
+  const fotoPerfilPermitidaInforme = (valor?: string | null) => {
+    if (!valor) return "";
+    const foto = valor.trim();
+    if (foto.startsWith("data:image/")) return foto;
+    if (foto.startsWith("http://") || foto.startsWith("https://")) return foto;
+    if (foto.startsWith("/") && !foto.startsWith("//")) return foto;
+    return "";
+  };
+
   const esCriticidad = (valor: unknown, clave: string) =>
     normalizarTexto(valor).includes(clave);
 
-  const total = filasFiltradas.length;
-  const abiertos = filasFiltradas.filter((item) => item.estado === "ABIERTO").length;
-  const cerrados = filasFiltradas.filter((item) => item.estado === "CERRADO").length;
-  const enSeguimiento = filasFiltradas.filter((item) => item.estado === "EN SEGUIMIENTO").length;
+  const total = filasInformeEmpresaObra.length;
+  const abiertos = filasInformeEmpresaObra.filter((item) => item.estado === "ABIERTO").length;
+  const cerrados = filasInformeEmpresaObra.filter((item) => item.estado === "CERRADO").length;
+  const enSeguimiento = filasInformeEmpresaObra.filter((item) => item.estado === "EN SEGUIMIENTO").length;
 
-  const criticos = filasFiltradas.filter((item) => esCriticidad(item.criticidad, "CRIT")).length;
-  const altos = filasFiltradas.filter((item) => esCriticidad(item.criticidad, "ALTO")).length;
-  const medios = filasFiltradas.filter((item) => esCriticidad(item.criticidad, "MED")).length;
-  const bajos = filasFiltradas.filter((item) => esCriticidad(item.criticidad, "BAJ")).length;
+  const criticos = filasInformeEmpresaObra.filter((item) => esCriticidad(item.criticidad, "CRIT")).length;
+  const altos = filasInformeEmpresaObra.filter((item) => esCriticidad(item.criticidad, "ALTO")).length;
+  const medios = filasInformeEmpresaObra.filter((item) => esCriticidad(item.criticidad, "MED")).length;
+  const bajos = filasInformeEmpresaObra.filter((item) => esCriticidad(item.criticidad, "BAJ")).length;
 
-  const hallazgosPendientes = filasFiltradas.filter((item) => item.estado !== "CERRADO");
+  const hallazgosPendientes = filasInformeEmpresaObra.filter((item) => item.estado !== "CERRADO");
 
   const antiguedadMaxima = hallazgosPendientes.length
     ? Math.max(...hallazgosPendientes.map((item) => diasEntre(obtenerFechaBase(item))))
@@ -1226,7 +1307,7 @@ const generarInformeEmpresaObra = () => {
 
   const tipoDominante =
     Object.entries(
-      filasFiltradas.reduce<Record<string, number>>((acc, item) => {
+      filasInformeEmpresaObra.reduce<Record<string, number>>((acc, item) => {
         const tipo = String(item.tipoHallazgo || "Sin clasificar");
         acc[tipo] = (acc[tipo] || 0) + 1;
         return acc;
@@ -1454,14 +1535,59 @@ const generarInformeEmpresaObra = () => {
       ? "Sin hallazgos pendientes para el período seleccionado. Se recomienda mantener el estándar de control y trazabilidad documental vigente."
       : `Prioridad inmediata: regularizar ${cantidadPrioritaria} hallazgo(s) de criticidad ${criticidadPrioritaria} con condición predominante ${condicionPrioritaria}, priorizando evidencia de cierre dentro de ${plazoHoras} horas y verificación formal de la acción correctiva.`;
 
-  const fechaEmision = new Date().toLocaleString("es-CL");
+  const fechaGeneracionInforme = new Date();
+  const fechaEmision = fechaGeneracionInforme.toLocaleString("es-CL");
+  const fechaGeneracionTexto = fechaGeneracionInforme.toLocaleDateString("es-CL", {
+    dateStyle: "full",
+  });
+  const horaGeneracionTexto = fechaGeneracionInforme.toLocaleTimeString("es-CL", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const usuarioGeneradorInforme = {
+    nombre: usuario.nombre?.trim() || nombrePerfil?.trim() || "Usuario administrador",
+    cargo: usuario.cargo?.trim() || cargoPerfil?.trim() || "Perfil gerencial",
+    empresa: usuario.empresa?.trim() || empresaPerfil?.trim() || "Criterio Estratégico",
+    rol: authPerfilPanel.rol || usuario.rol?.trim() || rolPerfil?.trim() || "",
+    correo:
+      authPerfilPanel.email ||
+      usuario.correo?.trim() ||
+      correoPerfil?.trim() ||
+      "",
+    foto: fotoPerfilPermitidaInforme(usuario.foto || fotoPerfil),
+  };
+  const avatarGeneradorInforme = usuarioGeneradorInforme.foto
+    ? `<img src="${escapeHtml(usuarioGeneradorInforme.foto)}" alt="${escapeHtml(usuarioGeneradorInforme.nombre)}" />`
+    : `<span>${escapeHtml(inicialesUsuarioInforme(usuarioGeneradorInforme.nombre))}</span>`;
+
+  const codigoHallazgoSeleccionado = hallazgoSeleccionadoParaInforme
+    ? String(
+        hallazgoSeleccionadoParaInforme.codigo ||
+          identidadHallazgoPanel(hallazgoSeleccionadoParaInforme) ||
+          ""
+      ).trim()
+    : "";
+  const alcanceInformeTexto = codigoHallazgoSeleccionado
+    ? `Hallazgo seleccionado: ${codigoHallazgoSeleccionado}`
+    : "Filtros activos";
+  const empresaInforme =
+    hallazgoSeleccionadoParaInforme?.empresa || filtroEmpresa;
+  const obraInforme =
+    hallazgoSeleccionadoParaInforme?.obra || filtroObra;
+  const estadoInforme =
+    hallazgoSeleccionadoParaInforme?.estado || filtroEstado;
+  const criticidadInforme =
+    hallazgoSeleccionadoParaInforme?.criticidad || filtroCriticidad;
+  const tipoHallazgoInforme =
+    hallazgoSeleccionadoParaInforme?.tipoHallazgo || filtroTipoHallazgo;
 
   const baseFolio =
-    filtroEmpresa !== "TODAS"
+    codigoHallazgoSeleccionado ||
+    (filtroEmpresa !== "TODAS"
       ? String(filtroEmpresa)
       : filtroObra !== "TODAS"
         ? String(filtroObra)
-        : "EMP";
+        : "EMP");
 
   const siglaEmpresaInforme =
     baseFolio
@@ -1472,7 +1598,7 @@ const generarInformeEmpresaObra = () => {
       .join("")
       .toUpperCase() || "EMP";
 
-  const ahoraInforme = new Date();
+  const ahoraInforme = fechaGeneracionInforme;
   const dd = String(ahoraInforme.getDate()).padStart(2, "0");
   const mm = String(ahoraInforme.getMonth() + 1).padStart(2, "0");
   const yyyy = String(ahoraInforme.getFullYear());
@@ -1482,18 +1608,26 @@ const generarInformeEmpresaObra = () => {
 
   const folioInforme = `${siglaEmpresaInforme}-IEO-${dd}${mm}${yyyy}-${hh}${min}${ss}`;
 
-  const fechasISOOrdenadas = filasFiltradas
+  const fechasISOOrdenadas = filasInformeEmpresaObra
     .map((item) => obtenerFechaBase(item))
     .filter(Boolean)
     .sort();
 
-  const fechaInicioInforme = filtroFechaDesde
+  const fechaInicioInforme = hallazgoSeleccionadoParaInforme
+    ? fechasISOOrdenadas.length
+      ? formatearFechaFiltro(fechasISOOrdenadas[0])
+      : "Sin inicio"
+    : filtroFechaDesde
     ? formatearFechaFiltro(filtroFechaDesde)
     : fechasISOOrdenadas.length
       ? formatearFechaFiltro(fechasISOOrdenadas[0])
       : "Sin inicio";
 
-  const fechaFinInforme = filtroFechaHasta
+  const fechaFinInforme = hallazgoSeleccionadoParaInforme
+    ? fechasISOOrdenadas.length
+      ? formatearFechaFiltro(fechasISOOrdenadas[fechasISOOrdenadas.length - 1])
+      : "Sin cierre"
+    : filtroFechaHasta
     ? formatearFechaFiltro(filtroFechaHasta)
     : fechasISOOrdenadas.length
       ? formatearFechaFiltro(fechasISOOrdenadas[fechasISOOrdenadas.length - 1])
@@ -1509,8 +1643,8 @@ const generarInformeEmpresaObra = () => {
     "SIN CLASIFICAR";
 
   const supervisorChunks = chunkArray(supervisoresPendientes, 8);
-  const hallazgoChunks = chunkArray(filasFiltradas, 12);
-  const hallazgosConEvidencia = filasFiltradas.filter(
+  const hallazgoChunks = chunkArray(filasInformeEmpresaObra, 12);
+  const hallazgosConEvidencia = filasInformeEmpresaObra.filter(
     (item) => obtenerEvidenciasPanel(item).length > 0
   );
   const evidenciaChunks = chunkArray(hallazgosConEvidencia, 6);
@@ -1528,23 +1662,27 @@ const generarInformeEmpresaObra = () => {
       <div class="meta-grid">
         <div class="meta-item">
           <div class="label">Empresa seleccionada</div>
-          <div class="value">${escapeHtml(filtroEmpresa)}</div>
+          <div class="value">${escapeHtml(empresaInforme)}</div>
         </div>
         <div class="meta-item">
           <div class="label">Obra / Proyecto seleccionado</div>
-          <div class="value">${escapeHtml(filtroObra)}</div>
+          <div class="value">${escapeHtml(obraInforme)}</div>
+        </div>
+        <div class="meta-item">
+          <div class="label">Alcance del informe</div>
+          <div class="value">${escapeHtml(alcanceInformeTexto)}</div>
         </div>
         <div class="meta-item">
           <div class="label">Estado</div>
-          <div class="value">${escapeHtml(filtroEstado)}</div>
+          <div class="value">${escapeHtml(estadoInforme)}</div>
         </div>
         <div class="meta-item">
           <div class="label">Criticidad</div>
-          <div class="value">${escapeHtml(filtroCriticidad)}</div>
+          <div class="value">${escapeHtml(criticidadInforme)}</div>
         </div>
         <div class="meta-item">
           <div class="label">Tipo de hallazgo</div>
-          <div class="value">${escapeHtml(filtroTipoHallazgo)}</div>
+          <div class="value">${escapeHtml(tipoHallazgoInforme)}</div>
         </div>
         <div class="meta-item">
           <div class="label">Fecha inicio</div>
@@ -1559,6 +1697,27 @@ const generarInformeEmpresaObra = () => {
           <div class="value">${escapeHtml(maxCriticidadTexto)}</div>
         </div>
       </div>
+
+      <section class="generated-by-card avoid-break">
+        <div class="generated-avatar">
+          ${avatarGeneradorInforme}
+        </div>
+        <div class="generated-user">
+          <div class="generated-title">Informe generado por</div>
+          <div class="generated-name">${escapeHtml(usuarioGeneradorInforme.nombre)}</div>
+          <div class="generated-detail">
+            ${escapeHtml(usuarioGeneradorInforme.cargo)}
+            ${usuarioGeneradorInforme.rol ? ` · ${escapeHtml(usuarioGeneradorInforme.rol)}` : ""}
+          </div>
+          <div class="generated-detail">${escapeHtml(usuarioGeneradorInforme.empresa)}</div>
+          ${usuarioGeneradorInforme.correo ? `<div class="generated-detail">${escapeHtml(usuarioGeneradorInforme.correo)}</div>` : ""}
+        </div>
+        <div class="generated-date">
+          <span>Fecha de generación</span>
+          <strong>${escapeHtml(fechaGeneracionTexto)}</strong>
+          <span>Hora: ${escapeHtml(horaGeneracionTexto)}</span>
+        </div>
+      </section>
 
       <div class="grid-2">
         <div class="card avoid-break">
@@ -1746,7 +1905,7 @@ const generarInformeEmpresaObra = () => {
               Resumen de responsables con hallazgos abiertos o en seguimiento dentro del período analizado.
             </div>
           </div>
-          <div class="page-counter">Página ${index + 1} de ${arr.length}</div>
+          <div class="page-counter">Bloque ${index + 1} de ${arr.length}</div>
         </div>
 
         <div class="card">
@@ -1771,7 +1930,7 @@ const generarInformeEmpresaObra = () => {
             ${escapeHtml(
               supervisoresPendientes.length === 0
                 ? "Sin supervisores con hallazgos pendientes dentro del período seleccionado."
-                : `Se presentan ${chunk.length} supervisor(es) en esta hoja, ordenados por criticidad, cantidad de pendientes y antigüedad.`
+                : `Se presentan ${chunk.length} supervisor(es) en este bloque, ordenados por criticidad, cantidad de pendientes y antigüedad.`
             )}
           </div>
         </div>
@@ -1780,21 +1939,53 @@ const generarInformeEmpresaObra = () => {
   }).join("");
 
   const detallePagesHtml = (hallazgoChunks.length ? hallazgoChunks : [[]]).map((chunk, index, arr) => {
-    const filasDetalle =
+    const detalleHallazgos =
       chunk.length === 0
-        ? `<tr><td colspan="6">Sin hallazgos para los filtros seleccionados.</td></tr>`
+        ? `
+          <div class="finding-card">
+            <div class="text-block">Sin hallazgos para los filtros seleccionados.</div>
+          </div>
+        `
         : chunk
             .map(
-              (fila) => `
-                <tr>
-                  <td>${escapeHtml(fila.codigo)}</td>
-                  <td>${escapeHtml(fila.empresa)}</td>
-                  <td>${escapeHtml(fila.tipoHallazgo)}</td>
-                  <td>${escapeHtml(fila.criticidad)}</td>
-                  <td>${escapeHtml(fila.estado)}</td>
-                  <td>${escapeHtml(fila.fechaHora)}</td>
-                </tr>
-              `
+              (fila) => {
+                const descripcionHallazgo =
+                  String(fila.descripcion || "").trim() || "Sin descripción registrada.";
+
+                return `
+                  <div class="finding-card avoid-break">
+                    <div class="finding-card-head">
+                      <div>
+                        <div class="finding-code">${escapeHtml(fila.codigo)}</div>
+                        <div class="finding-meta">
+                          ${escapeHtml(fila.empresa)} · ${escapeHtml(fila.obra || "Sin obra registrada")}
+                        </div>
+                      </div>
+                      <div class="finding-chip">${escapeHtml(fila.criticidad)}</div>
+                    </div>
+
+                    <div class="finding-grid">
+                      <div class="finding-field">
+                        <div class="label">Tipo de hallazgo</div>
+                        <div class="finding-value">${escapeHtml(fila.tipoHallazgo)}</div>
+                      </div>
+                      <div class="finding-field">
+                        <div class="label">Estado</div>
+                        <div class="finding-value">${escapeHtml(fila.estado)}</div>
+                      </div>
+                      <div class="finding-field">
+                        <div class="label">Fecha / Hora</div>
+                        <div class="finding-value">${escapeHtml(fila.fechaHora)}</div>
+                      </div>
+                    </div>
+
+                    <div class="finding-description">
+                      <div class="label">Descripción del hallazgo</div>
+                      <div class="finding-description-text">${escapeHtml(descripcionHallazgo)}</div>
+                    </div>
+                  </div>
+                `;
+              }
             )
             .join("");
 
@@ -1807,28 +1998,15 @@ const generarInformeEmpresaObra = () => {
               Registro detallado de hallazgos contenidos dentro del alcance y filtros aplicados.
             </div>
           </div>
-          <div class="page-counter">Página ${index + 1} de ${arr.length}</div>
+          <div class="page-counter">Bloque ${index + 1} de ${arr.length}</div>
         </div>
 
-        <div class="card">
-          <table class="table-report">
-            <thead>
-              <tr>
-                <th>Código</th>
-                <th>Empresa</th>
-                <th>Tipo de hallazgo</th>
-                <th>Criticidad</th>
-                <th>Estado</th>
-                <th>Fecha / Hora</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${filasDetalle}
-            </tbody>
-          </table>
-          <div class="table-note">
-            Informe generado automáticamente desde la plataforma ejecutiva para revisión y envío gerencial.
-          </div>
+        <div class="finding-list">
+          ${detalleHallazgos}
+        </div>
+
+        <div class="table-note">
+          Informe generado automáticamente desde la plataforma ejecutiva para revisión y envío gerencial.
         </div>
       </section>
     `;
@@ -1865,7 +2043,7 @@ const generarInformeEmpresaObra = () => {
                     Evidencias asociadas a los hallazgos filtrados. Si una imagen no puede visualizarse, se informa su registro en Storage para trazabilidad.
                   </div>
                 </div>
-                <div class="page-counter">Página ${index + 1} de ${arr.length}</div>
+                <div class="page-counter">Bloque ${index + 1} de ${arr.length}</div>
               </div>
 
               <div class="evidence-list">
@@ -1901,15 +2079,88 @@ const generarInformeEmpresaObra = () => {
             background: #e5e7eb;
           }
 
-          .sheet {
+          .source-report {
+            position: absolute;
+            left: -99999px;
+            top: 0;
+            width: 192mm;
+            visibility: hidden;
+            pointer-events: none;
+          }
+
+          .source-report .sheet {
+            width: 100%;
+            min-height: auto;
+            margin: 0;
+            padding: 0;
+            background: transparent;
+            border: none;
+            box-shadow: none;
+          }
+
+          .source-report .sheet + .sheet {
+            padding-top: 0;
+          }
+
+          .paged-report {
+            display: grid;
+            gap: 28px;
+            justify-content: center;
+          }
+
+          .preview-status {
             width: min(216mm, calc(100vw - 48px));
-            min-height: 279mm;
-            margin: 0 auto 40px;
-            padding: 16mm;
+            margin: 0 auto 14px;
+            border: 1px solid rgba(22, 58, 112, 0.18);
+            border-radius: 999px;
+            padding: 9px 14px;
+            background: #ffffff;
+            color: #163a70;
+            box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
+            font-size: 12px;
+            font-weight: 900;
+            letter-spacing: 0.2px;
+          }
+
+          .preview-page-shell {
+            display: grid;
+            gap: 8px;
+            justify-items: center;
+          }
+
+          .preview-page-label {
+            width: 216mm;
+            max-width: calc(100vw - 48px);
+            color: #374151;
+            font-size: 12px;
+            font-weight: 900;
+            text-align: right;
+          }
+
+          .preview-page {
+            width: 216mm;
+            max-width: calc(100vw - 48px);
+            height: 279mm;
+            margin: 0 auto;
+            padding: 12mm;
             background: #ffffff;
             border: 1px solid #d1d5db;
             border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
+            box-shadow: 0 2px 14px rgba(15, 23, 42, 0.12);
+            overflow: hidden;
+          }
+
+          .preview-page-content {
+            height: 255mm;
+            overflow: hidden;
+          }
+
+          .page-flow-block {
+            width: 100%;
+          }
+
+          .page-flow-block + .page-flow-block {
+            margin-top: 12px;
           }
 
           .header,
@@ -1991,6 +2242,81 @@ const generarInformeEmpresaObra = () => {
             margin-top: 4px;
             font-size: 14px;
             font-weight: 700;
+          }
+
+          .generated-by-card {
+            display: grid;
+            grid-template-columns: 58px minmax(0, 1fr) minmax(150px, 0.45fr);
+            gap: 12px;
+            align-items: center;
+            margin: 0 0 14px;
+            border: 1px solid #d1d5db;
+            border-radius: 12px;
+            padding: 12px;
+            background: #f8fafc;
+          }
+
+          .generated-avatar {
+            width: 58px;
+            height: 58px;
+            border-radius: 999px;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid #dbeafe;
+            background: #163a70;
+            color: #ffffff;
+            font-size: 18px;
+            font-weight: 900;
+            line-height: 1;
+          }
+
+          .generated-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+          }
+
+          .generated-title {
+            font-size: 11px;
+            color: #64748b;
+            font-weight: 900;
+            letter-spacing: 0.6px;
+            text-transform: uppercase;
+            margin-bottom: 3px;
+          }
+
+          .generated-name {
+            color: #111827;
+            font-size: 15px;
+            font-weight: 900;
+            line-height: 1.2;
+          }
+
+          .generated-detail {
+            margin-top: 2px;
+            color: #475569;
+            font-size: 12px;
+            line-height: 1.35;
+            overflow-wrap: anywhere;
+          }
+
+          .generated-date {
+            border-left: 1px solid #dbe2ea;
+            padding-left: 12px;
+            color: #475569;
+            font-size: 11px;
+            line-height: 1.35;
+            display: grid;
+            gap: 3px;
+          }
+
+          .generated-date strong {
+            color: #111827;
+            font-size: 12px;
+            line-height: 1.25;
           }
 
           .grid-2 {
@@ -2188,7 +2514,106 @@ const generarInformeEmpresaObra = () => {
             color: #6b7280;
           }
 
+          .finding-list {
+            display: grid;
+            gap: 12px;
+          }
+
+          .finding-card {
+            border: 1px solid #d1d5db;
+            border-radius: 12px;
+            padding: 12px;
+            background: #ffffff;
+          }
+
+          .finding-card-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 10px;
+          }
+
+          .finding-code {
+            font-size: 14px;
+            font-weight: 900;
+            color: #111827;
+          }
+
+          .finding-meta {
+            margin-top: 3px;
+            color: #6b7280;
+            font-size: 12px;
+            line-height: 1.4;
+          }
+
+          .finding-chip {
+            border-radius: 999px;
+            padding: 6px 10px;
+            background: #f3f4f6;
+            border: 1px solid #d1d5db;
+            font-size: 11px;
+            font-weight: 800;
+            white-space: nowrap;
+          }
+
+          .finding-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+          }
+
+          .finding-field {
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            padding: 9px 10px;
+            background: #f9fafb;
+          }
+
+          .finding-value {
+            margin-top: 4px;
+            color: #111827;
+            font-size: 12px;
+            font-weight: 800;
+            line-height: 1.35;
+            overflow-wrap: anywhere;
+          }
+
+          .finding-description {
+            margin-top: 10px;
+            border: 1px solid #dbe2ea;
+            border-radius: 10px;
+            padding: 10px;
+            background: #f8fafc;
+          }
+
+          .finding-description-text {
+            margin-top: 6px;
+            color: #1f2937;
+            font-size: 12.5px;
+            line-height: 1.55;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+          }
+
           .avoid-break {
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+
+          .page-head,
+          .section-title,
+          .table-report thead,
+          .table-note {
+            page-break-after: avoid;
+            break-after: avoid;
+          }
+
+          .table-report thead {
+            display: table-header-group;
+          }
+
+          .table-report tr {
             page-break-inside: avoid;
             break-inside: avoid;
           }
@@ -2278,8 +2703,32 @@ const generarInformeEmpresaObra = () => {
               background: #ffffff;
             }
 
-            .sheet {
+            .preview-status,
+            .source-report,
+            .preview-page-label {
+              display: none !important;
+            }
+
+            .paged-report {
+              display: block;
+            }
+
+            .preview-page-shell {
+              display: block;
+              margin: 0;
+              page-break-after: always;
+              break-after: page;
+            }
+
+            .preview-page-shell:last-child {
+              page-break-after: auto;
+              break-after: auto;
+            }
+
+            .preview-page {
               width: auto;
+              max-width: none;
+              height: auto;
               min-height: auto;
               margin: 0;
               padding: 0;
@@ -2287,22 +2736,199 @@ const generarInformeEmpresaObra = () => {
               border: none;
               border-radius: 0;
               box-shadow: none;
-              page-break-after: always;
-              break-after: page;
-            }
-
-            .sheet:last-child {
               page-break-after: auto;
               break-after: auto;
+            }
+
+            .preview-page-content {
+              height: auto;
+              overflow: visible;
+            }
+
+            .page-head {
+              margin-top: 3mm;
+              page-break-inside: avoid;
+              break-inside: avoid;
+            }
+
+            .card,
+            .evidence-card,
+            .finding-card,
+            .meta-item,
+            .kpi,
+            .summary-stat {
+              page-break-inside: avoid;
+              break-inside: avoid-page;
+            }
+
+            .table-report {
+              page-break-inside: auto;
+              break-inside: auto;
             }
           }
         </style>
       </head>
       <body>
-        ${pagina1Html}
-        ${supervisorPagesHtml}
-        ${detallePagesHtml}
-        ${evidenciaPagesHtml}
+        <div id="preview-status" class="preview-status">
+          Preparando vista previa paginada...
+        </div>
+        <main id="paged-report" class="paged-report"></main>
+        <main id="source-report" class="source-report" aria-hidden="true">
+          ${pagina1Html}
+          ${supervisorPagesHtml}
+          ${detallePagesHtml}
+          ${evidenciaPagesHtml}
+        </main>
+        <script>
+          (function () {
+            var source = document.getElementById("source-report");
+            var pagedReport = document.getElementById("paged-report");
+            var previewStatus = document.getElementById("preview-status");
+            var sourceHtml = source ? source.innerHTML : "";
+            var frame = 0;
+
+            function crearPagina() {
+              var shell = document.createElement("section");
+              var label = document.createElement("div");
+              var page = document.createElement("article");
+              var content = document.createElement("div");
+
+              shell.className = "preview-page-shell";
+              label.className = "preview-page-label";
+              page.className = "preview-page";
+              content.className = "preview-page-content";
+
+              page.appendChild(content);
+              shell.appendChild(label);
+              shell.appendChild(page);
+              pagedReport.appendChild(shell);
+
+              return {
+                label: label,
+                content: content,
+              };
+            }
+
+            function crearBloque(elementos) {
+              var block = document.createElement("div");
+              block.className = "page-flow-block";
+
+              elementos.forEach(function (elemento) {
+                block.appendChild(elemento);
+              });
+
+              return block;
+            }
+
+            function recolectarBloques() {
+              var bloques = [];
+              var sheets = Array.prototype.slice.call(source.querySelectorAll(".sheet"));
+
+              sheets.forEach(function (sheet) {
+                var children = Array.prototype.slice.call(sheet.children);
+
+                for (var index = 0; index < children.length; index += 1) {
+                  var child = children[index];
+                  var next = children[index + 1];
+                  var isPageHead = child.classList && child.classList.contains("page-head");
+                  var nextIsEvidenceList =
+                    next && next.classList && next.classList.contains("evidence-list");
+                  var nextIsFindingList =
+                    next && next.classList && next.classList.contains("finding-list");
+
+                  if (isPageHead && (nextIsEvidenceList || nextIsFindingList)) {
+                    var detailCards = Array.prototype.slice.call(next.children);
+
+                    if (detailCards.length > 0) {
+                      bloques.push(crearBloque([child, detailCards.shift()]));
+                      detailCards.forEach(function (card) {
+                        bloques.push(crearBloque([card]));
+                      });
+                    } else {
+                      bloques.push(crearBloque([child, next]));
+                    }
+
+                    index += 1;
+                    continue;
+                  }
+
+                  if (isPageHead && next) {
+                    bloques.push(crearBloque([child, next]));
+                    index += 1;
+                    continue;
+                  }
+
+                  bloques.push(crearBloque([child]));
+                }
+              });
+
+              return bloques;
+            }
+
+            function registrarImagenes() {
+              document.querySelectorAll("#paged-report img").forEach(function (imagen) {
+                if (imagen.complete) return;
+                imagen.addEventListener("load", programarPaginacion, { once: true });
+                imagen.addEventListener("error", programarPaginacion, { once: true });
+              });
+            }
+
+            function paginarInforme() {
+              if (!source || !pagedReport) return;
+
+              source.innerHTML = sourceHtml;
+              pagedReport.innerHTML = "";
+
+              var bloques = recolectarBloques();
+              var pagina = crearPagina();
+
+              bloques.forEach(function (bloque) {
+                pagina.content.appendChild(bloque);
+
+                if (
+                  pagina.content.scrollHeight > pagina.content.clientHeight + 2 &&
+                  pagina.content.children.length > 1
+                ) {
+                  pagina.content.removeChild(bloque);
+                  pagina = crearPagina();
+                  pagina.content.appendChild(bloque);
+                }
+              });
+
+              var paginas = Array.prototype.slice.call(
+                pagedReport.querySelectorAll(".preview-page-shell")
+              );
+
+              paginas.forEach(function (paginaShell, index) {
+                var label = paginaShell.querySelector(".preview-page-label");
+                if (label) {
+                  label.textContent = "Página " + (index + 1) + " de " + paginas.length;
+                }
+              });
+
+              if (previewStatus) {
+                previewStatus.textContent =
+                  "Vista previa de impresión · " +
+                  paginas.length +
+                  (paginas.length === 1 ? " página" : " páginas");
+              }
+
+              registrarImagenes();
+            }
+
+            function programarPaginacion() {
+              window.cancelAnimationFrame(frame);
+              frame = window.requestAnimationFrame(paginarInforme);
+            }
+
+            window.addEventListener("load", programarPaginacion);
+            window.addEventListener("resize", programarPaginacion);
+
+            programarPaginacion();
+            window.setTimeout(programarPaginacion, 250);
+            window.setTimeout(programarPaginacion, 900);
+          })();
+        </script>
       </body>
     </html>
   `;
@@ -2345,6 +2971,7 @@ useEffect(() => {
   return () => window.clearInterval(intervalo);
 }, [totalHistoricoHallazgos]);
 const [hallazgoActivo, setHallazgoActivo] = useState<HallazgoPanelExtendido>(filas[0]);
+const [hallazgoSeleccionadoInformeId, setHallazgoSeleccionadoInformeId] = useState("");
 const [filtroRapido, setFiltroRapido] = useState<"HOY" | "SEMANA" | "MES" | "PERSONALIZADO">("HOY");
 const [filtroEmpresa, setFiltroEmpresa] = useState("TODAS");
 const [filtroObra, setFiltroObra] = useState("TODAS");
@@ -3016,6 +3643,11 @@ const filasFiltradas = filasBase.filter((item) => {
 
   return true;
 });
+const hallazgoSeleccionadoInforme = hallazgoSeleccionadoInformeId
+  ? filasFiltradas.find(
+      (item) => identidadHallazgoPanel(item) === hallazgoSeleccionadoInformeId
+    ) ?? null
+  : null;
 type HallazgoSeguimiento = (typeof filas)[number] & {
   responsableCierreNombre: string;
   responsableCierreCargo: string;
@@ -3894,13 +4526,23 @@ const restaurarHallazgoBorrado = async (hallazgo: HallazgoPanelExtendido) => {
   }
 
   setFilasPanel((actual) => actual.filter((item) => item.codigo !== hallazgo.codigo));
+  setHallazgosAnuladosResumen((actual) =>
+    actual.filter((item) => item.codigo !== hallazgo.codigo)
+  );
   setHallazgoAuditoriaActivo(null);
   setGuardandoRestauracionHallazgo(false);
 };
 
-const abrirInformeHallazgoPanel = (hallazgo: HallazgoPanelExtendido) => {
+const abrirInformeHallazgoPanel = (
+  hallazgo: HallazgoPanelExtendido,
+  opciones: { seleccionarParaInforme?: boolean } = {}
+) => {
   const hallazgoSeleccionado = { ...hallazgo };
   setHallazgoActivo(hallazgoSeleccionado);
+  if (opciones.seleccionarParaInforme) {
+    const identidadSeleccionada = identidadHallazgoPanel(hallazgoSeleccionado);
+    setHallazgoSeleccionadoInformeId(identidadSeleccionada);
+  }
   setVistaPrincipal("panel");
   setVistaDerecha("informe");
   setMostrarGestionCierre(false);
@@ -3956,12 +4598,20 @@ const confirmarBorradoHallazgo = async () => {
     hallazgoBorradoActivo.codigo
   );
 
-  if (!hallazgoPersistente.ok || !hallazgoPersistente.data?.id) {
+  if (!hallazgoPersistente.ok || !hallazgoPersistente.data) {
     setErrorBorradoHallazgo(t("No se pudo confirmar el hallazgo en Supabase."));
     setGuardandoBorradoHallazgo(false);
     return;
   }
 
+  const hallazgoPersistenteData = hallazgoPersistente.data;
+  const hallazgoPersistenteId = hallazgoPersistenteData.id;
+
+  if (!hallazgoPersistenteId) {
+    setErrorBorradoHallazgo(t("No se pudo confirmar el hallazgo en Supabase."));
+    setGuardandoBorradoHallazgo(false);
+    return;
+  }
   const fechaHoraIso = new Date().toISOString();
   const userAgent =
     typeof window !== "undefined" ? window.navigator.userAgent : "";
@@ -3979,12 +4629,12 @@ const confirmarBorradoHallazgo = async () => {
     id: idEvento,
     fechaHora: fechaHoraIso,
     usuario:
-      usuarioAuditoria.email ||
+    usuarioAuditoria.email ||
       usuarioAuditoria.nombre ||
       "Usuario autorizado",
     accion: "hallazgo_anulado_pc",
     resumen: `Hallazgo anulado desde plataforma PC. Motivo: ${motivo}`,
-    estadoAnterior: hallazgoPersistente.data.estado,
+    estadoAnterior: hallazgoPersistenteData.estado,
     estadoNuevo: "ANULADO",
     camposModificados: ["estado", "bitacora", "raw_panel"],
     metadata: {
@@ -3992,21 +4642,21 @@ const confirmarBorradoHallazgo = async () => {
       motivo,
       usuario: usuarioAuditoria,
       userAgent,
-      codigo: hallazgoPersistente.data.codigo,
+      codigo: hallazgoPersistenteData.codigo,
       noBorraEvidenciasStorage: true,
     },
   };
   const rawPanelPrevio =
-    hallazgoPersistente.data.rawPanel &&
-    typeof hallazgoPersistente.data.rawPanel === "object"
-      ? hallazgoPersistente.data.rawPanel
+    hallazgoPersistenteData.rawPanel &&
+    typeof hallazgoPersistenteData.rawPanel === "object"
+      ? hallazgoPersistenteData.rawPanel
       : {};
 
   const resultado = await actualizarHallazgoCentral(
-    hallazgoPersistente.data.id,
+    hallazgoPersistenteId,
     {
       estado: "ANULADO",
-      bitacora: [...(hallazgoPersistente.data.bitacora || []), eventoBitacora],
+      bitacora: [...(hallazgoPersistenteData.bitacora || []), eventoBitacora],
       rawPanel: {
         ...rawPanelPrevio,
         borradoLogico: {
@@ -4032,6 +4682,25 @@ const confirmarBorradoHallazgo = async () => {
   setFilasPanel((actual) =>
     actual.filter((item) => item.codigo !== hallazgoBorradoActivo.codigo)
   );
+  setHallazgosAnuladosResumen((actual) => {
+    const hallazgoAnulado: HallazgoPanelExtendido = {
+      ...hallazgoBorradoActivo,
+      estado: "ANULADO",
+      borradoLogico: {
+        fechaHora: fechaHoraIso,
+        motivo,
+        usuarioNombre: usuarioAuditoria.nombre,
+        usuarioEmail: usuarioAuditoria.email,
+        usuarioRol: usuarioAuditoria.rol,
+        estadoAnterior: hallazgoPersistenteData.estado,
+      },
+    };
+
+    return [
+      hallazgoAnulado,
+      ...actual.filter((item) => item.codigo !== hallazgoBorradoActivo.codigo),
+    ];
+  });
   setHallazgoBorradoActivo(null);
   setMotivoBorradoHallazgo("");
   setMensajeBorradoHallazgo(t("Hallazgo anulado correctamente."));
@@ -4744,7 +5413,19 @@ try {
 };
 useEffect(() => {
   if (filasFiltradas.length === 0) {
+    if (hallazgoSeleccionadoInformeId) {
+      setHallazgoSeleccionadoInformeId("");
+    }
     return;
+  }
+
+  if (
+    hallazgoSeleccionadoInformeId &&
+    !filasFiltradas.some(
+      (item) => identidadHallazgoPanel(item) === hallazgoSeleccionadoInformeId
+    )
+  ) {
+    setHallazgoSeleccionadoInformeId("");
   }
 
   const existeEnFiltro = filasFiltradas.some((item) =>
@@ -4754,7 +5435,7 @@ useEffect(() => {
   if (!existeEnFiltro) {
     setHallazgoActivo(filasFiltradas[0]);
   }
-}, [filasFiltradas, hallazgoActivo]);
+}, [filasFiltradas, hallazgoActivo, hallazgoSeleccionadoInformeId]);
 
 useEffect(() => {
   if (vistaPrincipal !== "panel") return;
@@ -8695,6 +9376,32 @@ style={{
               </div>
             ) : null}
 
+            {!vistaBorradosActiva && hallazgoSeleccionadoInforme ? (
+              <div
+                style={{
+                  padding: "12px 14px",
+                  borderRadius: "14px",
+                  border: temaClaro
+                    ? "1px solid rgba(37,99,235,0.22)"
+                    : "1px solid rgba(96,165,250,0.28)",
+                  background: temaClaro
+                    ? "rgba(219,234,254,0.62)"
+                    : "rgba(30,64,175,0.20)",
+                  color: temaClaro ? "#1e3a8a" : "#bfdbfe",
+                  fontSize: "12px",
+                  fontWeight: 850,
+                  lineHeight: 1.45,
+                }}
+              >
+                Hallazgo seleccionado:{" "}
+                <span style={{ fontWeight: 950 }}>
+                  {hallazgoSeleccionadoInforme.codigo ||
+                    identidadHallazgoPanel(hallazgoSeleccionadoInforme)}
+                </span>{" "}
+                · Informe empresa/obra usará este código.
+              </div>
+            ) : null}
+
             <div
               ref={listadoReportesRef}
               className="ce-panel-table"
@@ -8760,11 +9467,15 @@ style={{
     const chip = chipColor(fila.criticidad);
     const fechaCompromiso = (fila as typeof fila & { fechaCompromiso?: string }).fechaCompromiso || "";
     const semaforoFila = semaforoVencimiento(fechaCompromiso, fila.estado);
-    const filaSeleccionada = esMismoHallazgoPanel(fila, hallazgoActivo);
+    const identidadFila = identidadHallazgoPanel(fila);
+    const filaActiva = esMismoHallazgoPanel(fila, hallazgoActivo);
+    const filaSeleccionadaInforme = Boolean(
+      hallazgoSeleccionadoInformeId && identidadFila === hallazgoSeleccionadoInformeId
+    );
 
     return (
       <div
-        key={identidadHallazgoPanel(fila) || `hallazgo-${index}`}
+        key={identidadFila || `hallazgo-${index}`}
         style={{
           display: "grid",
           gridTemplateColumns:
@@ -8772,10 +9483,19 @@ style={{
           gap: "10px",
           padding: "16px",
           borderTop: tema.bordeSutil,
-          background: filaSeleccionada
+          borderLeft: filaSeleccionadaInforme
             ? temaClaro
-              ? "rgba(37,99,235,0.06)"
-              : "rgba(96,165,250,0.08)"
+              ? "4px solid #2563eb"
+              : "4px solid #60a5fa"
+            : "4px solid transparent",
+          background: filaSeleccionadaInforme
+            ? temaClaro
+              ? "rgba(37,99,235,0.12)"
+              : "rgba(96,165,250,0.16)"
+            : filaActiva
+              ? temaClaro
+                ? "rgba(37,99,235,0.05)"
+                : "rgba(96,165,250,0.07)"
             : "transparent",
           alignItems: "center",
           fontSize: "13px",
@@ -8783,7 +9503,11 @@ style={{
           width: "100%",
           cursor: "pointer",
         }}
-        onClick={() => abrirInformeHallazgoPanel(fila)}
+        onClick={() =>
+          abrirInformeHallazgoPanel(fila, {
+            seleccionarParaInforme: !vistaBorradosActiva,
+          })
+        }
       >
         <div style={{ fontWeight: 800 }}>{fila.codigo}</div>
         <div>{fila.empresa}</div>
@@ -8848,7 +9572,9 @@ style={{
             type="button"
             onClick={(event) => {
               event.stopPropagation();
-              abrirInformeHallazgoPanel(fila);
+              abrirInformeHallazgoPanel(fila, {
+                seleccionarParaInforme: !vistaBorradosActiva,
+              });
             }}
             style={{
               width: "100%",
@@ -11025,11 +11751,174 @@ style={{
       </div>
     </div>
 
+    <div
+      style={{
+        padding: "14px",
+        borderRadius: "18px",
+        background: temaClaro
+          ? "linear-gradient(180deg, rgba(254,226,226,0.98), rgba(255,255,255,0.92))"
+          : "linear-gradient(180deg, rgba(153,27,27,0.34), rgba(15,23,42,0.72))",
+        border: temaClaro
+          ? "2px solid rgba(185,28,28,0.58)"
+          : "2px solid rgba(248,113,113,0.52)",
+        boxShadow: temaClaro
+          ? "0 16px 34px rgba(185,28,28,0.14), inset 0 1px 0 rgba(255,255,255,0.74)"
+          : "0 18px 42px rgba(0,0,0,0.28), 0 0 0 1px rgba(248,113,113,0.10)",
+        marginTop: "auto",
+        marginBottom: "12px",
+        display: "grid",
+        gap: "10px",
+        flex: "0 0 auto",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "12px",
+        }}
+      >
+        <div
+          style={{
+            color: temaClaro ? "#7f1d1d" : "#fee2e2",
+            fontSize: "14px",
+            fontWeight: 950,
+            letterSpacing: "0.2px",
+          }}
+        >
+          {t("Informes anulados")}
+        </div>
+        <div
+          aria-hidden="true"
+          style={{
+            width: "30px",
+            height: "30px",
+            borderRadius: "999px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: temaClaro ? "rgba(220,38,38,0.20)" : "rgba(248,113,113,0.22)",
+            color: temaClaro ? "#991b1b" : "#fee2e2",
+            border: temaClaro
+              ? "1px solid rgba(185,28,28,0.46)"
+              : "1px solid rgba(248,113,113,0.42)",
+            fontSize: "18px",
+            fontWeight: 950,
+            lineHeight: 1,
+            userSelect: "none",
+          }}
+        >
+          ×
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "72px minmax(0, 1fr)",
+          gap: "10px",
+          alignItems: "stretch",
+        }}
+      >
+        <div
+          style={{
+            minHeight: "58px",
+            borderRadius: "14px",
+            background: temaClaro ? "rgba(255,255,255,0.80)" : "rgba(15,23,42,0.48)",
+            border: temaClaro
+              ? "1px solid rgba(185,28,28,0.30)"
+              : "1px solid rgba(248,113,113,0.28)",
+            display: "grid",
+            placeItems: "center",
+            color: temaClaro ? "#7f1d1d" : "#fee2e2",
+          }}
+        >
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: "24px", fontWeight: 950, lineHeight: 1 }}>
+              {totalInformesAnulados}
+            </div>
+            <div style={{ marginTop: "4px", fontSize: "9px", fontWeight: 900, opacity: 0.72 }}>
+              {t("TOTAL")}
+            </div>
+          </div>
+        </div>
+
+        <div
+          style={{
+            minHeight: "58px",
+            maxHeight: "118px",
+            overflowY: "auto",
+            overscrollBehavior: "contain",
+            padding: "8px",
+            borderRadius: "14px",
+            background: temaClaro ? "rgba(255,255,255,0.78)" : "rgba(15,23,42,0.42)",
+            border: temaClaro
+              ? "1px solid rgba(185,28,28,0.26)"
+              : "1px solid rgba(248,113,113,0.24)",
+          }}
+        >
+          {codigosInformesAnulados.length > 0 ? (
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "6px",
+                alignContent: "flex-start",
+              }}
+            >
+              {codigosInformesAnulados.map((codigo, index) => (
+                <span
+                  key={`${codigo}-${index}`}
+                  style={{
+                    display: "inline-flex",
+                    maxWidth: "100%",
+                    padding: "5px 7px",
+                    borderRadius: "999px",
+                    background: temaClaro
+                      ? "rgba(254,226,226,0.92)"
+                      : "rgba(127,29,29,0.42)",
+                    border: temaClaro
+                      ? "1px solid rgba(220,38,38,0.34)"
+                      : "1px solid rgba(248,113,113,0.30)",
+                    color: temaClaro ? "#991b1b" : "#fecaca",
+                    fontSize: "10px",
+                    fontWeight: 900,
+                    lineHeight: 1,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {codigo}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <div
+              style={{
+                height: "100%",
+                minHeight: "40px",
+                display: "flex",
+                alignItems: "center",
+                color: temaClaro ? "#991b1b" : "#fecaca",
+                fontSize: "12px",
+                fontWeight: 850,
+                opacity: 0.82,
+              }}
+            >
+              {t("Sin informes borrados")}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+
     <button
     onClick={descargarPDFHallazgoActivo}
       style={{
         width: "100%",
-        marginTop: "auto",
+        marginTop: 0,
         padding: "14px",
         borderRadius: "14px",
         border: "none",

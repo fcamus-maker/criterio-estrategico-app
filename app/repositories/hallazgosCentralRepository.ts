@@ -1033,6 +1033,7 @@ function mapearFilaSupabaseAHallazgo(fila: Record<string, unknown>): HallazgoCen
 
 type SupabaseFilterQuery<T> = {
   eq: (columna: string, valor: unknown) => T;
+  neq: (columna: string, valor: unknown) => T;
   gte: (columna: string, valor: unknown) => T;
   lte: (columna: string, valor: unknown) => T;
   lt: (columna: string, valor: unknown) => T;
@@ -1303,6 +1304,9 @@ export async function listarHallazgosCentrales(
       .range(offset, offset + limit - 1);
 
     query = aplicarFiltrosSupabase(query, filtros);
+    if (!filtros.estado) {
+      query = query.neq("estado", "ANULADO");
+    }
 
     const { data, error } = await query;
     if (error) {

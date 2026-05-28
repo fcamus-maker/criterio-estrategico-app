@@ -5,7 +5,7 @@ export type HallazgoPanel = {
   obra: string;
   tipoHallazgo: string;
   criticidad: "BAJO" | "MEDIO" | "ALTO" | "CRÍTICO";
-  estado: "REPORTADO" | "ABIERTO" | "EN SEGUIMIENTO" | "CERRADO";
+  estado: "REPORTADO" | "ABIERTO" | "EN SEGUIMIENTO" | "CERRADO" | "ANULADO";
   fechaHora: string;
   fechaISO: string;
   reportante: string;
