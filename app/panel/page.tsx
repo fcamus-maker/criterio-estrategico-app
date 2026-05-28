@@ -68,6 +68,23 @@ type HallazgoPanelExtendido = HallazgoPanel & {
   };
 };
 
+const META_DIARIA_REPORTES_STORAGE_KEY = "ce_panel_meta_diaria_reportes";
+
+function fechaLocalISO(fecha = new Date()) {
+  const year = fecha.getFullYear();
+  const month = String(fecha.getMonth() + 1).padStart(2, "0");
+  const day = String(fecha.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function leerMetaDiariaReportes() {
+  if (typeof window === "undefined") return 10;
+
+  const valor = Number(window.localStorage.getItem(META_DIARIA_REPORTES_STORAGE_KEY));
+  if (!Number.isFinite(valor) || valor < 1) return 10;
+  return Math.min(999, Math.round(valor));
+}
+
 function generarEvidenciasInformeHtml(
   hallazgo: HallazgoPanelExtendido,
   escapeHtml: (valor: unknown) => string
@@ -409,6 +426,11 @@ const [guardadoConfig, setGuardadoConfig] = useState(false);
 const [fechaActualizacion, setFechaActualizacion] = useState<Date | null>(null);
 const [filasPanel, setFilasPanel] = useState<HallazgoPanelExtendido[]>(hallazgosMock);
 const [hallazgosAnuladosResumen, setHallazgosAnuladosResumen] = useState<HallazgoPanelExtendido[]>([]);
+const [metaDiariaReportes, setMetaDiariaReportes] = useState(leerMetaDiariaReportes);
+const [fechaMetaDiariaActual, setFechaMetaDiariaActual] = useState(fechaLocalISO);
+const [calendarioMetaAbierto, setCalendarioMetaAbierto] = useState(false);
+const [mesCalendarioMeta, setMesCalendarioMeta] = useState(() => new Date().getMonth());
+const [menuExportacionMetaAbierto, setMenuExportacionMetaAbierto] = useState(false);
   const idiomaActivo = idiomaSistema === "en" ? "en" : "es";
   const cambiarModoSistema = (modo: "claro" | "oscuro" | "automatico") => {
     setModoSistema(modo);
@@ -451,6 +473,33 @@ const [hallazgosAnuladosResumen, setHallazgosAnuladosResumen] = useState<Hallazg
     Zoom: "Zoom",
     "Posición horizontal": "Horizontal position",
     "Posición vertical": "Vertical position",
+    "Meta diaria": "Daily target",
+    "Reportes de hoy": "Today's reports",
+    "Meta programada": "Programmed target",
+    "de cumplimiento diario": "daily completion",
+    hoy: "today",
+    "Meta diaria programada": "Daily programmed target",
+    "Recibidos hoy": "Received today",
+    Cumplimiento: "Completion",
+    "Abrir historial de cumplimiento": "Open completion history",
+    "Solo superadministrador puede modificar esta meta.": "Only the super administrator can change this target.",
+    "Cumplimiento diario": "Daily completion",
+    "Exportar cumplimiento": "Export completion",
+    "Descargar como PDF": "Download as PDF",
+    "Mes anterior": "Previous month",
+    "Mes siguiente": "Next month",
+    "Cerrar calendario": "Close calendar",
+    "Días cumplidos": "Completed days",
+    "Días no cumplidos": "Missed days",
+    "Promedio mensual": "Monthly average",
+    "Análisis automático del mes": "Automatic monthly analysis",
+    "Informe mensual de cumplimiento diario": "Monthly daily completion report",
+    "Meta mensual programada": "Programmed monthly target",
+    "Reportes recibidos en el mes": "Reports received this month",
+    "Porcentaje bajo la meta programada": "Percentage below programmed target",
+    Faltaron: "Missing",
+    Futuro: "Future",
+    logrado: "completed",
     "No se pudo guardar el perfil en este navegador": "The profile could not be saved in this browser",
     "La foto es demasiado pesada. Selecciona una imagen más liviana.": "The photo is too large. Select a smaller image.",
     "Actualiza los datos visibles del usuario en el panel lateral": "Update the user details visible in the side panel",
@@ -1053,6 +1102,7 @@ const [hallazgosAnuladosResumen, setHallazgosAnuladosResumen] = useState<Hallazg
   useEffect(() => {
     const actualizarFecha = () => {
       setFechaActualizacion(new Date());
+      setFechaMetaDiariaActual(fechaLocalISO());
     };
 
     actualizarFecha();
@@ -1060,6 +1110,14 @@ const [hallazgosAnuladosResumen, setHallazgosAnuladosResumen] = useState<Hallazg
 
     return () => window.clearInterval(intervalo);
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(
+      META_DIARIA_REPORTES_STORAGE_KEY,
+      String(metaDiariaReportes)
+    );
+  }, [metaDiariaReportes]);
 
   useEffect(() => {
     let activo = true;
@@ -3083,6 +3141,7 @@ const [campoPerfilActivo, setCampoPerfilActivo] = useState<
 const [controlPerfilActivo, setControlPerfilActivo] = useState<string | null>(null);
 const inicialUsuario = (usuario.nombre.trim() || "Freddy Camus").charAt(0).toUpperCase();
 const inicialPerfil = (nombrePerfilDraft.trim() || "Freddy Camus").charAt(0).toUpperCase();
+const puedeConfigurarMetaDiaria = authPerfilPanel.rol === "super_admin_ce";
 const abrirEditorPerfil = () => {
   if (fotoPerfilDraft?.startsWith("blob:")) {
     URL.revokeObjectURL(fotoPerfilDraft);
@@ -3606,6 +3665,301 @@ inicioDia.setHours(0, 0, 0, 0);
 
 const finDia = new Date(fechaBase);
 finDia.setHours(23, 59, 59, 999);
+
+const metaDiariaSegura = Math.max(1, Math.min(999, Math.round(metaDiariaReportes || 1)));
+const reportesHoy = filas.filter((item) => {
+  const timestamp = timestampHallazgoPanel(item);
+  if (!timestamp) return false;
+  return fechaLocalISO(new Date(timestamp)) === fechaMetaDiariaActual;
+}).length;
+const porcentajeMetaReal = (reportesHoy / metaDiariaSegura) * 100;
+const porcentajeMetaVisual = Math.min(100, Math.max(0, porcentajeMetaReal));
+const porcentajeMetaRedondeado = Math.round(porcentajeMetaVisual);
+const anguloAgujaMetaRad = ((-180 + (porcentajeMetaVisual / 100) * 180) * Math.PI) / 180;
+const agujaMetaX = 110 + Math.cos(anguloAgujaMetaRad) * 68;
+const agujaMetaY = 112 + Math.sin(anguloAgujaMetaRad) * 68;
+const colorEstadoMeta =
+  porcentajeMetaVisual >= 85
+    ? "#67ef48"
+    : porcentajeMetaVisual >= 55
+      ? "#facc15"
+      : porcentajeMetaVisual >= 25
+        ? "#fb923c"
+        : "#ef4444";
+const anioCalendarioMeta = new Date().getFullYear();
+const hoyCalendarioMeta = fechaLocalISO();
+const localeCalendarioMeta = idiomaActivo === "en" ? "en-US" : "es-CL";
+const conteoReportesPorFecha = filas.reduce<Record<string, number>>((acumulador, item) => {
+  const timestamp = timestampHallazgoPanel(item);
+  if (!timestamp) return acumulador;
+
+  const fechaReporte = fechaLocalISO(new Date(timestamp));
+  acumulador[fechaReporte] = (acumulador[fechaReporte] || 0) + 1;
+  return acumulador;
+}, {});
+const primerDiaCalendarioMeta = new Date(anioCalendarioMeta, mesCalendarioMeta, 1);
+const totalDiasCalendarioMeta = new Date(anioCalendarioMeta, mesCalendarioMeta + 1, 0).getDate();
+const desplazamientoCalendarioMeta = (primerDiaCalendarioMeta.getDay() + 6) % 7;
+const nombreMesCalendarioMeta = primerDiaCalendarioMeta.toLocaleDateString(localeCalendarioMeta, {
+  month: "long",
+});
+const diasSemanaCalendarioMeta =
+  idiomaActivo === "en" ? ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] : ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
+const diasCalendarioMeta = Array.from(
+  { length: desplazamientoCalendarioMeta + totalDiasCalendarioMeta },
+  (_, index) => {
+    if (index < desplazamientoCalendarioMeta) return null;
+
+    const diaMes = index - desplazamientoCalendarioMeta + 1;
+    const fechaDia = fechaLocalISO(new Date(anioCalendarioMeta, mesCalendarioMeta, diaMes));
+    const reportesDia = conteoReportesPorFecha[fechaDia] || 0;
+    const esFuturo = fechaDia > hoyCalendarioMeta;
+    const porcentajeDia = esFuturo
+      ? 0
+      : Math.min(100, Math.round((reportesDia / metaDiariaSegura) * 100));
+
+    return {
+      diaMes,
+      fechaDia,
+      reportesDia,
+      esFuturo,
+      esHoy: fechaDia === hoyCalendarioMeta,
+      porcentajeDia,
+      cumplido: !esFuturo && reportesDia >= metaDiariaSegura,
+      faltaron: Math.max(metaDiariaSegura - reportesDia, 0),
+    };
+  }
+);
+const diasEvaluadosMeta = diasCalendarioMeta.filter((dia) => dia && !dia.esFuturo);
+const diasCumplidosMeta = diasEvaluadosMeta.filter((dia) => dia?.cumplido).length;
+const diasNoCumplidosMeta = diasEvaluadosMeta.length - diasCumplidosMeta;
+const promedioMensualMeta = diasEvaluadosMeta.length
+  ? Math.round(
+      diasEvaluadosMeta.reduce((acumulador, dia) => acumulador + (dia?.porcentajeDia || 0), 0) /
+        diasEvaluadosMeta.length
+    )
+  : 0;
+const diasImprimiblesMeta = diasCalendarioMeta.filter(
+  (dia): dia is NonNullable<(typeof diasCalendarioMeta)[number]> => Boolean(dia)
+);
+const reportesMesEvaluadoMeta = diasEvaluadosMeta.reduce(
+  (acumulador, dia) => acumulador + (dia?.reportesDia || 0),
+  0
+);
+const metaMensualProgramadaMeta = diasEvaluadosMeta.length * metaDiariaSegura;
+const porcentajeCumplimientoMensualMeta = metaMensualProgramadaMeta
+  ? Math.min(100, Math.round((reportesMesEvaluadoMeta / metaMensualProgramadaMeta) * 100))
+  : 0;
+const porcentajeBajoMetaProgramada = Math.max(0, 100 - porcentajeCumplimientoMensualMeta);
+const fechaHoraExportacionMeta = new Date();
+const fechaHoraExportacionMetaTexto = fechaHoraExportacionMeta.toLocaleString(localeCalendarioMeta, {
+  dateStyle: "medium",
+  timeStyle: "short",
+});
+const nombreMesTituloMeta =
+  nombreMesCalendarioMeta.charAt(0).toUpperCase() + nombreMesCalendarioMeta.slice(1);
+const comentarioAnalisisMeta =
+  diasEvaluadosMeta.length > 0
+    ? `${diasCumplidosMeta} ${t("Días cumplidos").toLowerCase()}, ${diasNoCumplidosMeta} ${t("Días no cumplidos").toLowerCase()}. ${t("Cumplimiento")}: ${porcentajeCumplimientoMensualMeta}%. ${t("Porcentaje bajo la meta programada")}: ${porcentajeBajoMetaProgramada}%.`
+    : `${t("Cumplimiento diario")}: ${t("Futuro")}.`;
+
+const escapeHtmlMeta = (valor: unknown) =>
+  String(valor ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+
+const generarHtmlCalendarioMeta = () => {
+  const iniciales = (usuario.nombre || "CE")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((parte) => parte.charAt(0).toUpperCase())
+    .join("");
+  const avatarUsuario = usuario.foto
+    ? `<img src="${escapeHtmlMeta(usuario.foto)}" alt="${escapeHtmlMeta(usuario.nombre)}" />`
+    : `<span>${escapeHtmlMeta(iniciales || "CE")}</span>`;
+  const diasSemanaHtml = diasSemanaCalendarioMeta
+    .map((dia) => `<div class="weekday">${escapeHtmlMeta(dia)}</div>`)
+    .join("");
+  const diasHtml = diasCalendarioMeta
+    .map((dia) => {
+      if (!dia) return `<div class="day empty"></div>`;
+
+      const estado = dia.esFuturo ? "future" : dia.cumplido ? "ok" : "bad";
+      const icono = dia.esFuturo ? "" : dia.cumplido ? "✓" : "×";
+      const detalle = dia.esFuturo
+        ? t("Futuro")
+        : dia.cumplido
+          ? `${dia.reportesDia}/${metaDiariaSegura} ${t("logrado")}`
+          : `${dia.porcentajeDia}% ${t("logrado")} · ${t("Faltaron")} ${dia.faltaron}`;
+
+      return `
+        <div class="day ${estado}">
+          <div class="day-top">
+            <strong>${escapeHtmlMeta(dia.diaMes)}</strong>
+            ${icono ? `<span>${escapeHtmlMeta(icono)}</span>` : ""}
+          </div>
+          <div class="percent">${dia.esFuturo ? "—" : `${escapeHtmlMeta(dia.porcentajeDia)}%`}</div>
+          <div class="detail">${escapeHtmlMeta(detalle)}</div>
+        </div>
+      `;
+    })
+    .join("");
+
+  return `<!doctype html>
+<html lang="${idiomaActivo}">
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeHtmlMeta(t("Informe mensual de cumplimiento diario"))}</title>
+  <style>
+    * { box-sizing: border-box; }
+    @page { size: A4; margin: 12mm; }
+    html { background: #e5e7eb; }
+    body { margin: 0; padding: 18mm 0; font-family: Arial, Helvetica, sans-serif; color: #0f172a; background: #e5e7eb; }
+    .page { width: 210mm; min-height: 297mm; margin: 0 auto; background: #fff; box-shadow: 0 18px 50px rgba(15,23,42,.18); padding: 14mm; }
+    .header { display: flex; align-items: center; justify-content: space-between; gap: 12mm; border-bottom: 1px solid #e2e8f0; padding-bottom: 7mm; break-inside: avoid; }
+    .user { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .avatar { width: 16mm; height: 16mm; border-radius: 999px; overflow: hidden; display: grid; place-items: center; background: #0f172a; color: #fff; font-size: 16px; font-weight: 900; flex: 0 0 auto; }
+    .avatar img { width: 100%; height: 100%; object-fit: cover; }
+    h1 { margin: 0; font-size: 20px; line-height: 1.1; }
+    .muted { color: #64748b; font-size: 10px; font-weight: 700; margin-top: 3px; }
+    .month { text-align: right; font-size: 18px; font-weight: 900; text-transform: capitalize; white-space: nowrap; }
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 7mm 0; break-inside: avoid; }
+    .stat { border: 1px solid #e2e8f0; border-radius: 10px; padding: 8px; background: #f8fafc; }
+    .stat span { display: block; color: #64748b; font-size: 9px; line-height: 1.2; font-weight: 800; }
+    .stat strong { display: block; margin-top: 4px; font-size: 18px; font-weight: 950; }
+    .calendar { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; break-inside: auto; }
+    .weekday { text-align: center; color: #64748b; font-size: 9px; font-weight: 900; text-transform: uppercase; break-inside: avoid; }
+    .day { min-height: 22mm; border-radius: 9px; padding: 6px; border: 1px solid #e2e8f0; display: grid; align-content: space-between; break-inside: avoid; page-break-inside: avoid; }
+    .day.ok { background: #dcfce7; border-color: #86efac; }
+    .day.bad { background: #fee2e2; border-color: #fca5a5; }
+    .day.future { background: #f1f5f9; color: #64748b; }
+    .day.empty { background: transparent; border-color: transparent; }
+    .day-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .day-top strong { font-size: 11px; }
+    .day-top span { width: 18px; height: 18px; border-radius: 999px; display: grid; place-items: center; font-size: 14px; font-weight: 950; background: rgba(255,255,255,.72); }
+    .ok .day-top span { color: #15803d; }
+    .bad .day-top span { color: #dc2626; }
+    .percent { font-size: 16px; font-weight: 950; }
+    .ok .percent { color: #15803d; }
+    .bad .percent { color: #dc2626; }
+    .detail { font-size: 8.5px; line-height: 1.2; color: #475569; font-weight: 800; }
+    .analysis { margin-top: 7mm; border-radius: 12px; border: 1px solid #cbd5e1; background: #f8fafc; padding: 10px; break-inside: avoid; page-break-inside: avoid; }
+    .analysis h2 { margin: 0 0 6px; font-size: 13px; }
+    .analysis p { margin: 0; color: #334155; font-size: 11px; line-height: 1.45; font-weight: 700; }
+    @media print {
+      html, body { background: #fff; padding: 0; }
+      .page { width: auto; min-height: auto; margin: 0; padding: 0; box-shadow: none; }
+      .day { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="header">
+      <div class="user">
+        <div class="avatar">${avatarUsuario}</div>
+        <div>
+          <h1>${escapeHtmlMeta(t("Informe mensual de cumplimiento diario"))}</h1>
+          <div class="muted">${escapeHtmlMeta(usuario.nombre)} · ${escapeHtmlMeta(usuario.cargo)}</div>
+          <div class="muted">${escapeHtmlMeta(usuario.empresa)} · ${escapeHtmlMeta(fechaHoraExportacionMetaTexto)}</div>
+        </div>
+      </div>
+      <div class="month">${escapeHtmlMeta(nombreMesTituloMeta)} ${escapeHtmlMeta(anioCalendarioMeta)}</div>
+    </section>
+    <section class="stats">
+      <div class="stat"><span>${escapeHtmlMeta(t("Meta diaria programada"))}</span><strong>${escapeHtmlMeta(metaDiariaSegura)}</strong></div>
+      <div class="stat"><span>${escapeHtmlMeta(t("Meta mensual programada"))}</span><strong>${escapeHtmlMeta(metaMensualProgramadaMeta)}</strong></div>
+      <div class="stat"><span>${escapeHtmlMeta(t("Reportes recibidos en el mes"))}</span><strong>${escapeHtmlMeta(reportesMesEvaluadoMeta)}</strong></div>
+      <div class="stat"><span>${escapeHtmlMeta(t("Cumplimiento"))}</span><strong>${escapeHtmlMeta(porcentajeCumplimientoMensualMeta)}%</strong></div>
+    </section>
+    <section class="calendar">${diasSemanaHtml}${diasHtml}</section>
+    <section class="analysis">
+      <h2>${escapeHtmlMeta(t("Análisis automático del mes"))}</h2>
+      <p>${escapeHtmlMeta(comentarioAnalisisMeta)}</p>
+    </section>
+  </main>
+</body>
+</html>`;
+};
+
+const descargarPDFCalendarioMeta = async () => {
+  if (typeof window === "undefined") return;
+  setMenuExportacionMetaAbierto(false);
+
+  const nombreArchivo = `cumplimiento-diario-${nombreMesTituloMeta}-${anioCalendarioMeta}.pdf`
+    .toLowerCase()
+    .replace(/[^\w.-]+/g, "-");
+  const parser = new DOMParser();
+  const docPdf = parser.parseFromString(generarHtmlCalendarioMeta(), "text/html");
+  const estilos = docPdf.querySelector("style")?.innerHTML || "";
+  const contenido = docPdf.body.innerHTML;
+  const contenedor = document.createElement("div");
+
+  contenedor.style.position = "fixed";
+  contenedor.style.left = "-99999px";
+  contenedor.style.top = "0";
+  contenedor.style.zIndex = "-1";
+  contenedor.style.background = "#ffffff";
+  contenedor.innerHTML = `<style>${estilos}</style>${contenido}`;
+  document.body.appendChild(contenedor);
+
+  const elementoPdf = contenedor.querySelector(".page") as HTMLElement | null;
+  if (!elementoPdf) {
+    document.body.removeChild(contenedor);
+    return;
+  }
+
+  type Html2PdfWorkerMeta = {
+    set: (options: Record<string, unknown>) => Html2PdfWorkerMeta;
+    from: (element: HTMLElement) => Html2PdfWorkerMeta;
+    save: () => Promise<void>;
+  };
+  type Html2PdfFactoryMeta = () => Html2PdfWorkerMeta;
+  const html2pdf = (await import("html2pdf.js")).default as unknown as Html2PdfFactoryMeta;
+
+  try {
+    await html2pdf()
+      .set(
+        {
+          margin: 0,
+          filename: nombreArchivo,
+          image: { type: "jpeg", quality: 0.98 },
+          html2canvas: {
+            scale: 2,
+            useCORS: true,
+            backgroundColor: "#ffffff",
+          },
+          jsPDF: {
+            unit: "mm",
+            format: "a4",
+            orientation: "portrait",
+          },
+          pagebreak: { mode: ["css", "legacy"] },
+        } as Record<string, unknown>
+      )
+      .from(elementoPdf)
+      .save();
+  } finally {
+    document.body.removeChild(contenedor);
+  }
+};
+
+const imprimirCalendarioMeta = () => {
+  if (typeof window === "undefined") return;
+  setMenuExportacionMetaAbierto(false);
+
+  const ventana = window.open("", "_blank", "width=1120,height=820");
+  if (!ventana) return;
+
+  ventana.document.open();
+  ventana.document.write(generarHtmlCalendarioMeta());
+  ventana.document.close();
+  ventana.focus();
+  window.setTimeout(() => ventana.print(), 250);
+};
 
 const inicioSemana = new Date(inicioDia);
 inicioSemana.setDate(inicioSemana.getDate() - 6);
@@ -8176,13 +8530,13 @@ style={{
       flexDirection: "column",
     }}
   >
-    <div
-      style={{
-        fontSize: "15px",
-        fontWeight: 800,
-        marginBottom: "12px",
-      }}
-    >
+	    <div
+	      style={{
+	        fontSize: "15px",
+	        fontWeight: 800,
+	        marginBottom: "12px",
+	      }}
+	    >
 	      {t("Filtros")}
     </div>
 
@@ -11774,13 +12128,326 @@ style={{
 	          border: tema.borde,
         }}
       >
-        {hallazgoActivo.medidaInmediata}
-      </div>
-    </div>
+	        {hallazgoActivo.medidaInmediata}
+	      </div>
+	    </div>
 
-    <div
-      style={{
-        padding: "14px",
+	    <div
+	      style={{
+	        padding: "14px",
+	        borderRadius: "20px",
+	        marginTop: "auto",
+	        marginBottom: "6px",
+	        background:
+	          "linear-gradient(180deg, rgba(7,13,24,0.98) 0%, rgba(2,6,23,0.96) 100%)",
+	        border: "1px solid rgba(148,163,184,0.22)",
+	        boxShadow:
+	          "0 18px 40px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.08)",
+	        color: "#ffffff",
+	        display: "grid",
+	        gap: "10px",
+	        flex: "0 0 auto",
+	      }}
+	    >
+	      <div
+	        style={{
+	          display: "flex",
+	          alignItems: "center",
+	          justifyContent: "space-between",
+	          gap: "10px",
+	        }}
+	      >
+	        <div>
+	          <div
+	            style={{
+	              fontSize: "11px",
+	              fontWeight: 950,
+	              letterSpacing: "0.8px",
+	              textTransform: "uppercase",
+	              color: "rgba(226,232,240,0.68)",
+	            }}
+	          >
+	            {t("Meta diaria")}
+	          </div>
+	          <div
+	            style={{
+	              marginTop: "2px",
+	              fontSize: "14px",
+	              fontWeight: 950,
+	              color: "#f8fafc",
+	            }}
+	          >
+	            {t("Reportes de hoy")}
+	          </div>
+	        </div>
+	        <div
+	          style={{
+	            display: "flex",
+	            alignItems: "center",
+	            gap: "8px",
+	          }}
+	        >
+	          <label
+	            style={{
+	              display: "grid",
+	              gap: "4px",
+	              justifyItems: "end",
+	              color: "rgba(226,232,240,0.76)",
+	              fontSize: "10px",
+	              fontWeight: 900,
+	            }}
+	          >
+	            {t("Meta programada")}
+	            <input
+	              type="number"
+	              min={1}
+	              max={999}
+	              value={metaDiariaSegura}
+	              disabled={!puedeConfigurarMetaDiaria}
+	              aria-readonly={!puedeConfigurarMetaDiaria}
+	              onChange={(event) => {
+	                if (!puedeConfigurarMetaDiaria) return;
+
+	                const valor = Number(event.target.value);
+	                setMetaDiariaReportes(
+	                  Number.isFinite(valor)
+	                    ? Math.max(1, Math.min(999, Math.round(valor)))
+	                    : 1
+	                );
+	              }}
+	              style={{
+	                width: "74px",
+	                border: "1px solid rgba(148,163,184,0.34)",
+	                borderRadius: "12px",
+	                background: puedeConfigurarMetaDiaria
+	                  ? "rgba(15,23,42,0.88)"
+	                  : "rgba(15,23,42,0.48)",
+	                color: puedeConfigurarMetaDiaria ? "#ffffff" : "rgba(226,232,240,0.68)",
+	                padding: "7px 9px",
+	                fontSize: "16px",
+	                fontWeight: 950,
+	                textAlign: "center",
+	                outline: "none",
+	                colorScheme: "dark",
+	                cursor: puedeConfigurarMetaDiaria ? "text" : "not-allowed",
+	              }}
+	            />
+	          </label>
+	          <button
+	            type="button"
+	            aria-label={t("Abrir historial de cumplimiento")}
+	            onClick={() => setCalendarioMetaAbierto(true)}
+	            style={{
+	              width: "34px",
+	              height: "34px",
+	              borderRadius: "999px",
+	              border: "1px solid rgba(148,163,184,0.26)",
+	              background: "rgba(15,23,42,0.78)",
+	              color: "rgba(248,250,252,0.86)",
+	              cursor: "pointer",
+	              display: "grid",
+	              placeItems: "center",
+	              fontSize: "18px",
+	              fontWeight: 950,
+	              lineHeight: 1,
+	              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)",
+	            }}
+	          >
+	            ⋯
+	          </button>
+	        </div>
+	      </div>
+	      <div
+	        style={{
+	          justifySelf: "end",
+	          marginTop: "-4px",
+	          maxWidth: "220px",
+	          textAlign: "right",
+	          color: "rgba(226,232,240,0.58)",
+	          fontSize: "10px",
+	          lineHeight: 1.25,
+	          fontWeight: 850,
+	        }}
+	      >
+	        {t("Solo superadministrador puede modificar esta meta.")}
+	      </div>
+
+	      <div
+	        style={{
+	          position: "relative",
+	          display: "grid",
+	          justifyItems: "center",
+	          minHeight: "148px",
+	          overflow: "hidden",
+	        }}
+	      >
+	        <svg
+	          viewBox="0 0 220 148"
+	          role="img"
+	          aria-label={`${porcentajeMetaRedondeado}% ${t("de cumplimiento diario")}`}
+	          style={{
+	            width: "100%",
+	            maxWidth: "248px",
+	            height: "148px",
+	            display: "block",
+	          }}
+	        >
+	          <defs>
+	            <filter id="metaGaugeNeedleGlow" x="-20%" y="-20%" width="140%" height="140%">
+	              <feGaussianBlur stdDeviation="2.4" result="blur" />
+	              <feMerge>
+	                <feMergeNode in="blur" />
+	                <feMergeNode in="SourceGraphic" />
+	              </feMerge>
+	            </filter>
+	            <linearGradient id="metaGaugeFace" x1="0%" y1="0%" x2="0%" y2="100%">
+	              <stop offset="0%" stopColor="#111827" />
+	              <stop offset="100%" stopColor="#020617" />
+	            </linearGradient>
+	          </defs>
+	          <path
+	            d="M 20 114 A 90 90 0 0 1 200 114"
+	            fill="none"
+	            stroke="rgba(148,163,184,0.16)"
+	            strokeWidth="25"
+	            strokeLinecap="round"
+	          />
+	          <path
+	            d="M 20 114 A 90 90 0 0 1 61 40"
+	            fill="none"
+	            stroke="#ef4444"
+	            strokeWidth="18"
+	            strokeLinecap="round"
+	          />
+	          <path
+	            d="M 60 41 A 90 90 0 0 1 110 24"
+	            fill="none"
+	            stroke="#fb923c"
+	            strokeWidth="18"
+	            strokeLinecap="round"
+	          />
+	          <path
+	            d="M 110 24 A 90 90 0 0 1 160 41"
+	            fill="none"
+	            stroke="#facc15"
+	            strokeWidth="18"
+	            strokeLinecap="round"
+	          />
+	          <path
+	            d="M 159 40 A 90 90 0 0 1 200 114"
+	            fill="none"
+	            stroke="#67ef48"
+	            strokeWidth="18"
+	            strokeLinecap="round"
+	          />
+	          {Array.from({ length: 19 }).map((_, index) => {
+	            const angle = ((-180 + index * 10) * Math.PI) / 180;
+	            const tickMayor = index % 3 === 0;
+	            const x1 = 110 + Math.cos(angle) * (tickMayor ? 73 : 78);
+	            const y1 = 114 + Math.sin(angle) * (tickMayor ? 73 : 78);
+	            const x2 = 110 + Math.cos(angle) * 88;
+	            const y2 = 114 + Math.sin(angle) * 88;
+
+	            return (
+	              <line
+	                key={`tick-meta-${index}`}
+	                x1={x1}
+	                y1={y1}
+	                x2={x2}
+	                y2={y2}
+	                stroke={tickMayor ? "rgba(255,255,255,0.82)" : "rgba(255,255,255,0.42)"}
+	                strokeWidth={tickMayor ? 2.2 : 1.2}
+	                strokeLinecap="round"
+	              />
+	            );
+	          })}
+	          <circle cx="110" cy="114" r="46" fill="url(#metaGaugeFace)" />
+	          <circle cx="110" cy="114" r="43" fill="none" stroke="rgba(148,163,184,0.18)" />
+	          <line
+	            x1="110"
+	            y1="114"
+	            x2={agujaMetaX}
+	            y2={agujaMetaY}
+	            stroke={colorEstadoMeta}
+	            strokeWidth="4"
+	            strokeLinecap="round"
+	            filter="url(#metaGaugeNeedleGlow)"
+	          />
+	          <circle cx="110" cy="114" r="8" fill={colorEstadoMeta} />
+	          <circle cx="110" cy="114" r="3.5" fill="#020617" />
+	          <text
+	            x="110"
+	            y="99"
+	            textAnchor="middle"
+	            fill="#ffffff"
+	            fontSize="30"
+	            fontWeight="950"
+	          >
+	            {porcentajeMetaRedondeado}%
+	          </text>
+	          <text
+	            x="110"
+	            y="130"
+	            textAnchor="middle"
+	            fill="rgba(226,232,240,0.72)"
+	            fontSize="10"
+	            fontWeight="900"
+	          >
+	            {reportesHoy}/{metaDiariaSegura} {t("hoy")}
+	          </text>
+	        </svg>
+	      </div>
+
+	      <div
+	        style={{
+	          display: "grid",
+	          gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+	          gap: "8px",
+	        }}
+	      >
+	        {[
+	          [t("Meta diaria programada"), metaDiariaSegura],
+	          [t("Recibidos hoy"), reportesHoy],
+	          [t("Cumplimiento"), `${porcentajeMetaRedondeado}%`],
+	        ].map(([etiqueta, valor]) => (
+	          <div
+	            key={String(etiqueta)}
+	            style={{
+	              borderRadius: "12px",
+	              border: "1px solid rgba(148,163,184,0.18)",
+	              background: "rgba(15,23,42,0.62)",
+	              padding: "8px",
+	              minWidth: 0,
+	            }}
+	          >
+	            <div
+	              style={{
+	                fontSize: "9px",
+	                lineHeight: 1.15,
+	                fontWeight: 900,
+	                color: "rgba(226,232,240,0.58)",
+	              }}
+	            >
+	              {etiqueta}
+	            </div>
+	            <div
+	              style={{
+	                marginTop: "5px",
+	                fontSize: "18px",
+	                fontWeight: 950,
+	                color: String(etiqueta) === t("Cumplimiento") ? colorEstadoMeta : "#f8fafc",
+	              }}
+	            >
+	              {valor}
+	            </div>
+	          </div>
+	        ))}
+	      </div>
+	    </div>
+
+	    <div
+	      style={{
+	        padding: "14px",
         borderRadius: "18px",
         background: temaClaro
           ? "linear-gradient(180deg, rgba(254,226,226,0.98), rgba(255,255,255,0.92))"
@@ -11791,7 +12458,7 @@ style={{
         boxShadow: temaClaro
           ? "0 16px 34px rgba(185,28,28,0.14), inset 0 1px 0 rgba(255,255,255,0.74)"
           : "0 18px 42px rgba(0,0,0,0.28), 0 0 0 1px rgba(248,113,113,0.10)",
-        marginTop: "auto",
+	        marginTop: 0,
         marginBottom: "12px",
         display: "grid",
         gap: "10px",
@@ -11963,6 +12630,484 @@ style={{
           </aside>
         </div>
       </div>
+      {calendarioMetaAbierto ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={t("Cumplimiento diario")}
+          onClick={() => {
+            setCalendarioMetaAbierto(false);
+            setMenuExportacionMetaAbierto(false);
+          }}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 94,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "24px",
+            background: "rgba(2,6,23,0.76)",
+            backdropFilter: "blur(14px)",
+          }}
+        >
+          <div
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              width: "min(980px, 100%)",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              borderRadius: "26px",
+              border: temaClaro
+                ? "1px solid rgba(15,23,42,0.14)"
+                : "1px solid rgba(148,163,184,0.24)",
+              background: temaClaro
+                ? "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(241,245,249,0.96))"
+                : "linear-gradient(180deg, rgba(15,23,42,0.98), rgba(2,6,23,0.98))",
+              boxShadow: temaClaro
+                ? "0 28px 80px rgba(15,23,42,0.24)"
+                : "0 30px 90px rgba(0,0,0,0.52), inset 0 1px 0 rgba(255,255,255,0.08)",
+              color: temaClaro ? "#0f172a" : "#f8fafc",
+              padding: "22px",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                justifyContent: "space-between",
+                gap: "16px",
+                marginBottom: "18px",
+              }}
+            >
+              <div>
+                <div
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: 950,
+                    letterSpacing: "0.9px",
+                    textTransform: "uppercase",
+                    color: temaClaro ? "rgba(51,65,85,0.72)" : "rgba(226,232,240,0.66)",
+                  }}
+                >
+                  {t("Cumplimiento diario")}
+                </div>
+                <div
+                  style={{
+                    marginTop: "4px",
+                    fontSize: "30px",
+                    fontWeight: 950,
+                    lineHeight: 1.05,
+                    textTransform: "capitalize",
+                  }}
+                >
+                  {nombreMesCalendarioMeta} {anioCalendarioMeta}
+                </div>
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  flexWrap: "wrap",
+                  justifyContent: "flex-end",
+                }}
+              >
+                <div style={{ position: "relative" }}>
+                  <button
+                    type="button"
+                    aria-label={t("Exportar cumplimiento")}
+                    onClick={() => setMenuExportacionMetaAbierto((abierto) => !abierto)}
+                    style={{
+                      width: "40px",
+                      height: "40px",
+                      borderRadius: "999px",
+                      border: temaClaro ? "1px solid rgba(15,23,42,0.14)" : "1px solid rgba(148,163,184,0.24)",
+                      background: temaClaro ? "rgba(255,255,255,0.86)" : "rgba(15,23,42,0.78)",
+                      color: temaClaro ? "#0f172a" : "#f8fafc",
+                      cursor: "pointer",
+                      display: "grid",
+                      placeItems: "center",
+                    }}
+                  >
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      aria-hidden="true"
+                      focusable="false"
+                    >
+                      <path
+                        d="M7 8V3h10v5"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      <path
+                        d="M7 17H5a2 2 0 0 1-2-2v-4a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v4a2 2 0 0 1-2 2h-2"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      <path
+                        d="M7 14h10v7H7z"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      <path
+                        d="M17 11h.01"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                  </button>
+                  {menuExportacionMetaAbierto ? (
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: "48px",
+                        right: 0,
+                        zIndex: 4,
+                        width: "190px",
+                        padding: "8px",
+                        borderRadius: "16px",
+                        border: temaClaro
+                          ? "1px solid rgba(15,23,42,0.14)"
+                          : "1px solid rgba(148,163,184,0.24)",
+                        background: temaClaro ? "rgba(255,255,255,0.98)" : "rgba(15,23,42,0.98)",
+                        boxShadow: "0 18px 42px rgba(0,0,0,0.24)",
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={descargarPDFCalendarioMeta}
+                        style={{
+                          width: "100%",
+                          border: "none",
+                          borderRadius: "12px",
+                          background: "transparent",
+                          color: temaClaro ? "#0f172a" : "#f8fafc",
+                          cursor: "pointer",
+                          padding: "10px",
+                          textAlign: "left",
+                          fontSize: "13px",
+                          fontWeight: 900,
+                        }}
+                      >
+                        {t("Descargar como PDF")}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={imprimirCalendarioMeta}
+                        style={{
+                          width: "100%",
+                          border: "none",
+                          borderRadius: "12px",
+                          background: "transparent",
+                          color: temaClaro ? "#0f172a" : "#f8fafc",
+                          cursor: "pointer",
+                          padding: "10px",
+                          textAlign: "left",
+                          fontSize: "13px",
+                          fontWeight: 900,
+                        }}
+                      >
+                        {t("Imprimir")}
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+                <button
+                  type="button"
+                  aria-label={t("Mes anterior")}
+                  disabled={mesCalendarioMeta === 0}
+                  onClick={() => setMesCalendarioMeta((mes) => Math.max(0, mes - 1))}
+                  style={{
+                    width: "40px",
+                    height: "40px",
+                    borderRadius: "999px",
+                    border: temaClaro ? "1px solid rgba(15,23,42,0.14)" : "1px solid rgba(148,163,184,0.24)",
+                    background: mesCalendarioMeta === 0
+                      ? "rgba(148,163,184,0.12)"
+                      : temaClaro
+                        ? "rgba(255,255,255,0.86)"
+                        : "rgba(15,23,42,0.78)",
+                    color: mesCalendarioMeta === 0
+                      ? "rgba(148,163,184,0.62)"
+                      : temaClaro
+                        ? "#0f172a"
+                        : "#f8fafc",
+                    cursor: mesCalendarioMeta === 0 ? "not-allowed" : "pointer",
+                    fontSize: "22px",
+                    fontWeight: 950,
+                    lineHeight: 1,
+                  }}
+                >
+                  ‹
+                </button>
+                <button
+                  type="button"
+                  aria-label={t("Mes siguiente")}
+                  disabled={mesCalendarioMeta === 11}
+                  onClick={() => setMesCalendarioMeta((mes) => Math.min(11, mes + 1))}
+                  style={{
+                    width: "40px",
+                    height: "40px",
+                    borderRadius: "999px",
+                    border: temaClaro ? "1px solid rgba(15,23,42,0.14)" : "1px solid rgba(148,163,184,0.24)",
+                    background: mesCalendarioMeta === 11
+                      ? "rgba(148,163,184,0.12)"
+                      : temaClaro
+                        ? "rgba(255,255,255,0.86)"
+                        : "rgba(15,23,42,0.78)",
+                    color: mesCalendarioMeta === 11
+                      ? "rgba(148,163,184,0.62)"
+                      : temaClaro
+                        ? "#0f172a"
+                        : "#f8fafc",
+                    cursor: mesCalendarioMeta === 11 ? "not-allowed" : "pointer",
+                    fontSize: "22px",
+                    fontWeight: 950,
+                    lineHeight: 1,
+                  }}
+                >
+                  ›
+                </button>
+                <button
+                  type="button"
+                  aria-label={t("Cerrar calendario")}
+                  onClick={() => {
+                    setCalendarioMetaAbierto(false);
+                    setMenuExportacionMetaAbierto(false);
+                  }}
+                  style={{
+                    width: "40px",
+                    height: "40px",
+                    borderRadius: "999px",
+                    border: "1px solid rgba(248,113,113,0.42)",
+                    background: temaClaro ? "rgba(254,226,226,0.9)" : "rgba(127,29,29,0.46)",
+                    color: temaClaro ? "#991b1b" : "#fee2e2",
+                    cursor: "pointer",
+                    fontSize: "22px",
+                    fontWeight: 950,
+                    lineHeight: 1,
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                gap: "10px",
+                marginBottom: "18px",
+              }}
+            >
+              {[
+                [t("Días cumplidos"), diasCumplidosMeta, "#22c55e"],
+                [t("Días no cumplidos"), diasNoCumplidosMeta, "#ef4444"],
+                [t("Promedio mensual"), `${promedioMensualMeta}%`, colorEstadoMeta],
+              ].map(([etiqueta, valor, color]) => (
+                <div
+                  key={String(etiqueta)}
+                  style={{
+                    borderRadius: "16px",
+                    border: temaClaro ? "1px solid rgba(15,23,42,0.10)" : "1px solid rgba(148,163,184,0.18)",
+                    background: temaClaro ? "rgba(255,255,255,0.76)" : "rgba(15,23,42,0.60)",
+                    padding: "12px",
+                    minWidth: 0,
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: 900,
+                      color: temaClaro ? "rgba(51,65,85,0.72)" : "rgba(226,232,240,0.62)",
+                    }}
+                  >
+                    {etiqueta}
+                  </div>
+                  <div
+                    style={{
+                      marginTop: "5px",
+                      fontSize: "24px",
+                      fontWeight: 950,
+                      color: String(color),
+                    }}
+                  >
+                    {valor}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
+                gap: "8px",
+              }}
+            >
+              {diasSemanaCalendarioMeta.map((diaSemana) => (
+                <div
+                  key={diaSemana}
+                  style={{
+                    textAlign: "center",
+                    fontSize: "11px",
+                    fontWeight: 950,
+                    color: temaClaro ? "rgba(51,65,85,0.64)" : "rgba(226,232,240,0.58)",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {diaSemana}
+                </div>
+              ))}
+              {diasCalendarioMeta.map((dia, index) =>
+                dia ? (
+                  <div
+                    key={dia.fechaDia}
+                    style={{
+                      minHeight: "112px",
+                      borderRadius: "16px",
+                      border: dia.esHoy
+                        ? "2px solid rgba(56,189,248,0.72)"
+                        : dia.esFuturo
+                          ? temaClaro
+                            ? "1px solid rgba(148,163,184,0.24)"
+                            : "1px solid rgba(148,163,184,0.18)"
+                          : dia.cumplido
+                            ? "1px solid rgba(34,197,94,0.42)"
+                            : "1px solid rgba(239,68,68,0.42)",
+                      background: dia.esFuturo
+                        ? temaClaro
+                          ? "rgba(248,250,252,0.74)"
+                          : "rgba(15,23,42,0.42)"
+                        : dia.cumplido
+                          ? temaClaro
+                            ? "rgba(220,252,231,0.74)"
+                            : "rgba(20,83,45,0.30)"
+                          : temaClaro
+                            ? "rgba(254,226,226,0.70)"
+                            : "rgba(127,29,29,0.24)",
+                      padding: "10px",
+                      display: "grid",
+                      alignContent: "space-between",
+                      gap: "8px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: "8px",
+                      }}
+                    >
+                      <span style={{ fontSize: "15px", fontWeight: 950 }}>{dia.diaMes}</span>
+                      {!dia.esFuturo ? (
+                        <span
+                          aria-hidden="true"
+                          style={{
+                            width: "26px",
+                            height: "26px",
+                            borderRadius: "999px",
+                            display: "grid",
+                            placeItems: "center",
+                            background: dia.cumplido ? "rgba(34,197,94,0.20)" : "rgba(239,68,68,0.18)",
+                            color: dia.cumplido ? "#22c55e" : "#ef4444",
+                            fontSize: "18px",
+                            fontWeight: 950,
+                            lineHeight: 1,
+                          }}
+                        >
+                          {dia.cumplido ? "✓" : "×"}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div>
+                      <div
+                        style={{
+                          fontSize: "22px",
+                          fontWeight: 950,
+                          color: dia.esFuturo
+                            ? temaClaro
+                              ? "rgba(71,85,105,0.62)"
+                              : "rgba(226,232,240,0.52)"
+                            : dia.cumplido
+                              ? "#22c55e"
+                              : "#ef4444",
+                        }}
+                      >
+                        {dia.esFuturo ? "—" : `${dia.porcentajeDia}%`}
+                      </div>
+                      <div
+                        style={{
+                          marginTop: "3px",
+                          fontSize: "11px",
+                          lineHeight: 1.25,
+                          fontWeight: 850,
+                          color: temaClaro ? "rgba(51,65,85,0.74)" : "rgba(226,232,240,0.66)",
+                        }}
+                      >
+                        {dia.esFuturo
+                          ? t("Futuro")
+                          : dia.cumplido
+                            ? `${dia.reportesDia}/${metaDiariaSegura} ${t("logrado")}`
+                            : `${dia.porcentajeDia}% ${t("logrado")} · ${t("Faltaron")} ${dia.faltaron}`}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div key={`vacio-meta-${index}`} aria-hidden="true" />
+                )
+              )}
+            </div>
+            <div
+              style={{
+                marginTop: "18px",
+                borderRadius: "18px",
+                border: temaClaro
+                  ? "1px solid rgba(15,23,42,0.10)"
+                  : "1px solid rgba(148,163,184,0.18)",
+                background: temaClaro ? "rgba(248,250,252,0.88)" : "rgba(15,23,42,0.62)",
+                padding: "14px",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 950,
+                  letterSpacing: "0.6px",
+                  textTransform: "uppercase",
+                  color: temaClaro ? "rgba(51,65,85,0.72)" : "rgba(226,232,240,0.62)",
+                  marginBottom: "7px",
+                }}
+              >
+                {t("Análisis automático del mes")}
+              </div>
+              <div
+                style={{
+                  fontSize: "13px",
+                  lineHeight: 1.45,
+                  fontWeight: 850,
+                  color: temaClaro ? "#334155" : "rgba(226,232,240,0.82)",
+                }}
+              >
+                {comentarioAnalisisMeta}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {hallazgoAuditoriaActivo ? (
         <div
           role="dialog"
