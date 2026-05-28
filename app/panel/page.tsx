@@ -28,7 +28,11 @@ import {
   readPlatformPreferences,
   savePlatformPreferences,
 } from "../services/platformPreferences";
-import { cerrarSesionCE, obtenerAuthProfileActual } from "../services/authProfileService";
+import {
+  actualizarPerfilActualCE,
+  cerrarSesionCE,
+  obtenerAuthProfileActual,
+} from "../services/authProfileService";
 import {
   comprimirFotoPerfilUsuario,
   quitarFotoPerfilUsuarioActual,
@@ -3162,7 +3166,7 @@ const guardarPerfil = async () => {
   const rolFinal = rolPerfilDraft.trim() || "Administrador ejecutivo";
   const telefonoFinal = telefonoPerfilDraft.trim() || "+56 9 1234 5678";
   const correoFinal = correoPerfilDraft.trim() || "freddy.camus@criterioestrategico.cl";
-  let fotoFinal = fotoPerfilDraft || null;
+  let fotoFinal = fotoPerfil || null;
 
   setGuardandoPerfil(true);
   setErrorPerfil("");
@@ -3203,18 +3207,39 @@ const guardarPerfil = async () => {
     }
 
     fotoFinal = null;
-  } else if (fotoFinal?.startsWith("data:") || fotoFinal?.startsWith("blob:")) {
-    fotoFinal = null;
   }
 
+  const resultadoPerfil = await actualizarPerfilActualCE({
+    nombre: nombreFinal,
+    cargo: cargoFinal,
+    telefono: telefonoFinal,
+  });
+
+  if (!resultadoPerfil.ok) {
+    setErrorPerfil(resultadoPerfil.error);
+    setGuardadoPerfil(false);
+    setGuardandoPerfil(false);
+    return;
+  }
+
+  const perfilActualizado = resultadoPerfil.perfil;
+  const nombrePersistido = perfilActualizado.nombre || nombreFinal;
+  const cargoPersistido = perfilActualizado.cargo || cargoFinal;
+  const telefonoPersistido = perfilActualizado.telefono || telefonoFinal;
+  const correoPersistido = perfilActualizado.email || correoFinal;
+  const rolPersistido = perfilActualizado.rol || rolFinal;
+  const fotoPersistida = fotoPerfilQuitada
+    ? ""
+    : perfilActualizado.fotoUrl || fotoFinal || "";
+
   const profileToSave: PanelProfilePersistido = {
-    nombrePerfil: nombreFinal,
-    cargoPerfil: cargoFinal,
+    nombrePerfil: nombrePersistido,
+    cargoPerfil: cargoPersistido,
     empresaPerfil: empresaFinal,
-    rolPerfil: rolFinal,
-    telefonoPerfil: telefonoFinal,
-    correoPerfil: correoFinal,
-    fotoPerfil: fotoFinal,
+    rolPerfil: rolPersistido,
+    telefonoPerfil: telefonoPersistido,
+    correoPerfil: correoPersistido,
+    fotoPerfil: fotoPersistida || null,
   };
 
   if (typeof window === "undefined") {
@@ -3243,22 +3268,27 @@ const guardarPerfil = async () => {
 
   setUsuario((actual) => ({
     ...actual,
-    nombre: nombreFinal,
-    cargo: cargoFinal,
+    nombre: nombrePersistido,
+    cargo: cargoPersistido,
     empresa: empresaFinal,
-    rol: rolFinal,
-    telefono: telefonoFinal,
-    correo: correoFinal,
-    foto: fotoFinal || "",
+    rol: rolPersistido,
+    telefono: telefonoPersistido,
+    correo: correoPersistido,
+    foto: fotoPersistida,
   }));
-  setNombrePerfil(nombreFinal);
-  setCargoPerfil(cargoFinal);
+  setNombrePerfil(nombrePersistido);
+  setCargoPerfil(cargoPersistido);
   setEmpresaPerfil(empresaFinal);
-  setRolPerfil(rolFinal);
-  setTelefonoPerfil(telefonoFinal);
-  setCorreoPerfil(correoFinal);
-  setFotoPerfil(fotoFinal || "");
-  setFotoPerfilDraft(fotoFinal || null);
+  setRolPerfil(rolPersistido);
+  setTelefonoPerfil(telefonoPersistido);
+  setCorreoPerfil(correoPersistido);
+  setFotoPerfil(fotoPersistida);
+  setNombrePerfilDraft(nombrePersistido);
+  setCargoPerfilDraft(cargoPersistido);
+  setTelefonoPerfilDraft(telefonoPersistido);
+  setCorreoPerfilDraft(correoPersistido);
+  setRolPerfilDraft(rolPersistido);
+  setFotoPerfilDraft(fotoPersistida || null);
 
   setErrorPerfil("");
   setGuardadoPerfil(true);

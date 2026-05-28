@@ -10,6 +10,22 @@ export type EstadoAuthProfileCE = {
   error?: string;
 };
 
+export type ActualizarPerfilActualCEInput = {
+  nombre: string;
+  cargo?: string | null;
+  telefono?: string | null;
+};
+
+export type ResultadoActualizarPerfilActualCE =
+  | {
+      ok: true;
+      perfil: ProfileCE;
+    }
+  | {
+      ok: false;
+      error: string;
+    };
+
 type FilaProfileCE = {
   id: string;
   nombre?: string | null;
@@ -130,6 +146,77 @@ export async function obtenerAuthProfileActual(): Promise<EstadoAuthProfileCE> {
       autenticado: false,
       perfilDisponible: false,
       error: sanitizarError(error),
+    };
+  }
+}
+
+export async function actualizarPerfilActualCE(
+  cambios: ActualizarPerfilActualCEInput
+): Promise<ResultadoActualizarPerfilActualCE> {
+  const cliente = await obtenerSupabaseCliente();
+
+  if (!cliente) {
+    return { ok: false, error: "Supabase no esta disponible para guardar perfil." };
+  }
+
+  try {
+    const { data: usuarioData, error: usuarioError } =
+      await cliente.auth.getUser();
+
+    if (usuarioError || !usuarioData.user) {
+      return {
+        ok: false,
+        error: usuarioError
+          ? sanitizarError(usuarioError)
+          : "Debes iniciar sesion para guardar el perfil.",
+      };
+    }
+
+    const nombre = cambios.nombre.trim();
+
+    if (!nombre) {
+      return { ok: false, error: "El nombre del perfil es obligatorio." };
+    }
+
+    const { data, error } = await cliente
+      .from("profiles")
+      .update({
+        nombre,
+        cargo: cambios.cargo?.trim() || null,
+        telefono: cambios.telefono?.trim() || null,
+      })
+      .eq("id", usuarioData.user.id)
+      .select(
+        "id,nombre,email,cargo,telefono,foto_url,rol,empresa_id,obra_id,activo,created_at,updated_at"
+      )
+      .maybeSingle();
+
+    if (error || !data) {
+      return {
+        ok: false,
+        error: error
+          ? `No se pudo guardar el perfil en Supabase: ${sanitizarError(error)}`
+          : "No se pudo guardar el perfil porque no se encontro el registro del usuario.",
+      };
+    }
+
+    const filaPerfil = data as FilaProfileCE;
+
+    if (!esRoleCE(filaPerfil.rol)) {
+      return {
+        ok: false,
+        error: "El perfil actualizado tiene un rol no reconocido.",
+      };
+    }
+
+    return {
+      ok: true,
+      perfil: mapearProfile(filaPerfil),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: `No se pudo guardar el perfil: ${sanitizarError(error)}`,
     };
   }
 }
