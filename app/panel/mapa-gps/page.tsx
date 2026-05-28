@@ -142,6 +142,12 @@ const estados: EstadoHallazgoCentral[] = [
   "ANULADO",
 ];
 
+const estadosOperativosAbiertos: EstadoHallazgoCentral[] = [
+  "REPORTADO",
+  "ABIERTO",
+  "EN_SEGUIMIENTO",
+];
+
 const pageStyle: CSSProperties = {
   minHeight: "100vh",
   background:
@@ -467,6 +473,10 @@ const textosMapaEn: Record<string, string> = {
   "Sin hallazgo seleccionado": "No finding selected",
   "Selecciona un marcador para revisar detalle ejecutivo.": "Select a marker to review executive detail.",
   "Filtros activos": "Active filters",
+  "Listado de empresas": "Company list",
+  "Todas las empresas": "All companies",
+  "Sin hallazgos GPS para esta empresa": "No GPS findings for this company",
+  "Selecciona una empresa para filtrar el mapa": "Select a company to filter the map",
   "Criticidad critica y alta": "Critical and high severity",
   "Criticidad media y baja": "Medium and low severity",
   "Concentracion por empresa": "Company concentration",
@@ -484,9 +494,12 @@ const textosMapaEn: Record<string, string> = {
   "Filtro aplicado a hallazgos abiertos o en seguimiento.": "Filter applied to open or in-follow-up findings.",
   "Filtro aplicado a hallazgos cerrados.": "Filter applied to closed findings.",
   "Lectura por empresas destacada.": "Company review highlighted.",
+  "Selector de empresas disponible.": "Company selector available.",
   "Lectura por obras y areas destacada.": "Site and area review highlighted.",
   "Filtro por estados activos aplicado.": "Active status filter applied.",
   "Lectura de hallazgos recientes aplicada.": "Recent findings review applied.",
+  "No hay hallazgos recientes con ubicación GPS.": "There are no recent findings with GPS location.",
+  "Últimos 7 días": "Last 7 days",
   "Historico del dia aplicado.": "Today history applied.",
   "Historico global aplicado.": "Global history applied.",
   "Revision de vencidos aplicada.": "Overdue review applied.",
@@ -775,7 +788,19 @@ function filtrarHallazgos(hallazgos: HallazgoCentral[], filtros: FiltrosVista) {
     if (filtros.obra && hallazgo.obra !== filtros.obra) return false;
     if (filtros.area && hallazgo.area !== filtros.area) return false;
     if (filtros.criticidad && hallazgo.criticidad !== filtros.criticidad) return false;
-    if (filtros.estado && hallazgo.estado !== filtros.estado) return false;
+    if (
+      filtros.estado === "ABIERTO" &&
+      !estadosOperativosAbiertos.includes(hallazgo.estado)
+    ) {
+      return false;
+    }
+    if (
+      filtros.estado &&
+      filtros.estado !== "ABIERTO" &&
+      hallazgo.estado !== filtros.estado
+    ) {
+      return false;
+    }
     if (filtros.tipoHallazgo && hallazgo.tipoHallazgo !== filtros.tipoHallazgo) return false;
     if (filtros.gps === "con-gps" && !tieneGps) return false;
     if (filtros.gps === "sin-gps" && tieneGps) return false;
@@ -863,6 +888,7 @@ export default function MapaGpsHallazgosPage() {
   const [pantallaCompletaActiva, setPantallaCompletaActiva] = useState(false);
   const [mapaReajustando, setMapaReajustando] = useState(false);
   const [mapaVersion, setMapaVersion] = useState(0);
+  const [selectorEmpresasAbierto, setSelectorEmpresasAbierto] = useState(false);
   const [googleMapsListo, setGoogleMapsListo] = useState(false);
   const [googleMapsError, setGoogleMapsError] = useState(false);
 
@@ -989,6 +1015,31 @@ export default function MapaGpsHallazgosPage() {
   const concentracionEmpresa = ordenarEntradas(resumenMapa.porEmpresa)[0];
   const concentracionObra = ordenarEntradas(resumenMapa.porObra)[0];
   const concentracionArea = ordenarEntradas(resumenMapa.porArea)[0];
+  const empresasMapa = useMemo(
+    () =>
+      opciones.empresas.map((empresa) => {
+        const hallazgosEmpresa = hallazgos.filter((hallazgo) => hallazgo.empresa === empresa);
+        const totalGps = hallazgosEmpresa.filter(
+          (hallazgo) =>
+            typeof hallazgo.geolocalizacion?.latitud === "number" &&
+            typeof hallazgo.geolocalizacion.longitud === "number"
+        ).length;
+
+        return {
+          empresa,
+          total: hallazgosEmpresa.length,
+          totalGps,
+        };
+      }),
+    [hallazgos, opciones.empresas]
+  );
+  const empresaSeleccionadaMapa = filtros.empresa
+    ? empresasMapa.find((item) => item.empresa === filtros.empresa)
+    : null;
+  const filtroRecientesActivo =
+    accionActiva === "recientes" && filtros.gps === "con-gps" && Boolean(filtros.fechaDesde);
+  const sinHallazgosRecientesGps =
+    !cargando && filtroRecientesActivo && resumenMapa.totalConGps === 0;
   const hallazgoSeleccionado = useMemo(() => {
     if (!puntoSeleccionado) return null;
     return (
@@ -1004,19 +1055,26 @@ export default function MapaGpsHallazgosPage() {
     if (!maps || !mapa) return;
 
     maps.event?.trigger(mapa, "resize");
-    mapa.setMapTypeId(tipoVistaMapa === "satelital" ? "hybrid" : "roadmap");
+    mapa.setMapTypeId(tipoVistaMapa === "satelital" ? "satellite" : "roadmap");
     mapa.setZoom(Math.round(9 + (zoomMapa - 1) * 4));
 
-    if (resumenMapa.puntos.length === 0) {
-      mapa.setCenter({ lat: -30.5595, lng: -71.1791 });
-      return;
-    }
+    const encuadrar = () => {
+      maps.event?.trigger(mapa, "resize");
 
-    const limites = new maps.LatLngBounds();
-    resumenMapa.puntos.forEach((punto) => {
-      limites.extend({ lat: punto.latitud, lng: punto.longitud });
-    });
-    mapa.fitBounds(limites);
+      if (resumenMapa.puntos.length === 0) {
+        mapa.setCenter({ lat: -30.5595, lng: -71.1791 });
+        return;
+      }
+
+      const limites = new maps.LatLngBounds();
+      resumenMapa.puntos.forEach((punto) => {
+        limites.extend({ lat: punto.latitud, lng: punto.longitud });
+      });
+      mapa.fitBounds(limites);
+    };
+
+    encuadrar();
+    window.requestAnimationFrame(encuadrar);
   }
 
   useEffect(() => {
@@ -1074,7 +1132,7 @@ export default function MapaGpsHallazgosPage() {
       googleMapInstanceRef.current = new maps.Map(googleMapContainerRef.current, {
         center: centroInicial,
         zoom: Math.round(9 + (zoomMapa - 1) * 4),
-        mapTypeId: tipoVistaMapa === "satelital" ? "hybrid" : "roadmap",
+        mapTypeId: tipoVistaMapa === "satelital" ? "satellite" : "roadmap",
         disableDefaultUI: true,
         zoomControl: false,
         streetViewControl: false,
@@ -1085,15 +1143,10 @@ export default function MapaGpsHallazgosPage() {
     }
 
     const mapa = googleMapInstanceRef.current;
-    mapa.setMapTypeId(tipoVistaMapa === "satelital" ? "hybrid" : "roadmap");
+    mapa.setMapTypeId(tipoVistaMapa === "satelital" ? "satellite" : "roadmap");
     mapa.setZoom(Math.round(9 + (zoomMapa - 1) * 4));
     googleMarkersRef.current.forEach((marker) => marker.setMap(null));
     googleMarkersRef.current = [];
-
-    if (puntosReales.length === 0) {
-      mapa.setCenter(centroInicial);
-      return;
-    }
 
     const limites = new maps.LatLngBounds();
     googleMarkersRef.current = puntosReales.map((punto) => {
@@ -1118,11 +1171,36 @@ export default function MapaGpsHallazgosPage() {
       });
       return marker;
     });
-    mapa.fitBounds(limites);
-    window.requestAnimationFrame(() => {
+
+    const encuadrar = () => {
       maps.event?.trigger(mapa, "resize");
+
+      if (puntosReales.length === 0) {
+        mapa.setCenter(centroInicial);
+        return;
+      }
+
+      mapa.fitBounds(limites);
+    };
+
+    encuadrar();
+    window.requestAnimationFrame(() => {
+      encuadrar();
+      window.setTimeout(encuadrar, 180);
+      window.setTimeout(encuadrar, 420);
     });
   }, [usarMapaGoogleReal, resumenMapa.puntos, zoomMapa, tipoVistaMapa, mapaVersion, pantallaCompletaActiva]);
+
+  useEffect(() => {
+    if (!usarMapaGoogleReal || !googleMapContainerRef.current) return;
+
+    const observer = new ResizeObserver(() => {
+      window.requestAnimationFrame(reajustarGoogleMap);
+    });
+
+    observer.observe(googleMapContainerRef.current);
+    return () => observer.disconnect();
+  }, [usarMapaGoogleReal, mapaVersion, pantallaCompletaActiva, resumenMapa.puntos, tipoVistaMapa, zoomMapa]);
 
   function botonStyle(id: string, destacado = false): CSSProperties {
     const activo = accionActiva === id;
@@ -1224,6 +1302,7 @@ export default function MapaGpsHallazgosPage() {
     }
     setPantallaCompletaActiva(false);
     setBarraExpandida(false);
+    setSelectorEmpresasAbierto(false);
   }
 
   function resumenFiltrosActivos() {
@@ -1333,7 +1412,7 @@ export default function MapaGpsHallazgosPage() {
     { id: "salir", icono: "salir", etiqueta: "Salir de pantalla completa" },
   ];
   const accionesVistaPrevia: Array<{
-    id: AccionBarraMapa | "pantalla-completa";
+    id: AccionBarraMapa;
     icono: IconoBarraMapa;
     etiqueta: string;
     destacado?: boolean;
@@ -1344,7 +1423,6 @@ export default function MapaGpsHallazgosPage() {
     { id: "empresas", icono: "empresa", etiqueta: "Empresas" },
     { id: "obras", icono: "obra", etiqueta: "Obras/areas" },
     { id: "exportar", icono: "descarga", etiqueta: "Guardar imagen" },
-    { id: "pantalla-completa", icono: "satelital", etiqueta: "Abrir pantalla completa", destacado: true },
   ];
 
   function ejecutarAccionBarra(id: AccionBarraMapa) {
@@ -1355,6 +1433,7 @@ export default function MapaGpsHallazgosPage() {
       setModoMapa("puntos");
       setZonaSeleccionada(null);
       setPuntoSeleccionado(null);
+      setSelectorEmpresasAbierto(false);
       setMensaje("Vista general del mapa restablecida.");
       return;
     }
@@ -1402,13 +1481,9 @@ export default function MapaGpsHallazgosPage() {
     }
 
     if (id === "empresas") {
-      if (!concentracionEmpresa?.[0]) {
-        setMensaje("Sin datos suficientes");
-        return;
-      }
-      setFiltros((actual) => ({ ...actual, empresa: concentracionEmpresa?.[0] || "", gps: "todos" }));
-      setModoMapa("calor");
-      setMensaje("Lectura por empresas destacada.");
+      setBarraExpandida(true);
+      setSelectorEmpresasAbierto((abierto) => !abierto);
+      setMensaje("Selector de empresas disponible.");
       return;
     }
 
@@ -1431,14 +1506,37 @@ export default function MapaGpsHallazgosPage() {
     if (id === "recientes") {
       const fechaDesde = new Date();
       fechaDesde.setDate(fechaDesde.getDate() - 7);
-      setFiltros((actual) => ({
-        ...actual,
-        fechaDesde: fechaLocalISO(fechaDesde),
+      const fechaDesdeISO = fechaLocalISO(fechaDesde);
+      const recientesConGps = hallazgos.filter((hallazgo) => {
+        const fecha = new Date(
+          hallazgo.fechaHoraReporteISO || hallazgo.fechaCreacion || hallazgo.fechaReporte
+        );
+        const tieneGps =
+          typeof hallazgo.geolocalizacion?.latitud === "number" &&
+          typeof hallazgo.geolocalizacion.longitud === "number";
+
+        return (
+          tieneGps &&
+          !Number.isNaN(fecha.getTime()) &&
+          fecha >= new Date(`${fechaDesdeISO}T00:00:00`)
+        );
+      }).length;
+
+      setFiltros({
+        ...filtrosIniciales,
+        fechaDesde: fechaDesdeISO,
         fechaHasta: "",
-        gps: "todos",
-      }));
+        gps: "con-gps",
+      });
       setModoMapa("puntos");
-      setMensaje("Lectura de hallazgos recientes aplicada.");
+      setZonaSeleccionada(null);
+      setPuntoSeleccionado(null);
+      setSelectorEmpresasAbierto(false);
+      setMensaje(
+        recientesConGps > 0
+          ? "Lectura de hallazgos recientes aplicada."
+          : "No hay hallazgos recientes con ubicación GPS."
+      );
       return;
     }
 
@@ -1714,7 +1812,7 @@ export default function MapaGpsHallazgosPage() {
             transition: mapaReajustando
               ? "none"
               : "grid-template-columns 140ms ease, padding 140ms ease, background 140ms ease",
-            contain: "layout paint",
+            contain: pantallaCompletaActiva ? undefined : "layout paint",
           }}
         >
           {pantallaCompletaActiva && (
@@ -1738,7 +1836,17 @@ export default function MapaGpsHallazgosPage() {
               zIndex: 5,
             }}
           >
-            <div style={{ display: "grid", gap: "10px" }}>
+            <div
+              style={{
+                display: "grid",
+                gap: "10px",
+                maxHeight: "calc(100vh - 118px)",
+                overflowY: barraExpandida ? "auto" : "hidden",
+                overflowX: "hidden",
+                overscrollBehavior: "contain",
+                paddingRight: barraExpandida ? "2px" : 0,
+              }}
+            >
               <div
                 style={{
                   width: barraExpandida ? "100%" : "42px",
@@ -1795,7 +1903,7 @@ export default function MapaGpsHallazgosPage() {
                   (accion.id === "bajos" && filtros.criticidad === "BAJO") ||
                   (accion.id === "abiertos" && filtros.estado === "ABIERTO") ||
                   (accion.id === "cerrados" && filtros.estado === "CERRADO") ||
-                  (accion.id === "empresas" && Boolean(filtros.empresa)) ||
+                  (accion.id === "empresas" && (selectorEmpresasAbierto || Boolean(filtros.empresa))) ||
                   (accion.id === "obras" && Boolean(filtros.obra || filtros.area));
                 const contenido = (
                   <>
@@ -1860,6 +1968,175 @@ export default function MapaGpsHallazgosPage() {
                   </button>
                 );
               })}
+
+              {selectorEmpresasAbierto && barraExpandida && (
+                <div
+                  style={{
+                    borderRadius: "18px",
+                    border: bordeInterno,
+                    background: temaClaro
+                      ? "rgba(248,250,252,0.94)"
+                      : "rgba(15,23,42,0.86)",
+                    padding: "10px",
+                    display: "grid",
+                    gap: "8px",
+                    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06)",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: "8px",
+                    }}
+                  >
+                    <div>
+                      <div style={{ color: textoAzul, fontSize: "11px", fontWeight: 950 }}>
+                        {t("Listado de empresas")}
+                      </div>
+                      <div style={{ marginTop: "2px", color: textoSuave, fontSize: "10px", fontWeight: 850 }}>
+                        {t("Selecciona una empresa para filtrar el mapa")}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectorEmpresasAbierto(false)}
+                      aria-label="Cerrar listado de empresas"
+                      style={{
+                        width: "26px",
+                        height: "26px",
+                        borderRadius: "10px",
+                        border: bordeInterno,
+                        background: fondoInterno,
+                        color: textoAzul,
+                        cursor: "pointer",
+                        fontWeight: 950,
+                        lineHeight: 1,
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFiltros((actual) => ({ ...actual, empresa: "", gps: "todos" }));
+                      setModoMapa("puntos");
+                      setZonaSeleccionada(null);
+                      setPuntoSeleccionado(null);
+                      setMensaje("Vista general del mapa restablecida.");
+                    }}
+                    style={{
+                      width: "100%",
+                      minHeight: "34px",
+                      borderRadius: "12px",
+                      border: !filtros.empresa
+                        ? "1px solid rgba(125,211,252,0.62)"
+                        : bordeInterno,
+                      background: !filtros.empresa
+                        ? "linear-gradient(135deg, #2563eb, #38bdf8)"
+                        : fondoInterno,
+                      color: !filtros.empresa ? "#ffffff" : textoPrincipal,
+                      cursor: "pointer",
+                      padding: "7px 9px",
+                      textAlign: "left",
+                      fontSize: "11px",
+                      fontWeight: 950,
+                    }}
+                  >
+                    {t("Todas las empresas")}
+                  </button>
+
+                  <div
+                    style={{
+                      maxHeight: "240px",
+                      overflowY: "auto",
+                      overscrollBehavior: "contain",
+                      display: "grid",
+                      gap: "7px",
+                      paddingRight: "3px",
+                    }}
+                  >
+                    {empresasMapa.map((item) => {
+                      const activa = filtros.empresa === item.empresa;
+
+                      return (
+                        <button
+                          key={item.empresa}
+                          type="button"
+                          onClick={() => {
+                            setFiltros((actual) => ({
+                              ...actual,
+                              empresa: item.empresa,
+                              obra: "",
+                              area: "",
+                              criticidad: "",
+                              estado: "",
+                              tipoHallazgo: "",
+                              fechaDesde: "",
+                              fechaHasta: "",
+                              gps: "todos",
+                            }));
+                            setModoMapa("puntos");
+                            setZonaSeleccionada(null);
+                            setPuntoSeleccionado(null);
+                            setMensaje(
+                              item.totalGps > 0
+                                ? `Empresa seleccionada: ${item.empresa}`
+                                : "Sin hallazgos GPS para esta empresa"
+                            );
+                          }}
+                          style={{
+                            width: "100%",
+                            borderRadius: "13px",
+                            border: activa
+                              ? "1px solid rgba(125,211,252,0.62)"
+                              : item.totalGps === 0
+                                ? "1px solid rgba(248,113,113,0.28)"
+                                : bordeInterno,
+                            background: activa
+                              ? "linear-gradient(135deg, #2563eb, #38bdf8)"
+                              : item.totalGps === 0
+                                ? temaClaro
+                                  ? "rgba(254,226,226,0.72)"
+                                  : "rgba(127,29,29,0.20)"
+                                : fondoInterno,
+                            color: activa ? "#ffffff" : textoPrincipal,
+                            cursor: "pointer",
+                            padding: "9px",
+                            textAlign: "left",
+                            display: "grid",
+                            gap: "4px",
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: "11px",
+                              fontWeight: 950,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {item.empresa}
+                          </span>
+                          <span
+                            style={{
+                              color: activa ? "rgba(255,255,255,0.78)" : textoSuave,
+                              fontSize: "10px",
+                              fontWeight: 850,
+                            }}
+                          >
+                            {item.total} {t("hallazgos")} · {item.totalGps} GPS
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div
@@ -1941,10 +2218,6 @@ export default function MapaGpsHallazgosPage() {
                       key={accion.id}
                       type="button"
                       onClick={() => {
-                        if (accion.id === "pantalla-completa") {
-                          void abrirPantallaCompleta();
-                          return;
-                        }
                         ejecutarAccionBarra(accion.id);
                       }}
                       style={{
@@ -2048,6 +2321,7 @@ export default function MapaGpsHallazgosPage() {
               minHeight: pantallaCompletaActiva
                 ? "clamp(680px, 50vw, 880px)"
                 : "clamp(500px, 37vw, 640px)",
+              height: pantallaCompletaActiva ? "calc(100vh - 24px)" : undefined,
               padding: "18px",
               display: "grid",
               gridTemplateRows: "auto minmax(0, 1fr) auto",
@@ -2076,23 +2350,40 @@ export default function MapaGpsHallazgosPage() {
               </div>
               {pantallaCompletaActiva ? (
                 <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
-                  <span
-                    style={{
-                      minHeight: "34px",
-                      borderRadius: "999px",
-                      padding: "8px 10px",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      background: temaClaro ? "rgba(248,250,252,0.88)" : "rgba(15,23,42,0.78)",
-                      border: bordeInterno,
-                      color: textoAzul,
-                      fontSize: "12px",
-                      fontWeight: 950,
-                    }}
-                  >
-                    {tipoVistaMapa === "satelital" ? t("Vista satelital real") : t("Vista estandar")}
-                  </span>
+                  {[
+                    ["Vista estandar", "estandar"],
+                    ["Vista satelital real", "satelital"],
+                  ].map(([label, tipo]) => (
+                    <button
+                      key={tipo}
+                      type="button"
+                      onClick={() => cambiarTipoVistaMapa(tipo as TipoVistaMapa)}
+                      style={{
+                        minHeight: "34px",
+                        borderRadius: "999px",
+                        padding: "8px 10px",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        background:
+                          tipoVistaMapa === tipo
+                            ? "linear-gradient(135deg, #2563eb, #38bdf8)"
+                            : temaClaro
+                              ? "rgba(248,250,252,0.88)"
+                              : "rgba(15,23,42,0.78)",
+                        border:
+                          tipoVistaMapa === tipo
+                            ? "1px solid rgba(125,211,252,0.62)"
+                            : bordeInterno,
+                        color: tipoVistaMapa === tipo ? "#ffffff" : textoAzul,
+                        fontSize: "12px",
+                        fontWeight: 950,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {t(label)}
+                    </button>
+                  ))}
                   <span
                     style={{
                       minHeight: "34px",
@@ -2214,6 +2505,7 @@ export default function MapaGpsHallazgosPage() {
                 minHeight: pantallaCompletaActiva
                   ? "clamp(520px, 38vw, 720px)"
                   : "clamp(350px, 27vw, 500px)",
+                height: pantallaCompletaActiva ? "100%" : undefined,
                 overflow: "hidden",
                 border: "1px solid rgba(125,211,252,0.18)",
                 backgroundColor:
@@ -2256,8 +2548,11 @@ export default function MapaGpsHallazgosPage() {
                   style={{
                     position: "absolute",
                     inset: 0,
+                    width: "100%",
+                    height: "100%",
                     zIndex: 0,
                     background: temaClaro ? "#e2e8f0" : "#0f172a",
+                    transform: "translateZ(0)",
                     opacity: mapaReajustando ? 0 : 1,
                     transition: mapaReajustando ? "none" : "opacity 120ms ease",
                   }}
@@ -2399,6 +2694,84 @@ export default function MapaGpsHallazgosPage() {
                 </div>
               )}
 
+              {!cargando && filtros.empresa && empresaSeleccionadaMapa?.totalGps === 0 && (
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: "56px",
+                    zIndex: 4,
+                    borderRadius: "26px",
+                    background: temaClaro
+                      ? "rgba(255,255,255,0.94)"
+                      : "rgba(15,23,42,0.88)",
+                    border: "1px solid rgba(248,113,113,0.32)",
+                    boxShadow: "0 22px 54px rgba(15,23,42,0.18)",
+                    display: "grid",
+                    placeItems: "center",
+                    textAlign: "center",
+                    padding: "28px",
+                    color: textoPrincipal,
+                  }}
+                >
+                  <div>
+                    <div style={{ color: "#f87171", fontSize: "24px", fontWeight: 950 }}>
+                      {t("Sin hallazgos GPS para esta empresa")}
+                    </div>
+                    <p
+                      style={{
+                        maxWidth: "560px",
+                        margin: "12px auto 0",
+                        color: textoMedio,
+                        fontSize: "14px",
+                        lineHeight: 1.5,
+                        fontWeight: 750,
+                      }}
+                    >
+                      {filtros.empresa}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {sinHallazgosRecientesGps && (
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: "56px",
+                    zIndex: 4,
+                    borderRadius: "26px",
+                    background: temaClaro
+                      ? "rgba(255,255,255,0.94)"
+                      : "rgba(15,23,42,0.88)",
+                    border: "1px solid rgba(56,189,248,0.30)",
+                    boxShadow: "0 22px 54px rgba(15,23,42,0.18)",
+                    display: "grid",
+                    placeItems: "center",
+                    textAlign: "center",
+                    padding: "28px",
+                    color: textoPrincipal,
+                  }}
+                >
+                  <div>
+                    <div style={{ color: textoAzul, fontSize: "24px", fontWeight: 950 }}>
+                      {t("No hay hallazgos recientes con ubicación GPS.")}
+                    </div>
+                    <p
+                      style={{
+                        maxWidth: "560px",
+                        margin: "12px auto 0",
+                        color: textoMedio,
+                        fontSize: "14px",
+                        lineHeight: 1.5,
+                        fontWeight: 750,
+                      }}
+                    >
+                      {t("Últimos 7 días")} · GPS
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {usarVistaPreparada && mostrarMapaPreparado && (
                 <div
                   style={{
@@ -2427,7 +2800,11 @@ export default function MapaGpsHallazgosPage() {
                 </div>
               )}
 
-              {!cargando && mostrarMapaPreparado && puntosMapaActivos.length === 0 && (
+              {!cargando &&
+                mostrarMapaPreparado &&
+                puntosMapaActivos.length === 0 &&
+                !(filtros.empresa && empresaSeleccionadaMapa?.totalGps === 0) &&
+                !sinHallazgosRecientesGps && (
                 <div
                   style={{
                     position: "absolute",
