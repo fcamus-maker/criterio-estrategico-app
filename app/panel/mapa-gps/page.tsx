@@ -874,8 +874,10 @@ export default function MapaGpsHallazgosPage() {
   const bordeInterno = temaClaro
     ? "1px solid rgba(100,116,139,0.20)"
     : "1px solid rgba(148,163,184,0.18)";
-  const [hallazgos, setHallazgos] = useState<HallazgoCentral[]>([]);
-  const [cargando, setCargando] = useState(true);
+  const [hallazgos, setHallazgos] = useState<HallazgoCentral[]>(
+    () => hallazgosMock.map((hallazgo) => convertirPanelACentral(hallazgo))
+  );
+  const [cargando, setCargando] = useState(false);
   const [filtros, setFiltros] = useState<FiltrosVista>(filtrosIniciales);
   const [modoMapa, setModoMapa] = useState<ModoMapa>("calor");
   const [accionActiva, setAccionActiva] = useState("");
@@ -911,7 +913,19 @@ export default function MapaGpsHallazgosPage() {
   }
 
   useEffect(() => {
-    cargarDatos();
+    let cancelado = false;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    const frameId = window.requestAnimationFrame(() => {
+      timeoutId = setTimeout(() => {
+        if (!cancelado) void cargarDatos();
+      }, 0);
+    });
+
+    return () => {
+      cancelado = true;
+      window.cancelAnimationFrame(frameId);
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, []);
 
   useEffect(() => {
@@ -926,35 +940,57 @@ export default function MapaGpsHallazgosPage() {
       return;
     }
 
-    const scriptExistente = document.getElementById(GOOGLE_MAPS_SCRIPT_ID) as
-      | HTMLScriptElement
-      | null;
+    let cancelado = false;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    const frameId = window.requestAnimationFrame(() => {
+      timeoutId = setTimeout(() => {
+        if (cancelado) return;
 
-    if (scriptExistente) {
-      const resolverCarga = () => {
-        setGoogleMapsListo(Boolean(window.google?.maps?.Map));
-        setGoogleMapsError(!window.google?.maps?.Map);
-      };
-      scriptExistente.addEventListener("load", resolverCarga, { once: true });
-      scriptExistente.addEventListener("error", () => setGoogleMapsError(true), {
-        once: true,
-      });
-      return () => scriptExistente.removeEventListener("load", resolverCarga);
-    }
+        const scriptExistente = document.getElementById(GOOGLE_MAPS_SCRIPT_ID) as
+          | HTMLScriptElement
+          | null;
 
-    const script = document.createElement("script");
-    script.id = GOOGLE_MAPS_SCRIPT_ID;
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(
-      GOOGLE_MAPS_API_KEY
-    )}&v=weekly`;
-    script.async = true;
-    script.defer = true;
-    script.onload = () => {
-      setGoogleMapsListo(Boolean(window.google?.maps?.Map));
-      setGoogleMapsError(!window.google?.maps?.Map);
+        if (scriptExistente) {
+          const resolverCarga = () => {
+            if (cancelado) return;
+            setGoogleMapsListo(Boolean(window.google?.maps?.Map));
+            setGoogleMapsError(!window.google?.maps?.Map);
+          };
+          scriptExistente.addEventListener("load", resolverCarga, { once: true });
+          scriptExistente.addEventListener(
+            "error",
+            () => {
+              if (!cancelado) setGoogleMapsError(true);
+            },
+            { once: true }
+          );
+          return;
+        }
+
+        const script = document.createElement("script");
+        script.id = GOOGLE_MAPS_SCRIPT_ID;
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(
+          GOOGLE_MAPS_API_KEY
+        )}&v=weekly`;
+        script.async = true;
+        script.defer = true;
+        script.onload = () => {
+          if (cancelado) return;
+          setGoogleMapsListo(Boolean(window.google?.maps?.Map));
+          setGoogleMapsError(!window.google?.maps?.Map);
+        };
+        script.onerror = () => {
+          if (!cancelado) setGoogleMapsError(true);
+        };
+        document.head.appendChild(script);
+      }, 260);
+    });
+
+    return () => {
+      cancelado = true;
+      window.cancelAnimationFrame(frameId);
+      if (timeoutId) clearTimeout(timeoutId);
     };
-    script.onerror = () => setGoogleMapsError(true);
-    document.head.appendChild(script);
   }, []);
 
   const opciones = useMemo(
@@ -1658,6 +1694,7 @@ export default function MapaGpsHallazgosPage() {
           <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
             <Link
               href="/panel"
+              prefetch
               onMouseDown={() => activarBoton("volver")}
               style={botonStyle("volver")}
             >

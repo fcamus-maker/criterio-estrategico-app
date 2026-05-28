@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
   analizarKpiGerencialAvanzado,
+  filtrarHallazgosKpiGerencial,
   type CriticidadKpiGerencial,
   type EstadoKpiGerencial,
   type FiltrosKpiGerencial,
@@ -61,6 +62,10 @@ type FiltrosVista = {
   vencimiento: "todos" | "vencidos" | "no-vencidos";
   soloCriticosAbiertos: boolean;
   soloReincidencias: boolean;
+};
+
+type FiltrosInformeGerencial = FiltrosKpiGerencial & {
+  sinFechaCompromiso?: boolean;
 };
 
 type TarjetaKpiGerencial = {
@@ -658,6 +663,15 @@ const filtrosIniciales: FiltrosVista = {
   soloReincidencias: false,
 };
 
+const filtrosInformeIniciales: FiltrosInformeGerencial = {
+  gps: "todos",
+  evidencia: "todos",
+  vencimiento: "todos",
+  soloCriticosAbiertos: false,
+  soloReincidencias: false,
+  sinFechaCompromiso: false,
+};
+
 const filtrosDetalleAccionableIniciales: FiltrosDetalleAccionable = {
   empresaResponsable: "",
   empresaReportante: "",
@@ -1160,26 +1174,22 @@ export default function KpiGerencialAvanzadoPage() {
     useState<AlcanceInformeGerencial>("general");
   const [valorAlcanceInformeGerencial, setValorAlcanceInformeGerencial] =
     useState("");
+  const [filtrosInformeGerencial, setFiltrosInformeGerencial] =
+    useState<FiltrosInformeGerencial>(filtrosInformeIniciales);
   const [nivelDetalleInformeGerencial, setNivelDetalleInformeGerencial] =
-    useState<NivelDetalleInformeGerencial>(plantillasInformeGerencial[0].nivelDetalle);
+    useState<NivelDetalleInformeGerencial>("resumen-gerencial");
   const [seccionesInformeSeleccionadas, setSeccionesInformeSeleccionadas] =
-    useState<SeccionInformeGerencial[]>(
-      plantillasInformeGerencial[0].secciones
-    );
+    useState<SeccionInformeGerencial[]>([]);
   const [graficosInformeSeleccionados, setGraficosInformeSeleccionados] =
-    useState<GraficoInformeGerencial[]>(plantillasInformeGerencial[0].graficos);
+    useState<GraficoInformeGerencial[]>([]);
   const [rankingsInformeSeleccionados, setRankingsInformeSeleccionados] =
-    useState<RankingInformeGerencial[]>(plantillasInformeGerencial[0].rankings);
+    useState<RankingInformeGerencial[]>([]);
   const [detalleInformeGerencial, setDetalleInformeGerencial] =
-    useState<DetalleInformeGerencial>(plantillasInformeGerencial[0].detalleInforme);
+    useState<DetalleInformeGerencial>("sin-detalle");
   const [maxFilasDetalleInforme, setMaxFilasDetalleInforme] =
-    useState<MaxFilasDetalleInforme>(plantillasInformeGerencial[0].maxFilasDetalle);
+    useState<MaxFilasDetalleInforme>(10);
   const [seriesTendenciaInformeSeleccionadas, setSeriesTendenciaInformeSeleccionadas] =
-    useState<SerieTendenciaInforme[]>([
-      "total-reportado",
-      "criticos-abiertos",
-      "vencidos-abiertos",
-    ]);
+    useState<SerieTendenciaInforme[]>([]);
   const [rankingPrincipalInforme, setRankingPrincipalInforme] =
     useState<RankingInformeGerencial>("ranking-empresa-responsable");
   const [focoComparativoInforme, setFocoComparativoInforme] =
@@ -1208,20 +1218,39 @@ export default function KpiGerencialAvanzadoPage() {
   }
 
   useEffect(() => {
-    cargarDatos();
+    let cancelado = false;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    const frameId = window.requestAnimationFrame(() => {
+      timeoutId = setTimeout(() => {
+        if (!cancelado) void cargarDatos();
+      }, 0);
+    });
+
+    return () => {
+      cancelado = true;
+      window.cancelAnimationFrame(frameId);
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, []);
   useEffect(() => {
     let activo = true;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
     async function cargarGenerador() {
       const generador = await cargarUsuarioGeneradorInforme();
       if (activo) setUsuarioGeneradorInforme(generador);
     }
 
-    void cargarGenerador();
+    const frameId = window.requestAnimationFrame(() => {
+      timeoutId = setTimeout(() => {
+        if (activo) void cargarGenerador();
+      }, 0);
+    });
 
     return () => {
       activo = false;
+      window.cancelAnimationFrame(frameId);
+      if (timeoutId) clearTimeout(timeoutId);
     };
   }, []);
 
@@ -2138,7 +2167,7 @@ export default function KpiGerencialAvanzadoPage() {
       const siguiente = activo
         ? Array.from(new Set([...actual, id]))
         : actual.filter((item) => item !== id);
-      return siguiente.length ? siguiente : actual;
+      return siguiente;
     });
   };
   const cambiarDetalleInformeGerencial = (detalle: DetalleInformeGerencial) => {
@@ -2152,6 +2181,90 @@ export default function KpiGerencialAvanzadoPage() {
         return Array.from(new Set([...sinDetalle, "anexos"]));
       }
       return Array.from(new Set([...sinDetalle, "detalle-resumido"]));
+    });
+  };
+  const asignarFiltroInforme = (cambios: Partial<FiltrosInformeGerencial>) => {
+    setFiltrosInformeGerencial((actual) => ({
+      ...actual,
+      ...cambios,
+    }));
+  };
+  const limpiarInformeGerencial = () => {
+    setFiltrosInformeGerencial(filtrosInformeIniciales);
+    setAlcanceInformeGerencial("general");
+    setValorAlcanceInformeGerencial("");
+    setNivelDetalleInformeGerencial("resumen-gerencial");
+    setSeccionesInformeSeleccionadas([]);
+    setGraficosInformeSeleccionados([]);
+    setRankingsInformeSeleccionados([]);
+    setDetalleInformeGerencial("sin-detalle");
+    setMaxFilasDetalleInforme(10);
+    setEstadoPdfInformeGerencial("idle");
+    setMensaje("Constructor de informe limpiado. No hay elementos seleccionados.");
+  };
+  const agregarFiltrosActualesAlInforme = () => {
+    setFiltrosInformeGerencial({
+      empresaReportante: filtros.empresaReportante || undefined,
+      empresaResponsable: filtros.empresaResponsable || undefined,
+      obra: filtros.obra || undefined,
+      area: filtros.area || undefined,
+      criticidad: filtros.criticidad || undefined,
+      estado: filtros.estado || undefined,
+      estadoCierre: filtros.estadoCierre || undefined,
+      tipoHallazgo: filtros.tipoHallazgo || undefined,
+      responsableCierre: filtros.responsableCierre || undefined,
+      responsableCargo: filtros.responsableCargo || undefined,
+      reportante: filtros.reportante || undefined,
+      fechaDesde: filtros.fechaDesde || undefined,
+      fechaHasta: filtros.fechaHasta || undefined,
+      semana: filtros.semana || undefined,
+      mes: filtros.mes || undefined,
+      gps: filtros.gps,
+      evidencia: filtros.evidencia,
+      vencimiento: filtros.vencimiento,
+      soloCriticosAbiertos: filtros.soloCriticosAbiertos,
+      soloReincidencias: filtros.soloReincidencias,
+      sinFechaCompromiso: false,
+    });
+    setMensaje("Filtros actuales agregados explicitamente al informe.");
+  };
+  const aplicarPeriodoInforme = (periodo: "hoy" | "semana" | "mes" | "periodo-filtrado") => {
+    const hoy = new Date();
+    const hoyISO = hoy.toISOString().slice(0, 10);
+
+    if (periodo === "hoy") {
+      asignarFiltroInforme({ fechaDesde: hoyISO, fechaHasta: hoyISO, semana: undefined, mes: undefined });
+      return;
+    }
+
+    if (periodo === "semana") {
+      const inicioSemana = new Date(hoy);
+      const dia = inicioSemana.getDay();
+      inicioSemana.setDate(inicioSemana.getDate() - (dia === 0 ? 6 : dia - 1));
+      asignarFiltroInforme({
+        fechaDesde: inicioSemana.toISOString().slice(0, 10),
+        fechaHasta: hoyISO,
+        semana: undefined,
+        mes: undefined,
+      });
+      return;
+    }
+
+    if (periodo === "mes") {
+      asignarFiltroInforme({
+        fechaDesde: undefined,
+        fechaHasta: undefined,
+        semana: undefined,
+        mes: hoyISO.slice(0, 7),
+      });
+      return;
+    }
+
+    asignarFiltroInforme({
+      fechaDesde: filtros.fechaDesde || undefined,
+      fechaHasta: filtros.fechaHasta || undefined,
+      semana: filtros.semana || undefined,
+      mes: filtros.mes || undefined,
     });
   };
   const opcionesAlcanceInformeGerencial = useMemo(
@@ -2188,41 +2301,86 @@ export default function KpiGerencialAvanzadoPage() {
             : alcanceInformeGerencial === "responsableCierre"
               ? opcionesAlcanceInformeGerencial.responsableCierre
               : [];
+  const comandosInformeResumen = useMemo(() => {
+    const comandos: string[] = [];
+    const agregar = (label: string, valor?: string | boolean) => {
+      if (!valor) return;
+      comandos.push(label);
+    };
+
+    agregar(`Empresa reportante: ${filtrosInformeGerencial.empresaReportante}`, filtrosInformeGerencial.empresaReportante);
+    agregar(`Empresa responsable: ${filtrosInformeGerencial.empresaResponsable}`, filtrosInformeGerencial.empresaResponsable);
+    agregar(`Obra/proyecto: ${filtrosInformeGerencial.obra}`, filtrosInformeGerencial.obra);
+    agregar(`Area: ${filtrosInformeGerencial.area}`, filtrosInformeGerencial.area);
+    agregar(`Tipo: ${filtrosInformeGerencial.tipoHallazgo}`, filtrosInformeGerencial.tipoHallazgo);
+    agregar(`Supervisor/reportante: ${filtrosInformeGerencial.reportante}`, filtrosInformeGerencial.reportante);
+    agregar(`Responsable cierre: ${filtrosInformeGerencial.responsableCierre}`, filtrosInformeGerencial.responsableCierre);
+    agregar(`Cargo responsable: ${filtrosInformeGerencial.responsableCargo}`, filtrosInformeGerencial.responsableCargo);
+    agregar(
+      `Criticidad: ${filtrosInformeGerencial.criticidad ? etiquetaCriticidad(filtrosInformeGerencial.criticidad) : ""}`,
+      filtrosInformeGerencial.criticidad
+    );
+    agregar(
+      `Estado: ${filtrosInformeGerencial.estado ? filtrosInformeGerencial.estado.replace("_", " ") : ""}`,
+      filtrosInformeGerencial.estado
+    );
+    agregar(`Estado cierre: ${filtrosInformeGerencial.estadoCierre}`, filtrosInformeGerencial.estadoCierre);
+    agregar("Criticos abiertos", filtrosInformeGerencial.soloCriticosAbiertos);
+    agregar("Solo reincidencias", filtrosInformeGerencial.soloReincidencias);
+    agregar("Solo sin fecha compromiso", filtrosInformeGerencial.sinFechaCompromiso);
+    agregar(
+      filtrosInformeGerencial.vencimiento === "vencidos"
+        ? "Solo vencidos"
+        : filtrosInformeGerencial.vencimiento === "no-vencidos"
+          ? "Solo no vencidos"
+          : "",
+      filtrosInformeGerencial.vencimiento !== "todos"
+    );
+    agregar(
+      filtrosInformeGerencial.gps === "con-gps"
+        ? "Con GPS"
+        : filtrosInformeGerencial.gps === "sin-gps"
+          ? "Sin GPS"
+          : "",
+      filtrosInformeGerencial.gps !== "todos"
+    );
+    agregar(
+      filtrosInformeGerencial.evidencia === "con-evidencia"
+        ? "Con evidencia"
+        : filtrosInformeGerencial.evidencia === "sin-evidencia"
+          ? "Sin evidencia"
+          : "",
+      filtrosInformeGerencial.evidencia !== "todos"
+    );
+    agregar(`Desde: ${filtrosInformeGerencial.fechaDesde}`, filtrosInformeGerencial.fechaDesde);
+    agregar(`Hasta: ${filtrosInformeGerencial.fechaHasta}`, filtrosInformeGerencial.fechaHasta);
+    agregar(`Semana desde: ${filtrosInformeGerencial.semana}`, filtrosInformeGerencial.semana);
+    agregar(`Mes: ${filtrosInformeGerencial.mes}`, filtrosInformeGerencial.mes);
+
+    return comandos;
+  }, [filtrosInformeGerencial]);
+  const hayComandosFiltroInforme = comandosInformeResumen.length > 0;
+  const hayElementosInformeGerencial =
+    hayComandosFiltroInforme ||
+    seccionesInformeSeleccionadas.length > 0 ||
+    graficosInformeSeleccionados.length > 0 ||
+    rankingsInformeSeleccionados.length > 0 ||
+    detalleInformeGerencial !== "sin-detalle";
   const hallazgosInformeGerencial = useMemo(() => {
-    if (alcanceInformeGerencial === "general" || alcanceInformeGerencial === "periodo") {
-      return analisis.hallazgos;
-    }
+    if (!hayElementosInformeGerencial || !hayComandosFiltroInforme) return [];
 
-    if (!valorAlcanceInformeGerencial) return analisis.hallazgos;
-
-    return analisis.hallazgos.filter((hallazgo) => {
-      if (alcanceInformeGerencial === "empresaResponsable") {
-        return (
-          (hallazgo.empresaResponsable || "Sin empresa responsable") ===
-          valorAlcanceInformeGerencial
-        );
-      }
-      if (alcanceInformeGerencial === "empresaReportante") {
-        return (
-          (hallazgo.empresaReportante || hallazgo.empresa) ===
-          valorAlcanceInformeGerencial
-        );
-      }
-      if (alcanceInformeGerencial === "obra") {
-        return hallazgo.obra === valorAlcanceInformeGerencial;
-      }
-      if (alcanceInformeGerencial === "area") {
-        return hallazgo.area === valorAlcanceInformeGerencial;
-      }
-      if (alcanceInformeGerencial === "responsableCierre") {
-        return (
-          (hallazgo.responsableCierre || "Sin responsable") ===
-          valorAlcanceInformeGerencial
-        );
-      }
-      return true;
-    });
-  }, [alcanceInformeGerencial, analisis.hallazgos, valorAlcanceInformeGerencial]);
+    return filtrarHallazgosKpiGerencial(hallazgos, filtrosInformeGerencial).filter(
+      (hallazgo) =>
+        filtrosInformeGerencial.sinFechaCompromiso
+          ? esHallazgoAbiertoGerencial(hallazgo) && !hallazgo.fechaCompromiso
+          : true
+    );
+  }, [
+    filtrosInformeGerencial,
+    hallazgos,
+    hayComandosFiltroInforme,
+    hayElementosInformeGerencial,
+  ]);
   const analisisInformeGerencial = useMemo(
     () => analizarKpiGerencialAvanzado(hallazgosInformeGerencial),
     [hallazgosInformeGerencial]
@@ -2406,23 +2564,29 @@ export default function KpiGerencialAvanzadoPage() {
         : `${alcanceInformeOpciones.find((opcion) => opcion.id === alcanceInformeGerencial)?.label || "Alcance"}: ${
             valorAlcanceInformeGerencial || "Todos"
           }`;
-  const periodoInformeEtiqueta = filtros.mes
-    ? formatearMesInforme(filtros.mes)
-    : filtros.semana
-      ? `Semana desde ${filtros.semana}`
-      : filtros.fechaDesde || filtros.fechaHasta
-        ? `${filtros.fechaDesde || "inicio"} a ${filtros.fechaHasta || "hoy"}`
-        : "Periodo actual filtrado";
+  const periodoInformeEtiqueta = filtrosInformeGerencial.mes
+    ? formatearMesInforme(filtrosInformeGerencial.mes)
+    : filtrosInformeGerencial.semana
+      ? `Semana desde ${filtrosInformeGerencial.semana}`
+      : filtrosInformeGerencial.fechaDesde || filtrosInformeGerencial.fechaHasta
+        ? `${filtrosInformeGerencial.fechaDesde || "inicio"} a ${filtrosInformeGerencial.fechaHasta || "hoy"}`
+        : "Sin periodo seleccionado";
   const informeConBacklogVisible =
     seccionesInformeSeleccionadas.includes("backlog-no-cerrado") ||
-    alcanceInformeGerencial === "periodo" ||
-    Boolean(filtros.fechaDesde || filtros.fechaHasta || filtros.semana || filtros.mes);
-  const tituloAutomaticoInformeGerencial = [
-    tituloBaseInforme(tipoInformeGerencial, nivelDetalleInformeGerencial),
-    alcanceInformeGerencial !== "general" ? etiquetaAlcanceInforme : null,
-    periodoInformeEtiqueta,
-    informeConBacklogVisible ? "Gestion vigente con backlog" : null,
-  ].filter(Boolean).join(" — ");
+    Boolean(
+      filtrosInformeGerencial.fechaDesde ||
+      filtrosInformeGerencial.fechaHasta ||
+      filtrosInformeGerencial.semana ||
+      filtrosInformeGerencial.mes
+    );
+  const tituloAutomaticoInformeGerencial = hayElementosInformeGerencial
+    ? [
+        tituloBaseInforme(tipoInformeGerencial, nivelDetalleInformeGerencial),
+        comandosInformeResumen.length ? "Alcance definido por comandos" : "Sin alcance operativo",
+        periodoInformeEtiqueta,
+        informeConBacklogVisible ? "Gestion vigente con backlog" : null,
+      ].filter(Boolean).join(" — ")
+    : "Informe Gerencial en construcción";
   const seccionesAnalisisInformeGerencial = Array.from(
     new Set<SeccionInformeGerencial>([
       ...seccionesInformeSeleccionadas,
@@ -2478,8 +2642,16 @@ export default function KpiGerencialAvanzadoPage() {
   const responsableFocoInforme =
     analisisInformeGerencial.porResponsable[0]?.nombre || "sin responsable dominante";
   const resumenInformeGerencial = useMemo(() => {
+    if (!hayElementosInformeGerencial) {
+      return "No se han seleccionado elementos para este informe.";
+    }
+
+    if (!hayComandosFiltroInforme) {
+      return "Seleccione al menos un comando de alcance, riesgo, estado, evidencia o periodo para alimentar el informe con datos reales.";
+    }
+
     if (analisisInformeGerencial.total === 0) {
-      return "No hay hallazgos disponibles para el alcance seleccionado con los filtros actuales del KPI.";
+      return "No hay hallazgos disponibles para los comandos seleccionados del informe.";
     }
 
     if (tipoInformeGerencial === "criticos-vencidos") {
@@ -2494,6 +2666,8 @@ export default function KpiGerencialAvanzadoPage() {
   }, [
     analisisInformeGerencial.total,
     empresaFocoInforme,
+    hayComandosFiltroInforme,
+    hayElementosInformeGerencial,
     metricasInformeGerencial,
     obraFocoInforme,
     responsableFocoInforme,
@@ -2502,7 +2676,9 @@ export default function KpiGerencialAvanzadoPage() {
   const advertenciasInformeGerencial = useMemo(
     () =>
       [
-        "El analisis opera sobre los registros cargados actualmente en KPI.",
+        hayElementosInformeGerencial
+          ? "El analisis opera solo sobre los comandos y secciones seleccionados en el Constructor de Informe."
+          : "No se han seleccionado elementos para este informe.",
         metricasGerenciales.analisisLimitadoPorCarga
           ? "El limite actual de carga puede no representar todo el historico si existen mas registros."
           : null,
@@ -2520,7 +2696,12 @@ export default function KpiGerencialAvanzadoPage() {
         "Los indices sinteticos de cumplimiento/preventivo son referenciales y no reemplazan validacion tecnica.",
         "Este informe no reemplaza auditoria legal ni validacion tecnica por profesional competente.",
       ].filter(Boolean) as string[],
-    [informeConBacklogVisible, metricasGerenciales.analisisLimitadoPorCarga, seccionesInformeSeleccionadas]
+    [
+      hayElementosInformeGerencial,
+      informeConBacklogVisible,
+      metricasGerenciales.analisisLimitadoPorCarga,
+      seccionesInformeSeleccionadas,
+    ]
   );
   const analisisSeccionesInformeGerencial = useMemo<AnalisisSeccionInformeGerencial[]>(() => {
     const total = analisisInformeGerencial.total;
@@ -2763,7 +2944,6 @@ export default function KpiGerencialAvanzadoPage() {
     tituloAutomaticoInformeGerencial,
     `Tipo de informe: ${plantillaInformeActiva.titulo}`,
     `Nivel de detalle: ${etiquetaNivelDetalleInforme(nivelDetalleInformeGerencial)}`,
-    `Alcance: ${etiquetaAlcanceInforme}`,
     `Periodo: ${periodoInformeEtiqueta}`,
     `Hallazgos incluidos: ${analisisInformeGerencial.total}`,
     `Graficos incluidos: ${etiquetasGraficosSeleccionados.join(", ")}`,
@@ -2776,10 +2956,10 @@ export default function KpiGerencialAvanzadoPage() {
         ? `, maximo ${maxFilasDetalleInforme} filas`
         : ""
     }`,
-    `Filtros maestros: ${
-      filtrosActivosResumen.length > 0
-        ? filtrosActivosResumen.join(", ")
-        : "Vista general sin filtros maestros activos"
+    `Comandos del informe: ${
+      comandosInformeResumen.length > 0
+        ? comandosInformeResumen.join(", ")
+        : "Sin comandos seleccionados"
     }`,
     "",
     resumenInformeGerencial,
@@ -2800,10 +2980,11 @@ export default function KpiGerencialAvanzadoPage() {
     `Nota normativa: ${notaNormativaInformeGerencial}`,
   ].join("\n");
   const rankingIdsPdfInforme = Array.from(
-    new Set<RankingInformeGerencial>([
-      rankingPrincipalInforme,
-      ...rankingsInformeSeleccionados,
-    ])
+    new Set<RankingInformeGerencial>(
+      rankingsInformeSeleccionados.length > 0
+        ? [rankingPrincipalInforme, ...rankingsInformeSeleccionados]
+        : rankingsInformeSeleccionados
+    )
   );
   const rankingsPdfInformeGerencial = rankingIdsPdfInforme.map(
     (id) => configuracionRankingsInformeGerencial[id]
@@ -2886,24 +3067,25 @@ export default function KpiGerencialAvanzadoPage() {
     };
   });
   const alcanceOperacionalInformePdf = [
-    ["Empresa reportante", filtros.empresaReportante || "Todas"],
-    ["Empresa responsable / involucrada", filtros.empresaResponsable || "Todas"],
-    ["Obra / proyecto", filtros.obra || "Todas"],
-    ["Área", filtros.area || "Todas"],
-    ["Responsable de cierre", filtros.responsableCierre || "Todos"],
-    ["Tipo de hallazgo", filtros.tipoHallazgo || "Todos"],
+    ["Empresa reportante", filtrosInformeGerencial.empresaReportante || "No seleccionada"],
+    ["Empresa responsable / involucrada", filtrosInformeGerencial.empresaResponsable || "No seleccionada"],
+    ["Obra / proyecto", filtrosInformeGerencial.obra || "No seleccionada"],
+    ["Área", filtrosInformeGerencial.area || "No seleccionada"],
+    ["Supervisor/reportante", filtrosInformeGerencial.reportante || "No seleccionado"],
+    ["Responsable de cierre", filtrosInformeGerencial.responsableCierre || "No seleccionado"],
+    ["Tipo de hallazgo", filtrosInformeGerencial.tipoHallazgo || "No seleccionado"],
     [
       "Criticidad",
-      filtros.criticidad ? etiquetaCriticidad(filtros.criticidad) : "Todas",
+      filtrosInformeGerencial.criticidad ? etiquetaCriticidad(filtrosInformeGerencial.criticidad) : "No seleccionada",
     ],
-    ["Estado operativo", filtros.estado ? filtros.estado.replace("_", " ") : "Todos"],
-    ["Estado de cierre", filtros.estadoCierre || "Todos"],
+    ["Estado operativo", filtrosInformeGerencial.estado ? filtrosInformeGerencial.estado.replace("_", " ") : "No seleccionado"],
+    ["Estado de cierre", filtrosInformeGerencial.estadoCierre || "No seleccionado"],
     ["Periodo", periodoInformeEtiqueta],
   ];
   const notasAlcanceInformePdf = [
-    filtrosActivosResumen.length === 0
-      ? "Vista general sin filtros maestros activos: el informe considera el universo actualmente cargado y visible en KPI."
-      : "El informe utiliza los filtros maestros activos y el alcance configurado en el Constructor.",
+    hayElementosInformeGerencial
+      ? "El informe utiliza solo los comandos seleccionados explicitamente en el Constructor de Informe."
+      : "No se han seleccionado elementos para este informe.",
     informeConBacklogVisible
       ? "Incluye lectura de gestión vigente con backlog abierto/no cerrado de periodos anteriores cuando corresponde."
       : "La lectura de backlog queda como advertencia preventiva para informes con periodo o gestión vigente.",
@@ -2966,9 +3148,9 @@ export default function KpiGerencialAvanzadoPage() {
       "informe-gerencial-hallazgos";
     const nombreArchivo = `${nombreSeguro}-${fechaArchivo}.pdf`;
     const filtrosPdf =
-      filtrosActivosResumen.length > 0
-        ? filtrosActivosResumen
-        : ["Vista general sin filtros maestros activos"];
+      comandosInformeResumen.length > 0
+        ? comandosInformeResumen
+        : ["No se han seleccionado elementos para este informe."];
     const detallePdfActivo =
       detalleInformeGerencial !== "sin-detalle" ||
       seccionesInformeSeleccionadas.includes("detalle-resumido");
@@ -3430,6 +3612,15 @@ export default function KpiGerencialAvanzadoPage() {
           </section>
         </header>
 
+        ${
+          !hayElementosInformeGerencial
+            ? `
+              <section class="pdf-section pdf-avoid">
+                <h2>No se han seleccionado elementos para este informe.</h2>
+                <p class="pdf-muted">Seleccione comandos, filtros destacados o secciones desde el Constructor de Informe Gerencial para generar contenido ejecutivo.</p>
+              </section>
+            `
+            : `
         <div class="pdf-note">
           Este informe considera los registros actualmente cargados en KPI. La version futura con HV-DATA permitirá generar informes sobre dataset filtrado completo server-side.
         </div>
@@ -3496,7 +3687,9 @@ export default function KpiGerencialAvanzadoPage() {
           </div>
         </section>
 
-        <section class="pdf-section pdf-avoid">
+        ${
+          graficosInformeSeleccionados.length > 0 || rankingsInformeSeleccionados.length > 0
+            ? `<section class="pdf-section pdf-avoid">
           <h2>Configuración de datos para gráficos</h2>
           <div class="pdf-grid">
             <div class="pdf-card">
@@ -3520,9 +3713,13 @@ export default function KpiGerencialAvanzadoPage() {
               <p class="pdf-muted">Queda preparada la lógica para configurar datos por gráfico o sección sin convertir el PDF en una exportación rígida.</p>
             </div>
           </div>
-        </section>
+        </section>`
+            : ""
+        }
 
-        <section class="pdf-section pdf-avoid">
+        ${
+          seccionesInformeSeleccionadas.includes("kpis")
+            ? `<section class="pdf-section pdf-avoid">
           <h2>KPIs principales</h2>
           <div class="pdf-kpis">
             ${renderDato("Total", analisisInformeGerencial.total)}
@@ -3533,14 +3730,22 @@ export default function KpiGerencialAvanzadoPage() {
             ${renderDato("Sin fecha compromiso", metricasInformeGerencial.sinFechaCompromiso)}
             ${renderDato("Tasa cierre", `${analisisInformeGerencial.tasaCierre}%`)}
           </div>
-        </section>
+        </section>`
+            : ""
+        }
 
-        <section class="pdf-section pdf-text-section pdf-avoid">
+        ${
+          seccionesInformeSeleccionadas.includes("resumen")
+            ? `<section class="pdf-section pdf-text-section pdf-avoid">
           <h2>Resumen ejecutivo</h2>
           <p>${escaparHtmlInforme(resumenInformeGerencial)}</p>
-        </section>
+        </section>`
+            : ""
+        }
 
-        <section class="pdf-section pdf-text-section pdf-avoid">
+        ${
+          seccionesInformeSeleccionadas.includes("riesgos")
+            ? `<section class="pdf-section pdf-text-section pdf-avoid">
           <h2>Riesgos principales</h2>
           <ul class="pdf-list">
             ${renderLista([
@@ -3550,7 +3755,9 @@ export default function KpiGerencialAvanzadoPage() {
               `Sin responsable: ${metricasInformeGerencial.sinResponsable}`,
             ])}
           </ul>
-        </section>
+        </section>`
+            : ""
+        }
 
         <section class="pdf-section pdf-section-flow">
           <h2>Análisis ejecutivo por sección</h2>
@@ -3603,7 +3810,10 @@ export default function KpiGerencialAvanzadoPage() {
 
         ${rankingsPdfInformeGerencial.map(renderTablaRanking).join("")}
 
-        <section class="pdf-section pdf-avoid">
+        ${
+          seccionesInformeSeleccionadas.includes("calidad-dato") ||
+          graficosInformeSeleccionados.includes("calidad-dato")
+            ? `<section class="pdf-section pdf-avoid">
           <h2>Calidad del dato</h2>
           <div class="pdf-kpis">
             ${renderDato("Con GPS", `${metricasInformeGerencial.conGps} / ${analisisInformeGerencial.total || 0}`)}
@@ -3611,7 +3821,9 @@ export default function KpiGerencialAvanzadoPage() {
             ${renderDato("Con responsable", `${metricasInformeGerencial.conResponsable} / ${analisisInformeGerencial.total || 0}`)}
             ${renderDato("Con fecha compromiso", `${metricasInformeGerencial.conFechaCompromiso} / ${analisisInformeGerencial.total || 0}`)}
           </div>
-        </section>
+        </section>`
+            : ""
+        }
 
         ${
           detallePdfActivo
@@ -3659,15 +3871,25 @@ export default function KpiGerencialAvanzadoPage() {
             : ""
         }
 
-        <section class="pdf-section pdf-text-section pdf-avoid">
+        ${
+          seccionesInformeSeleccionadas.includes("advertencias")
+            ? `<section class="pdf-section pdf-text-section pdf-avoid">
           <h2>Advertencias</h2>
           <ul class="pdf-list">${renderLista(advertenciasInformeGerencial)}</ul>
-        </section>
+        </section>`
+            : ""
+        }
 
-        <section class="pdf-section pdf-text-section pdf-final-text-section pdf-avoid">
+        ${
+          seccionesInformeSeleccionadas.includes("nota-normativa")
+            ? `<section class="pdf-section pdf-text-section pdf-final-text-section pdf-avoid">
           <h2>Nota normativa prudente</h2>
           <p>${escaparHtmlInforme(notaNormativaInformeGerencial)}</p>
-        </section>
+        </section>`
+            : ""
+        }
+            `
+        }
 
         <div class="pdf-safe-bottom"></div>
 
@@ -3789,7 +4011,7 @@ export default function KpiGerencialAvanzadoPage() {
           </div>
 
           <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
-            <Link href="/panel" onMouseDown={() => activarBoton("volver")} style={botonStyle("volver")}>
+            <Link href="/panel" prefetch onMouseDown={() => activarBoton("volver")} style={botonStyle("volver")}>
               {t("Volver al panel")}
             </Link>
             <button
@@ -4918,17 +5140,17 @@ export default function KpiGerencialAvanzadoPage() {
                 <div>
                   <div style={{ display: "inline-flex", alignItems: "center", gap: "9px", borderRadius: "999px", padding: "6px 10px", background: temaClaro ? "rgba(37,99,235,0.10)" : "rgba(56,189,248,0.10)", border: temaClaro ? "1px solid rgba(37,99,235,0.22)" : "1px solid rgba(125,211,252,0.22)", color: textoAzul, fontSize: "11px", fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.7px", boxShadow: temaClaro ? "0 8px 18px rgba(37,99,235,0.08)" : "0 0 18px rgba(56,189,248,0.10)" }}>
                     <span style={{ width: "7px", height: "18px", borderRadius: "999px", background: "linear-gradient(180deg, rgba(56,189,248,0.96), rgba(99,102,241,0.72))", boxShadow: "0 0 14px rgba(56,189,248,0.32)" }} />
-                    Constructor de Informe Gerencial
+                    Filtros destacados para informe gerencial
                   </div>
                   <h2 style={{ margin: "8px 0 0", fontSize: "24px", lineHeight: 1.08, fontWeight: 1000, color: textoPrincipal, textShadow: temaClaro ? "none" : "0 0 20px rgba(56,189,248,0.14)" }}>
-                    Vista previa ejecutiva
+                    Informe en construcción
                   </h2>
                   <p style={{ margin: "5px 0 0", color: textoSuave, fontSize: "12px", lineHeight: 1.4, fontWeight: 750 }}>
-                    Configure una vista previa ejecutiva usando los filtros y datos actuales del KPI.
+                    El informe se arma solo con comandos, filtros y secciones seleccionadas aqui. Los filtros del dashboard no se incorporan automaticamente.
                   </p>
                 </div>
                 <div style={{ borderRadius: "999px", padding: "7px 10px", background: fondoInterno, border: bordeInterno, color: textoAzul, fontSize: "11px", fontWeight: 950 }}>
-                  PDF y Excel en fase posterior
+                  PDF controlado por selección
                 </div>
               </div>
 
@@ -4948,7 +5170,6 @@ export default function KpiGerencialAvanzadoPage() {
                           onClick={() => {
                             activarBoton(`plantilla-${plantilla.id}`);
                             setTipoInformeGerencial(plantilla.id);
-                            aplicarConfiguracionInforme(plantilla);
                           }}
                           style={{
                             borderRadius: "14px",
@@ -4985,7 +5206,7 @@ export default function KpiGerencialAvanzadoPage() {
                           type="button"
                           onClick={() => {
                             activarBoton(`nivel-informe-${opcion.id}`);
-                            aplicarNivelDetalleInforme(opcion.id);
+                            setNivelDetalleInformeGerencial(opcion.id);
                           }}
                           style={{
                             borderRadius: "14px",
@@ -5013,67 +5234,208 @@ export default function KpiGerencialAvanzadoPage() {
 
                   <div style={{ borderRadius: "18px", padding: "12px", background: fondoInterno, border: bordeInterno, display: "grid", gap: "10px" }}>
                     <div style={{ color: textoAzul, fontSize: "11px", fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.55px" }}>
-                      Alcance del informe
+                      Alcance operacional
                     </div>
-                    <label style={{ display: "grid", gap: "6px" }}>
-                      <span style={{ color: textoSuave, fontSize: "10px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                        Alcance
-                      </span>
-                      <select
-                        value={alcanceInformeGerencial}
-                        onChange={(event) => {
-                          setAlcanceInformeGerencial(event.target.value as AlcanceInformeGerencial);
-                          setValorAlcanceInformeGerencial("");
-                        }}
-                        style={themedInputStyle}
-                      >
-                        {alcanceInformeOpciones.map((opcion) => (
-                          <option key={opcion.id} value={opcion.id}>
-                            {opcion.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    {valoresAlcanceInformeGerencial.length > 0 ? (
-                      <label style={{ display: "grid", gap: "6px" }}>
+                    {[
+                      ["Empresa reportante", "empresaReportante", opciones.empresasReportantes],
+                      ["Empresa responsable / involucrada", "empresaResponsable", opciones.empresasResponsables],
+                      ["Obra / proyecto", "obra", opciones.obras],
+                      ["Area", "area", opciones.areas],
+                      ["Tipo de hallazgo", "tipoHallazgo", opciones.tipos],
+                    ].map(([label, key, values]) => (
+                      <label key={`informe-${key}`} style={{ display: "grid", gap: "6px" }}>
                         <span style={{ color: textoSuave, fontSize: "10px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                          Valor
+                          {label as string}
                         </span>
                         <select
-                          value={valorAlcanceInformeGerencial}
-                          onChange={(event) => setValorAlcanceInformeGerencial(event.target.value)}
+                          value={String(filtrosInformeGerencial[key as keyof FiltrosInformeGerencial] || "")}
+                          onChange={(event) =>
+                            asignarFiltroInforme({
+                              [key as string]: event.target.value || undefined,
+                            } as Partial<FiltrosInformeGerencial>)
+                          }
                           style={themedInputStyle}
                         >
-                          <option value="">Todos</option>
-                          {valoresAlcanceInformeGerencial.map((valor) => (
-                            <option key={`alcance-informe-${valor}`} value={valor}>
+                          <option value="">No seleccionado</option>
+                          {(values as string[]).map((valor) => (
+                            <option key={`informe-${key}-${valor}`} value={valor}>
                               {valor}
                             </option>
                           ))}
                         </select>
                       </label>
-                    ) : (
-                      <div style={{ borderRadius: "14px", padding: "10px 11px", background: fondoInternoFuerte, border: bordeInterno, color: textoSuave, fontSize: "11px", lineHeight: 1.35, fontWeight: 750 }}>
-                        {alcanceInformeGerencial === "periodo"
-                          ? "Usa el periodo y los filtros maestros activos actualmente."
-                          : "Vista general sobre los registros filtrados del KPI."}
-                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ borderRadius: "18px", padding: "12px", background: fondoInterno, border: bordeInterno, display: "grid", gap: "10px" }}>
+                    <div style={{ color: textoAzul, fontSize: "11px", fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.55px" }}>
+                      Personas
+                    </div>
+                    {opciones.reportantes.length > 0 && (
+                      <label style={{ display: "grid", gap: "6px" }}>
+                        <span style={{ color: textoSuave, fontSize: "10px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                          Supervisor/reportante
+                        </span>
+                        <select
+                          value={filtrosInformeGerencial.reportante || ""}
+                          onChange={(event) => asignarFiltroInforme({ reportante: event.target.value || undefined })}
+                          style={themedInputStyle}
+                        >
+                          <option value="">No seleccionado</option>
+                          {opciones.reportantes.map((valor) => (
+                            <option key={`informe-reportante-${valor}`} value={valor}>{valor}</option>
+                          ))}
+                        </select>
+                      </label>
                     )}
+                    <label style={{ display: "grid", gap: "6px" }}>
+                      <span style={{ color: textoSuave, fontSize: "10px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                        Responsable de cierre
+                      </span>
+                      <select
+                        value={filtrosInformeGerencial.responsableCierre || ""}
+                        onChange={(event) => asignarFiltroInforme({ responsableCierre: event.target.value || undefined })}
+                        style={themedInputStyle}
+                      >
+                        <option value="">No seleccionado</option>
+                        {opciones.responsables.map((valor) => (
+                          <option key={`informe-responsable-${valor}`} value={valor}>{valor}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label style={{ display: "grid", gap: "6px" }}>
+                      <span style={{ color: textoSuave, fontSize: "10px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                        Cargo del responsable
+                      </span>
+                      <select
+                        value={filtrosInformeGerencial.responsableCargo || ""}
+                        onChange={(event) => asignarFiltroInforme({ responsableCargo: event.target.value || undefined })}
+                        style={themedInputStyle}
+                      >
+                        <option value="">No seleccionado</option>
+                        {opciones.cargosResponsables.map((valor) => (
+                          <option key={`informe-cargo-${valor}`} value={valor}>{valor}</option>
+                        ))}
+                      </select>
+                    </label>
                   </div>
                 </div>
 
                 <div style={{ borderRadius: "18px", padding: "12px", background: fondoInterno, border: bordeInterno, display: "grid", gap: "12px", alignContent: "start" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
                     <div style={{ color: textoAzul, fontSize: "11px", fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.55px" }}>
-                      Seleccion configurable del informe
+                      Comandos y secciones del informe
                     </div>
                     <button
                       type="button"
-                      onClick={() => aplicarConfiguracionInforme(plantillaInformeActiva)}
+                      onClick={limpiarInformeGerencial}
                       style={{ ...botonStyle("preset-informe"), minHeight: "32px", padding: "7px 10px", fontSize: "11px" }}
                     >
-                      Restaurar preset
+                      Limpiar informe
                     </button>
+                  </div>
+
+                  <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                    <button
+                      type="button"
+                      onClick={agregarFiltrosActualesAlInforme}
+                      style={{ ...botonStyle("agregar-filtros-informe", true), minHeight: "34px", padding: "7px 10px", fontSize: "11px" }}
+                    >
+                      Agregar filtros actuales al informe
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => aplicarPeriodoInforme("periodo-filtrado")}
+                      style={{ ...botonStyle("periodo-filtrado-informe"), minHeight: "34px", padding: "7px 10px", fontSize: "11px" }}
+                    >
+                      Periodo filtrado actual
+                    </button>
+                  </div>
+
+                  <div style={{ display: "grid", gap: "10px", borderRadius: "16px", padding: "10px", background: fondoInternoFuerte, border: bordeInterno }}>
+                    {[
+                      {
+                        titulo: "Riesgo",
+                        items: [
+                          ["Criticos", filtrosInformeGerencial.criticidad === "CRITICO", () => asignarFiltroInforme({ criticidad: filtrosInformeGerencial.criticidad === "CRITICO" ? undefined : "CRITICO" })],
+                          ["Altos", filtrosInformeGerencial.criticidad === "ALTO", () => asignarFiltroInforme({ criticidad: filtrosInformeGerencial.criticidad === "ALTO" ? undefined : "ALTO" })],
+                          ["Medios", filtrosInformeGerencial.criticidad === "MEDIO", () => asignarFiltroInforme({ criticidad: filtrosInformeGerencial.criticidad === "MEDIO" ? undefined : "MEDIO" })],
+                          ["Bajos", filtrosInformeGerencial.criticidad === "BAJO", () => asignarFiltroInforme({ criticidad: filtrosInformeGerencial.criticidad === "BAJO" ? undefined : "BAJO" })],
+                          ["Criticos abiertos", Boolean(filtrosInformeGerencial.soloCriticosAbiertos), () => asignarFiltroInforme({ soloCriticosAbiertos: !filtrosInformeGerencial.soloCriticosAbiertos })],
+                          ["Reincidencias", Boolean(filtrosInformeGerencial.soloReincidencias), () => asignarFiltroInforme({ soloReincidencias: !filtrosInformeGerencial.soloReincidencias })],
+                        ] as Array<[string, boolean, () => void]>,
+                      },
+                      {
+                        titulo: "Estado y cierre",
+                        items: [
+                          ["Reportados", filtrosInformeGerencial.estado === "REPORTADO", () => asignarFiltroInforme({ estado: filtrosInformeGerencial.estado === "REPORTADO" ? undefined : "REPORTADO" })],
+                          ["Abiertos", filtrosInformeGerencial.estado === "ABIERTO", () => asignarFiltroInforme({ estado: filtrosInformeGerencial.estado === "ABIERTO" ? undefined : "ABIERTO" })],
+                          ["En seguimiento", filtrosInformeGerencial.estado === "EN_SEGUIMIENTO", () => asignarFiltroInforme({ estado: filtrosInformeGerencial.estado === "EN_SEGUIMIENTO" ? undefined : "EN_SEGUIMIENTO" })],
+                          ["Cerrados", filtrosInformeGerencial.estado === "CERRADO", () => asignarFiltroInforme({ estado: filtrosInformeGerencial.estado === "CERRADO" ? undefined : "CERRADO" })],
+                          ["Anulados", filtrosInformeGerencial.estado === "ANULADO", () => asignarFiltroInforme({ estado: filtrosInformeGerencial.estado === "ANULADO" ? undefined : "ANULADO" })],
+                          ["Vencidos", filtrosInformeGerencial.vencimiento === "vencidos", () => asignarFiltroInforme({ vencimiento: filtrosInformeGerencial.vencimiento === "vencidos" ? "todos" : "vencidos" })],
+                          ["No vencidos", filtrosInformeGerencial.vencimiento === "no-vencidos", () => asignarFiltroInforme({ vencimiento: filtrosInformeGerencial.vencimiento === "no-vencidos" ? "todos" : "no-vencidos" })],
+                          ["Sin fecha compromiso", Boolean(filtrosInformeGerencial.sinFechaCompromiso), () => asignarFiltroInforme({ sinFechaCompromiso: !filtrosInformeGerencial.sinFechaCompromiso })],
+                        ] as Array<[string, boolean, () => void]>,
+                      },
+                      {
+                        titulo: "Evidencia y trazabilidad",
+                        items: [
+                          ["Con GPS", filtrosInformeGerencial.gps === "con-gps", () => asignarFiltroInforme({ gps: filtrosInformeGerencial.gps === "con-gps" ? "todos" : "con-gps" })],
+                          ["Sin GPS", filtrosInformeGerencial.gps === "sin-gps", () => asignarFiltroInforme({ gps: filtrosInformeGerencial.gps === "sin-gps" ? "todos" : "sin-gps" })],
+                          ["Con evidencia", filtrosInformeGerencial.evidencia === "con-evidencia", () => asignarFiltroInforme({ evidencia: filtrosInformeGerencial.evidencia === "con-evidencia" ? "todos" : "con-evidencia" })],
+                          ["Sin evidencia", filtrosInformeGerencial.evidencia === "sin-evidencia", () => asignarFiltroInforme({ evidencia: filtrosInformeGerencial.evidencia === "sin-evidencia" ? "todos" : "sin-evidencia" })],
+                        ] as Array<[string, boolean, () => void]>,
+                      },
+                      {
+                        titulo: "Periodo",
+                        items: [
+                          ["Hoy", filtrosInformeGerencial.fechaDesde === new Date().toISOString().slice(0, 10) && filtrosInformeGerencial.fechaHasta === new Date().toISOString().slice(0, 10), () => aplicarPeriodoInforme("hoy")],
+                          ["Esta semana", Boolean(filtrosInformeGerencial.fechaDesde && filtrosInformeGerencial.fechaHasta && !filtrosInformeGerencial.mes), () => aplicarPeriodoInforme("semana")],
+                          ["Este mes", filtrosInformeGerencial.mes === new Date().toISOString().slice(0, 7), () => aplicarPeriodoInforme("mes")],
+                        ] as Array<[string, boolean, () => void]>,
+                      },
+                    ].map((grupo) => (
+                      <div key={`comandos-informe-${grupo.titulo}`} style={{ display: "grid", gap: "7px" }}>
+                        <div style={{ color: textoSuave, fontSize: "10px", fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                          {grupo.titulo}
+                        </div>
+                        <div style={{ display: "flex", gap: "7px", flexWrap: "wrap" }}>
+                          {grupo.items.map(([label, activo, accion]) => (
+                            <button
+                              key={`comando-informe-${grupo.titulo}-${label}`}
+                              type="button"
+                              onClick={accion}
+                              style={{
+                                minHeight: "32px",
+                                borderRadius: "999px",
+                                border: activo ? "1px solid rgba(96,165,250,0.52)" : bordeInterno,
+                                background: activo
+                                  ? "linear-gradient(135deg, rgba(37,99,235,0.88), rgba(14,165,233,0.62))"
+                                  : fondoInterno,
+                                color: activo ? "#ffffff" : textoMedio,
+                                padding: "7px 10px",
+                                fontSize: "11px",
+                                fontWeight: 900,
+                                cursor: "pointer",
+                              }}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                      <label style={{ display: "grid", gap: "5px" }}>
+                        <span style={{ color: textoSuave, fontSize: "10px", fontWeight: 900, textTransform: "uppercase" }}>Desde</span>
+                        <input type="date" value={filtrosInformeGerencial.fechaDesde || ""} onChange={(event) => asignarFiltroInforme({ fechaDesde: event.target.value || undefined })} style={themedInputStyle} />
+                      </label>
+                      <label style={{ display: "grid", gap: "5px" }}>
+                        <span style={{ color: textoSuave, fontSize: "10px", fontWeight: 900, textTransform: "uppercase" }}>Hasta</span>
+                        <input type="date" value={filtrosInformeGerencial.fechaHasta || ""} onChange={(event) => asignarFiltroInforme({ fechaHasta: event.target.value || undefined })} style={themedInputStyle} />
+                      </label>
+                    </div>
                   </div>
 
                   {[
@@ -5293,15 +5655,15 @@ export default function KpiGerencialAvanzadoPage() {
                 </div>
 
                 <div style={{ display: "flex", gap: "7px", flexWrap: "wrap" }}>
-                  {filtrosActivosResumen.length > 0 ? (
-                    filtrosActivosResumen.map((filtro) => (
-                      <span key={`informe-filtro-${filtro}`} style={{ borderRadius: "999px", padding: "6px 9px", background: fondoInternoFuerte, border: bordeInterno, color: textoMedio, fontSize: "11px", fontWeight: 850 }}>
-                        {filtro}
+                  {comandosInformeResumen.length > 0 ? (
+                    comandosInformeResumen.map((comando) => (
+                      <span key={`informe-comando-${comando}`} style={{ borderRadius: "999px", padding: "6px 9px", background: fondoInternoFuerte, border: bordeInterno, color: textoMedio, fontSize: "11px", fontWeight: 850 }}>
+                        {comando}
                       </span>
                     ))
                   ) : (
                     <span style={{ borderRadius: "999px", padding: "6px 9px", background: fondoInternoFuerte, border: bordeInterno, color: textoMedio, fontSize: "11px", fontWeight: 850 }}>
-                      Vista general sin filtros maestros activos
+                      No se han seleccionado elementos para este informe.
                     </span>
                   )}
                 </div>
@@ -5313,6 +5675,7 @@ export default function KpiGerencialAvanzadoPage() {
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: "8px" }}>
                     {[
                       ["Nivel de detalle", etiquetaNivelDetalleInforme(nivelDetalleInformeGerencial)],
+                      ["Comandos seleccionados", `${comandosInformeResumen.length}`],
                       ["Secciones principales", etiquetasSeccionesPrincipalesSeleccionadas.join(", ")],
                       ["Graficos incluidos", etiquetasGraficosSeleccionados.join(", ")],
                       ["Series tendencia", etiquetasSeriesTendenciaSeleccionadas.join(", ")],
@@ -5337,6 +5700,12 @@ export default function KpiGerencialAvanzadoPage() {
                   </div>
                 </div>
 
+                {!hayElementosInformeGerencial && (
+                  <div style={{ borderRadius: "18px", padding: "16px", background: temaClaro ? "rgba(248,250,252,0.86)" : "rgba(15,23,42,0.54)", border: bordeInterno, color: textoMedio, fontSize: "13px", lineHeight: 1.5, fontWeight: 800 }}>
+                    No se han seleccionado elementos para este informe.
+                  </div>
+                )}
+
                 {seccionesInformeSeleccionadas.includes("kpis") && (
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "9px" }}>
                     {[
@@ -5355,6 +5724,7 @@ export default function KpiGerencialAvanzadoPage() {
                   </div>
                 )}
 
+                {(!hayElementosInformeGerencial || seccionesInformeSeleccionadas.includes("resumen")) && (
                 <div style={{ borderRadius: "16px", padding: "12px", background: fondoInterno, border: bordeInterno }}>
                   <div style={{ color: textoAzul, fontSize: "11px", fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.55px" }}>
                     Resumen ejecutivo deterministico
@@ -5363,6 +5733,7 @@ export default function KpiGerencialAvanzadoPage() {
                     {resumenInformeGerencial}
                   </p>
                 </div>
+                )}
 
                 {analisisSeccionesInformeGerencial.length > 0 && (
                   <div style={{ display: "grid", gap: "12px", borderRadius: "20px", padding: "15px", background: temaClaro ? "linear-gradient(145deg, rgba(255,255,255,0.96), rgba(239,246,255,0.88))" : "linear-gradient(145deg, rgba(15,23,42,0.92), rgba(8,47,73,0.52))", border: temaClaro ? "1px solid rgba(37,99,235,0.20)" : "1px solid rgba(125,211,252,0.22)", borderLeft: temaClaro ? "4px solid rgba(37,99,235,0.78)" : "4px solid rgba(56,189,248,0.78)", boxShadow: temaClaro ? "0 16px 32px rgba(15,23,42,0.08)" : "0 18px 42px rgba(0,0,0,0.24)" }}>
@@ -5404,6 +5775,7 @@ export default function KpiGerencialAvanzadoPage() {
                   </div>
                 )}
 
+                {seccionesInformeSeleccionadas.includes("riesgos") && (
                 <div style={{ borderRadius: "16px", padding: "12px", background: fondoInterno, border: bordeInterno, display: "grid", gap: "8px", alignContent: "start" }}>
                   <div style={{ color: textoAzul, fontSize: "11px", fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.55px" }}>
                     Riesgos principales
@@ -5419,6 +5791,7 @@ export default function KpiGerencialAvanzadoPage() {
                     </div>
                   ))}
                 </div>
+                )}
 
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "10px" }}>
                   {(seccionesInformeSeleccionadas.includes("calidad-dato") ||
@@ -5485,6 +5858,7 @@ export default function KpiGerencialAvanzadoPage() {
                   )}
                 </div>
 
+                {seccionesInformeSeleccionadas.includes("advertencias") && (
                 <div style={{ borderRadius: "16px", padding: "12px", background: temaClaro ? "rgba(254,249,195,0.56)" : "rgba(250,204,21,0.08)", border: temaClaro ? "1px solid rgba(202,138,4,0.20)" : "1px solid rgba(250,204,21,0.18)", display: "grid", gap: "7px" }}>
                   <div style={{ color: temaClaro ? "#92400e" : "#fde68a", fontSize: "11px", fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.55px" }}>
                     Advertencias de datos
@@ -5495,10 +5869,13 @@ export default function KpiGerencialAvanzadoPage() {
                     </div>
                   ))}
                 </div>
+                )}
 
+                {seccionesInformeSeleccionadas.includes("nota-normativa") && (
                 <div style={{ borderRadius: "14px", padding: "10px 12px", background: fondoInterno, border: bordeInterno, color: textoSuave, fontSize: "11px", lineHeight: 1.45, fontWeight: 760 }}>
                   Este análisis es determinístico y se basa en los registros actualmente cargados en KPI. No reemplaza auditoría legal ni validación técnica formal.
                 </div>
+                )}
               </div>
             </section>
             <section style={{ ...themedSurfaceStyle, padding: "18px", display: "grid", gap: "14px", width: "100%", maxWidth: "none", minWidth: 0, alignSelf: "stretch", justifySelf: "stretch", boxSizing: "border-box", gridColumn: "1 / -1" }}>

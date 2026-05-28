@@ -332,6 +332,97 @@ type PanelConfigPersistida = {
   idiomaSistema: "es" | "en" | "auto";
 };
 
+function leerConfiguracionPanelPersistida(): Partial<PanelConfigPersistida> | null {
+  if (typeof window === "undefined") return null;
+
+  const configuracion = window.localStorage.getItem(PANEL_CONFIG_STORAGE_KEY);
+  if (!configuracion) return null;
+
+  try {
+    const parsed = JSON.parse(configuracion) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    return parsed as Partial<PanelConfigPersistida>;
+  } catch {
+    return null;
+  }
+}
+
+function guardarConfiguracionPanelPersistida(
+  cambios: Partial<PanelConfigPersistida>
+) {
+  if (typeof window === "undefined") return false;
+
+  const configuracionActual = leerConfiguracionPanelPersistida() || {};
+
+  try {
+    window.localStorage.setItem(
+      PANEL_CONFIG_STORAGE_KEY,
+      JSON.stringify({
+        ...configuracionActual,
+        ...cambios,
+      })
+    );
+    return true;
+  } catch (error) {
+    console.warn("No se pudo persistir la configuracion del panel.", error);
+    return false;
+  }
+}
+
+function leerArchivoComoDataUrl(archivo: File) {
+  return new Promise<string>((resolve, reject) => {
+    const lector = new FileReader();
+    lector.onload = () => {
+      if (typeof lector.result === "string") {
+        resolve(lector.result);
+        return;
+      }
+
+      reject(new Error("No se pudo leer el archivo seleccionado."));
+    };
+    lector.onerror = () => reject(new Error("No se pudo leer el archivo seleccionado."));
+    lector.readAsDataURL(archivo);
+  });
+}
+
+async function prepararLogoEmpresaParaPersistencia(archivo: File) {
+  if (archivo.type === "image/svg+xml") {
+    return leerArchivoComoDataUrl(archivo);
+  }
+
+  const objectUrl = URL.createObjectURL(archivo);
+
+  try {
+    const imagen = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error("No se pudo procesar el logo seleccionado."));
+      img.src = objectUrl;
+    });
+
+    const ladoMayor = Math.max(imagen.naturalWidth || 1, imagen.naturalHeight || 1);
+    const escala = Math.min(1, 512 / ladoMayor);
+    const ancho = Math.max(1, Math.round((imagen.naturalWidth || 1) * escala));
+    const alto = Math.max(1, Math.round((imagen.naturalHeight || 1) * escala));
+    const canvas = document.createElement("canvas");
+    const contexto = canvas.getContext("2d");
+
+    if (!contexto) return leerArchivoComoDataUrl(archivo);
+
+    canvas.width = ancho;
+    canvas.height = alto;
+    contexto.clearRect(0, 0, ancho, alto);
+    contexto.drawImage(imagen, 0, 0, ancho, alto);
+
+    const webp = canvas.toDataURL("image/webp", 0.86);
+    if (webp.startsWith("data:image/webp")) return webp;
+
+    return canvas.toDataURL("image/png");
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
 type PanelProfilePersistido = {
   nombrePerfil: string;
   cargoPerfil: string;
@@ -414,15 +505,74 @@ export default function PanelEjecutivoPage() {
 const [idiomaSistema, setIdiomaSistema] = useState<"es" | "en" | "auto">(
   () => readPlatformPreferences().language
 );
-const [nombreEmpresaConfig, setNombreEmpresaConfig] = useState("Cliente corporativo");
-const [logoEmpresaConfig, setLogoEmpresaConfig] = useState("");
+const [nombreEmpresaConfig, setNombreEmpresaConfig] = useState(() => {
+  const configuracion = leerConfiguracionPanelPersistida();
+  return typeof configuracion?.nombreEmpresaConfig === "string"
+    ? configuracion.nombreEmpresaConfig.trim() || "Cliente corporativo"
+    : "Cliente corporativo";
+});
+const [logoEmpresaConfig, setLogoEmpresaConfig] = useState(() => {
+  const configuracion = leerConfiguracionPanelPersistida();
+  return typeof configuracion?.logoEmpresaConfig === "string"
+    ? configuracion.logoEmpresaConfig
+    : "";
+});
 const [logoInputKey, setLogoInputKey] = useState(0);
-const [brandingPC, setBrandingPC] = useState(true);
-const [brandingPDF, setBrandingPDF] = useState(true);
-const [formatosExportacion, setFormatosExportacion] = useState<FormatosExportacionConfig>(formatosExportacionPorDefecto);
-const [opcionesPDF, setOpcionesPDF] = useState<OpcionesPDFConfig>(opcionesPDFPorDefecto);
-const [perfilesActivos, setPerfilesActivos] = useState<Record<PerfilPermiso, boolean>>(perfilesActivosPorDefecto);
+const [brandingPC, setBrandingPC] = useState(() => {
+  const configuracion = leerConfiguracionPanelPersistida();
+  return typeof configuracion?.brandingPC === "boolean"
+    ? configuracion.brandingPC
+    : true;
+});
+const [brandingPDF, setBrandingPDF] = useState(() => {
+  const configuracion = leerConfiguracionPanelPersistida();
+  return typeof configuracion?.brandingPDF === "boolean"
+    ? configuracion.brandingPDF
+    : true;
+});
+const [formatosExportacion, setFormatosExportacion] = useState<FormatosExportacionConfig>(() => {
+  const configuracion = leerConfiguracionPanelPersistida();
+  if (configuracion?.formatosExportacion) {
+    const formatosGuardados = {
+      ...formatosExportacionPorDefecto,
+      ...configuracion.formatosExportacion,
+    };
+    return Object.values(formatosGuardados).some(Boolean)
+      ? formatosGuardados
+      : formatosExportacionPorDefecto;
+  }
+
+  return formatosExportacionPorDefecto;
+});
+const [opcionesPDF, setOpcionesPDF] = useState<OpcionesPDFConfig>(() => {
+  const configuracion = leerConfiguracionPanelPersistida();
+  return configuracion?.opcionesPDF
+    ? {
+        ...opcionesPDFPorDefecto,
+        ...configuracion.opcionesPDF,
+      }
+    : opcionesPDFPorDefecto;
+});
+const [perfilesActivos, setPerfilesActivos] = useState<Record<PerfilPermiso, boolean>>(() => {
+  const configuracion = leerConfiguracionPanelPersistida();
+  if (configuracion?.perfilesActivos) {
+    const perfilesGuardados = {
+      ...perfilesActivosPorDefecto,
+      ...configuracion.perfilesActivos,
+    };
+    return Object.values(perfilesGuardados).some(Boolean)
+      ? perfilesGuardados
+      : perfilesActivosPorDefecto;
+  }
+
+  return perfilesActivosPorDefecto;
+});
 const [guardadoConfig, setGuardadoConfig] = useState(false);
+
+  useEffect(() => {
+    router.prefetch("/panel/kpi-gerencial");
+    router.prefetch("/panel/mapa-gps");
+  }, [router]);
 const [fechaActualizacion, setFechaActualizacion] = useState<Date | null>(null);
 const [filasPanel, setFilasPanel] = useState<HallazgoPanelExtendido[]>(hallazgosMock);
 const [hallazgosAnuladosResumen, setHallazgosAnuladosResumen] = useState<HallazgoPanelExtendido[]>([]);
@@ -949,20 +1099,25 @@ const [menuExportacionMetaAbierto, setMenuExportacionMetaAbierto] = useState(fal
   };
   const nombreEmpresaVisible = nombreEmpresaConfig.trim() || "Cliente corporativo";
   const hayFormatoExportacionActivo = Object.values(formatosExportacion).some(Boolean);
-  const cargarLogoEmpresa = (archivo: File | undefined) => {
+  const cargarLogoEmpresa = async (archivo: File | undefined) => {
     if (!archivo) return;
 
-    const lector = new FileReader();
-    lector.onload = () => {
-      if (typeof lector.result === "string") {
-        setLogoEmpresaConfig(lector.result);
-      }
-    };
-    lector.readAsDataURL(archivo);
+    try {
+      const logoPreparado = await prepararLogoEmpresaParaPersistencia(archivo);
+      setLogoEmpresaConfig(logoPreparado);
+      guardarConfiguracionPanelPersistida({
+        logoEmpresaConfig: logoPreparado,
+      });
+    } catch (error) {
+      console.warn("No se pudo cargar el logo de empresa.", error);
+    }
   };
 
   const quitarLogoEmpresa = () => {
     setLogoEmpresaConfig("");
+    guardarConfiguracionPanelPersistida({
+      logoEmpresaConfig: "",
+    });
     setLogoInputKey((valor) => valor + 1);
   };
 
@@ -1008,10 +1163,7 @@ const [menuExportacionMetaAbierto, setMenuExportacionMetaAbierto] = useState(fal
     };
 
     if (typeof window !== "undefined") {
-      window.localStorage.setItem(
-        PANEL_CONFIG_STORAGE_KEY,
-        JSON.stringify(configuracion)
-      );
+      guardarConfiguracionPanelPersistida(configuracion);
       savePlatformPreferences({
         theme: modoSistema,
         language: idiomaSistema,
@@ -8820,6 +8972,7 @@ style={{
       </div>
       <Link
         href="/panel/kpi-gerencial"
+        prefetch
         style={{
           width: "100%",
           minHeight: "50px",
@@ -8840,6 +8993,7 @@ style={{
           transition: "background 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease",
         }}
         onMouseEnter={(e) => {
+          router.prefetch("/panel/kpi-gerencial");
           e.currentTarget.style.background =
             "linear-gradient(135deg, rgba(109,40,217,1), rgba(59,130,246,0.96))";
           e.currentTarget.style.boxShadow = "0 12px 26px rgba(124,58,237,0.30)";
@@ -8872,6 +9026,7 @@ style={{
       </Link>
       <Link
         href="/panel/mapa-gps"
+        prefetch
         style={{
           width: "100%",
           minHeight: "50px",
@@ -8892,6 +9047,7 @@ style={{
           transition: "background 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease",
         }}
         onMouseEnter={(e) => {
+          router.prefetch("/panel/mapa-gps");
           e.currentTarget.style.background =
             "linear-gradient(135deg, rgba(59,130,246,1), rgba(34,211,238,0.92))";
           e.currentTarget.style.boxShadow = "0 12px 26px rgba(14,165,233,0.30)";
