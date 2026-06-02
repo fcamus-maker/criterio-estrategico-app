@@ -38,6 +38,8 @@ import {
   quitarFotoPerfilUsuarioActual,
   subirFotoPerfilUsuarioActual,
 } from "../services/profilePhotoService";
+import PreventiveLegalRibbon from "../components/PreventiveLegalRibbon";
+import { resolveClientBranding } from "../services/clientBranding";
 
 type HallazgoPanelExtendido = HallazgoPanel & {
   area?: string;
@@ -1098,6 +1100,12 @@ const [menuExportacionMetaAbierto, setMenuExportacionMetaAbierto] = useState(fal
     return texto;
   };
   const nombreEmpresaVisible = nombreEmpresaConfig.trim() || "Cliente corporativo";
+  const clientBranding = resolveClientBranding({
+    nombreCliente: nombreEmpresaVisible,
+    logoUrl: logoEmpresaConfig,
+    mostrarLogoCliente: brandingPC,
+    mostrarLogoCE: true,
+  });
   const hayFormatoExportacionActivo = Object.values(formatosExportacion).some(Boolean);
   const cargarLogoEmpresa = async (archivo: File | undefined) => {
     if (!archivo) return;
@@ -1867,10 +1875,21 @@ const generarInformeEmpresaObra = () => {
     <section class="sheet">
       <div class="header">
         <div>
-          <h1>Informe Ejecutivo Empresa / Obra</h1>
-          <div class="sub">Criterio Estratégico · Emisión: ${escapeHtml(fechaEmision)}</div>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+            <img src="${escapeHtml(clientBranding.logoPrincipalUrl)}" alt="${escapeHtml(clientBranding.nombrePrincipal)}" style="width:42px;height:42px;object-fit:contain;border:1px solid #dbeafe;border-radius:10px;background:#fff;padding:4px;" />
+            <div>
+              <h1>INFORME EJECUTIVO PREVENTIVO</h1>
+              <div class="sub">${escapeHtml(clientBranding.nombrePrincipal)} · ${escapeHtml(clientBranding.poweredByText)} · Emisión: ${escapeHtml(fechaEmision)}</div>
+            </div>
+          </div>
         </div>
         <div class="folio-box">Folio: ${escapeHtml(folioInforme)}</div>
+      </div>
+
+      <div class="meta-item" style="margin-bottom:14px;border-color:#bfdbfe;background:#eff6ff;">
+        <div class="value" style="font-size:12px;line-height:1.45;color:#1e3a8a;">
+          Informe generado como herramienta de apoyo a la gestión preventiva, trazabilidad documental, evidencia de hallazgos, seguimiento de cierre y análisis ejecutivo, alineado al marco preventivo chileno vigente: Ley 16.744, DS 44 y DS 594.
+        </div>
       </div>
 
       <div class="meta-grid">
@@ -5831,8 +5850,16 @@ const descargarPDFHallazgoActivo = async () => {
       <body>
       <div class="page">
         <div class="wrap">
-          <h1>Informe Ejecutivo de Hallazgo</h1>
-          <div class="sub">Criterio Estratégico</div>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+            <img src="${escapeHtml(clientBranding.logoPrincipalUrl)}" alt="${escapeHtml(clientBranding.nombrePrincipal)}" style="width:42px;height:42px;object-fit:contain;border:1px solid #dbeafe;border-radius:10px;background:#fff;padding:4px;" />
+            <div>
+              <h1>INFORME EJECUTIVO PREVENTIVO</h1>
+              <div class="sub">${escapeHtml(clientBranding.nombrePrincipal)} · ${escapeHtml(clientBranding.poweredByText)}</div>
+            </div>
+          </div>
+          <div style="margin:10px 0 16px;padding:10px 12px;border:1px solid #bfdbfe;border-radius:10px;background:#eff6ff;color:#1e3a8a;font-size:12px;line-height:1.45;font-weight:700;">
+            Herramienta de apoyo a la gestión preventiva y trazabilidad de hallazgos, alineada a Ley 16.744, DS 44 y DS 594.
+          </div>
 
           <div class="grid">
             <div>
@@ -6776,6 +6803,12 @@ const riesgoOperativoPrincipal =
   className="ce-panel-main-header"
   style={{
     ...panelSurfaceStyle,
+    position: "sticky",
+    top: 0,
+    zIndex: 40,
+    isolation: "isolate",
+    backdropFilter: "blur(18px)",
+    WebkitBackdropFilter: "blur(18px)",
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
@@ -6818,11 +6851,11 @@ const riesgoOperativoPrincipal =
         }}
       >
         <img
-          src={brandingPC && logoEmpresaConfig ? logoEmpresaConfig : "/logo.png"}
-          alt={brandingPC ? nombreEmpresaVisible : "Criterio Estratégico"}
+          src={clientBranding.logoPrincipalUrl}
+          alt={clientBranding.nombrePrincipal}
           style={{
-            width: brandingPC && logoEmpresaConfig ? "40px" : "36px",
-            height: brandingPC && logoEmpresaConfig ? "40px" : "36px",
+            width: clientBranding.logoUrl && clientBranding.mostrarLogoCliente ? "40px" : "36px",
+            height: clientBranding.logoUrl && clientBranding.mostrarLogoCliente ? "40px" : "36px",
             objectFit: "contain",
             display: "block",
           }}
@@ -6841,7 +6874,7 @@ const riesgoOperativoPrincipal =
           fontWeight: 700,
         }}
       >
-        {brandingPC ? nombreEmpresaVisible : "Criterio Estratégico"}
+        {clientBranding.nombrePrincipal}
       </div>
 
       <div
@@ -6851,8 +6884,14 @@ const riesgoOperativoPrincipal =
           lineHeight: 1.08,
         }}
       >
-	        {t("Plataforma Ejecutiva de Hallazgos")}
+        {t("PLATAFORMA EJECUTIVA DE HALLAZGOS E ITO DE TERRENO")}
       </div>
+      <PreventiveLegalRibbon
+        theme={temaClaro ? "light" : "dark"}
+        compact
+        text={t("Gestión preventiva digital alineada a Ley 16.744, DS 44 y DS 594, con foco en evidencia, trazabilidad y seguimiento de cierre.")}
+        style={{ marginTop: "9px" }}
+      />
     </div>
   </div>
 
@@ -6892,7 +6931,7 @@ const riesgoOperativoPrincipal =
 	      <span>{t("Sistema activo")}</span>
     </div>
 
-	    <div>{t("Sistema inteligente de reportes")}</div>
+	    <div>{t("Herramienta de apoyo para hallazgos, inspecciones, función ITO de terreno y seguimiento preventivo con respaldo documental.")}</div>
 
     <div>
 	      {t("Vista activa:")}{" "}
@@ -10237,14 +10276,26 @@ style={{
             }}
             >
 {vistaDerecha !== "informe" ? null : (
-  <div
-    style={{
-      fontSize: "16px",
-      fontWeight: 800,
-      marginBottom: "12px",
-    }}
-  >
-	    {t("Informe Ejecutivo")}
+  <div style={{ marginBottom: "12px" }}>
+    <div
+      style={{
+        fontSize: "16px",
+        fontWeight: 800,
+      }}
+    >
+	      {t("INFORME EJECUTIVO PREVENTIVO")}
+    </div>
+    <div
+      style={{
+        marginTop: "6px",
+        color: tema.textoSuave,
+        fontSize: "12px",
+        lineHeight: 1.42,
+        fontWeight: 750,
+      }}
+    >
+      {t("Informe generado como herramienta de apoyo a la gestión preventiva, trazabilidad documental, evidencia de hallazgos, seguimiento de cierre y análisis ejecutivo, alineado al marco preventivo chileno vigente: Ley 16.744, DS 44 y DS 594.")}
+    </div>
   </div>
 )}
 
@@ -10275,9 +10326,16 @@ style={{
             color: tema.texto,
             marginBottom: "6px",
           }}
-        >
-          {t("Seguimiento de cierre")}
+          >
+          {t("SEGUIMIENTO DE CIERRE PREVENTIVO")}
         </div>
+        <PreventiveLegalRibbon
+          theme={temaClaro ? "light" : "dark"}
+          compact
+          label={t("Trazabilidad de cierre")}
+          text={t("Gestión preventiva digital alineada a Ley 16.744, DS 44 y DS 594, con foco en evidencia, trazabilidad y seguimiento de cierre.")}
+          style={{ marginBottom: "9px" }}
+        />
         <div
           style={{
             fontSize: "14px",
@@ -10286,7 +10344,9 @@ style={{
             fontWeight: 700,
           }}
         >
-          {t("Centro operativo para revisar hallazgos abiertos, empresas responsables, compromisos, evidencia y cierre.")}
+          {t("Control de responsables, plazos, evidencias y acciones correctivas bajo enfoque de gestión preventiva DS 44.")}
+          {" "}
+          {t("Cada cierre queda asociado a responsable, fecha, evidencia, estado y trazabilidad para control preventivo.")}
         </div>
       </div>
       <button

@@ -20,6 +20,8 @@ import {
   usePlatformPreferences,
 } from "../../services/platformPreferences";
 import { obtenerAuthProfileActual } from "../../services/authProfileService";
+import PreventiveLegalRibbon from "../../components/PreventiveLegalRibbon";
+import { readClientBrandingFromPanelConfig } from "../../services/clientBranding";
 
 type HallazgoPanelGerencial = HallazgoPanel & {
   area?: string;
@@ -625,7 +627,7 @@ async function cargarUsuarioGeneradorInforme(): Promise<UsuarioGeneradorInforme>
 }
 
 const notaNormativaInformeGerencial =
-  "Este analisis se relaciona con obligaciones generales de gestion preventiva bajo la Ley 16.744, con trazabilidad, control de riesgos, responsabilidades, seguimiento y mejora continua abordados por el DS 44, y con condiciones sanitarias, ambientales, de higiene, seguridad o exposicion del lugar de trabajo cuando corresponda revisar DS 594. No reemplaza auditoria legal ni validacion tecnica formal.";
+  "Este analisis apoya la lectura de gestion preventiva bajo el marco de Ley 16.744, DS 44 y DS 594, con foco en trazabilidad, evidencia, responsables, seguimiento y mejora continua. No reemplaza auditoria legal ni validacion tecnica formal.";
 
 const alcanceInformeOpciones: Array<{
   id: AlcanceInformeGerencial;
@@ -3174,6 +3176,10 @@ export default function KpiGerencialAvanzadoPage() {
       </div>
     `;
     const fotoGenerador = fotoPerfilPermitidaInforme(usuarioGeneradorInforme.foto);
+    const clientBranding = readClientBrandingFromPanelConfig();
+    const logoClientePdf = clientBranding.logoPrincipalUrl
+      ? `<img class="pdf-client-logo" src="${escaparHtmlInforme(clientBranding.logoPrincipalUrl)}" alt="${escaparHtmlInforme(clientBranding.nombrePrincipal)}" />`
+      : "";
     const inicialesGenerador = inicialesUsuarioInforme(usuarioGeneradorInforme.nombre);
     const avatarGenerador = fotoGenerador
       ? `<img src="${escaparHtmlInforme(fotoGenerador)}" alt="${escaparHtmlInforme(usuarioGeneradorInforme.nombre)}" />`
@@ -3249,6 +3255,29 @@ export default function KpiGerencialAvanzadoPage() {
             font-weight: 800;
             letter-spacing: 1.1px;
             text-transform: uppercase;
+          }
+          .pdf-cover-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+          }
+          .pdf-client-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #0f172a;
+            font-size: 12px;
+            font-weight: 900;
+          }
+          .pdf-client-logo {
+            width: 42px;
+            height: 42px;
+            object-fit: contain;
+            border: 1px solid #dbeafe;
+            border-radius: 10px;
+            background: #ffffff;
+            padding: 4px;
           }
           h1 {
             margin: 10px 0 8px;
@@ -3367,6 +3396,12 @@ export default function KpiGerencialAvanzadoPage() {
             page-break-inside: avoid;
             break-inside: avoid;
             break-inside: avoid-page;
+          }
+          .pdf-legal-base {
+            border-color: #bfdbfe;
+            background: #eff6ff;
+            color: #1e3a8a;
+            font-weight: 700;
           }
           .pdf-text-section {
             page-break-inside: avoid;
@@ -3586,9 +3621,18 @@ export default function KpiGerencialAvanzadoPage() {
         </style>
 
         <header class="pdf-cover pdf-avoid">
-          <div class="pdf-brand">Criterio Estratégico · Plataforma Hallazgos · Informe Gerencial</div>
+          <div class="pdf-cover-top">
+            <div class="pdf-client-brand">
+              ${logoClientePdf}
+              <span>${escaparHtmlInforme(clientBranding.nombrePrincipal)}</span>
+            </div>
+            <div class="pdf-brand">${escaparHtmlInforme(clientBranding.poweredByText)}</div>
+          </div>
           <h1>${escaparHtmlInforme(tituloAutomaticoInformeGerencial)}</h1>
           <p class="pdf-muted">${escaparHtmlInforme(plantillaInformeActiva.titulo)} · ${escaparHtmlInforme(etiquetaNivelDetalleInforme(nivelDetalleInformeGerencial))} · ${escaparHtmlInforme(etiquetaAlcanceInforme)} · ${escaparHtmlInforme(periodoInformeEtiqueta)}</p>
+          <div class="pdf-note pdf-legal-base">
+            Informe generado como herramienta de apoyo a la gestión preventiva, trazabilidad documental, evidencia de hallazgos, seguimiento de cierre y análisis ejecutivo, alineado al marco preventivo chileno vigente: Ley 16.744, DS 44 y DS 594.
+          </div>
           <div class="pdf-meta">
             <div><span>Fecha de generación</span><strong>${escaparHtmlInforme(fechaDocumento)}</strong></div>
             <div><span>Hallazgos incluidos</span><strong>${analisisInformeGerencial.total}</strong></div>
@@ -3896,7 +3940,7 @@ export default function KpiGerencialAvanzadoPage() {
         <footer class="pdf-footer">
           <span>Criterio Estratégico</span>
           <span>${escaparHtmlInforme(fechaDocumento)}</span>
-          <span>Documento generado desde Plataforma Hallazgos</span>
+          <span>Herramienta de apoyo a la gestión preventiva y trazabilidad de hallazgos, alineada a Ley 16.744, DS 44 y DS 594.</span>
         </footer>
       </article>
     `;
@@ -3991,7 +4035,11 @@ export default function KpiGerencialAvanzadoPage() {
           className="ce-panel-header"
           style={{
             ...themedSurfaceStyle,
-            padding: "22px",
+            position: "sticky",
+            top: 0,
+            zIndex: 40,
+            isolation: "isolate",
+            padding: "18px 22px",
             display: "grid",
             gridTemplateColumns: "minmax(0, 1fr) minmax(340px, auto)",
             gap: "18px",
@@ -4003,11 +4051,17 @@ export default function KpiGerencialAvanzadoPage() {
               {t("Plataforma Hallazgos · Gerencia")}
             </div>
             <h1 style={{ margin: "8px 0 6px", fontSize: "34px", lineHeight: 1, fontWeight: 950 }}>
-              {t("KPI Gerencial Avanzado")}
+              {t("KPI GERENCIAL AVANZADO")}
             </h1>
             <p style={{ margin: 0, maxWidth: "1040px", color: textoMedio, fontSize: "15px", lineHeight: 1.5, fontWeight: 650 }}>
-              {t("Analisis ejecutivo para comparar empresas, obras, periodos, criticidad, cierres, vencimientos y reincidencias con foco preventivo y reportabilidad.")}
+              {t("Indicadores para análisis de criticidad, vencimientos, responsables, empresas, obras, función ITO de terreno y focos preventivos prioritarios.")}
             </p>
+            <PreventiveLegalRibbon
+              theme={temaClaro ? "light" : "dark"}
+              compact
+              text={t("Gestión preventiva digital alineada a Ley 16.744, DS 44 y DS 594, con foco en evidencia, trazabilidad y seguimiento de cierre.")}
+              style={{ marginTop: "8px" }}
+            />
           </div>
 
           <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
@@ -5143,11 +5197,17 @@ export default function KpiGerencialAvanzadoPage() {
                     Filtros destacados para informe gerencial
                   </div>
                   <h2 style={{ margin: "8px 0 0", fontSize: "24px", lineHeight: 1.08, fontWeight: 1000, color: textoPrincipal, textShadow: temaClaro ? "none" : "0 0 20px rgba(56,189,248,0.14)" }}>
-                    Informe en construcción
+                    CONSTRUCTOR DE INFORME GERENCIAL PREVENTIVO
                   </h2>
                   <p style={{ margin: "5px 0 0", color: textoSuave, fontSize: "12px", lineHeight: 1.4, fontWeight: 750 }}>
                     El informe se arma solo con comandos, filtros y secciones seleccionadas aqui. Los filtros del dashboard no se incorporan automaticamente.
                   </p>
+                  <PreventiveLegalRibbon
+                    theme={temaClaro ? "light" : "dark"}
+                    compact
+                    text="Informe generado como herramienta de apoyo a la gestión preventiva, trazabilidad documental, evidencia de hallazgos, seguimiento de cierre y análisis ejecutivo, alineado al marco preventivo chileno vigente: Ley 16.744, DS 44 y DS 594."
+                    style={{ marginTop: "8px" }}
+                  />
                 </div>
                 <div style={{ borderRadius: "999px", padding: "7px 10px", background: fondoInterno, border: bordeInterno, color: textoAzul, fontSize: "11px", fontWeight: 950 }}>
                   PDF controlado por selección

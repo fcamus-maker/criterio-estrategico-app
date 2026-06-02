@@ -527,8 +527,38 @@ export default function ReportarV2Page() {
               letterSpacing: "0",
             }}
           >
-            Reportar Hallazgo
+            REPORTAR HALLAZGO
           </h1>
+          <div
+            style={{
+              display: "inline-flex",
+              marginTop: "10px",
+              padding: "6px 10px",
+              borderRadius: "999px",
+              background: "rgba(103,239,72,0.14)",
+              border: "1px solid rgba(103,239,72,0.28)",
+              color: "#d9f99d",
+              fontSize: "11px",
+              lineHeight: 1,
+              fontWeight: 900,
+              letterSpacing: "0",
+            }}
+          >
+            Marco preventivo DS 44 · ITO de terreno
+          </div>
+          <p
+            style={{
+              margin: "10px 0 0",
+              maxWidth: "360px",
+              fontSize: "13px",
+              lineHeight: 1.42,
+              fontWeight: 750,
+              opacity: 0.76,
+            }}
+          >
+            El reporte queda asociado a usuario, fecha, evidencia, ubicación GPS,
+            criticidad y trazabilidad para seguimiento preventivo.
+          </p>
         </header>
 
         <section style={cardStyle}>

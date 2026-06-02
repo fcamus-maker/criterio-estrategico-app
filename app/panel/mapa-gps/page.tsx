@@ -20,6 +20,7 @@ import {
   resolvePlatformTheme,
   usePlatformPreferences,
 } from "../../services/platformPreferences";
+import PreventiveLegalRibbon from "../../components/PreventiveLegalRibbon";
 
 declare global {
   interface Window {
@@ -1648,7 +1649,11 @@ export default function MapaGpsHallazgosPage() {
           className="ce-panel-header"
           style={{
             ...themedSurfaceStyle,
-            padding: "22px",
+            position: "sticky",
+            top: 0,
+            zIndex: 40,
+            isolation: "isolate",
+            padding: "18px 22px",
             display: "grid",
             gridTemplateColumns: "minmax(0, 1fr) auto",
             gap: "18px",
@@ -1675,7 +1680,7 @@ export default function MapaGpsHallazgosPage() {
                 fontWeight: 950,
               }}
             >
-              {t("Mapa GPS de Hallazgos")}
+              {t("MAPA GPS DE HALLAZGOS E ITO DE TERRENO")}
             </h1>
             <p
               style={{
@@ -1687,8 +1692,14 @@ export default function MapaGpsHallazgosPage() {
                 fontWeight: 650,
               }}
             >
-              {t("Lectura preventiva territorial para identificar concentracion de hallazgos, zonas calientes, criticidad geografica y focos de accion en terreno.")}
+              {t("Vista territorial para identificar concentración de hallazgos, zonas críticas y focos preventivos dentro de la obra.")}
             </p>
+            <PreventiveLegalRibbon
+              theme={temaClaro ? "light" : "dark"}
+              compact
+              text={t("Gestión preventiva digital alineada a Ley 16.744, DS 44 y DS 594, con foco en evidencia, trazabilidad y seguimiento de cierre.")}
+              style={{ marginTop: "8px" }}
+            />
           </div>
 
           <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>

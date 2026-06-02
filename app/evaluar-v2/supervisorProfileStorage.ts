@@ -122,7 +122,7 @@ export function cargarSupervisorV2LocalReciente() {
 
 export async function cargarSupervisorV2UsuarioActual() {
   const auth = await obtenerAuthProfileActual();
-  const userId = auth.usuario?.id || "";
+  const userId = auth.usuario?.id || auth.perfil?.id || "";
   const fallback = supervisorDesdeProfile(auth.perfil);
   const clave = userId ? claveSupervisorV2PorUsuario(userId) : "";
 

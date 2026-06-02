@@ -285,8 +285,37 @@ export default function InformeFinalV2Page() {
               letterSpacing: "0",
             }}
           >
-            Informe Final
+            INFORME FINAL PREVENTIVO
           </h1>
+          <div
+            style={{
+              display: "inline-flex",
+              marginTop: "10px",
+              padding: "6px 10px",
+              borderRadius: "999px",
+              background: "rgba(103,239,72,0.14)",
+              border: "1px solid rgba(103,239,72,0.28)",
+              color: "#d9f99d",
+              fontSize: "11px",
+              lineHeight: 1,
+              fontWeight: 900,
+            }}
+          >
+            Trazabilidad preventiva · DS 44
+          </div>
+          <p
+            style={{
+              margin: "10px auto 0",
+              maxWidth: "360px",
+              fontSize: "13px",
+              lineHeight: 1.42,
+              fontWeight: 750,
+              opacity: 0.74,
+            }}
+          >
+            Informe preventivo orientado a evidencia documental, criticidad,
+            responsables, seguimiento de cierre y lectura ejecutiva de la gestión.
+          </p>
         </header>
 
         {!cargado && (

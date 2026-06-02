@@ -39,6 +39,8 @@ const textosMobileEn: Record<string, string> = {
   "Supervisor activo": "Active supervisor",
   "Reportar Hallazgo": "Report Finding",
   "Contadores locales": "Local counters",
+  "Hallazgos, inspecciones e ITO de terreno": "Findings, inspections and field ITO",
+  "Registro preventivo en terreno alineado a la gestión DS 44, con evidencia, GPS y trazabilidad.": "Field preventive record aligned with DS 44 management, with evidence, GPS and traceability.",
   Empresa: "Company",
   "Obra / Proyecto": "Site / Project",
   "Sigla empresa": "Company code",
@@ -384,9 +386,11 @@ export default function EvaluarV2HomePage() {
       : {};
 
   const pageStyle = {
-    minHeight: "100vh",
+    minHeight: "100dvh",
     width: "100%",
     maxWidth: "100vw",
+    display: "grid",
+    alignItems: "center",
     background:
       temaClaro
         ? "radial-gradient(circle at 50% 0%, rgba(37,99,235,0.16) 0%, #f8fafc 42%, #eaf2ff 100%)"
@@ -403,10 +407,13 @@ export default function EvaluarV2HomePage() {
     maxWidth: "430px",
     minWidth: 0,
     margin: "0 auto",
-    padding: "16px 16px calc(96px + env(safe-area-inset-bottom))",
+    padding:
+      "calc(clamp(22px, 6dvh, 54px) + env(safe-area-inset-top)) 16px calc(clamp(20px, 4dvh, 42px) + env(safe-area-inset-bottom))",
     boxSizing: "border-box" as const,
     overflowX: "hidden" as const,
     touchAction: "pan-y" as const,
+    display: "grid",
+    gap: "clamp(10px, 1.5dvh, 14px)",
   };
 
   const cardStyle = {
@@ -460,13 +467,13 @@ export default function EvaluarV2HomePage() {
       }}
     >
       <div style={containerStyle}>
-        <header style={{ textAlign: "center", marginBottom: "18px" }}>
+        <header style={{ textAlign: "center" }}>
           <div
             style={{
-              width: "88px",
-              height: "88px",
+              width: "clamp(74px, 20vw, 88px)",
+              height: "clamp(74px, 20vw, 88px)",
               borderRadius: "50%",
-              margin: "0 auto 12px",
+              margin: "0 auto clamp(10px, 1.6dvh, 14px)",
               backgroundImage: "url('/logo.png')",
               backgroundPosition: "center",
               backgroundRepeat: "no-repeat",
@@ -483,7 +490,7 @@ export default function EvaluarV2HomePage() {
               fontSize: "14px",
               fontWeight: 800,
               opacity: 0.82,
-              marginBottom: "6px",
+              marginBottom: "5px",
             }}
           >
             Criterio Estratégico
@@ -499,9 +506,32 @@ export default function EvaluarV2HomePage() {
           >
             REPORTE DE HALLAZGOS
           </h1>
+          <div
+            style={{
+              marginTop: "8px",
+              fontSize: "14px",
+              lineHeight: 1.25,
+              fontWeight: 900,
+              opacity: 0.9,
+            }}
+          >
+            {t("Hallazgos, inspecciones e ITO de terreno")}
+          </div>
+          <p
+            style={{
+              margin: "7px auto 0",
+              maxWidth: "340px",
+              fontSize: "12px",
+              lineHeight: 1.42,
+              fontWeight: 750,
+              opacity: 0.72,
+            }}
+          >
+            {t("Registro preventivo en terreno alineado a la gestión DS 44, con evidencia, GPS y trazabilidad.")}
+          </p>
         </header>
 
-        <section style={{ ...cardStyle, marginBottom: "14px" }}>
+        <section style={cardStyle}>
           <div style={{ display: "flex", gap: "13px", alignItems: "center" }}>
             <div
               style={{
@@ -631,17 +661,12 @@ export default function EvaluarV2HomePage() {
             color: "#08172d",
             background: "linear-gradient(135deg, #67ef48 0%, #d7ff39 100%)",
             boxShadow: "0 14px 28px rgba(103,239,72,0.22)",
-            marginBottom: "14px",
             opacity: navegandoReporte ? 0.76 : 1,
             ...estiloFeedback("reportar"),
           }}
         >
           {t("Reportar Hallazgo")}
         </button>
-
-        <div style={{ marginBottom: "14px" }}>
-          <PwaInstallCard theme={temaClaro ? "light" : "dark"} compact />
-        </div>
 
         {mensaje && (
           <div
@@ -652,7 +677,6 @@ export default function EvaluarV2HomePage() {
               border: "1px solid rgba(103,239,72,0.24)",
               fontSize: "14px",
               fontWeight: 800,
-              marginBottom: "14px",
             }}
           >
             {t(mensaje)}
@@ -660,7 +684,7 @@ export default function EvaluarV2HomePage() {
         )}
 
         {editorPerfilAbierto && (
-          <section style={{ ...cardStyle, marginBottom: "14px" }}>
+          <section style={cardStyle}>
           <div
             style={{
               fontSize: "18px",
@@ -1055,6 +1079,10 @@ export default function EvaluarV2HomePage() {
             ))}
           </div>
         </section>
+
+        <div>
+          <PwaInstallCard theme={temaClaro ? "light" : "dark"} compact />
+        </div>
       </div>
     </main>
   );
