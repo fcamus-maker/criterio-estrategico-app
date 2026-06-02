@@ -7,18 +7,34 @@ const EVIDENCIAS_STORE = "evidencias_pendientes";
 
 export type FotoReporteV2Storage = {
   id?: string;
+  evidenceId?: string;
   nombre?: string;
   tipo?: string;
+  mimeType?: string;
   bucket?: string;
   dataUrl?: string;
   url?: string;
   storagePath?: string;
   tamanoBytes?: number;
   pesoBytes?: number;
+  sizeOriginal?: number;
+  sizeCompressed?: number;
   indice?: number;
   estadoSubida?: "pendiente" | "subiendo" | "subida" | "error";
   fechaCarga?: string;
   fechaCaptura?: string;
+  capturedAt?: string;
+  gpsAt?: string;
+  gps?: {
+    latitud?: number;
+    longitud?: number;
+    precisionGps?: number;
+    fechaHoraGeolocalizacion?: string;
+    estadoGeolocalizacion?: string;
+  };
+  deviceOnline?: boolean;
+  userAgent?: string;
+  origenDeclarado?: string;
   fechaSubida?: string;
   dataUrlOmitida?: boolean;
   storagePendiente?: boolean;
@@ -33,9 +49,18 @@ type EvidenciaLocalPendienteV2 = {
   dataUrl: string;
   nombre?: string;
   tipo?: string;
+  mimeType?: string;
   fechaCaptura?: string;
+  capturedAt?: string;
+  gpsAt?: string;
+  gps?: FotoReporteV2Storage["gps"];
+  deviceOnline?: boolean;
+  userAgent?: string;
+  origenDeclarado?: string;
   tamanoBytes?: number;
   pesoBytes?: number;
+  sizeOriginal?: number;
+  sizeCompressed?: number;
   actualizadaEn: string;
 };
 
@@ -218,9 +243,19 @@ export async function prepararReporteConEvidenciasLocalesV2(
         dataUrl: foto.dataUrl,
         nombre: foto.nombre,
         tipo: foto.tipo,
+        mimeType: foto.mimeType,
         fechaCaptura,
+        capturedAt: foto.capturedAt || fechaCaptura,
+        gpsAt: foto.gpsAt,
+        gps: foto.gps,
+        deviceOnline: foto.deviceOnline,
+        userAgent: foto.userAgent,
+        origenDeclarado: foto.origenDeclarado,
         tamanoBytes: foto.tamanoBytes || estimarBytesDataUrl(foto.dataUrl),
         pesoBytes: foto.pesoBytes || foto.tamanoBytes || estimarBytesDataUrl(foto.dataUrl),
+        sizeOriginal: foto.sizeOriginal,
+        sizeCompressed:
+          foto.sizeCompressed || foto.pesoBytes || foto.tamanoBytes || estimarBytesDataUrl(foto.dataUrl),
         actualizadaEn: new Date().toISOString(),
       });
 
@@ -230,6 +265,16 @@ export async function prepararReporteConEvidenciasLocalesV2(
         ...foto,
         localBlobKey,
         fechaCaptura,
+        capturedAt: foto.capturedAt || fechaCaptura,
+        gpsAt: foto.gpsAt,
+        gps: foto.gps,
+        deviceOnline: foto.deviceOnline,
+        userAgent: foto.userAgent,
+        mimeType: foto.mimeType || foto.tipo,
+        sizeOriginal: foto.sizeOriginal,
+        sizeCompressed:
+          foto.sizeCompressed || foto.pesoBytes || foto.tamanoBytes || estimarBytesDataUrl(foto.dataUrl),
+        origenDeclarado: foto.origenDeclarado,
         tamanoBytes: foto.tamanoBytes || estimarBytesDataUrl(foto.dataUrl),
         pesoBytes: foto.pesoBytes || foto.tamanoBytes || estimarBytesDataUrl(foto.dataUrl),
         estadoSubida: foto.estadoSubida || "pendiente",

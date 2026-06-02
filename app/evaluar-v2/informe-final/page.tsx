@@ -11,8 +11,10 @@ import {
 
 type FotoV2 = {
   id: string;
+  evidenceId?: string;
   nombre: string;
   tipo: string;
+  mimeType?: string;
   dataUrl?: string;
   url?: string;
   storagePath?: string;
@@ -23,6 +25,21 @@ type FotoV2 = {
   localBlobKey?: string;
   intentos?: number;
   fechaCarga: string;
+  fechaCaptura?: string;
+  capturedAt?: string;
+  gpsAt?: string;
+  gps?: {
+    latitud?: number;
+    longitud?: number;
+    precisionGps?: number;
+    fechaHoraGeolocalizacion?: string;
+    estadoGeolocalizacion?: string;
+  };
+  deviceOnline?: boolean;
+  userAgent?: string;
+  sizeOriginal?: number;
+  sizeCompressed?: number;
+  origenDeclarado?: string;
 };
 
 type GpsV2 = {

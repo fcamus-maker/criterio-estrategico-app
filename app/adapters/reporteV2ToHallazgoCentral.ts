@@ -13,18 +13,34 @@ import type {
 
 export type FotoReporteV2Central = {
   id?: string;
+  evidenceId?: string;
   nombre?: string;
   tipo?: string;
+  mimeType?: string;
   bucket?: string;
   dataUrl?: string;
   url?: string;
   storagePath?: string;
   tamanoBytes?: number;
   pesoBytes?: number;
+  sizeOriginal?: number;
+  sizeCompressed?: number;
   indice?: number;
   estadoSubida?: "pendiente" | "subiendo" | "subida" | "error";
   fechaCarga?: string;
   fechaCaptura?: string;
+  capturedAt?: string;
+  gpsAt?: string;
+  gps?: {
+    latitud?: number;
+    longitud?: number;
+    precisionGps?: number;
+    fechaHoraGeolocalizacion?: string;
+    estadoGeolocalizacion?: string;
+  };
+  deviceOnline?: boolean;
+  userAgent?: string;
+  origenDeclarado?: string;
   fechaSubida?: string;
   dataUrlOmitida?: boolean;
   storagePendiente?: boolean;
@@ -210,13 +226,17 @@ function evidenciasDesdeFotos(
   return fotos
     .map((foto) => ({
       id: texto(foto.id),
+      evidenceId: texto(foto.evidenceId || foto.id),
       nombre: texto(foto.nombre, "fotografia-v2.jpg"),
       tipo: texto(foto.tipo, "image/jpeg"),
+      mimeType: texto(foto.mimeType || foto.tipo, "image/jpeg"),
       bucket: texto(foto.bucket),
       url: texto(foto.url),
       storagePath: texto(foto.storagePath),
       tamanoBytes: foto.tamanoBytes || foto.pesoBytes,
       pesoBytes: foto.pesoBytes || foto.tamanoBytes,
+      sizeOriginal: foto.sizeOriginal,
+      sizeCompressed: foto.sizeCompressed || foto.pesoBytes || foto.tamanoBytes,
       indice: foto.indice,
       estadoSubida: foto.estadoSubida,
       descripcion:
@@ -229,6 +249,12 @@ function evidenciasDesdeFotos(
             : "",
       fechaCarga: texto(foto.fechaCarga),
       fechaCaptura: texto(foto.fechaCaptura || foto.fechaCarga),
+      capturedAt: texto(foto.capturedAt || foto.fechaCaptura || foto.fechaCarga),
+      gpsAt: texto(foto.gpsAt || foto.gps?.fechaHoraGeolocalizacion),
+      gps: foto.gps,
+      deviceOnline: foto.deviceOnline,
+      userAgent: texto(foto.userAgent),
+      origenDeclarado: texto(foto.origenDeclarado),
       fechaSubida: texto(foto.fechaSubida),
       localBlobKey: texto(foto.localBlobKey),
       intentos: foto.intentos,

@@ -47,18 +47,34 @@ export type EstadoSincronizacionCentral =
 
 export type EvidenciaHallazgoCentral = {
   id?: string;
+  evidenceId?: string;
   nombre?: string;
   tipo?: string;
+  mimeType?: string;
   bucket?: string;
   url?: string;
   dataUrl?: string;
   storagePath?: string;
   tamanoBytes?: number;
+  sizeOriginal?: number;
+  sizeCompressed?: number;
   indice?: number;
   estadoSubida?: "pendiente" | "subiendo" | "subida" | "error";
   descripcion?: string;
   fechaCarga?: string;
   fechaCaptura?: string;
+  capturedAt?: string;
+  gpsAt?: string;
+  gps?: {
+    latitud?: number;
+    longitud?: number;
+    precisionGps?: number;
+    fechaHoraGeolocalizacion?: string;
+    estadoGeolocalizacion?: string;
+  };
+  deviceOnline?: boolean;
+  userAgent?: string;
+  origenDeclarado?: string;
   fechaSubida?: string;
   pesoBytes?: number;
   intentos?: number;

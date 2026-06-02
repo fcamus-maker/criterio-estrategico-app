@@ -18,11 +18,27 @@ import {
 
 type FotoV2 = {
   id: string;
+  evidenceId: string;
   nombre: string;
   tipo: "image/jpeg";
+  mimeType: "image/jpeg";
   dataUrl: string;
   fechaCarga: string;
   fechaCaptura: string;
+  capturedAt: string;
+  gpsAt?: string;
+  gps?: {
+    latitud?: number;
+    longitud?: number;
+    precisionGps?: number;
+    fechaHoraGeolocalizacion?: string;
+    estadoGeolocalizacion?: string;
+  };
+  deviceOnline: boolean;
+  userAgent: string;
+  sizeOriginal: number;
+  sizeCompressed: number;
+  origenDeclarado: "camara-terreno-capture-environment";
   tamanoBytes?: number;
   pesoBytes?: number;
   estadoSubida?: "pendiente" | "subiendo" | "subida" | "error";
@@ -73,7 +89,28 @@ function nombreJPEG(nombreOriginal: string | undefined) {
   return `${base || "fotografia"}.jpg`;
 }
 
-function comprimirFoto(file: File): Promise<FotoV2> {
+function crearEvidenceId() {
+  return `ev-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function gpsMetadata(ubicacion: UbicacionV2 | null): FotoV2["gps"] | undefined {
+  if (
+    typeof ubicacion?.latitud !== "number" ||
+    typeof ubicacion.longitud !== "number"
+  ) {
+    return undefined;
+  }
+
+  return {
+    latitud: ubicacion.latitud,
+    longitud: ubicacion.longitud,
+    precisionGps: ubicacion.precisionGps,
+    fechaHoraGeolocalizacion: ubicacion.fechaHoraGeolocalizacion,
+    estadoGeolocalizacion: ubicacion.estadoGeolocalizacion,
+  };
+}
+
+function comprimirFoto(file: File, ubicacionActual: UbicacionV2 | null): Promise<FotoV2> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
 
@@ -122,14 +159,29 @@ function comprimirFoto(file: File): Promise<FotoV2> {
 
         const fechaCaptura = new Date().toISOString();
         const tamanoBytes = estimarBytesDataUrl(dataUrl);
+        const evidenceId = crearEvidenceId();
+        const gps = gpsMetadata(ubicacionActual);
+        const gpsAt = gps?.fechaHoraGeolocalizacion;
 
         resolve({
-          id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          id: evidenceId,
+          evidenceId,
           nombre: nombreJPEG(file.name),
           tipo: "image/jpeg",
+          mimeType: "image/jpeg",
           dataUrl,
           fechaCarga: fechaCaptura,
           fechaCaptura,
+          capturedAt: fechaCaptura,
+          gpsAt,
+          gps,
+          deviceOnline:
+            typeof navigator === "undefined" ? false : navigator.onLine,
+          userAgent:
+            typeof navigator === "undefined" ? "" : navigator.userAgent,
+          sizeOriginal: file.size,
+          sizeCompressed: tamanoBytes,
+          origenDeclarado: "camara-terreno-capture-environment",
           tamanoBytes,
           pesoBytes: tamanoBytes,
           estadoSubida: "pendiente",
@@ -205,16 +257,14 @@ export default function ReportarV2Page() {
     setMensaje("");
 
     try {
-      const cuposDisponibles = Math.max(3 - fotos.length, 0);
-      const seleccionadas = files.slice(0, cuposDisponibles);
-
-      if (seleccionadas.length === 0) {
+      if (fotos.length >= 3) {
         setMensaje("Ya hay 3 fotografías cargadas.");
         return;
       }
 
-      const comprimidas = await Promise.all(seleccionadas.map(comprimirFoto));
-      const combinadas = [...fotos, ...comprimidas].slice(0, 3);
+      const seleccionada = files[0];
+      const comprimida = await comprimirFoto(seleccionada, ubicacion);
+      const combinadas = [...fotos, comprimida].slice(0, 3);
       const preparadas = await prepararReporteConEvidenciasLocalesV2({
         fotos: combinadas,
       });
@@ -227,9 +277,9 @@ export default function ReportarV2Page() {
       }
 
       setFotos((preparadas.reporte.fotos || []) as FotoV2[]);
-      setMensaje("Fotografía cargada correctamente.");
+      setMensaje("Fotografía capturada y comprimida correctamente.");
     } catch {
-      setError("No se pudo cargar la fotografía seleccionada.");
+      setError("No se pudo procesar la fotografía capturada.");
     } finally {
       setProcesandoFotos(false);
       input.value = "";
@@ -245,6 +295,11 @@ export default function ReportarV2Page() {
     vibrarOk();
   };
 
+  const abrirCamaraTerreno = () => {
+    if (fotos.length >= 3 || procesandoFotos) return;
+    fileInputRef.current?.click();
+  };
+
   const capturarGps = () => {
     setError("");
     setMensaje("Se solicitará permiso de ubicación del dispositivo para adjuntar GPS real al reporte.");
@@ -256,7 +311,7 @@ export default function ReportarV2Page() {
         motivoGeolocalizacion:
           "Geolocalización no disponible en este navegador u origen.",
       });
-      setError("No se pudo obtener GPS real en este dispositivo. Puedes continuar sin coordenadas.");
+      setError("GPS no obtenido. Para prueba local por IP puede requerirse HTTPS o permiso de ubicación del navegador. El reporte puede continuar sin coordenadas, pero quedará marcado sin GPS.");
       return;
     }
 
@@ -291,8 +346,8 @@ export default function ReportarV2Page() {
         });
         setError(
           permisoDenegado
-            ? "Permiso de ubicación denegado. Puedes continuar; el reporte quedará sin coordenadas GPS."
-            : "No se pudo obtener GPS real. Puedes continuar; el reporte quedará marcado con error GPS."
+            ? "GPS no obtenido. Para prueba local por IP puede requerirse HTTPS o permiso de ubicación del navegador. El reporte puede continuar sin coordenadas, pero quedará marcado sin GPS."
+            : "GPS no obtenido. Para prueba local por IP puede requerirse HTTPS o permiso de ubicación del navegador. El reporte puede continuar sin coordenadas, pero quedará marcado sin GPS."
         );
         setCapturandoGps(false);
       },
@@ -687,7 +742,9 @@ export default function ReportarV2Page() {
               opacity: 0.72,
             }}
           >
-            Input visible para diagnóstico. Se permiten hasta 3 fotografías.
+            La evidencia debe capturarse desde cámara en terreno. En algunos
+            navegadores móviles puede aparecer una opción del sistema, pero el
+            reporte quedará marcado como captura solicitada desde cámara.
           </p>
 
           <div
@@ -709,36 +766,55 @@ export default function ReportarV2Page() {
           >
             {fotos.length >= 3
               ? "Máximo 3 fotografías cargadas"
-              : `Fotografías cargadas: ${fotos.length}/3`}
+              : `Fotografías capturadas: ${fotos.length}/3`}
           </div>
 
           <input
             ref={fileInputRef}
             type="file"
             accept="image/*"
-            multiple
+            capture="environment"
             disabled={fotos.length >= 3}
             onChange={seleccionarFotos}
             style={{
-              width: "100%",
-              fontSize: "16px",
-              boxSizing: "border-box",
-              color: "white",
-              padding: "12px",
-              borderRadius: "14px",
-              border: "1px solid rgba(255,255,255,0.18)",
-              background:
-                fotos.length >= 3
-                  ? "rgba(255,255,255,0.04)"
-                  : "rgba(255,255,255,0.08)",
-              marginBottom: "12px",
-              opacity: fotos.length >= 3 ? 0.56 : 1,
+              display: "none",
             }}
           />
+          <button
+            type="button"
+            onClick={abrirCamaraTerreno}
+            disabled={fotos.length >= 3 || procesandoFotos}
+            {...feedbackBoton("tomar-foto")}
+            style={{
+              ...buttonStyle,
+              marginBottom: "12px",
+              color: "#08172d",
+              background:
+                fotos.length >= 3
+                  ? "rgba(255,255,255,0.42)"
+                  : "linear-gradient(135deg, #67ef48 0%, #d7ff39 100%)",
+              opacity: fotos.length >= 3 || procesandoFotos ? 0.72 : 1,
+              ...estiloFeedback("tomar-foto"),
+            }}
+          >
+            {fotos.length >= 3 ? "Máximo 3 fotografías" : "Tomar foto en terreno"}
+          </button>
+          <div
+            style={{
+              margin: "-4px 0 12px",
+              fontSize: "12px",
+              lineHeight: 1.4,
+              opacity: 0.66,
+              fontWeight: 750,
+            }}
+          >
+            Puedes eliminar una foto y tomar otra antes de validar. Si ya
+            capturaste GPS, se asociará a las nuevas evidencias.
+          </div>
 
           {procesandoFotos && (
             <div style={{ fontSize: "13px", opacity: 0.74 }}>
-              Procesando fotografía...
+              Comprimiendo fotografía capturada...
             </div>
           )}
 
@@ -795,6 +871,18 @@ export default function ReportarV2Page() {
                   >
                     Eliminar
                   </button>
+                  <div
+                    style={{
+                      padding: "6px 7px",
+                      fontSize: "10px",
+                      lineHeight: 1.25,
+                      opacity: 0.68,
+                      fontWeight: 800,
+                    }}
+                  >
+                    {foto.gpsAt ? "GPS asociado" : "GPS no asociado"} ·{" "}
+                    {foto.deviceOnline ? "online" : "offline"}
+                  </div>
                 </div>
               ))}
             </div>

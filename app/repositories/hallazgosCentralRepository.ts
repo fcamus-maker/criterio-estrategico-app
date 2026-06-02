@@ -274,8 +274,10 @@ function evidenciaDesdeRegistro(
 ): EvidenciaHallazgoCentral {
   return {
     id: texto(item.id),
+    evidenceId: texto(item.evidenceId || item.evidence_id || item.id),
     nombre: texto(item.nombre || item.name || item.filename),
     tipo: texto(item.tipo || item.contentType || item.content_type),
+    mimeType: texto(item.mimeType || item.mime_type || item.tipo || item.contentType || item.content_type),
     bucket: texto(item.bucket, BUCKET_EVIDENCIAS),
     url: texto(
       item.url ||
@@ -300,6 +302,8 @@ function evidenciaDesdeRegistro(
         item.storage_path_completo
     ),
     tamanoBytes: numero(item.tamanoBytes || item.size || item.size_bytes),
+    sizeOriginal: numero(item.sizeOriginal || item.size_original),
+    sizeCompressed: numero(item.sizeCompressed || item.size_compressed),
     indice: numero(item.indice || item.index),
     estadoSubida: texto(
       item.estadoSubida || item.estado_subida,
@@ -308,6 +312,17 @@ function evidenciaDesdeRegistro(
     descripcion: texto(item.descripcion || item.description),
     fechaCarga: texto(item.fechaCarga || item.fecha_carga || item.created_at),
     fechaCaptura: texto(item.fechaCaptura || item.fecha_captura),
+    capturedAt: texto(item.capturedAt || item.captured_at || item.fechaCaptura || item.fecha_captura),
+    gpsAt: texto(item.gpsAt || item.gps_at),
+    gps: registroJson(item.gps) as EvidenciaHallazgoCentral["gps"],
+    deviceOnline:
+      typeof item.deviceOnline === "boolean"
+        ? item.deviceOnline
+        : typeof item.device_online === "boolean"
+          ? item.device_online
+          : undefined,
+    userAgent: texto(item.userAgent || item.user_agent),
+    origenDeclarado: texto(item.origenDeclarado || item.origen_declarado),
     fechaSubida: texto(item.fechaSubida || item.fecha_subida),
     pesoBytes: numero(item.pesoBytes || item.peso_bytes),
     intentos: numero(item.intentos || item.reintentos),
