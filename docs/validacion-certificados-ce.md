@@ -16,19 +16,19 @@ Ejemplo local:
 validar.html?codigo=CEA-LYNX-2026-001
 ```
 
-Ejemplo futuro en dominio publico:
+URL publica final publicada:
 
 ```text
-https://criterioestrategico.cl/validar.html?codigo=CEA-LYNX-2026-001
+https://app.criterioestrategico.cl/validar.html?codigo=CEA-LYNX-2026-001
 ```
 
 ## QR oficial generado
 
-Los archivos QR oficiales apuntan solo a la URL publica final, no a localhost:
+Los archivos QR oficiales apuntan solo a la URL publica final publicada, no a localhost ni a la URL raiz que actualmente responde 404:
 
 ```text
-assets/qr-certificado-cea-lynx-2026-001.png
-assets/qr-certificado-cea-lynx-2026-001.svg
+public/assets/qr-certificado-cea-lynx-2026-001.png
+public/assets/qr-certificado-cea-lynx-2026-001.svg
 ```
 
 ## Datos que muestra
