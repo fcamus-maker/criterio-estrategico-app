@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>Validación de Certificado CE | Criterio Estratégico</title>
+
+  <link rel="stylesheet" href="styles.css?v=validacion-certificados-ce-v1" />
+</head>
+
+<body class="validation-page">
+  <main class="validation-shell">
+    <section class="validation-card" aria-labelledby="validation-title">
+      <header class="validation-header">
+        <a href="index.html" class="validation-brand" aria-label="Criterio Estratégico">
+          <img src="assets/logo-ce.png" alt="Logo Criterio Estratégico" />
+          <span>Criterio Estratégico</span>
+        </a>
+
+        <span class="validation-kicker">Validación pública</span>
+        <h1 id="validation-title">Validación de Certificado CE</h1>
+        <p>
+          Consulta pública para verificar el estado de vigencia de certificados
+          asociados a servicios activos con Criterio Estratégico.
+        </p>
+      </header>
+
+      <section class="validation-result" data-validation-result>
+        <div class="validation-status-card">
+          <span class="validation-status-dot" data-validation-status-dot></span>
+          <div>
+            <span class="validation-status-label" data-validation-status-label>Consultando código</span>
+            <strong data-validation-code>Sin código informado</strong>
+          </div>
+        </div>
+
+        <div class="validation-grid" data-validation-details hidden>
+          <article>
+            <span>Código de certificado</span>
+            <strong data-cert-field="codigo"></strong>
+          </article>
+          <article>
+            <span>Empresa asociada</span>
+            <strong data-cert-field="empresa"></strong>
+          </article>
+          <article>
+            <span>RUT empresa</span>
+            <strong data-cert-field="rut"></strong>
+          </article>
+          <article>
+            <span>Servicio contratado</span>
+            <strong data-cert-field="servicio"></strong>
+          </article>
+          <article>
+            <span>Estado del servicio</span>
+            <strong data-cert-field="estado"></strong>
+          </article>
+          <article>
+            <span>Fecha de activación</span>
+            <strong data-cert-field="fecha_activacion"></strong>
+          </article>
+          <article>
+            <span>Última vigencia registrada</span>
+            <strong data-cert-field="ultima_vigencia_registrada"></strong>
+          </article>
+          <article>
+            <span>Fecha de última actualización</span>
+            <strong data-cert-field="fecha_ultima_actualizacion"></strong>
+          </article>
+        </div>
+
+        <div class="validation-message" data-validation-message>
+          Ingresa a esta página desde el código QR o agrega el parámetro
+          <strong>?codigo=</strong> en la URL.
+        </div>
+      </section>
+
+      <footer class="validation-legal">
+        <strong>Nota legal</strong>
+        <p>
+          La presente validación confirma únicamente el estado de vigencia del
+          servicio contratado con Criterio Estratégico. No constituye certificación
+          de cumplimiento legal integral de la empresa validada.
+        </p>
+      </footer>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
