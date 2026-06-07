@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { preguntasEvaluacion } from "@/app/types/evaluacion";
 import { useRouter } from "next/navigation";
+import { navegarEvaluarV2 } from "../../offlineNavigation";
 import {
   guardarReporteActualV2,
   leerReporteActualV2,
@@ -79,7 +80,7 @@ export default function EvaluacionPaso1V2Page() {
     guardarReporteActualV2(actualizado);
     setNavegando(true);
     vibrarOk();
-    router.push("/evaluar-v2/evaluacion/paso2");
+    navegarEvaluarV2(router, "/evaluar-v2/evaluacion/paso2");
   };
 
   const feedbackBoton = (id: string) => ({

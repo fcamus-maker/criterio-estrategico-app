@@ -169,6 +169,10 @@ function esTelefonoCliente() {
   return telefonoPorAgente || telefonoPorVista;
 }
 
+function estaOfflineCliente() {
+  return typeof navigator !== "undefined" && navigator.onLine === false;
+}
+
 export default function AuthGateCE({ zona, children }: AuthGateCEProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -189,6 +193,15 @@ export default function AuthGateCE({ zona, children }: AuthGateCEProps) {
       if (!activo) return;
 
       if (!auth.autenticado) {
+        if (estaOfflineCliente()) {
+          setEstado({
+            tipo: "sin-perfil",
+            mensaje:
+              "Necesitas iniciar sesión con internet al menos una vez antes de usar modo offline.",
+          });
+          return;
+        }
+
         router.replace(loginUrl);
         return;
       }

@@ -6,7 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "CE App",
     description:
       "App Criterio Estratégico para gestión preventiva, reportes de hallazgos y panel ejecutivo.",
-    start_url: "/login",
+    start_url: "/evaluar-v2",
     scope: "/",
     display: "standalone",
     background_color: "#061327",

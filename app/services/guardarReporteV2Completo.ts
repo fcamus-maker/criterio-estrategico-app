@@ -1,11 +1,14 @@
 import {
   crearReporteCentralLivianoV2,
+  asegurarOfflineIdReporteV2,
   eliminarEvidenciaLocalV2,
-  guardarHistorialLivianoV2,
-  guardarReporteActualV2,
+  guardarReporteLocalCompletoV2,
   hidratarReporteConEvidenciasLocalesV2,
+  listarReportesPendientesLocalesV2,
   prepararReporteConEvidenciasLocalesV2,
+  type EstadoLocalReporteV2,
   type ReporteV2Storage,
+  type UltimoIntentoEnvioReporteV2,
 } from "../evaluar-v2/storageReporteV2";
 import { intentarGuardarReporteV2EnRepositorioCentral } from "./guardarReporteV2Central";
 import {
@@ -17,7 +20,10 @@ import { rolPuedeEntrarEvaluarV2CE } from "./authAccess";
 import { obtenerAuthProfileActual } from "./authProfileService";
 
 export type ResultadoGuardadoReporteV2 = {
+  offlineId: string;
+  estadoLocal: EstadoLocalReporteV2;
   localOk: boolean;
+  respaldoLocalCompletoOk: boolean;
   centralOk: boolean;
   centralPendiente: boolean;
   evidenciasIntentadas: number;
@@ -33,6 +39,15 @@ export type ResultadoGuardadoReporteV2 = {
   banderaSupabaseActiva: boolean;
 };
 
+export type ResultadoSincronizacionPendientesV2 = {
+  total: number;
+  sincronizados: number;
+  pendientes: number;
+  errores: number;
+  resultados: ResultadoGuardadoReporteV2[];
+  mensaje: string;
+};
+
 function logDesarrollo(evento: string, datos: Record<string, unknown>) {
   if (process.env.NODE_ENV !== "production") {
     console.info(`[guardar-v2] ${evento}`, datos);
@@ -42,6 +57,20 @@ function logDesarrollo(evento: string, datos: Record<string, unknown>) {
 function sanitizarError(error: unknown) {
   if (error instanceof Error) return error.message;
   return String(error || "Error desconocido").slice(0, 240);
+}
+
+function navegadorSinConexion() {
+  return typeof navigator !== "undefined" && navigator.onLine === false;
+}
+
+function resolverEstadoLocalFinal(
+  centralOk: boolean,
+  evidenciasPendientes: number,
+  errorCentral?: string
+): EstadoLocalReporteV2 {
+  if (centralOk && evidenciasPendientes === 0) return "sincronizado";
+  if (errorCentral) return "error";
+  return "pendiente";
 }
 
 async function validarSesionReporteMovil() {
@@ -294,7 +323,7 @@ export async function guardarReporteV2Completo(
   const fechaGuardado = new Date().toISOString();
   const estadoRepositorio = obtenerEstadoRepositorioCentral();
   const tablaDestino = obtenerTablaDestinoHallazgosCentral();
-  const reporteBase: ReporteV2Storage = {
+  const reportePreparado: ReporteV2Storage = {
     ...(await prepararReporteConEvidenciasLocalesV2(
       await hidratarReporteConEvidenciasLocalesV2(reporte)
     )).reporte,
@@ -302,9 +331,22 @@ export async function guardarReporteV2Completo(
     estadoCierre: "abierto",
     fechaGuardado,
   };
+  const intentoInicial: UltimoIntentoEnvioReporteV2 = {
+    fecha: fechaGuardado,
+    estado: "pendiente",
+    canal: "guardar-y-enviar",
+    mensaje: "Respaldo local completo creado antes del intento online.",
+  };
+  const respaldoInicial = await guardarReporteLocalCompletoV2(
+    asegurarOfflineIdReporteV2(reportePreparado),
+    "pendiente",
+    intentoInicial
+  );
+  const reporteBase: ReporteV2Storage = respaldoInicial.reporte;
 
   logDesarrollo("inicio", {
     codigo,
+    offlineId: respaldoInicial.reporte.offlineId,
     empresa: reporteBase.empresa,
     obra: reporteBase.obra,
     fotos: Array.isArray(reporteBase.fotos) ? reporteBase.fotos.length : 0,
@@ -330,17 +372,40 @@ export async function guardarReporteV2Completo(
         fecha: new Date().toISOString(),
       },
     };
-    const historialOk = guardarHistorialLivianoV2(reporteLocal);
-    const actualOk = guardarReporteActualV2(reporteLocal);
+    const respaldoFinal = await guardarReporteLocalCompletoV2(
+      reporteLocal,
+      "pendiente",
+      {
+        fecha: new Date().toISOString(),
+        estado: "pendiente",
+        canal: "sesion",
+        mensaje,
+        error: mensaje,
+        evidenciasIntentadas: evidenciasPendientes,
+        evidenciasSubidas: 0,
+        evidenciasPendientes,
+        centralOk: false,
+      }
+    );
+    const localOk =
+      respaldoFinal.ok ||
+      respaldoFinal.localStorageOk ||
+      respaldoInicial.ok ||
+      respaldoInicial.localStorageOk;
 
     logDesarrollo("sesion requerida para subir evidencias", {
       codigo,
+      offlineId: respaldoFinal.reporte.offlineId,
       evidenciasPendientes,
+      respaldoLocalCompletoOk: respaldoFinal.ok,
       error: mensaje,
     });
 
     return {
-      localOk: historialOk || actualOk,
+      offlineId: respaldoFinal.reporte.offlineId,
+      estadoLocal: "pendiente",
+      localOk,
+      respaldoLocalCompletoOk: respaldoFinal.ok,
       centralOk: false,
       centralPendiente: true,
       evidenciasIntentadas: evidenciasPendientes,
@@ -361,6 +426,67 @@ export async function guardarReporteV2Completo(
     codigo,
     rol: sesionReporte.rol,
   });
+
+  if (navegadorSinConexion()) {
+    const fotos = Array.isArray(reporteBase.fotos) ? reporteBase.fotos : [];
+    const evidenciasPendientes = fotos.filter(
+      (foto) => foto.dataUrl || foto.storagePath || foto.localBlobKey
+    ).length;
+    const mensaje = "Guardado localmente. Sincronización pendiente.";
+    const ultimoIntentoEnvio: UltimoIntentoEnvioReporteV2 = {
+      fecha: new Date().toISOString(),
+      estado: "pendiente",
+      canal: "local",
+      mensaje,
+      evidenciasIntentadas: 0,
+      evidenciasSubidas: 0,
+      evidenciasPendientes,
+      centralOk: false,
+    };
+    const respaldoFinal = await guardarReporteLocalCompletoV2(
+      {
+        ...reporteBase,
+        sincronizacionCentral: {
+          estado: "pendiente",
+          mensaje,
+          fecha: ultimoIntentoEnvio.fecha,
+        },
+      },
+      "pendiente",
+      ultimoIntentoEnvio
+    );
+    const localOk =
+      respaldoFinal.ok ||
+      respaldoFinal.localStorageOk ||
+      respaldoInicial.ok ||
+      respaldoInicial.localStorageOk;
+
+    logDesarrollo("offline local pendiente", {
+      codigo,
+      offlineId: respaldoFinal.reporte.offlineId,
+      evidenciasPendientes,
+      localOk,
+      respaldoLocalCompletoOk: respaldoFinal.ok,
+    });
+
+    return {
+      offlineId: respaldoFinal.reporte.offlineId,
+      estadoLocal: "pendiente",
+      localOk,
+      respaldoLocalCompletoOk: respaldoFinal.ok,
+      centralOk: false,
+      centralPendiente: true,
+      evidenciasIntentadas: 0,
+      evidenciasSubidas: 0,
+      evidenciasPendientes,
+      codigo,
+      mensaje,
+      tablaDestino,
+      supabaseHabilitado: estadoRepositorio.habilitado,
+      supabaseConfigurado: estadoRepositorio.configurado,
+      banderaSupabaseActiva: estadoRepositorio.banderaActiva,
+    };
+  }
 
   const evidenciasStorage = await prepararEvidenciasStorage(reporteBase, codigo);
   const reporteBaseConEvidencias = evidenciasStorage.reporteLocal;
@@ -412,34 +538,73 @@ export async function guardarReporteV2Completo(
     });
   }
 
+  const estadoLocalFinal = resolverEstadoLocalFinal(
+    centralOk,
+    evidenciasStorage.pendientes,
+    errorCentral
+  );
+  const mensajeFinal = centralOk
+    ? evidenciasStorage.pendientes > 0
+      ? `Guardado y sincronizado con ${tablaDestino}. Evidencia pendiente de sincronización: ${evidenciasStorage.pendientes}.`
+      : `Guardado y sincronizado con ${tablaDestino}. Evidencia subida OK: ${evidenciasStorage.subidas}.`
+    : `Guardado local, sincronización central pendiente${
+        errorCentral ? `: ${errorCentral}` : "."
+      }`;
+  const ultimoIntentoEnvio: UltimoIntentoEnvioReporteV2 = {
+    fecha: new Date().toISOString(),
+    estado: estadoLocalFinal,
+    canal: errorCentral
+      ? "central"
+      : evidenciasStorage.pendientes > 0
+        ? "storage"
+        : "guardar-y-enviar",
+    mensaje: mensajeFinal,
+    error: errorCentral || evidenciasStorage.error,
+    evidenciasIntentadas: evidenciasStorage.intentadas,
+    evidenciasSubidas: evidenciasStorage.subidas,
+    evidenciasPendientes: evidenciasStorage.pendientes,
+    centralOk,
+  };
   const reporteLocal: ReporteV2Storage = {
     ...reporteBaseConEvidencias,
+    offlineId: respaldoInicial.reporte.offlineId,
+    estadoLocal: estadoLocalFinal,
+    ultimoIntentoEnvio,
     sincronizacionCentral: {
-      estado: centralOk ? "sincronizado" : "pendiente",
-    mensaje: centralOk
-      ? evidenciasStorage.pendientes > 0
-        ? `Guardado y sincronizado con ${tablaDestino}. Evidencia pendiente de sincronización: ${evidenciasStorage.pendientes}.`
-        : `Guardado y sincronizado con ${tablaDestino}. Evidencia subida OK: ${evidenciasStorage.subidas}.`
-      : `Guardado local. Sincronización central pendiente${
-            errorCentral ? `: ${errorCentral}` : "."
-          }`,
-      fecha: new Date().toISOString(),
+      estado:
+        centralOk && evidenciasStorage.pendientes === 0
+          ? "sincronizado"
+          : "pendiente",
+      mensaje: mensajeFinal,
+      fecha: ultimoIntentoEnvio.fecha,
     },
   };
-
-  const historialOk = guardarHistorialLivianoV2(reporteLocal);
-  const actualOk = guardarReporteActualV2(reporteLocal);
-  const localOk = historialOk || actualOk;
+  const respaldoFinal = await guardarReporteLocalCompletoV2(
+    reporteLocal,
+    estadoLocalFinal,
+    ultimoIntentoEnvio
+  );
+  const localOk =
+    respaldoFinal.ok ||
+    respaldoFinal.localStorageOk ||
+    respaldoInicial.ok ||
+    respaldoInicial.localStorageOk;
 
   logDesarrollo("estado final", {
     codigo,
+    offlineId: respaldoFinal.reporte.offlineId,
+    estadoLocal: estadoLocalFinal,
     localOk,
+    respaldoLocalCompletoOk: respaldoFinal.ok,
     centralOk,
     centralPendiente: !centralOk,
   });
 
   return {
+    offlineId: respaldoFinal.reporte.offlineId,
+    estadoLocal: estadoLocalFinal,
     localOk,
+    respaldoLocalCompletoOk: respaldoFinal.ok,
     centralOk,
     centralPendiente: !centralOk,
     evidenciasIntentadas: evidenciasStorage.intentadas,
@@ -448,16 +613,53 @@ export async function guardarReporteV2Completo(
     errorCentral,
     errorEvidencias: evidenciasStorage.error,
     codigo,
-    mensaje: centralOk
-      ? evidenciasStorage.pendientes > 0
-        ? `Guardado y sincronizado con ${tablaDestino}. Evidencia pendiente de sincronización: ${evidenciasStorage.pendientes}.`
-        : `Guardado y sincronizado con ${tablaDestino}. Evidencia subida OK: ${evidenciasStorage.subidas}.`
-      : `Guardado local, sincronización central pendiente${
-          errorCentral ? `: ${errorCentral}` : "."
-        }`,
+    mensaje: mensajeFinal,
     tablaDestino,
     supabaseHabilitado: estadoRepositorio.habilitado,
     supabaseConfigurado: estadoRepositorio.configurado,
     banderaSupabaseActiva: estadoRepositorio.banderaActiva,
+  };
+}
+
+export async function sincronizarReportesPendientesV2(): Promise<
+  ResultadoSincronizacionPendientesV2
+> {
+  if (navegadorSinConexion()) {
+    return {
+      total: 0,
+      sincronizados: 0,
+      pendientes: 0,
+      errores: 0,
+      resultados: [],
+      mensaje: "Sin conexión. Mantén los reportes pendientes y vuelve a intentar.",
+    };
+  }
+
+  const pendientesLocales = await listarReportesPendientesLocalesV2();
+  const resultados: ResultadoGuardadoReporteV2[] = [];
+
+  for (const reporte of pendientesLocales) {
+    const resultado = await guardarReporteV2Completo(reporte);
+    resultados.push(resultado);
+  }
+
+  const sincronizados = resultados.filter(
+    (resultado) => resultado.estadoLocal === "sincronizado"
+  ).length;
+  const errores = resultados.filter(
+    (resultado) => resultado.estadoLocal === "error"
+  ).length;
+  const pendientes = Math.max(resultados.length - sincronizados - errores, 0);
+
+  return {
+    total: pendientesLocales.length,
+    sincronizados,
+    pendientes,
+    errores,
+    resultados,
+    mensaje:
+      pendientesLocales.length === 0
+        ? "No hay reportes pendientes de sincronización."
+        : `Sincronización finalizada. OK: ${sincronizados}. Pendientes: ${pendientes}. Error: ${errores}.`,
   };
 }

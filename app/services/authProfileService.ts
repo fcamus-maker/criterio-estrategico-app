@@ -72,6 +72,10 @@ function esOrigenLocalDemo() {
   );
 }
 
+function navegadorSinConexion() {
+  return typeof navigator !== "undefined" && navigator.onLine === false;
+}
+
 function esEmailDemoCE(email: string) {
   return email.trim().toLowerCase().endsWith(".demo@criterioestrategico.cl");
 }
@@ -210,6 +214,17 @@ export async function obtenerAuthProfileActual(): Promise<EstadoAuthProfileCE> {
         };
       }
 
+      const perfilOffline = navegadorSinConexion() ? leerPerfilLocal() : null;
+
+      if (perfilOffline) {
+        return {
+          usuario: null,
+          perfil: perfilOffline,
+          autenticado: true,
+          perfilDisponible: true,
+        };
+      }
+
       return {
         usuario: null,
         perfil: null,
@@ -228,6 +243,18 @@ export async function obtenerAuthProfileActual(): Promise<EstadoAuthProfileCE> {
       .maybeSingle();
 
     if (perfilError || !perfilData) {
+      const perfilOffline = navegadorSinConexion() ? leerPerfilLocal() : null;
+
+      if (perfilOffline) {
+        return {
+          usuario: usuarioData.user,
+          perfil: perfilOffline,
+          autenticado: true,
+          perfilDisponible: true,
+          error: perfilError ? sanitizarError(perfilError) : undefined,
+        };
+      }
+
       return {
         usuario: usuarioData.user,
         perfil: null,
@@ -261,13 +288,28 @@ export async function obtenerAuthProfileActual(): Promise<EstadoAuthProfileCE> {
       };
     }
 
+    const perfil = mapearProfile(filaPerfil);
+    guardarPerfilLocal(perfil);
+
     return {
       usuario: usuarioData.user,
-      perfil: mapearProfile(filaPerfil),
+      perfil,
       autenticado: true,
       perfilDisponible: true,
     };
   } catch (error) {
+    const perfilOffline = navegadorSinConexion() ? leerPerfilLocal() : null;
+
+    if (perfilOffline) {
+      return {
+        usuario: null,
+        perfil: perfilOffline,
+        autenticado: true,
+        perfilDisponible: true,
+        error: sanitizarError(error),
+      };
+    }
+
     return {
       usuario: null,
       perfil: null,

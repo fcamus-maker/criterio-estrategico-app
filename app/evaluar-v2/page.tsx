@@ -14,6 +14,8 @@ import {
   subirFotoPerfilUsuarioActual,
 } from "../services/profilePhotoService";
 import PwaInstallCard from "../components/PwaInstallCard";
+import { navegarEvaluarV2 } from "./offlineNavigation";
+import { listarReportesPendientesLocalesV2 } from "./storageReporteV2";
 import {
   cargarSupervisorV2UsuarioActual,
   cargarSupervisorV2LocalReciente,
@@ -115,6 +117,9 @@ export default function EvaluarV2HomePage() {
   const [guardandoSupervisor, setGuardandoSupervisor] = useState(false);
   const [fotoPerfilArchivo, setFotoPerfilArchivo] = useState<File | null>(null);
   const [fotoPerfilPreview, setFotoPerfilPreview] = useState("");
+  const [online, setOnline] = useState(true);
+  const [pendientesLocales, setPendientesLocales] = useState(0);
+  const [sincronizandoPendientes, setSincronizandoPendientes] = useState(false);
   const [ajusteFotoPerfil, setAjusteFotoPerfil] = useState({
     zoom: 1,
     offsetX: 0,
@@ -162,6 +167,27 @@ export default function EvaluarV2HomePage() {
       }
     };
   }, [fotoPerfilPreview]);
+
+  const actualizarPendientesLocales = async () => {
+    const pendientes = await listarReportesPendientesLocalesV2();
+    setPendientesLocales(pendientes.length);
+  };
+
+  useEffect(() => {
+    const actualizarConexion = () => {
+      setOnline(typeof navigator === "undefined" ? true : navigator.onLine);
+      void actualizarPendientesLocales();
+    };
+
+    actualizarConexion();
+    window.addEventListener("online", actualizarConexion);
+    window.addEventListener("offline", actualizarConexion);
+
+    return () => {
+      window.removeEventListener("online", actualizarConexion);
+      window.removeEventListener("offline", actualizarConexion);
+    };
+  }, []);
 
   const contadores = useMemo(() => {
     const reportados = historial.length;
@@ -348,7 +374,7 @@ export default function EvaluarV2HomePage() {
     setNavegandoReporte(true);
     setMensaje("");
     vibrarOk();
-    router.push("/evaluar-v2/reportar");
+    navegarEvaluarV2(router, "/evaluar-v2/reportar");
   };
 
   const cerrarSesionSupervisor = async () => {
@@ -367,6 +393,32 @@ export default function EvaluarV2HomePage() {
 
     vibrarOk();
     router.replace("/login");
+  };
+
+  const sincronizarPendientes = async () => {
+    if (sincronizandoPendientes || !online) return;
+
+    setSincronizandoPendientes(true);
+    setMensaje("");
+
+    try {
+      const { sincronizarReportesPendientesV2 } = await import(
+        "@/app/services/guardarReporteV2Completo"
+      );
+      const resultado = await sincronizarReportesPendientesV2();
+      setMensaje(resultado.mensaje);
+      await actualizarPendientesLocales();
+      setHistorial(cargarHistorial());
+      vibrarOk();
+    } catch (error) {
+      setMensaje(
+        `No se pudo sincronizar pendientes: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    } finally {
+      setSincronizandoPendientes(false);
+    }
   };
 
   const feedbackBoton = (id: string) => ({
@@ -530,6 +582,89 @@ export default function EvaluarV2HomePage() {
             {t("Registro preventivo en terreno alineado a la gestión DS 44, con evidencia, GPS y trazabilidad.")}
           </p>
         </header>
+
+        <section
+          style={{
+            ...cardStyle,
+            background: online
+              ? temaClaro
+                ? "rgba(240,253,244,0.88)"
+                : "rgba(34,197,94,0.12)"
+              : temaClaro
+                ? "rgba(255,247,237,0.90)"
+                : "rgba(249,115,22,0.14)",
+            border: online
+              ? temaClaro
+                ? "1px solid rgba(22,163,74,0.24)"
+                : "1px solid rgba(34,197,94,0.26)"
+              : temaClaro
+                ? "1px solid rgba(234,88,12,0.26)"
+                : "1px solid rgba(249,115,22,0.30)",
+          }}
+        >
+          <div style={{ display: "grid", gap: "9px" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: "10px",
+                alignItems: "center",
+              }}
+            >
+              <div style={{ fontSize: "15px", fontWeight: 950 }}>
+                {online ? "Online" : "Offline"}
+              </div>
+              <div
+                style={{
+                  borderRadius: "999px",
+                  padding: "6px 9px",
+                  background: online
+                    ? "rgba(34,197,94,0.18)"
+                    : "rgba(249,115,22,0.20)",
+                  color: temaClaro ? "#0f172a" : "white",
+                  fontSize: "11px",
+                  fontWeight: 950,
+                }}
+              >
+                Pendientes: {pendientesLocales}
+              </div>
+            </div>
+            <div
+              style={{
+                fontSize: "13px",
+                lineHeight: 1.38,
+                fontWeight: 800,
+                opacity: 0.78,
+              }}
+            >
+              {online
+                ? "Con conexión disponible para sincronizar Supabase y Storage."
+                : "Modo offline activo. El reporte quedará pendiente de sincronización."}
+            </div>
+            {online && pendientesLocales > 0 && (
+              <button
+                type="button"
+                onClick={sincronizarPendientes}
+                disabled={sincronizandoPendientes}
+                {...feedbackBoton("sincronizar-pendientes")}
+                style={{
+                  ...buttonStyle,
+                  marginTop: "2px",
+                  color: "white",
+                  background: sincronizandoPendientes
+                    ? "rgba(255,255,255,0.18)"
+                    : "linear-gradient(135deg, #2563eb, #1d4ed8)",
+                  opacity: sincronizandoPendientes ? 0.72 : 1,
+                  ...estiloFeedback("sincronizar-pendientes"),
+                }}
+              >
+                {sincronizandoPendientes
+                  ? "Sincronizando..."
+                  : "Sincronizar pendientes"}
+              </button>
+            )}
+          </div>
+        </section>
 
         <section style={cardStyle}>
           <div style={{ display: "flex", gap: "13px", alignItems: "center" }}>

@@ -3,7 +3,9 @@ export const STORAGE_HISTORIAL = "ce_mobile_v2_historial_reportes";
 const MAX_HISTORIAL_LOCAL = 50;
 const MEMORIA_REPORTE_ACTUAL = "__ce_mobile_v2_reporte_actual_completo";
 const EVIDENCIAS_DB = "ce_mobile_v2_evidencias";
+const EVIDENCIAS_DB_VERSION = 2;
 const EVIDENCIAS_STORE = "evidencias_pendientes";
+const REPORTES_STORE = "reportes_locales";
 
 export type FotoReporteV2Storage = {
   id?: string;
@@ -64,7 +66,22 @@ type EvidenciaLocalPendienteV2 = {
   actualizadaEn: string;
 };
 
+export type EstadoLocalReporteV2 = "pendiente" | "sincronizado" | "error";
+
+export type UltimoIntentoEnvioReporteV2 = {
+  fecha: string;
+  estado: EstadoLocalReporteV2;
+  canal?: "guardar-y-enviar" | "sesion" | "storage" | "central" | "local";
+  mensaje?: string;
+  error?: string;
+  evidenciasIntentadas?: number;
+  evidenciasSubidas?: number;
+  evidenciasPendientes?: number;
+  centralOk?: boolean;
+};
+
 export type ReporteV2Storage = {
+  offlineId?: string;
   codigo?: string;
   supervisor?: string;
   supervisorFoto?: string;
@@ -105,11 +122,30 @@ export type ReporteV2Storage = {
   };
   cierre?: Record<string, unknown>;
   asignacionCierre?: Record<string, unknown>;
+  estadoLocal?: EstadoLocalReporteV2;
+  ultimoIntentoEnvio?: UltimoIntentoEnvioReporteV2;
+  creadoEn?: string;
+  actualizadoEn?: string;
   sincronizacionCentral?: {
     estado?: "sincronizado" | "pendiente" | "error";
     mensaje?: string;
     fecha?: string;
   };
+};
+
+export type ReporteLocalCompletoV2 = ReporteV2Storage & {
+  offlineId: string;
+  estadoLocal: EstadoLocalReporteV2;
+  ultimoIntentoEnvio?: UltimoIntentoEnvioReporteV2;
+  creadoEn: string;
+  actualizadoEn: string;
+};
+
+export type ResultadoGuardadoLocalCompletoV2 = {
+  ok: boolean;
+  localStorageOk: boolean;
+  reporte: ReporteLocalCompletoV2;
+  error?: string;
 };
 
 function obtenerWindowConMemoria() {
@@ -142,17 +178,70 @@ function crearLocalBlobKey(foto: FotoReporteV2Storage) {
   return foto.localBlobKey || `mobile-v2-evidencia-${id}`;
 }
 
+function normalizarParteOfflineId(valor: string) {
+  return valor
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9._-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 96);
+}
+
+function crearOfflineIdReporteV2(reporte: ReporteV2Storage) {
+  const existente = String(reporte.offlineId || "").trim();
+  if (existente) return existente;
+
+  const codigo = String(reporte.codigo || "").trim();
+  if (codigo) return `offline-${normalizarParteOfflineId(codigo)}`;
+
+  const base = [
+    reporte.fechaGuardado,
+    reporte.fecha,
+    reporte.hora,
+    reporte.supervisor,
+    reporte.obra,
+    reporte.descripcion?.slice(0, 32),
+  ]
+    .filter(Boolean)
+    .join("-");
+
+  if (base) return `offline-${normalizarParteOfflineId(base)}`;
+  return `offline-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export function asegurarOfflineIdReporteV2<T extends ReporteV2Storage>(
+  reporte: T
+): T & { offlineId: string } {
+  return {
+    ...reporte,
+    offlineId: crearOfflineIdReporteV2(reporte),
+  };
+}
+
+function asegurarStoresLocalesV2(db: IDBDatabase) {
+  if (!db.objectStoreNames.contains(EVIDENCIAS_STORE)) {
+    db.createObjectStore(EVIDENCIAS_STORE, { keyPath: "key" });
+  }
+
+  if (!db.objectStoreNames.contains(REPORTES_STORE)) {
+    const reportesStore = db.createObjectStore(REPORTES_STORE, {
+      keyPath: "offlineId",
+    });
+    reportesStore.createIndex("estadoLocal", "estadoLocal", { unique: false });
+    reportesStore.createIndex("codigo", "codigo", { unique: false });
+    reportesStore.createIndex("actualizadoEn", "actualizadoEn", { unique: false });
+  }
+}
+
 function abrirDbEvidencias(): Promise<IDBDatabase | null> {
   if (typeof indexedDB === "undefined") return Promise.resolve(null);
 
   return new Promise((resolve) => {
-    const request = indexedDB.open(EVIDENCIAS_DB, 1);
+    const request = indexedDB.open(EVIDENCIAS_DB, EVIDENCIAS_DB_VERSION);
 
     request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains(EVIDENCIAS_STORE)) {
-        db.createObjectStore(EVIDENCIAS_STORE, { keyPath: "key" });
-      }
+      asegurarStoresLocalesV2(request.result);
     };
 
     request.onerror = () => {
@@ -321,6 +410,153 @@ export async function hidratarReporteConEvidenciasLocalesV2(
           : foto;
       })
     ),
+  };
+}
+
+async function guardarReporteCompletoIndexedDbV2(
+  reporte: ReporteLocalCompletoV2
+): Promise<boolean> {
+  const db = await abrirDbEvidencias();
+  if (!db) return false;
+
+  return new Promise((resolve) => {
+    const tx = db.transaction(REPORTES_STORE, "readwrite");
+    tx.objectStore(REPORTES_STORE).put(reporte);
+    tx.oncomplete = () => {
+      db.close();
+      resolve(true);
+    };
+    tx.onerror = () => {
+      console.warn("No se pudo guardar reporte local completo.", tx.error);
+      db.close();
+      resolve(false);
+    };
+  });
+}
+
+export async function leerReporteLocalCompletoV2(
+  offlineId: string | undefined
+): Promise<ReporteLocalCompletoV2 | null> {
+  if (!offlineId) return null;
+  const db = await abrirDbEvidencias();
+  if (!db) return null;
+
+  return new Promise((resolve) => {
+    const tx = db.transaction(REPORTES_STORE, "readonly");
+    const request = tx.objectStore(REPORTES_STORE).get(offlineId);
+
+    request.onsuccess = () => {
+      const reporteLocal = request.result as ReporteLocalCompletoV2 | undefined;
+      db.close();
+      resolve(reporteLocal || null);
+    };
+    request.onerror = () => {
+      db.close();
+      resolve(null);
+    };
+  });
+}
+
+export async function listarReportesLocalesCompletosV2(
+  estadoLocal?: EstadoLocalReporteV2
+): Promise<ReporteLocalCompletoV2[]> {
+  const db = await abrirDbEvidencias();
+  if (!db) return [];
+
+  return new Promise((resolve) => {
+    const tx = db.transaction(REPORTES_STORE, "readonly");
+    const store = tx.objectStore(REPORTES_STORE);
+    const request = estadoLocal
+      ? store.index("estadoLocal").getAll(estadoLocal)
+      : store.getAll();
+
+    request.onsuccess = () => {
+      db.close();
+      const reportes = Array.isArray(request.result)
+        ? (request.result as ReporteLocalCompletoV2[])
+        : [];
+      resolve(
+        reportes.sort((a, b) =>
+          String(b.actualizadoEn || "").localeCompare(String(a.actualizadoEn || ""))
+        )
+      );
+    };
+    request.onerror = () => {
+      db.close();
+      resolve([]);
+    };
+  });
+}
+
+export async function listarReportesPendientesLocalesV2(): Promise<
+  ReporteLocalCompletoV2[]
+> {
+  const [pendientes, conError] = await Promise.all([
+    listarReportesLocalesCompletosV2("pendiente"),
+    listarReportesLocalesCompletosV2("error"),
+  ]);
+
+  const porId = new Map<string, ReporteLocalCompletoV2>();
+
+  for (const reporte of [...pendientes, ...conError]) {
+    porId.set(reporte.offlineId, reporte);
+  }
+
+  return Array.from(porId.values()).sort((a, b) =>
+    String(b.actualizadoEn || "").localeCompare(String(a.actualizadoEn || ""))
+  );
+}
+
+export async function guardarReporteLocalCompletoV2(
+  reporte: ReporteV2Storage,
+  estadoLocal: EstadoLocalReporteV2,
+  ultimoIntentoEnvio?: UltimoIntentoEnvioReporteV2
+): Promise<ResultadoGuardadoLocalCompletoV2> {
+  const ahora = new Date().toISOString();
+  const reporteConEvidencias = (
+    await prepararReporteConEvidenciasLocalesV2(
+      await hidratarReporteConEvidenciasLocalesV2(reporte)
+    )
+  ).reporte;
+  const reporteConId = asegurarOfflineIdReporteV2(reporteConEvidencias);
+  const intento = ultimoIntentoEnvio || reporteConId.ultimoIntentoEnvio || {
+    fecha: ahora,
+    estado: estadoLocal,
+    canal: "local" as const,
+    mensaje: "Respaldo local completo actualizado.",
+  };
+  const reporteLocal: ReporteLocalCompletoV2 = {
+    ...reporteConId,
+    estadoLocal,
+    ultimoIntentoEnvio: intento,
+    creadoEn: reporteConId.creadoEn || ahora,
+    actualizadoEn: ahora,
+    sincronizacionCentral: {
+      estado:
+        reporteConId.sincronizacionCentral?.estado ||
+        (estadoLocal === "sincronizado" ? "sincronizado" : "pendiente"),
+      mensaje: reporteConId.sincronizacionCentral?.mensaje || intento.mensaje,
+      fecha: reporteConId.sincronizacionCentral?.fecha || intento.fecha || ahora,
+    },
+  };
+  let error: string | undefined;
+  const indexedDbOk = await guardarReporteCompletoIndexedDbV2(reporteLocal).catch(
+    (fallo) => {
+      error =
+        fallo instanceof Error
+          ? fallo.message
+          : String(fallo || "No se pudo guardar reporte local completo.");
+      return false;
+    }
+  );
+  const actualOk = guardarReporteActualV2(reporteLocal);
+  const historialOk = guardarHistorialLivianoV2(reporteLocal);
+
+  return {
+    ok: indexedDbOk,
+    localStorageOk: actualOk || historialOk,
+    reporte: reporteLocal,
+    error,
   };
 }
 

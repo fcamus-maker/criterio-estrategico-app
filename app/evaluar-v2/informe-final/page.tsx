@@ -2,10 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  guardarHistorialLivianoV2,
-  guardarReporteActualV2,
+  guardarReporteLocalCompletoV2,
   hidratarReporteConEvidenciasLocalesV2,
   leerReporteActualV2,
+  type EstadoLocalReporteV2,
   type ReporteV2Storage,
 } from "../storageReporteV2";
 
@@ -80,7 +80,10 @@ type ReporteV2 = ReporteV2Storage & {
 };
 
 type DetalleGuardadoV2 = {
+  offlineId?: string;
+  estadoLocal?: EstadoLocalReporteV2;
   localOk?: boolean;
+  respaldoLocalCompletoOk?: boolean;
   centralOk?: boolean;
   centralPendiente?: boolean;
   evidenciasIntentadas?: number;
@@ -93,6 +96,7 @@ type DetalleGuardadoV2 = {
   supabaseHabilitado?: boolean;
   supabaseConfigurado?: boolean;
   banderaSupabaseActiva?: boolean;
+  mensaje?: string;
 };
 
 function vibrarOk() {
@@ -138,6 +142,10 @@ function obtenerEstiloCriticidad(criticidad?: string) {
 }
 
 function mensajeUsuarioGuardado(detalle: DetalleGuardadoV2) {
+  if (!detalle.centralOk && detalle.estadoLocal === "pendiente") {
+    return "Guardado localmente. Sincronización pendiente.";
+  }
+
   if (detalle.centralOk) {
     if ((detalle.evidenciasPendientes || 0) > 0) {
       return `Reporte enviado correctamente. ${detalle.evidenciasPendientes} evidencia(s) quedaron pendientes de carga.`;
@@ -164,6 +172,8 @@ export default function InformeFinalV2Page() {
   const [detalleGuardado, setDetalleGuardado] =
     useState<DetalleGuardadoV2 | null>(null);
   const [botonActivo, setBotonActivo] = useState("");
+  const [online, setOnline] = useState(true);
+  const [sincronizandoPendientes, setSincronizandoPendientes] = useState(false);
   const guardandoRef = useRef(false);
 
   useEffect(() => {
@@ -184,6 +194,58 @@ export default function InformeFinalV2Page() {
       window.cancelAnimationFrame(frameId);
     };
   }, []);
+
+  useEffect(() => {
+    const actualizarConexion = () => {
+      setOnline(typeof navigator === "undefined" ? true : navigator.onLine);
+    };
+
+    actualizarConexion();
+    window.addEventListener("online", actualizarConexion);
+    window.addEventListener("offline", actualizarConexion);
+
+    return () => {
+      window.removeEventListener("online", actualizarConexion);
+      window.removeEventListener("offline", actualizarConexion);
+    };
+  }, []);
+
+  const sincronizarPendientes = async () => {
+    if (sincronizandoPendientes || !online) return;
+
+    setSincronizandoPendientes(true);
+    setMensajeGuardado("");
+
+    try {
+      const { sincronizarReportesPendientesV2 } = await import(
+        "@/app/services/guardarReporteV2Completo"
+      );
+      const resultado = await sincronizarReportesPendientesV2();
+      const todoOk = resultado.errores === 0 && resultado.pendientes === 0;
+
+      setMensajeGuardado(resultado.mensaje);
+      setEstadoSincronizacion(todoOk ? "central-ok" : "central-error");
+      setDetalleGuardado((actual) =>
+        actual
+          ? {
+              ...actual,
+              estadoLocal: todoOk ? "sincronizado" : actual.estadoLocal,
+              centralOk: todoOk ? true : actual.centralOk,
+              centralPendiente: !todoOk,
+            }
+          : actual
+      );
+    } catch (error) {
+      setMensajeGuardado(
+        `No se pudo sincronizar pendientes: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+      setEstadoSincronizacion("central-error");
+    } finally {
+      setSincronizandoPendientes(false);
+    }
+  };
 
   const feedbackBoton = (id: string) => ({
     onPointerDown: () => setBotonActivo(id),
@@ -572,6 +634,25 @@ export default function InformeFinalV2Page() {
             </section>
 
             <div style={{ display: "grid", gap: "10px" }}>
+              <div
+                style={{
+                  borderRadius: "14px",
+                  background: online
+                    ? "rgba(34,197,94,0.14)"
+                    : "rgba(249,115,22,0.16)",
+                  border: online
+                    ? "1px solid rgba(34,197,94,0.28)"
+                    : "1px solid rgba(249,115,22,0.32)",
+                  padding: "10px 12px",
+                  fontSize: "12px",
+                  fontWeight: 900,
+                  lineHeight: 1.35,
+                }}
+              >
+                {online
+                  ? "Online. Se intentará sincronizar Supabase y Storage."
+                  : "Modo offline activo. El reporte quedará pendiente de sincronización."}
+              </div>
               <button
                 type="button"
                 {...feedbackBoton("guardar")}
@@ -609,6 +690,27 @@ export default function InformeFinalV2Page() {
                       await guardarReporteV2Completo(reporteGuardado);
                     const reporteConEstado: ReporteV2 = {
                       ...reporteGuardado,
+                      offlineId: resultadoGuardado.offlineId,
+                      estadoLocal: resultadoGuardado.estadoLocal,
+                      ultimoIntentoEnvio: {
+                        fecha: new Date().toISOString(),
+                        estado: resultadoGuardado.estadoLocal,
+                        canal: resultadoGuardado.errorCentral
+                          ? "central"
+                          : resultadoGuardado.evidenciasPendientes > 0
+                            ? "storage"
+                            : "guardar-y-enviar",
+                        mensaje: resultadoGuardado.mensaje,
+                        error:
+                          resultadoGuardado.errorCentral ||
+                          resultadoGuardado.errorEvidencias,
+                        evidenciasIntentadas:
+                          resultadoGuardado.evidenciasIntentadas,
+                        evidenciasSubidas: resultadoGuardado.evidenciasSubidas,
+                        evidenciasPendientes:
+                          resultadoGuardado.evidenciasPendientes,
+                        centralOk: resultadoGuardado.centralOk,
+                      },
                       sincronizacionCentral: {
                         estado: resultadoGuardado.centralOk
                           ? "sincronizado"
@@ -630,21 +732,43 @@ export default function InformeFinalV2Page() {
                     console.warn("No se pudo completar escritura central.", error);
                     const reporteConEstado: ReporteV2 = {
                       ...reporteGuardado,
+                      estadoLocal: "error",
+                      ultimoIntentoEnvio: {
+                        fecha: new Date().toISOString(),
+                        estado: "error",
+                        canal: "local",
+                        mensaje: mensajeCentral,
+                        error:
+                          error instanceof Error ? error.message : String(error),
+                        centralOk: false,
+                      },
                       sincronizacionCentral: {
                         estado: "pendiente",
                         mensaje: mensajeCentral,
                         fecha: new Date().toISOString(),
                       },
                     };
-                    const historialOk = guardarHistorialLivianoV2(reporteConEstado);
-                    const actualOk = guardarReporteActualV2(reporteConEstado);
-                    const localOk = historialOk || actualOk;
+                    const respaldoLocal = await guardarReporteLocalCompletoV2(
+                      reporteConEstado,
+                      "error",
+                      reporteConEstado.ultimoIntentoEnvio
+                    );
+                    const localOk =
+                      respaldoLocal.ok || respaldoLocal.localStorageOk;
+                    const reporteFinal = respaldoLocal.reporte as ReporteV2;
 
-                    setReporte(reporteConEstado);
+                    setReporte(reporteFinal);
                     setEstadoSincronizacion("central-error");
-                    setMensajeGuardado(mensajeCentral);
+                    setMensajeGuardado(
+                      localOk
+                        ? mensajeCentral
+                        : "No se pudo confirmar el respaldo local completo. Revisa el almacenamiento del navegador."
+                    );
                     setDetalleGuardado({
+                      offlineId: respaldoLocal.reporte.offlineId,
+                      estadoLocal: "error",
                       localOk,
+                      respaldoLocalCompletoOk: respaldoLocal.ok,
                       centralOk: false,
                       centralPendiente: true,
                       errorCentral:
@@ -730,6 +854,40 @@ export default function InformeFinalV2Page() {
                         : "Evidencias recibidas."}
                     </div>
                   )}
+                  {!online && (
+                    <div>
+                      Modo offline activo. El reporte quedará pendiente de
+                      sincronización.
+                    </div>
+                  )}
+                  {online &&
+                    detalleGuardado.estadoLocal !== "sincronizado" &&
+                    detalleGuardado.centralPendiente && (
+                      <button
+                        type="button"
+                        onClick={sincronizarPendientes}
+                        disabled={sincronizandoPendientes}
+                        style={{
+                          marginTop: "10px",
+                          width: "100%",
+                          border: "none",
+                          borderRadius: "12px",
+                          background: sincronizandoPendientes
+                            ? "rgba(255,255,255,0.18)"
+                            : "linear-gradient(135deg, #2563eb, #1d4ed8)",
+                          color: "white",
+                          cursor: "pointer",
+                          fontSize: "13px",
+                          fontWeight: 900,
+                          padding: "11px 12px",
+                          opacity: sincronizandoPendientes ? 0.72 : 1,
+                        }}
+                      >
+                        {sincronizandoPendientes
+                          ? "Sincronizando..."
+                          : "Sincronizar pendientes"}
+                      </button>
+                    )}
                 </div>
               )}
               <a

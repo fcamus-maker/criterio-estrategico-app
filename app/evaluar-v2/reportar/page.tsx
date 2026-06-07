@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
+import { navegarEvaluarV2 } from "../offlineNavigation";
 import {
   cargarHistorialLivianoV2,
   eliminarEvidenciaLocalV2,
@@ -218,6 +219,7 @@ export default function ReportarV2Page() {
   const [capturandoGps, setCapturandoGps] = useState(false);
   const [navegando, setNavegando] = useState(false);
   const [botonActivo, setBotonActivo] = useState("");
+  const [online, setOnline] = useState(true);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -240,6 +242,21 @@ export default function ReportarV2Page() {
     return () => {
       activo = false;
       window.cancelAnimationFrame(frameId);
+    };
+  }, []);
+
+  useEffect(() => {
+    const actualizarConexion = () => {
+      setOnline(typeof navigator === "undefined" ? true : navigator.onLine);
+    };
+
+    actualizarConexion();
+    window.addEventListener("online", actualizarConexion);
+    window.addEventListener("offline", actualizarConexion);
+
+    return () => {
+      window.removeEventListener("online", actualizarConexion);
+      window.removeEventListener("offline", actualizarConexion);
     };
   }, []);
 
@@ -448,7 +465,7 @@ export default function ReportarV2Page() {
     setMensaje("Reporte válido para continuar.");
     setNavegando(true);
     vibrarOk();
-    router.push("/evaluar-v2/evaluacion/paso1");
+    navegarEvaluarV2(router, "/evaluar-v2/evaluacion/paso1");
   };
 
   const feedbackBoton = (id: string) => ({
@@ -615,6 +632,25 @@ export default function ReportarV2Page() {
             criticidad y trazabilidad para seguimiento preventivo.
           </p>
         </header>
+
+        <section
+          style={{
+            ...cardStyle,
+            background: online
+              ? "rgba(34,197,94,0.12)"
+              : "rgba(249,115,22,0.14)",
+            border: online
+              ? "1px solid rgba(34,197,94,0.26)"
+              : "1px solid rgba(249,115,22,0.30)",
+            fontSize: "13px",
+            fontWeight: 850,
+            lineHeight: 1.4,
+          }}
+        >
+          {online
+            ? "Online. Las evidencias se conservarán localmente hasta el envío."
+            : "Modo offline activo. Puedes crear el reporte con foto; quedará pendiente de sincronización."}
+        </section>
 
         <section style={cardStyle}>
           <div

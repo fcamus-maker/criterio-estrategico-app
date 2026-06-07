@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { navegarEvaluarV2 } from "../offlineNavigation";
 import {
   hidratarReporteConEvidenciasLocalesV2,
   leerReporteActualV2,
@@ -441,7 +442,7 @@ export default function ResultadoV2Page() {
                 type="button"
                 onClick={() => {
                   vibrarOk();
-                  router.push("/evaluar-v2/informe-final");
+                  navegarEvaluarV2(router, "/evaluar-v2/informe-final");
                 }}
                 {...feedbackBoton("generar-informe")}
                 style={{
