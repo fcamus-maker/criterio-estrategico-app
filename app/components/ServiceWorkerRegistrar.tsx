@@ -2,9 +2,11 @@
 
 import { useEffect } from "react";
 
-const CACHE_SHELL_OFFLINE = "ce-offline-v2-shell";
+const CACHE_SHELL_OFFLINE = "ce-offline-v3-shell";
 const RUTAS_EVALUAR_V2 = [
   "/offline.html",
+  "/",
+  "/login",
   "/evaluar-v2",
   "/evaluar-v2/reportar",
   "/evaluar-v2/evaluacion/paso1",

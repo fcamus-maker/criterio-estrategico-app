@@ -1,9 +1,11 @@
-const CE_CACHE_VERSION = "ce-offline-v2";
+const CE_CACHE_VERSION = "ce-offline-v3";
 const CE_APP_SHELL_CACHE = `${CE_CACHE_VERSION}-shell`;
 const CE_RUNTIME_CACHE = `${CE_CACHE_VERSION}-runtime`;
 
 const CORE_ASSETS = [
   "/offline.html",
+  "/",
+  "/login",
   "/evaluar-v2",
   "/evaluar-v2/reportar",
   "/evaluar-v2/evaluacion/paso1",
@@ -15,6 +17,8 @@ const CORE_ASSETS = [
   "/icon.png",
   "/favicon.ico",
 ];
+
+const ENTRADAS_PWA = new Set(["/", "/login"]);
 
 const FLUJO_EVALUAR_V2 = [
   "/evaluar-v2",
@@ -31,6 +35,10 @@ function esMismoOrigen(url) {
 
 function esRutaEvaluarV2(url) {
   return url.pathname === "/evaluar-v2" || url.pathname.startsWith("/evaluar-v2/");
+}
+
+function esEntradaPwa(url) {
+  return ENTRADAS_PWA.has(url.pathname);
 }
 
 function esAssetPropio(url) {
@@ -158,6 +166,30 @@ async function responderNavegacion(request) {
   }
 }
 
+async function responderEntradaPwa(request) {
+  const cache = await caches.open(CE_RUNTIME_CACHE);
+
+  try {
+    const respuesta = await fetch(request);
+    if (respuesta.ok) {
+      await cachearDocumentoSiCorresponde(cache, request, respuesta.clone());
+    }
+    return respuesta;
+  } catch {
+    return (
+      (await caches.match("/evaluar-v2")) ||
+      (await caches.match("/offline.html")) ||
+      new Response(
+        "Modo offline activo. Vuelve al inicio del reporte o inicia sesion con internet al menos una vez.",
+        {
+          status: 503,
+          headers: { "Content-Type": "text/plain; charset=utf-8" },
+        }
+      )
+    );
+  }
+}
+
 async function responderAsset(request) {
   const cache = await caches.open(CE_RUNTIME_CACHE);
   const cacheado = await cache.match(request);
@@ -221,7 +253,17 @@ self.addEventListener("fetch", (event) => {
   if (request.mode === "navigate" || request.destination === "document") {
     if (esRutaEvaluarV2(url) || url.pathname === "/offline.html") {
       event.respondWith(responderNavegacion(request));
+      return;
     }
+
+    if (esEntradaPwa(url)) {
+      event.respondWith(responderEntradaPwa(request));
+    }
+    return;
+  }
+
+  if (esEntradaPwa(url) && url.searchParams.has("_rsc")) {
+    event.respondWith(responderRutaInternaNext(request));
     return;
   }
 
