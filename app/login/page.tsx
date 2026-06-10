@@ -259,7 +259,7 @@ export default function LoginPage() {
         )}
 
         <div style={{ marginTop: "14px" }}>
-          <PwaInstallCard theme="dark" />
+          <PwaInstallCard theme="dark" deviceAware />
         </div>
       </section>
     </main>

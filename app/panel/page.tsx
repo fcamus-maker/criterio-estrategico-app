@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
+import { analizarAlarmaCriticaAcumulada } from "../analytics/alertaCriticos";
 import { analizarRadarPreventivo } from "../analytics/radarPreventivo";
 import type {
   BitacoraHallazgoCentral,
@@ -577,6 +578,7 @@ const [guardadoConfig, setGuardadoConfig] = useState(false);
   }, [router]);
 const [fechaActualizacion, setFechaActualizacion] = useState<Date | null>(null);
 const [filasPanel, setFilasPanel] = useState<HallazgoPanelExtendido[]>(hallazgosMock);
+const [cargandoHallazgosPanel, setCargandoHallazgosPanel] = useState(true);
 const [hallazgosAnuladosResumen, setHallazgosAnuladosResumen] = useState<HallazgoPanelExtendido[]>([]);
 const [metaDiariaReportes, setMetaDiariaReportes] = useState(leerMetaDiariaReportes);
 const [fechaMetaDiariaActual, setFechaMetaDiariaActual] = useState(fechaLocalISO);
@@ -1025,58 +1027,6 @@ const [menuExportacionMetaAbierto, setMenuExportacionMetaAbierto] = useState(fal
     "EN PLAZO": "ON TIME",
   };
   const t = (texto: string) => (idiomaActivo === "en" ? textosEn[texto] || texto : texto);
-  const pluralEn = (count: number, singular: string, plural: string) =>
-    count === 1 ? singular : plural;
-  const traducirRadarResumen = () => {
-    if (idiomaActivo !== "en") return radarPreventivo.resumenEjecutivo;
-    const total = hallazgosRadar.length;
-    const criticosAltos = radarPreventivo.criticosAbiertos + altosAbiertosRadar;
-    const sinCierre = hallazgosRadar.filter(
-      (hallazgo) => hallazgo.estado !== "CERRADO" && hallazgo.estado !== "ANULADO"
-    ).length;
-
-    if (total === 0) {
-      return "No findings available for preventive analysis in the selected period.";
-    }
-    if (radarPreventivo.alertas.some((item) => item.nivel === "critica")) {
-      return `Preventive Radar identifies critical concentration: ${criticosAltos} critical/high ${pluralEn(criticosAltos, "finding", "findings")} and ${sinCierre} pending closure ${pluralEn(sinCierre, "item", "items")}.`;
-    }
-    if (radarPreventivo.alertas.some((item) => item.nivel === "alerta")) {
-      return `Preventive Radar detects relevant recurrence or criticality patterns: ${criticosAltos} critical/high ${pluralEn(criticosAltos, "finding", "findings")}.`;
-    }
-    return `Preventive Radar shows no major alerts; maintain follow-up on ${sinCierre} pending ${pluralEn(sinCierre, "finding", "findings")}.`;
-  };
-  const traducirAlertaRadarDetalle = (detalle: string) => {
-    if (idiomaActivo !== "en") return detalle;
-    const detalleNormalizado = detalle
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase();
-    const criticosAbiertosMatch = detalleNormalizado.match(/^(\d+)\s*hallazgo\(s\) criticos permanecen abiertos\.$/);
-    if (criticosAbiertosMatch) {
-      const cantidad = Number(criticosAbiertosMatch[1]);
-      return `${cantidad} critical ${pluralEn(cantidad, "finding remains", "findings remain")} open.`;
-    }
-
-    const criticosAltosMatch = detalleNormalizado.match(/^(\d+)\s*hallazgo\(s\) criticos o altos requieren atencion prioritaria\.$/);
-    if (criticosAltosMatch) {
-      const cantidad = Number(criticosAltosMatch[1]);
-      return `${cantidad} critical or high ${pluralEn(cantidad, "finding requires", "findings require")} priority attention.`;
-    }
-
-    const vencidosMatch = detalleNormalizado.match(/^(\d+)\s*hallazgo\(s\) abiertos superan su fecha compromiso\.$/);
-    if (vencidosMatch) {
-      const cantidad = Number(vencidosMatch[1]);
-      return `${cantidad} open ${pluralEn(cantidad, "finding is", "findings are")} past the commitment date.`;
-    }
-
-    const reincidenciaMatch = detalle.match(/^(.*):\s*(\d+)\s*hallazgo\(s\) registrados\.$/i);
-    if (!reincidenciaMatch) return detalle;
-    const [, clave, total] = reincidenciaMatch;
-    const cantidad = Number(total);
-    return `${clave}: ${cantidad} ${pluralEn(cantidad, "finding", "findings")} registered.`;
-  };
-  const traducirRadarNivel = (nivel: string) => t(nivel);
   const traducirRiesgoOperativo = (riesgo: string) => {
     const normalizado = riesgo.replace(/_/g, " ");
     if (idiomaActivo !== "en") return normalizado;
@@ -1281,14 +1231,17 @@ const [menuExportacionMetaAbierto, setMenuExportacionMetaAbierto] = useState(fal
 
   useEffect(() => {
     let activo = true;
+    setCargandoHallazgosPanel(true);
 
-    void cargarHallazgosPanelConFuentesOpcionales(hallazgosMock).then(
-      (hallazgos) => {
+    void cargarHallazgosPanelConFuentesOpcionales(hallazgosMock)
+      .then((hallazgos) => {
         if (activo) {
           setFilasPanel(hallazgos);
         }
-      }
-    );
+      })
+      .finally(() => {
+        if (activo) setCargandoHallazgosPanel(false);
+      });
 
     return () => {
       activo = false;
@@ -6224,11 +6177,10 @@ const hallazgosRadar: HallazgoCentral[] = filasFiltradas.map((item) => {
     },
   };
 });
-const radarPreventivo = analizarRadarPreventivo(hallazgosRadar);
-const altosAbiertosRadar = hallazgosRadar.filter(
-  (item) => item.criticidad === "ALTO" && item.estado !== "CERRADO"
-).length;
-const alertaRadarPrincipal = radarPreventivo.alertas[0];
+const alarmaPreventivaEnCarga = cargandoHallazgosPanel || cargandoVistaBorrados;
+const hallazgosRadarAnalisis = alarmaPreventivaEnCarga ? [] : hallazgosRadar;
+const radarPreventivo = analizarRadarPreventivo(hallazgosRadarAnalisis);
+const alarmaCritica = analizarAlarmaCriticaAcumulada(hallazgosRadarAnalisis);
 const riesgoOperativoPrincipal =
   Object.entries(radarPreventivo.porCausaDominante).sort((a, b) => b[1] - a[1])[0]?.[0] ||
   "SIN_DATOS";
@@ -6299,44 +6251,98 @@ const riesgoOperativoPrincipal =
     background: tema.tarjetaSuave,
     color: tema.textoSuave,
   };
-  const radarVisual = {
-    normal: {
-      label: "BAJO",
-      color: "#22c55e",
-      fondo: temaClaro
-        ? "linear-gradient(135deg, rgba(236,253,245,0.98), rgba(220,252,231,0.84))"
-        : "linear-gradient(135deg, rgba(34,197,94,0.18), rgba(15,118,110,0.12))",
-      borde: "1px solid rgba(34,197,94,0.42)",
-      recomendacion: "Mantener seguimiento preventivo y verificar cierre oportuno.",
-    },
-    observacion: {
-      label: "MEDIO",
-      color: "#3b82f6",
-      fondo: temaClaro
-        ? "linear-gradient(135deg, rgba(239,246,255,0.98), rgba(219,234,254,0.84))"
-        : "linear-gradient(135deg, rgba(59,130,246,0.20), rgba(37,99,235,0.12))",
-      borde: "1px solid rgba(59,130,246,0.42)",
-      recomendacion: "Revisar focos repetidos y priorizar controles de cierre.",
-    },
-    alerta: {
-      label: "ALTO",
-      color: "#f59e0b",
-      fondo: temaClaro
-        ? "linear-gradient(135deg, rgba(255,251,235,0.98), rgba(254,243,199,0.84))"
-        : "linear-gradient(135deg, rgba(245,158,11,0.22), rgba(217,119,6,0.14))",
-      borde: "1px solid rgba(245,158,11,0.46)",
-      recomendacion: "Priorizar empresas, areas o causas repetidas antes de nuevas faenas.",
-    },
-    critica: {
-      label: "CRÍTICO",
-      color: "#ef4444",
-      fondo: temaClaro
-        ? "linear-gradient(135deg, rgba(254,242,242,0.98), rgba(254,226,226,0.86))"
-        : "linear-gradient(135deg, rgba(239,68,68,0.24), rgba(127,29,29,0.18))",
-      borde: "1px solid rgba(239,68,68,0.48)",
-      recomendacion: "Revisar de inmediato criticidad abierta, reincidencias y compromisos vencidos.",
-    },
-  }[radarPreventivo.nivelGeneral];
+  const alarmaVisual = alarmaPreventivaEnCarga
+    ? {
+        label: "EVALUANDO",
+        color: temaClaro ? "#475569" : "#93a4bb",
+        fondo: temaClaro
+          ? "linear-gradient(135deg, rgba(248,250,252,0.98), rgba(226,232,240,0.86))"
+          : "linear-gradient(135deg, rgba(71,85,105,0.26), rgba(15,23,42,0.18))",
+        borde: temaClaro
+          ? "1px solid rgba(100,116,139,0.36)"
+          : "1px solid rgba(148,163,184,0.24)",
+      }
+    : {
+        NORMAL: {
+          label: "NORMAL",
+          color: "#22c55e",
+          fondo: temaClaro
+            ? "linear-gradient(135deg, rgba(236,253,245,0.98), rgba(220,252,231,0.84))"
+            : "linear-gradient(135deg, rgba(34,197,94,0.18), rgba(15,118,110,0.12))",
+          borde: "1px solid rgba(34,197,94,0.42)",
+        },
+        OBSERVACION: {
+          label: "OBSERVACIÓN",
+          color: "#3b82f6",
+          fondo: temaClaro
+            ? "linear-gradient(135deg, rgba(239,246,255,0.98), rgba(219,234,254,0.84))"
+            : "linear-gradient(135deg, rgba(59,130,246,0.20), rgba(37,99,235,0.12))",
+          borde: "1px solid rgba(59,130,246,0.42)",
+        },
+        ALTO: {
+          label: "ALTO",
+          color: "#f59e0b",
+          fondo: temaClaro
+            ? "linear-gradient(135deg, rgba(255,251,235,0.98), rgba(254,243,199,0.84))"
+            : "linear-gradient(135deg, rgba(245,158,11,0.22), rgba(217,119,6,0.14))",
+          borde: "1px solid rgba(245,158,11,0.46)",
+        },
+        CRITICO: {
+          label: "CRÍTICO",
+          color: "#ef4444",
+          fondo: temaClaro
+            ? "linear-gradient(135deg, rgba(254,242,242,0.98), rgba(254,226,226,0.86))"
+            : "linear-gradient(135deg, rgba(239,68,68,0.24), rgba(127,29,29,0.18))",
+          borde: "1px solid rgba(239,68,68,0.48)",
+        },
+        CRITICO_EXTREMO: {
+          label: "CRÍTICO EXTREMO",
+          color: "#b91c1c",
+          fondo: temaClaro
+            ? "linear-gradient(135deg, rgba(254,226,226,0.98), rgba(252,165,165,0.82))"
+            : "linear-gradient(135deg, rgba(185,28,28,0.32), rgba(69,10,10,0.22))",
+          borde: "1px solid rgba(185,28,28,0.58)",
+        },
+      }[alarmaCritica.nivelAlerta];
+  const alarmaNivelDestacado =
+    !alarmaPreventivaEnCarga &&
+    (alarmaCritica.nivelAlerta === "ALTO" ||
+    alarmaCritica.nivelAlerta === "CRITICO" ||
+    alarmaCritica.nivelAlerta === "CRITICO_EXTREMO");
+  const senalesAlarmaVisibles = alarmaPreventivaEnCarga
+    ? []
+    : alarmaCritica.senalesDetectadas.slice(0, 5);
+  const rankingEmpresasAlarmaVisibles = alarmaPreventivaEnCarga
+    ? []
+    : alarmaCritica.rankingEmpresas.slice(0, 3);
+  const empresasAlarmaRestantes = Math.max(
+    (alarmaPreventivaEnCarga ? 0 : alarmaCritica.totalEmpresasConAlerta) -
+      rankingEmpresasAlarmaVisibles.length,
+    0
+  );
+  const alarmaSemaforoAnimacion = {
+    NORMAL: undefined,
+    OBSERVACION: "ceAlarmPulseSoft 2.8s ease-in-out infinite",
+    ALTO: "ceAlarmPulseModerate 1.8s ease-in-out infinite",
+    CRITICO: "ceAlarmBlink 1.1s ease-in-out infinite",
+    CRITICO_EXTREMO: "ceAlarmDoubleBlink 1.25s ease-in-out infinite",
+  }[alarmaPreventivaEnCarga ? "NORMAL" : alarmaCritica.nivelAlerta];
+  const alarmaSemaforoHaloAnimacion = {
+    NORMAL: undefined,
+    OBSERVACION: "ceAlarmHaloSoft 2.8s ease-in-out infinite",
+    ALTO: "ceAlarmHaloModerate 1.8s ease-in-out infinite",
+    CRITICO: "ceAlarmHaloBlink 1.1s ease-in-out infinite",
+    CRITICO_EXTREMO: "ceAlarmHaloDoubleBlink 1.25s ease-in-out infinite",
+  }[alarmaPreventivaEnCarga ? "NORMAL" : alarmaCritica.nivelAlerta];
+  const alarmaTituloVisual = alarmaPreventivaEnCarga
+    ? "Calculando alerta preventiva..."
+    : alarmaCritica.titulo;
+  const alarmaResumenVisual = alarmaPreventivaEnCarga
+    ? "Evaluando condición preventiva con los hallazgos visibles del panel."
+    : alarmaCritica.resumen;
+  const alarmaRecomendacionVisual = alarmaPreventivaEnCarga
+    ? "La señal preventiva se activará cuando termine la carga de datos."
+    : alarmaCritica.recomendacion;
   const smallStatusStyle = (activo: boolean): React.CSSProperties => ({
     alignSelf: "flex-start",
     padding: "6px 9px",
@@ -6788,6 +6794,86 @@ const riesgoOperativoPrincipal =
           50% {
             transform: translateZ(0) scale(1.018);
             filter: saturate(1.18);
+          }
+        }
+
+        @keyframes ceAlarmPulseSoft {
+          0%, 100% {
+            opacity: 0.86;
+            filter: saturate(1);
+          }
+          50% {
+            opacity: 1;
+            filter: saturate(1.18);
+          }
+        }
+
+        @keyframes ceAlarmPulseModerate {
+          0%, 100% {
+            opacity: 0.72;
+            filter: saturate(1);
+          }
+          50% {
+            opacity: 1;
+            filter: saturate(1.28);
+          }
+        }
+
+        @keyframes ceAlarmBlink {
+          0%, 42%, 100% {
+            opacity: 1;
+            filter: saturate(1.35);
+          }
+          58%, 78% {
+            opacity: 0.42;
+            filter: saturate(0.9);
+          }
+        }
+
+        @keyframes ceAlarmDoubleBlink {
+          0%, 18%, 46%, 100% {
+            opacity: 1;
+            filter: saturate(1.45);
+          }
+          28%, 62% {
+            opacity: 0.34;
+            filter: saturate(0.9);
+          }
+        }
+
+        @keyframes ceAlarmHaloSoft {
+          0%, 100% {
+            opacity: 0.22;
+          }
+          50% {
+            opacity: 0.42;
+          }
+        }
+
+        @keyframes ceAlarmHaloModerate {
+          0%, 100% {
+            opacity: 0.24;
+          }
+          50% {
+            opacity: 0.58;
+          }
+        }
+
+        @keyframes ceAlarmHaloBlink {
+          0%, 44%, 100% {
+            opacity: 0.62;
+          }
+          58%, 78% {
+            opacity: 0.16;
+          }
+        }
+
+        @keyframes ceAlarmHaloDoubleBlink {
+          0%, 18%, 46%, 100% {
+            opacity: 0.72;
+          }
+          28%, 62% {
+            opacity: 0.14;
           }
         }
       `}</style>
@@ -9307,125 +9393,247 @@ style={{
               className="ce-panel-radar"
               style={{
                 ...panelSurfaceStyle,
-                padding: "18px",
-                background: radarVisual.fondo,
-                border: radarVisual.borde,
-                boxShadow: temaClaro
-                  ? "0 16px 34px rgba(15,23,42,0.12)"
-                  : "0 18px 38px rgba(0,0,0,0.30)",
+                padding: "16px 18px",
+                background: alarmaVisual.fondo,
+                border: alarmaNivelDestacado
+                  ? `1px solid ${alarmaVisual.color}88`
+                  : alarmaVisual.borde,
+                boxShadow: alarmaNivelDestacado
+                  ? temaClaro
+                    ? `0 14px 30px rgba(15,23,42,0.12), 0 0 0 3px ${alarmaVisual.color}18`
+                    : `0 16px 34px rgba(0,0,0,0.30), 0 0 0 3px ${alarmaVisual.color}22`
+                  : temaClaro
+                    ? "0 12px 26px rgba(15,23,42,0.10)"
+                    : "0 14px 30px rgba(0,0,0,0.26)",
                 display: "grid",
                 gridTemplateColumns:
-                  "minmax(220px, 1.1fr) minmax(360px, 1.6fr) minmax(240px, 1.1fr)",
-                gap: "16px",
-                alignItems: "stretch",
+                  "minmax(148px, 0.7fr) minmax(0, 1.7fr) minmax(190px, 0.95fr)",
+                gap: "14px",
+                alignItems: "center",
+                position: "relative",
+                overflow: "hidden",
+                minWidth: 0,
               }}
             >
               <div
                 style={{
-                  display: "grid",
-                  alignContent: "space-between",
+                  display: "flex",
+                  alignItems: "center",
                   gap: "12px",
+                  minWidth: 0,
                 }}
               >
-                <div>
+                <div
+                  style={{
+                    position: "relative",
+                    width: "68px",
+                    height: "68px",
+                    flex: "0 0 68px",
+                    display: "grid",
+                    placeItems: "center",
+                  }}
+                >
+                  <div
+                    aria-hidden="true"
+                    style={{
+                      position: "absolute",
+                      inset: "0",
+                      borderRadius: "999px",
+                      backgroundColor: alarmaVisual.color,
+                      filter: "blur(12px)",
+                      opacity: alarmaNivelDestacado ? 0.5 : 0.24,
+                      animation: alarmaSemaforoHaloAnimacion,
+                    }}
+                  />
                   <div
                     style={{
-                      fontSize: "11px",
-                      fontWeight: 900,
-                      letterSpacing: "0.9px",
-                      opacity: 0.74,
-                      textTransform: "uppercase",
+                      position: "relative",
+                      width: "62px",
+                      height: "62px",
+                      borderRadius: "999px",
+                      backgroundImage: `radial-gradient(circle at 34% 30%, rgba(255,255,255,0.94), ${alarmaVisual.color} 36%, ${alarmaVisual.color} 66%, rgba(15,23,42,0.34) 100%)`,
+                      backgroundRepeat: "no-repeat",
+                      border: temaClaro
+                        ? "1px solid rgba(255,255,255,0.84)"
+                        : "1px solid rgba(255,255,255,0.30)",
+                      boxShadow: `inset 0 -10px 18px rgba(15,23,42,0.24), 0 0 0 7px ${alarmaVisual.color}18, 0 0 24px ${alarmaVisual.color}66`,
+                      animation: alarmaSemaforoAnimacion,
                     }}
-                  >
-                    {t("Radar Preventivo")}
-                  </div>
-                  <div
-                    style={{
-                      marginTop: "8px",
-                      fontSize: "34px",
-                      fontWeight: 950,
-                      lineHeight: 1,
-                      color: radarVisual.color,
-                    }}
-                  >
-                    {traducirRadarNivel(radarVisual.label)}
-                  </div>
+                  />
                 </div>
                 <div
                   style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    borderRadius: "999px",
-                    padding: "8px 10px",
-                    background: temaClaro ? "rgba(255,255,255,0.70)" : "rgba(0,0,0,0.18)",
-                    border: tema.bordeSutil,
-                    fontSize: "12px",
-                    fontWeight: 900,
-                    color: tema.textoMedio,
+                    display: "grid",
+                    gap: "6px",
+                    minWidth: 0,
                   }}
                 >
-                  <span
+                  <div
                     style={{
-                      width: "9px",
-                      height: "9px",
-                      borderRadius: "999px",
-                      background: radarVisual.color,
-                      boxShadow: `0 0 18px ${radarVisual.color}`,
+                      fontSize: "11px",
+                      fontWeight: 950,
+                      letterSpacing: "0.75px",
+                      opacity: 0.78,
+                      textTransform: "uppercase",
+                      lineHeight: 1.15,
                     }}
-                  />
-                  {t("Patrones preventivos")}
+                  >
+                    ALARMA CRÍTICA PREVENTIVA
+                  </div>
+                  <div
+                    style={{
+                      display: "inline-flex",
+                      width: "fit-content",
+                      maxWidth: "100%",
+                      borderRadius: "999px",
+                      padding: "7px 10px",
+                      backgroundColor: alarmaNivelDestacado
+                        ? alarmaVisual.color
+                        : temaClaro
+                          ? "rgba(255,255,255,0.78)"
+                          : "rgba(0,0,0,0.22)",
+                      border: alarmaNivelDestacado
+                        ? "1px solid rgba(255,255,255,0.42)"
+                        : alarmaVisual.borde,
+                      color: alarmaNivelDestacado ? "#ffffff" : alarmaVisual.color,
+                      fontSize:
+                        !alarmaPreventivaEnCarga &&
+                        alarmaCritica.nivelAlerta === "CRITICO_EXTREMO"
+                          ? "11px"
+                          : "13px",
+                      fontWeight: 950,
+                      lineHeight: 1,
+                      whiteSpace: "normal",
+                      textAlign: "center",
+                    }}
+                  >
+                    {alarmaVisual.label}
+                  </div>
                 </div>
               </div>
 
               <div
                 style={{
                   display: "grid",
-                  gap: "12px",
+                  gap: "10px",
+                  alignContent: "center",
+                  minWidth: 0,
                 }}
               >
                 <div
                   style={{
-                    fontSize: "17px",
-                    fontWeight: 900,
-                    lineHeight: 1.35,
+                    fontSize: "18px",
+                    fontWeight: 950,
+                    lineHeight: 1.25,
                     color: tema.texto,
                   }}
                 >
-                  {traducirRadarResumen()}
+                  {alarmaTituloVisual}
+                </div>
+                <div
+                  style={{
+                    fontSize: "13px",
+                    lineHeight: 1.42,
+                    color: tema.textoMedio,
+                    fontWeight: 800,
+                  }}
+                >
+                  {alarmaResumenVisual}
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "8px",
+                  }}
+                >
+                  {senalesAlarmaVisibles.length > 0 ? (
+                    senalesAlarmaVisibles.map((senal) => (
+                      <span
+                        key={`${senal.tipo}-${senal.mensaje}`}
+                        style={{
+                          borderRadius: "999px",
+                          padding: "6px 9px",
+                          background: temaClaro ? "rgba(255,255,255,0.76)" : "rgba(0,0,0,0.18)",
+                          border: senal.nivel === "CRITICO_EXTREMO" || senal.nivel === "CRITICO"
+                            ? `1px solid ${alarmaVisual.color}66`
+                            : tema.bordeSutil,
+                          color: tema.textoMedio,
+                          fontSize: "11px",
+                          fontWeight: 850,
+                          lineHeight: 1.25,
+                        }}
+                      >
+                        {senal.mensaje}
+                      </span>
+                    ))
+                  ) : (
+                    <span
+                      style={{
+                        borderRadius: "999px",
+                        padding: "8px 10px",
+                        background: temaClaro ? "rgba(255,255,255,0.76)" : "rgba(0,0,0,0.18)",
+                        border: tema.bordeSutil,
+                        color: tema.textoMedio,
+                        fontSize: "11px",
+                        fontWeight: 850,
+                      }}
+                    >
+                      {alarmaPreventivaEnCarga
+                        ? "Evaluando condición preventiva..."
+                        : "Sin señales críticas acumuladas."}
+                    </span>
+                  )}
                 </div>
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-                    gap: "10px",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(96px, 1fr))",
+                    gap: "8px",
                   }}
                 >
                   {[
-                    { label: t("Críticos abiertos"), value: radarPreventivo.criticosAbiertos, color: "#ef4444" },
-                    { label: t("Altos abiertos"), value: altosAbiertosRadar, color: "#f59e0b" },
-                    { label: t("Alertas"), value: radarPreventivo.alertas.length, color: radarVisual.color },
+                    {
+                      label: t("Críticos abiertos"),
+                      value: alarmaPreventivaEnCarga ? "--" : alarmaCritica.criticosAbiertos,
+                      color: alarmaPreventivaEnCarga ? alarmaVisual.color : "#ef4444",
+                    },
+                    {
+                      label: "Críticos vencidos",
+                      value: alarmaPreventivaEnCarga ? "--" : alarmaCritica.criticosVencidos,
+                      color: alarmaPreventivaEnCarga ? alarmaVisual.color : "#b91c1c",
+                    },
+                    {
+                      label: t("Altos abiertos"),
+                      value: alarmaPreventivaEnCarga ? "--" : alarmaCritica.altosAbiertos,
+                      color: alarmaPreventivaEnCarga ? alarmaVisual.color : "#f59e0b",
+                    },
+                    {
+                      label: t("Alertas"),
+                      value: alarmaPreventivaEnCarga ? "--" : alarmaCritica.senalesDetectadas.length,
+                      color: alarmaVisual.color,
+                    },
                   ].map(({ label, value, color }) => (
                     <div
                       key={label}
                       style={{
-                        borderRadius: "16px",
+                        borderRadius: "12px",
                         background: temaClaro ? "rgba(255,255,255,0.72)" : "rgba(0,0,0,0.16)",
                         border: tema.bordeSutil,
-                        padding: "12px",
+                        padding: "9px 10px",
                       }}
                     >
                       <div
                         style={{
-                          fontSize: "11px",
+                          fontSize: "10px",
                           fontWeight: 800,
                           opacity: 0.72,
-                          marginBottom: "6px",
+                          marginBottom: "5px",
                         }}
                       >
                         {label}
                       </div>
-                      <div style={{ fontSize: "26px", fontWeight: 950, color }}>
+                      <div style={{ fontSize: "22px", fontWeight: 950, color }}>
                         {value}
                       </div>
                     </div>
@@ -9435,43 +9643,204 @@ style={{
 
               <div
                 style={{
-                  borderRadius: "18px",
+                  borderRadius: "14px",
                   background: temaClaro ? "rgba(255,255,255,0.72)" : "rgba(0,0,0,0.16)",
                   border: tema.bordeSutil,
-                  padding: "14px",
+                  padding: "12px",
                   display: "grid",
-                  gap: "10px",
+                  gap: "8px",
+                  alignContent: "center",
+                  minWidth: 0,
                 }}
               >
-                <div>
-                  <div style={{ fontSize: "11px", opacity: 0.68, fontWeight: 800 }}>
-                    {t("Riesgo operativo principal")}
+                {alarmaPreventivaEnCarga ? (
+                  <>
+                    <div>
+                      <div style={{ fontSize: "10px", opacity: 0.68, fontWeight: 850 }}>
+                        Estado de evaluación
+                      </div>
+                      <div style={{ fontSize: "13px", fontWeight: 950, marginTop: "3px", lineHeight: 1.25 }}>
+                        Calculando con datos visibles
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: "10px", opacity: 0.68, fontWeight: 850 }}>
+                        Universo preventivo
+                      </div>
+                      <div style={{ fontSize: "12px", fontWeight: 850, marginTop: "3px", lineHeight: 1.35 }}>
+                        Cargando hallazgos y filtros del panel.
+                      </div>
+                    </div>
+                  </>
+                ) : rankingEmpresasAlarmaVisibles.length > 1 ? (
+                  <div>
+                    <div style={{ fontSize: "10px", opacity: 0.68, fontWeight: 850 }}>
+                      Empresas prioritarias
+                    </div>
+                    <div
+                      style={{
+                        display: "grid",
+                        gap: "6px",
+                        marginTop: "6px",
+                      }}
+                    >
+                      {rankingEmpresasAlarmaVisibles.map((empresa, index) => (
+                        <div
+                          key={empresa.empresa}
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "18px minmax(0, 1fr) auto",
+                            gap: "7px",
+                            alignItems: "center",
+                            borderRadius: "10px",
+                            padding: "7px 8px",
+                            background: temaClaro ? "rgba(255,255,255,0.62)" : "rgba(0,0,0,0.14)",
+                            border: tema.bordeSutil,
+                          }}
+                        >
+                          <span
+                            style={{
+                              width: "18px",
+                              height: "18px",
+                              borderRadius: "999px",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              background: index === 0 ? `${alarmaVisual.color}22` : "rgba(148,163,184,0.16)",
+                              color: index === 0 ? alarmaVisual.color : tema.textoMedio,
+                              fontSize: "10px",
+                              fontWeight: 950,
+                            }}
+                          >
+                            {index + 1}
+                          </span>
+                          <span
+                            style={{
+                              minWidth: 0,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                              fontSize: "12px",
+                              fontWeight: 950,
+                            }}
+                            title={empresa.empresa}
+                          >
+                            {empresa.empresa}
+                          </span>
+                          <span
+                            style={{
+                              borderRadius: "999px",
+                              padding: "4px 7px",
+                              background: index === 0 ? alarmaVisual.color : "rgba(148,163,184,0.16)",
+                              color: index === 0 ? "#ffffff" : tema.textoMedio,
+                              fontSize: "9px",
+                              fontWeight: 950,
+                              lineHeight: 1,
+                            }}
+                          >
+                            {empresa.nivelAlerta.replace(/_/g, " ")}
+                          </span>
+                          <span
+                            style={{
+                              gridColumn: "2 / 4",
+                              fontSize: "10px",
+                              color: tema.textoMedio,
+                              fontWeight: 800,
+                              lineHeight: 1.25,
+                            }}
+                          >
+                            C:{empresa.criticosAbiertos} · V:{empresa.criticosVencidos} · A:{empresa.altosAbiertos} · Abiertos:{empresa.totalAbiertos}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    {empresasAlarmaRestantes > 0 && (
+                      <div
+                        style={{
+                          marginTop: "6px",
+                          fontSize: "10px",
+                          color: tema.textoMedio,
+                          fontWeight: 850,
+                        }}
+                      >
+                        + {empresasAlarmaRestantes} empresas con alertas activas
+                      </div>
+                    )}
                   </div>
-                  <div style={{ fontSize: "15px", fontWeight: 950, marginTop: "4px" }}>
-                    {traducirRiesgoOperativo(riesgoOperativoPrincipal)}
+                ) : (
+                  <div>
+                    <div style={{ fontSize: "10px", opacity: 0.68, fontWeight: 850 }}>
+                      Empresa más comprometida
+                    </div>
+                    <div style={{ fontSize: "13px", fontWeight: 950, marginTop: "3px", lineHeight: 1.25 }}>
+                      {alarmaCritica.empresaPrincipal
+                        ? `${alarmaCritica.empresaPrincipal.nombre} (${alarmaCritica.empresaPrincipal.total})`
+                        : "Sin concentración crítica"}
+                    </div>
+                  </div>
+                )}
+                <div>
+                  <div style={{ fontSize: "10px", opacity: 0.68, fontWeight: 850 }}>
+                    Obra / área prioritaria
+                  </div>
+                  <div style={{ fontSize: "12px", fontWeight: 850, marginTop: "3px", lineHeight: 1.35 }}>
+                    {alarmaCritica.empresaPrioritaria?.obraPrincipal
+                      ? `${alarmaCritica.empresaPrioritaria.obraPrincipal.nombre} (${alarmaCritica.empresaPrioritaria.obraPrincipal.total})`
+                      : alarmaCritica.obraPrincipal
+                        ? `${alarmaCritica.obraPrincipal.nombre} (${alarmaCritica.obraPrincipal.total})`
+                        : "Sin obra crítica dominante"}
+                    {alarmaCritica.empresaPrioritaria?.areaPrincipal
+                      ? ` · ${alarmaCritica.empresaPrioritaria.areaPrincipal.nombre} (${alarmaCritica.empresaPrioritaria.areaPrincipal.total})`
+                      : alarmaCritica.areaPrincipal
+                        ? ` · ${alarmaCritica.areaPrincipal.nombre} (${alarmaCritica.areaPrincipal.total})`
+                        : ""}
                   </div>
                 </div>
                 <div>
-                  <div style={{ fontSize: "11px", opacity: 0.68, fontWeight: 800 }}>
-                    {t("Concentración / reincidencia")}
+                  <div style={{ fontSize: "10px", opacity: 0.68, fontWeight: 850 }}>
+                    Reincidencia / riesgo operativo
                   </div>
-                  <div style={{ fontSize: "13px", fontWeight: 800, marginTop: "4px", lineHeight: 1.35 }}>
-                    {alertaRadarPrincipal
-                      ? traducirAlertaRadarDetalle(alertaRadarPrincipal.detalle)
-                      : t("Sin patrones críticos suficientes para alerta ejecutiva.")}
+                  <div style={{ fontSize: "12px", fontWeight: 850, marginTop: "3px", lineHeight: 1.35 }}>
+                    {alarmaCritica.empresaPrioritaria?.tipoReincidente
+                      ? `${alarmaCritica.empresaPrioritaria.tipoReincidente.nombre} (${alarmaCritica.empresaPrioritaria.tipoReincidente.total})`
+                      : alarmaCritica.tipoReincidente
+                        ? `${alarmaCritica.tipoReincidente.nombre} (${alarmaCritica.tipoReincidente.total})`
+                        : traducirRiesgoOperativo(riesgoOperativoPrincipal)}
                   </div>
                 </div>
                 <div
                   style={{
-                    borderTop: tema.bordeSutil,
-                    paddingTop: "10px",
-                    fontSize: "12px",
-                    lineHeight: 1.4,
-                    color: tema.textoMedio,
-                    fontWeight: 750,
+                    borderRadius: "12px",
+                    padding: "10px",
+                    background: alarmaPreventivaEnCarga
+                      ? temaClaro
+                        ? "rgba(100,116,139,0.10)"
+                        : "rgba(148,163,184,0.10)"
+                      : alarmaNivelDestacado
+                      ? `${alarmaVisual.color}18`
+                      : temaClaro
+                        ? "rgba(34,197,94,0.10)"
+                        : "rgba(34,197,94,0.12)",
+                    border: alarmaPreventivaEnCarga
+                      ? tema.bordeSutil
+                      : alarmaNivelDestacado
+                      ? `1px solid ${alarmaVisual.color}55`
+                      : "1px solid rgba(34,197,94,0.28)",
                   }}
                 >
-                  {t(radarVisual.recomendacion)}
+                  <div style={{ fontSize: "10px", opacity: 0.72, fontWeight: 900, marginBottom: "4px" }}>
+                    Recomendación ejecutiva
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      lineHeight: 1.35,
+                      color: tema.texto,
+                      fontWeight: 900,
+                    }}
+                  >
+                    {alarmaRecomendacionVisual}
+                  </div>
                 </div>
               </div>
             </section>

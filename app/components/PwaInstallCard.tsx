@@ -10,7 +10,10 @@ type BeforeInstallPromptEvent = Event & {
 type PwaInstallCardProps = {
   theme?: "dark" | "light";
   compact?: boolean;
+  deviceAware?: boolean;
 };
+
+type TipoDispositivoAcceso = "desconocido" | "movil" | "escritorio";
 
 function detectarIos() {
   if (typeof navigator === "undefined") return false;
@@ -28,6 +31,20 @@ function detectarAndroid() {
   return /android/.test(navigator.userAgent.toLowerCase());
 }
 
+function detectarMovilOTablet() {
+  if (typeof navigator === "undefined") return false;
+
+  const ua = navigator.userAgent.toLowerCase();
+  const plataforma = navigator.platform?.toLowerCase() || "";
+  const iPadOS = plataforma === "macintel" && navigator.maxTouchPoints > 1;
+
+  return (
+    iPadOS ||
+    /iphone|ipad|ipod|android|mobile|tablet/.test(ua) ||
+    (navigator.maxTouchPoints > 1 && /mac|linux|windows/.test(plataforma) === false)
+  );
+}
+
 function detectarStandalone() {
   if (typeof window === "undefined") return false;
 
@@ -41,6 +58,7 @@ function detectarStandalone() {
 export default function PwaInstallCard({
   theme = "dark",
   compact = false,
+  deviceAware = false,
 }: PwaInstallCardProps) {
   const claro = theme === "light";
   const [modalAbierto, setModalAbierto] = useState(false);
@@ -50,11 +68,14 @@ export default function PwaInstallCard({
   const [android, setAndroid] = useState(false);
   const [standalone, setStandalone] = useState(false);
   const [instalando, setInstalando] = useState(false);
+  const [tipoDispositivo, setTipoDispositivo] =
+    useState<TipoDispositivoAcceso>("desconocido");
 
   useEffect(() => {
     setIos(detectarIos());
     setAndroid(detectarAndroid());
     setStandalone(detectarStandalone());
+    setTipoDispositivo(detectarMovilOTablet() ? "movil" : "escritorio");
 
     const onBeforeInstallPrompt = (event: Event) => {
       event.preventDefault();
@@ -89,6 +110,35 @@ export default function PwaInstallCard({
   if (standalone) {
     return null;
   }
+
+  const esDesconocido = deviceAware && tipoDispositivo === "desconocido";
+  const esEscritorio = deviceAware && tipoDispositivo === "escritorio";
+  const esMovil = !deviceAware || tipoDispositivo === "movil";
+  const tituloCard = esEscritorio
+    ? "Acceso directo al panel CE"
+    : esDesconocido
+      ? "Acceso Criterio Estratégico"
+      : "Instalar App Criterio Estratégico";
+  const textoCard = esEscritorio
+    ? "Crea un acceso al panel ejecutivo en este computador para ingresar rápidamente desde el escritorio, Dock o navegador."
+    : esMovil
+      ? "Instala la plataforma como app en este teléfono para reportar hallazgos en terreno, incluso con modo offline preparado."
+      : "Prepara un acceso rápido a Criterio Estratégico desde este dispositivo.";
+  const textoBoton = esEscritorio
+    ? "Crear acceso directo al panel CE"
+    : esDesconocido
+      ? "Ver opciones de acceso"
+      : "Instalar App Criterio Estratégico en este teléfono";
+  const tituloModal = esEscritorio
+    ? "Acceso directo al panel CE"
+    : esDesconocido
+      ? "Acceso Criterio Estratégico"
+      : "Instalar App Criterio Estratégico";
+  const descripcionModal = esEscritorio
+    ? "Usa el ícono premium CE como acceso directo al panel ejecutivo para análisis, seguimiento, GPS, KPI, informes y alarmas."
+    : esDesconocido
+      ? "El ícono premium CE permite preparar un acceso rápido desde este dispositivo."
+      : "La app quedará disponible desde el ícono CE del teléfono y se abrirá en modo de aplicación cuando el sistema lo permita.";
 
   const cardStyle = {
     borderRadius: compact ? "16px" : "18px",
@@ -138,7 +188,7 @@ export default function PwaInstallCard({
       <section style={cardStyle}>
         <div style={{ display: "grid", gap: "8px" }}>
           <div style={{ fontSize: compact ? "15px" : "16px", fontWeight: 900 }}>
-            Instalar App Criterio Estratégico
+            {tituloCard}
           </div>
           <p
             style={{
@@ -149,9 +199,22 @@ export default function PwaInstallCard({
               fontWeight: 700,
             }}
           >
-            Instale la plataforma como app en este teléfono para acceder al
-            reporte móvil y al panel desde el ícono CE.
+            {textoCard}
           </p>
+          {esMovil && (
+            <p
+              style={{
+                margin: "-2px 0 0",
+                color: claro ? "rgba(15,23,42,0.62)" : "rgba(255,255,255,0.62)",
+                fontSize: "12px",
+                lineHeight: 1.35,
+                fontWeight: 750,
+              }}
+            >
+              Antes de usar modo offline, abre la app una vez con internet para
+              preparar la sesión y el acceso local.
+            </p>
+          )}
           <button
             type="button"
             onClick={() => setModalAbierto(true)}
@@ -169,7 +232,7 @@ export default function PwaInstallCard({
               touchAction: "manipulation",
             }}
           >
-            Instalar App Criterio Estratégico en este teléfono
+            {textoBoton}
           </button>
         </div>
       </section>
@@ -205,7 +268,7 @@ export default function PwaInstallCard({
                   id="pwa-install-title"
                   style={{ fontSize: "20px", fontWeight: 900, lineHeight: 1.15 }}
                 >
-                  Instalar App Criterio Estratégico
+                  {tituloModal}
                 </div>
                 <p
                   style={{
@@ -218,8 +281,7 @@ export default function PwaInstallCard({
                     fontWeight: 700,
                   }}
                 >
-                  La app quedará disponible desde el ícono CE del teléfono y se
-                  abrirá en modo de aplicación cuando el sistema lo permita.
+                  {descripcionModal}
                 </p>
               </div>
               <button
@@ -245,7 +307,51 @@ export default function PwaInstallCard({
             </div>
 
             <div style={{ display: "grid", gap: "9px", marginTop: "16px" }}>
-              {ios ? (
+              {esDesconocido ? (
+                <>
+                  {[
+                    "El sistema detectará si estás en celular o computador.",
+                    "Usa las opciones del navegador para instalar la app o crear un acceso directo.",
+                    "El acceso usará el ícono CE cuando el navegador lo permita.",
+                  ].map((paso) => (
+                    <div key={paso} style={pasoStyle}>
+                      {paso}
+                    </div>
+                  ))}
+                </>
+              ) : esEscritorio ? (
+                <>
+                  {promptInstalacion && (
+                    <button
+                      type="button"
+                      onClick={instalarAndroid}
+                      disabled={instalando}
+                      style={{
+                        border: "none",
+                        borderRadius: "14px",
+                        background: "linear-gradient(135deg, #67ef48, #d7ff39)",
+                        color: "#08172d",
+                        cursor: "pointer",
+                        fontSize: "15px",
+                        fontWeight: 900,
+                        padding: "13px",
+                        opacity: instalando ? 0.72 : 1,
+                      }}
+                    >
+                      {instalando ? "Preparando acceso..." : "Instalar app si el navegador lo permite"}
+                    </button>
+                  )}
+                  {[
+                    "En Mac Safari: Compartir -> Agregar al Dock.",
+                    "En Chrome o Edge: menú del navegador -> Instalar app o Crear acceso directo.",
+                    "Si el navegador no muestra instalación, usa sus opciones para agregar este acceso al Dock, escritorio o barra de aplicaciones.",
+                  ].map((paso) => (
+                    <div key={paso} style={pasoStyle}>
+                      {paso}
+                    </div>
+                  ))}
+                </>
+              ) : ios ? (
                 <>
                   {[
                     "Abra esta página desde Safari.",
