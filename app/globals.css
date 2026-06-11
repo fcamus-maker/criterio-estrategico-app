@@ -1,7 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
+  --ce-mobile-shell-bg: #061327;
+  --background: #061327;
   --foreground: #171717;
 }
 
@@ -23,13 +24,28 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  min-height: 100%;
+  margin: 0;
 }
 
 html,
 body {
+  min-height: 100%;
   width: 100%;
   max-width: 100%;
+  background-color: var(--ce-mobile-shell-bg);
   overflow-x: clip;
+  overscroll-behavior-x: none;
+  overscroll-behavior-y: none;
+}
+
+.ce-mobile-app-shell {
+  min-height: 100dvh;
+  background:
+    radial-gradient(circle at 50% 0%, #2563eb 0%, #0b1f3a 42%, #061327 100%);
+  background-color: var(--ce-mobile-shell-bg);
+  overscroll-behavior-y: none;
+  overflow-x: hidden;
 }
 
 * {

@@ -443,6 +443,129 @@ type PanelProfilePersistido = {
 
 type NotificacionPanel = (typeof notificacionesMock)[number];
 
+function esHallazgoAbiertoParaNotificacion(hallazgo: Partial<HallazgoPanelExtendido>) {
+  const estado = String(hallazgo.estado || "").toUpperCase();
+  return !["CERRADO", "ANULADO", "ELIMINADO"].includes(estado);
+}
+
+function ordenarHallazgosPorFechaDesc(
+  hallazgos: HallazgoPanelExtendido[],
+  resolverTimestamp: (item: { fechaISO?: string; fechaHora?: string }) => number | undefined
+) {
+  return [...hallazgos].sort(
+    (a, b) => (resolverTimestamp(b) || 0) - (resolverTimestamp(a) || 0)
+  );
+}
+
+function crearNotificacionesDesdeHallazgosVisibles(
+  hallazgosVisibles: HallazgoPanelExtendido[],
+  resolverTimestamp: (item: { fechaISO?: string; fechaHora?: string }) => number | undefined,
+  permitirResumenEjecutivo: boolean
+): NotificacionPanel[] {
+  if (hallazgosVisibles.length === 0) return [];
+
+  const ordenados = ordenarHallazgosPorFechaDesc(
+    hallazgosVisibles,
+    resolverTimestamp
+  );
+  const notificaciones: NotificacionPanel[] = [];
+  const idsAgregados = new Set<string>();
+  const fechaUltimo = ordenados[0]?.fechaHora || "";
+
+  const agregarDesdeHallazgo = (
+    id: string,
+    hallazgo: HallazgoPanelExtendido | undefined,
+    datos: Pick<
+      NotificacionPanel,
+      "mensaje" | "titulo" | "estado" | "descripcion" | "accionRecomendada"
+    >
+  ) => {
+    if (!hallazgo) return;
+
+    const identidad = identidadHallazgoPanel(hallazgo);
+    if (!identidad || idsAgregados.has(identidad)) return;
+
+    idsAgregados.add(identidad);
+    notificaciones.push({
+      id,
+      hallazgoId: identidad,
+      mensaje: datos.mensaje,
+      titulo: datos.titulo,
+      fechaHora: hallazgo.fechaHora || fechaUltimo,
+      criticidad: hallazgo.criticidad || "MEDIO",
+      estado: datos.estado,
+      empresa: hallazgo.empresa || "Empresa asignada",
+      obra: hallazgo.obra || "Obra asignada",
+      descripcion: datos.descripcion,
+      accionRecomendada: datos.accionRecomendada,
+      leida: false,
+    });
+  };
+
+  const criticoAbierto = ordenados.find(
+    (hallazgo) =>
+      String(hallazgo.criticidad || "").toUpperCase().includes("CRÍT") &&
+      esHallazgoAbiertoParaNotificacion(hallazgo)
+  );
+  agregarDesdeHallazgo("notif-critico-visible", criticoAbierto, {
+    mensaje: "Hallazgo crítico pendiente de revisión",
+    titulo: "Hallazgo crítico pendiente de revisión",
+    estado: "Pendiente de revisión",
+    descripcion:
+      "Existe un hallazgo crítico abierto dentro del alcance visible del usuario.",
+    accionRecomendada:
+      "Revisar evidencia, validar controles inmediatos y asignar responsable de cierre.",
+  });
+
+  agregarDesdeHallazgo("notif-nuevo-reporte-visible", ordenados[0], {
+    mensaje: "Nuevo reporte ingresado desde terreno",
+    titulo: "Nuevo reporte ingresado desde terreno",
+    estado: "Nuevo reporte",
+    descripcion:
+      "Se registró actividad reciente dentro del alcance visible del usuario.",
+    accionRecomendada:
+      "Revisar el reporte, validar evidencia disponible y priorizar acciones según criticidad.",
+  });
+
+  const seguimientoPendiente = ordenados.find((hallazgo) => {
+    const estado = String(hallazgo.estado || "").toUpperCase();
+    return (
+      esHallazgoAbiertoParaNotificacion(hallazgo) &&
+      (estado.includes("SEGUIMIENTO") ||
+        String(hallazgo.fechaCompromiso || "").trim())
+    );
+  });
+  agregarDesdeHallazgo("notif-seguimiento-visible", seguimientoPendiente, {
+    mensaje: "Seguimiento pendiente en hallazgo abierto",
+    titulo: "Seguimiento pendiente en hallazgo abierto",
+    estado: "En seguimiento",
+    descripcion:
+      "Un hallazgo abierto del alcance visible requiere control de avance y evidencia de cierre.",
+    accionRecomendada:
+      "Solicitar evidencia fotográfica/documental y registrar observación de seguimiento.",
+  });
+
+  if (permitirResumenEjecutivo && notificaciones.length > 0) {
+    notificaciones.splice(2, 0, {
+      id: "notif-informe-ejecutivo-visible",
+      mensaje: "Informe ejecutivo actualizado",
+      titulo: "Informe ejecutivo actualizado",
+      fechaHora: fechaUltimo,
+      criticidad: "MEDIO",
+      estado: "Actualizado",
+      empresa: "Alcance visible",
+      obra: "Panel ejecutivo",
+      descripcion:
+        "Los indicadores ejecutivos fueron recalculados con los hallazgos disponibles para este alcance.",
+      accionRecomendada:
+        "Revisar variaciones de criticidad, cierres y tendencias antes de compartir el informe.",
+      leida: false,
+    });
+  }
+
+  return notificaciones.slice(0, 4);
+}
+
 type BitacoraCierreLocal = {
   fechaHora: string;
   usuario: string;
@@ -671,6 +794,7 @@ const [menuExportacionMetaAbierto, setMenuExportacionMetaAbierto] = useState(fal
     "Sin notificaciones por ahora": "No notifications for now",
     "Detalle de notificación": "Notification detail",
     "Sin notificaciones pendientes": "No pending notifications",
+    "Sin notificaciones para esta empresa.": "No notifications for this company.",
     "Acción recomendada": "Recommended action",
     "Abrir detalle de notificación": "Open notification detail",
     "Reportes rápidos": "Quick reports",
@@ -1338,8 +1462,11 @@ const totalVencidos = filas.filter(
   }
 ).length;
 const [contadorHistoricoAnimado, setContadorHistoricoAnimado] = useState(0);
-const [notificaciones, setNotificaciones] = useState(notificacionesMock);
+const [notificaciones, setNotificaciones] = useState<NotificacionPanel[]>([]);
 const totalNotificacionesNoLeidas = notificaciones.filter((item) => !item.leida).length;
+const mensajeSinNotificaciones = alcancePanel?.isGlobal
+  ? "Sin notificaciones pendientes"
+  : "Sin notificaciones para esta empresa.";
 const exportarExcel = () => {
   const encabezados = [
     "Código",
@@ -3698,7 +3825,9 @@ const limpiarFiltros = () => {
 };
 const abrirNotificacion = (notificacion: NotificacionPanel) => {
   if (notificacion.hallazgoId) {
-    const hallazgoRelacionado = filas.find((item) => item.id === notificacion.hallazgoId);
+    const hallazgoRelacionado = filas.find(
+      (item) => identidadHallazgoPanel(item) === notificacion.hallazgoId
+    );
 
     if (hallazgoRelacionado) {
       setHallazgoActivo(hallazgoRelacionado);
@@ -3804,6 +3933,35 @@ const timestampHallazgoPanel = (item: { fechaISO?: string; fechaHora?: string })
 
   return undefined;
 };
+
+useEffect(() => {
+  const siguientes = crearNotificacionesDesdeHallazgosVisibles(
+    filas,
+    timestampHallazgoPanel,
+    alcancePanel?.isGlobal === true
+  );
+
+  setNotificaciones((actuales) => {
+    const leidas = new Set(
+      actuales
+        .filter((notificacion) => notificacion.leida)
+        .map((notificacion) => notificacion.id)
+    );
+
+    return siguientes.map((notificacion) => ({
+      ...notificacion,
+      leida: leidas.has(notificacion.id),
+    }));
+  });
+
+  setNotificacionActiva((actual) => {
+    if (!actual) return null;
+    if (!siguientes.some((notificacion) => notificacion.id === actual.id)) {
+      return null;
+    }
+    return actual;
+  });
+}, [alcancePanel?.isGlobal, filas]);
 
 const timestampsFilas = filas
   .map(timestampHallazgoPanel)
@@ -8589,7 +8747,7 @@ const riesgoOperativoPrincipal =
               textAlign: "center",
             }}
           >
-	            {t("Sin notificaciones pendientes")}
+	            {t(mensajeSinNotificaciones)}
           </div>
         ) : (
           <div

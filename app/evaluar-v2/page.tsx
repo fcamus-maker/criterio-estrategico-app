@@ -456,6 +456,7 @@ export default function EvaluarV2HomePage() {
     maxWidth: "100vw",
     display: "grid",
     alignItems: "center",
+    backgroundColor: "#061327",
     background:
       temaClaro
         ? "radial-gradient(circle at 50% 0%, rgba(37,99,235,0.16) 0%, #f8fafc 42%, #eaf2ff 100%)"
@@ -463,6 +464,7 @@ export default function EvaluarV2HomePage() {
     color: temaClaro ? "#0f172a" : "white",
     fontFamily: "Arial, sans-serif",
     overflowX: "hidden" as const,
+    overscrollBehaviorY: "none" as const,
     touchAction: "pan-y" as const,
     position: "relative" as const,
   };
@@ -526,6 +528,7 @@ export default function EvaluarV2HomePage() {
 
   return (
     <main
+      className="ce-mobile-app-shell"
       style={pageStyle}
       onDoubleClick={(event) => {
         event.preventDefault();

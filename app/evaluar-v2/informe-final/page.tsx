@@ -267,20 +267,26 @@ export default function InformeFinalV2Page() {
       : {};
 
   const pageStyle = {
-    minHeight: "100vh",
+    minHeight: "100dvh",
+    width: "100%",
+    maxWidth: "100vw",
+    backgroundColor: "#061327",
     background:
       "radial-gradient(circle at 50% 0%, #2563eb 0%, #0b1f3a 42%, #061327 100%)",
     color: "white",
     fontFamily: "Arial, sans-serif",
     overflowX: "hidden" as const,
+    overscrollBehaviorY: "none" as const,
     touchAction: "pan-y" as const,
+    position: "relative" as const,
   };
 
   const containerStyle = {
     width: "100%",
     maxWidth: "430px",
     margin: "0 auto",
-    padding: "16px 16px calc(112px + env(safe-area-inset-bottom))",
+    padding:
+      "calc(16px + env(safe-area-inset-top)) 16px calc(112px + env(safe-area-inset-bottom))",
     boxSizing: "border-box" as const,
     overflowX: "hidden" as const,
     touchAction: "pan-y" as const,
@@ -332,6 +338,7 @@ export default function InformeFinalV2Page() {
 
   return (
     <main
+      className="ce-mobile-app-shell"
       style={pageStyle}
       onDoubleClick={(event) => {
         event.preventDefault();
