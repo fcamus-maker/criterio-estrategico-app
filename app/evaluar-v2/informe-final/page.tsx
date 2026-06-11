@@ -2,6 +2,17 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
+  aplicarResultadoMotorV2AReporte,
+  evaluarReporteConMotorV2Seguro,
+} from "../motor-v2/adaptadorMotorV2";
+import {
+  esErrorChunkStale,
+  MENSAJE_CHUNK_STALE,
+} from "../chunkLoadRecovery";
+import type { NormativaAplicable } from "../motor-v2/types";
+import {
+  guardarReporteActualV2,
+  guardarHistorialLivianoV2,
   guardarReporteLocalCompletoV2,
   hidratarReporteConEvidenciasLocalesV2,
   leerReporteActualV2,
@@ -77,7 +88,7 @@ type ReporteV2 = ReporteV2Storage & {
     prioridad?: string;
     recomendacion?: string;
     accionInmediata?: string;
-  };
+  } & ReporteV2Storage["evaluacion"];
 };
 
 type DetalleGuardadoV2 = {
@@ -142,6 +153,59 @@ function obtenerEstiloCriticidad(criticidad?: string) {
   };
 }
 
+function etiquetaAmbito(valor?: string) {
+  if (valor === "seguridad_laboral") return "Seguridad laboral";
+  if (valor === "salud_ocupacional") return "Salud ocupacional";
+  if (valor === "medio_ambiente") return "Medio ambiente";
+  if (valor === "legal_documental") return "Legal/documental";
+  if (valor === "emergencia") return "Emergencia";
+  if (valor === "mixto") return "Mixto";
+  return "No determinado";
+}
+
+function etiquetaCategoria(valor?: string) {
+  return valor
+    ? valor
+        .split("_")
+        .filter(Boolean)
+        .map((parte) => parte.charAt(0).toUpperCase() + parte.slice(1))
+        .join(" ")
+    : "No determinada";
+}
+
+function etiquetaSiNo(valor?: boolean) {
+  return valor ? "Sí" : "No";
+}
+
+function resumenPreguntasSugeridas(
+  preguntas?: NonNullable<ReporteV2["evaluacion"]>["preguntas_sugeridas"]
+) {
+  if (!Array.isArray(preguntas) || preguntas.length === 0) return "Sin preguntas sugeridas";
+  return preguntas
+    .slice(0, 3)
+    .map((pregunta) => pregunta.texto)
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function normativaResumen(normativa?: NormativaAplicable[]) {
+  if (!Array.isArray(normativa) || normativa.length === 0) {
+    return "Normativa probable asociada. Requiere validación legal específica antes de citar artículo definitivo.";
+  }
+
+  return normativa
+    .slice(0, 4)
+    .map((item) => item.norma)
+    .filter(Boolean)
+    .join(" · ") ||
+    "Normativa probable asociada. Requiere validación legal específica antes de citar artículo definitivo.";
+}
+
+function listaResumen(items?: string[]) {
+  if (!Array.isArray(items) || items.length === 0) return "Sin señales declaradas.";
+  return items.slice(0, 4).join(" · ");
+}
+
 function mensajeUsuarioGuardado(detalle: DetalleGuardadoV2) {
   if (!detalle.centralOk && detalle.estadoLocal === "pendiente") {
     return "Guardado localmente. Sincronización pendiente.";
@@ -186,7 +250,19 @@ export default function InformeFinalV2Page() {
         : null;
 
       if (!activo) return;
-      setReporte(hidratado as ReporteV2 | null);
+      const reporteHidratado = hidratado as ReporteV2 | null;
+      const reporteEvaluado = reporteHidratado
+        ? aplicarResultadoMotorV2AReporte(
+            reporteHidratado,
+            evaluarReporteConMotorV2Seguro(reporteHidratado)
+          )
+        : null;
+
+      if (reporteEvaluado) {
+        guardarReporteActualV2(reporteEvaluado);
+      }
+
+      setReporte(reporteEvaluado);
       setCargado(true);
     });
 
@@ -239,6 +315,12 @@ export default function InformeFinalV2Page() {
           : actual
       );
     } catch (error) {
+      if (esErrorChunkStale(error)) {
+        setMensajeGuardado(MENSAJE_CHUNK_STALE);
+        setEstadoSincronizacion("central-error");
+        return;
+      }
+
       setMensajeGuardado(
         `No se pudo sincronizar pendientes: ${
           error instanceof Error ? error.message : String(error)
@@ -465,6 +547,99 @@ export default function InformeFinalV2Page() {
               <div style={{ marginTop: "10px", fontSize: "13px", lineHeight: 1.45 }}>
                 {reporte.evaluacion?.recomendacion ||
                   "Mantener control y seguimiento del hallazgo."}
+              </div>
+            </section>
+
+            <section style={cardStyle}>
+              <div
+                style={{
+                  fontSize: "18px",
+                  fontWeight: 900,
+                  marginBottom: "10px",
+                }}
+              >
+                Resultado técnico Motor V2
+              </div>
+              <div style={{ display: "grid", gap: "10px" }}>
+                {[
+                  [
+                    "Ámbito principal",
+                    etiquetaAmbito(reporte.evaluacion?.ambito_principal),
+                  ],
+                  [
+                    "Tipo de evento",
+                    reporte.evaluacion?.tipo_evento || "No determinado",
+                  ],
+                  [
+                    "Categoría detectada",
+                    etiquetaCategoria(reporte.evaluacion?.categoria_detectada),
+                  ],
+                  [
+                    "Módulo sugerido",
+                    etiquetaCategoria(reporte.evaluacion?.modulo_preguntas_sugerido),
+                  ],
+                  [
+                    "Confianza clasificación",
+                    reporte.evaluacion?.confianza_clasificacion || "No determinada",
+                  ],
+                  [
+                    "Preguntas sugeridas",
+                    resumenPreguntasSugeridas(reporte.evaluacion?.preguntas_sugeridas),
+                  ],
+                  [
+                    "Medida inmediata",
+                    reporte.evaluacion?.medida_inmediata_v2 ||
+                      reporte.evaluacion?.accionInmediata ||
+                      "Sin medida definida",
+                  ],
+                  [
+                    "Plazo sugerido",
+                    reporte.evaluacion?.plazo_sugerido_v2 || "Sin plazo definido",
+                  ],
+                  [
+                    "Requiere suspensión",
+                    etiquetaSiNo(reporte.evaluacion?.requiere_suspension),
+                  ],
+                  [
+                    "Requiere contención ambiental",
+                    etiquetaSiNo(
+                      reporte.evaluacion?.requiere_contencion_ambiental
+                    ),
+                  ],
+                  [
+                    "Revisión manual requerida",
+                    etiquetaSiNo(reporte.evaluacion?.requiere_revision_manual),
+                  ],
+                  [
+                    "Señales críticas reales",
+                    listaResumen(reporte.evaluacion?.senales_criticas),
+                  ],
+                  [
+                    "Factores elevadores",
+                    listaResumen(reporte.evaluacion?.factores_elevadores),
+                  ],
+                  [
+                    "Factores limitantes",
+                    listaResumen(reporte.evaluacion?.factores_limitantes),
+                  ],
+                  [
+                    "Normativa probable",
+                    normativaResumen(reporte.evaluacion?.normativa_probable),
+                  ],
+                ].map(([label, valor]) => (
+                  <div key={label} style={datoStyle}>
+                    <div style={{ fontSize: "11px", opacity: 0.62 }}>
+                      {label}
+                    </div>
+                    <div style={{ fontSize: "15px", fontWeight: 800, lineHeight: 1.35 }}>
+                      {valor}
+                    </div>
+                  </div>
+                ))}
+                <div style={{ fontSize: "12px", lineHeight: 1.45, opacity: 0.78 }}>
+                  {reporte.evaluacion?.justificacion_tecnica ||
+                    "Normativa probable asociada. Requiere validación legal específica antes de citar artículo definitivo."}
+                </div>
               </div>
             </section>
 
@@ -736,16 +911,19 @@ export default function InformeFinalV2Page() {
                     );
                     setMensajeGuardado(mensajeUsuarioGuardado(resultadoGuardado));
                     setDetalleGuardado(resultadoGuardado);
+                    guardarHistorialLivianoV2(reporteConEstado);
                   } catch (error) {
-                    const mensajeCentral =
-                      "Reporte guardado. La sincronización quedó pendiente y se intentará nuevamente.";
+                    const errorChunkStale = esErrorChunkStale(error);
+                    const mensajeCentral = errorChunkStale
+                      ? MENSAJE_CHUNK_STALE
+                      : "Reporte guardado. La sincronización quedó pendiente y se intentará nuevamente.";
                     console.warn("No se pudo completar escritura central.", error);
                     const reporteConEstado: ReporteV2 = {
                       ...reporteGuardado,
-                      estadoLocal: "error",
+                      estadoLocal: errorChunkStale ? "pendiente" : "error",
                       ultimoIntentoEnvio: {
                         fecha: new Date().toISOString(),
-                        estado: "error",
+                        estado: errorChunkStale ? "pendiente" : "error",
                         canal: "local",
                         mensaje: mensajeCentral,
                         error:
@@ -760,7 +938,7 @@ export default function InformeFinalV2Page() {
                     };
                     const respaldoLocal = await guardarReporteLocalCompletoV2(
                       reporteConEstado,
-                      "error",
+                      errorChunkStale ? "pendiente" : "error",
                       reporteConEstado.ultimoIntentoEnvio
                     );
                     const localOk =
@@ -776,7 +954,7 @@ export default function InformeFinalV2Page() {
                     );
                     setDetalleGuardado({
                       offlineId: respaldoLocal.reporte.offlineId,
-                      estadoLocal: "error",
+                      estadoLocal: errorChunkStale ? "pendiente" : "error",
                       localOk,
                       respaldoLocalCompletoOk: respaldoLocal.ok,
                       centralOk: false,

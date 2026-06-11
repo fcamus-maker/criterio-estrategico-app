@@ -760,6 +760,7 @@ function mapearHallazgoAFilaSupabase(hallazgo: HallazgoCentral) {
         prioridad: hallazgo.prioridad,
         recomendacion: hallazgo.recomendacion,
         accionInmediata: hallazgo.accionInmediata,
+        motorV2: hallazgo.evaluacionMotorV2,
       },
       {}
     ),

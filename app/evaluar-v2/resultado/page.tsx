@@ -4,6 +4,11 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { navegarEvaluarV2 } from "../offlineNavigation";
 import {
+  aplicarResultadoMotorV2AReporte,
+  evaluarReporteConMotorV2Seguro,
+} from "../motor-v2/adaptadorMotorV2";
+import {
+  guardarReporteActualV2,
   hidratarReporteConEvidenciasLocalesV2,
   leerReporteActualV2,
   type ReporteV2Storage,
@@ -47,7 +52,7 @@ type ReporteV2 = ReporteV2Storage & {
     prioridad?: string;
     recomendacion?: string;
     accionInmediata?: string;
-  };
+  } & ReporteV2Storage["evaluacion"];
 };
 
 function vibrarOk() {
@@ -64,7 +69,27 @@ function obtenerEvaluacionVisual(reporte: ReporteV2) {
       prioridad: reporte.evaluacion.prioridad || "Sin prioridad",
       recomendacion:
         reporte.evaluacion.recomendacion || "Revisar controles y seguimiento.",
-      fundamento: "Evaluación por preguntas.",
+      fundamento:
+        reporte.evaluacion.fuente_evaluacion === "motor_v2"
+          ? "Evaluación técnica Motor V2."
+          : "Evaluación por preguntas.",
+      ambitoPrincipal: reporte.evaluacion.ambito_principal,
+      tipoEvento: reporte.evaluacion.tipo_evento,
+      categoriaDetectada: reporte.evaluacion.categoria_detectada,
+      moduloPreguntasSugerido: reporte.evaluacion.modulo_preguntas_sugerido,
+      preguntasSugeridas: reporte.evaluacion.preguntas_sugeridas,
+      confianzaClasificacion: reporte.evaluacion.confianza_clasificacion,
+      justificacionTecnica: reporte.evaluacion.justificacion_tecnica,
+      medidaInmediata: reporte.evaluacion.medida_inmediata_v2,
+      requiereSuspension: reporte.evaluacion.requiere_suspension,
+      requiereContencionAmbiental:
+        reporte.evaluacion.requiere_contencion_ambiental,
+      requiereRevisionManual: reporte.evaluacion.requiere_revision_manual,
+      normativaProbable: reporte.evaluacion.normativa_probable || [],
+      senalesCriticas: reporte.evaluacion.senales_criticas || [],
+      factoresElevadores: reporte.evaluacion.factores_elevadores || [],
+      factoresLimitantes: reporte.evaluacion.factores_limitantes || [],
+      fuenteEvaluacion: reporte.evaluacion.fuente_evaluacion,
     };
   }
 
@@ -102,6 +127,13 @@ function obtenerEvaluacionVisual(reporte: ReporteV2) {
       recomendacion:
         "Detener, controlar el área y revisar medidas inmediatas antes de continuar.",
       fundamento: "Evaluación automática preliminar por descripción.",
+      categoriaDetectada: undefined,
+      moduloPreguntasSugerido: undefined,
+      preguntasSugeridas: [],
+      confianzaClasificacion: undefined,
+      senalesCriticas: [],
+      factoresElevadores: [],
+      factoresLimitantes: [],
     };
   }
 
@@ -113,6 +145,13 @@ function obtenerEvaluacionVisual(reporte: ReporteV2) {
       recomendacion:
         "Corregir a la brevedad y reforzar controles preventivos.",
       fundamento: "Evaluación automática preliminar por descripción.",
+      categoriaDetectada: undefined,
+      moduloPreguntasSugerido: undefined,
+      preguntasSugeridas: [],
+      confianzaClasificacion: undefined,
+      senalesCriticas: [],
+      factoresElevadores: [],
+      factoresLimitantes: [],
     };
   }
 
@@ -123,7 +162,67 @@ function obtenerEvaluacionVisual(reporte: ReporteV2) {
     recomendacion:
       "Mantener seguimiento y completar evaluación de criticidad.",
     fundamento: "Evaluación automática preliminar por descripción.",
+    categoriaDetectada: undefined,
+    moduloPreguntasSugerido: undefined,
+    preguntasSugeridas: [],
+    confianzaClasificacion: undefined,
+    senalesCriticas: [],
+    factoresElevadores: [],
+    factoresLimitantes: [],
   };
+}
+
+function etiquetaAmbito(valor?: string) {
+  if (valor === "seguridad_laboral") return "Seguridad laboral";
+  if (valor === "salud_ocupacional") return "Salud ocupacional";
+  if (valor === "medio_ambiente") return "Medio ambiente";
+  if (valor === "legal_documental") return "Legal/documental";
+  if (valor === "emergencia") return "Emergencia";
+  if (valor === "mixto") return "Mixto";
+  return "No determinado";
+}
+
+function etiquetaCategoria(valor?: string) {
+  return valor
+    ? valor
+        .split("_")
+        .filter(Boolean)
+        .map((parte) => parte.charAt(0).toUpperCase() + parte.slice(1))
+        .join(" ")
+    : "No determinada";
+}
+
+function etiquetaSiNo(valor?: boolean) {
+  return valor ? "Sí" : "No";
+}
+
+function resumenPreguntasSugeridas(
+  preguntas?: NonNullable<ReporteV2["evaluacion"]>["preguntas_sugeridas"]
+) {
+  if (!Array.isArray(preguntas) || preguntas.length === 0) return "Sin preguntas sugeridas";
+  return preguntas
+    .slice(0, 3)
+    .map((pregunta) => pregunta.texto)
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function normativaResumen(normativa: NonNullable<ReporteV2["evaluacion"]>["normativa_probable"]) {
+  if (!Array.isArray(normativa) || normativa.length === 0) {
+    return "Normativa probable asociada. Requiere validación legal específica antes de citar artículo definitivo.";
+  }
+
+  return normativa
+    .slice(0, 3)
+    .map((item) => item.norma)
+    .filter(Boolean)
+    .join(" · ") ||
+    "Normativa probable asociada. Requiere validación legal específica antes de citar artículo definitivo.";
+}
+
+function listaResumen(items?: string[]) {
+  if (!Array.isArray(items) || items.length === 0) return "Sin señales declaradas.";
+  return items.slice(0, 4).join(" · ");
 }
 
 function obtenerEstiloCriticidad(criticidad: string) {
@@ -177,7 +276,19 @@ export default function ResultadoV2Page() {
         : null;
 
       if (!activo) return;
-      setReporte(hidratado as ReporteV2 | null);
+      const reporteHidratado = hidratado as ReporteV2 | null;
+      const reporteEvaluado = reporteHidratado
+        ? aplicarResultadoMotorV2AReporte(
+            reporteHidratado,
+            evaluarReporteConMotorV2Seguro(reporteHidratado)
+          )
+        : null;
+
+      if (reporteEvaluado) {
+        guardarReporteActualV2(reporteEvaluado);
+      }
+
+      setReporte(reporteEvaluado);
       setCargado(true);
     });
 
@@ -376,6 +487,88 @@ export default function ResultadoV2Page() {
               </div>
               <div style={{ marginTop: "10px", fontSize: "12px", opacity: 0.78 }}>
                 {evaluacionVisual?.fundamento || "Evaluación pendiente."}
+              </div>
+            </section>
+
+            <section style={cardStyle}>
+              <div
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 900,
+                  opacity: 0.7,
+                  marginBottom: "8px",
+                }}
+              >
+                LECTURA TÉCNICA MOTOR V2
+              </div>
+              <div style={{ display: "grid", gap: "10px" }}>
+                {[
+                  ["Ámbito principal", etiquetaAmbito(evaluacionVisual?.ambitoPrincipal)],
+                  ["Tipo evento", evaluacionVisual?.tipoEvento || "No determinado"],
+                  [
+                    "Categoría detectada",
+                    etiquetaCategoria(evaluacionVisual?.categoriaDetectada),
+                  ],
+                  [
+                    "Módulo sugerido",
+                    etiquetaCategoria(evaluacionVisual?.moduloPreguntasSugerido),
+                  ],
+                  [
+                    "Confianza clasificación",
+                    evaluacionVisual?.confianzaClasificacion || "No determinada",
+                  ],
+                  [
+                    "Preguntas sugeridas",
+                    resumenPreguntasSugeridas(evaluacionVisual?.preguntasSugeridas),
+                  ],
+                  [
+                    "Medida inmediata",
+                    evaluacionVisual?.medidaInmediata ||
+                      evaluacionVisual?.recomendacion ||
+                      "Sin medida definida",
+                  ],
+                  [
+                    "Requiere suspensión",
+                    etiquetaSiNo(evaluacionVisual?.requiereSuspension),
+                  ],
+                  [
+                    "Requiere contención ambiental",
+                    etiquetaSiNo(evaluacionVisual?.requiereContencionAmbiental),
+                  ],
+                  [
+                    "Revisión manual",
+                    etiquetaSiNo(evaluacionVisual?.requiereRevisionManual),
+                  ],
+                  [
+                    "Señales críticas reales",
+                    listaResumen(evaluacionVisual?.senalesCriticas),
+                  ],
+                  [
+                    "Factores elevadores",
+                    listaResumen(evaluacionVisual?.factoresElevadores),
+                  ],
+                  [
+                    "Factores limitantes",
+                    listaResumen(evaluacionVisual?.factoresLimitantes),
+                  ],
+                  [
+                    "Normativa probable",
+                    normativaResumen(evaluacionVisual?.normativaProbable),
+                  ],
+                ].map(([label, valor]) => (
+                  <div key={label} style={datoStyle}>
+                    <div style={{ fontSize: "11px", opacity: 0.62 }}>
+                      {label}
+                    </div>
+                    <div style={{ fontSize: "14px", fontWeight: 800, lineHeight: 1.35 }}>
+                      {valor}
+                    </div>
+                  </div>
+                ))}
+                <div style={{ fontSize: "12px", lineHeight: 1.45, opacity: 0.78 }}>
+                  {evaluacionVisual?.justificacionTecnica ||
+                    "Normativa probable asociada. Requiere validación legal específica antes de citar artículo definitivo."}
+                </div>
               </div>
             </section>
 

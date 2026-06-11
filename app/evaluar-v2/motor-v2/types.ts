@@ -19,6 +19,78 @@ export type TipoEvento =
   | "emergencia"
   | "otro";
 
+export type CategoriaHallazgoV2 =
+  | "orden_aseo_objeto_fuera_lugar"
+  | "transito_caida_mismo_nivel"
+  | "caida_altura"
+  | "electrico"
+  | "maquinaria_equipos"
+  | "herramientas_equipos"
+  | "izaje_carga_suspendida"
+  | "excavaciones"
+  | "espacios_confinados"
+  | "incendio_emergencia"
+  | "derrame_fuga"
+  | "sustancias_peligrosas"
+  | "residuos"
+  | "emisiones_polvo_humos"
+  | "ruido_agentes_fisicos"
+  | "exposicion_quimica"
+  | "exposicion_biologica"
+  | "ambiental_general"
+  | "aspectos_ambientales"
+  | "impactos_ambientales_reales"
+  | "salud_ocupacional_ruido_polvo_quimicos"
+  | "legal_documental"
+  | "procedimientos_ast_permisos"
+  | "induccion_capacitacion_autorizacion"
+  | "documentos_legales_preventivos"
+  | "evacuacion"
+  | "senalizacion"
+  | "elementos_proteccion_personal"
+  | "comunidad_terceros"
+  | "rca_permisos_ambientales"
+  | "condiciones_sanitarias_ambientales"
+  | "conductas_inseguras"
+  | "condiciones_subestandar"
+  | "casi_accidentes"
+  | "incidentes_con_sin_lesion"
+  | "mixto_seguridad_ambiente_legal"
+  | "otro_indeterminado";
+
+export type ModuloPreguntasV2 = CategoriaHallazgoV2;
+
+export type ConfianzaClasificacionV2 = "baja" | "media" | "alta";
+
+export type PreguntaSugeridaMotorV2 = {
+  id: string;
+  modulo: ModuloPreguntasV2;
+  texto: string;
+  objetivo: string;
+};
+
+export type ClasificacionHallazgoV2 = {
+  categoriaDetectada: CategoriaHallazgoV2;
+  ambitoSugerido: AmbitoEvaluacion;
+  ambitosSecundariosSugeridos: AmbitoEvaluacion[];
+  tipoEventoSugerido: TipoEvento;
+  moduloPreguntasSugerido: ModuloPreguntasV2;
+  confianza: ConfianzaClasificacionV2;
+  palabrasClaveDetectadas: string[];
+  criticidadBaseSugerida?: Criticidad;
+  topeCriticidadSugerido?: Criticidad;
+  senalesElevanCriticidad: string[];
+  senalesPermitenCritico: string[];
+  normativaProbableSugerida: string[];
+  requiereRevisionManual: boolean;
+  requierePreguntasAmbientales: boolean;
+  requierePreguntasLegales: boolean;
+  requierePreguntasSeguridad: boolean;
+  requierePreguntasSalud: boolean;
+  advertencias: string[];
+  justificacionModuloPreguntas: string;
+};
+
 export type ExposicionPersonas = "sin_exposicion" | "potencial" | "directa";
 export type ExposicionAmbiental = "sin_exposicion" | "potencial" | "directa";
 export type Consecuencia = "leve" | "moderada" | "grave" | "fatal";
@@ -114,12 +186,23 @@ export type EvaluacionResultadoV2 = {
   normativaProbable: NormativaAplicable[];
   justificacionTecnica: string;
   resumenEjecutivo: string;
+  categoriaDetectada: CategoriaHallazgoV2;
+  moduloPreguntasSugerido: ModuloPreguntasV2;
+  preguntasSugeridas: PreguntaSugeridaMotorV2[];
+  preguntasCriticasRespondidas: string[];
+  preguntasFaltantesRecomendadas: PreguntaSugeridaMotorV2[];
+  justificacionModuloPreguntas: string;
+  confianzaClasificacion: ConfianzaClasificacionV2;
+  palabrasClaveDetectadas: string[];
 };
 
 export type CasoPruebaMotorV2 = {
   nombre: string;
   input: EvaluacionInputV2;
   criticidadEsperada: Criticidad | Criticidad[];
+  categoriaEsperada?: CategoriaHallazgoV2;
+  ambitoEsperado?: AmbitoEvaluacion;
+  tipoEventoEsperado?: TipoEvento;
   observacionEsperada: string;
 };
 
@@ -127,7 +210,9 @@ export type ResultadoCasoPruebaMotorV2 = {
   nombre: string;
   criticidadEsperada: Criticidad | Criticidad[];
   criticidadObtenida: Criticidad;
+  categoriaDetectada: CategoriaHallazgoV2;
+  ambitoPrincipal: AmbitoEvaluacion;
+  tipoEvento: TipoEvento;
   aprobado: boolean;
   observacion: string;
 };
-

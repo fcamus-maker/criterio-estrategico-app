@@ -1,4 +1,4 @@
-const CE_CACHE_VERSION = "ce-offline-v3";
+const CE_CACHE_VERSION = "ce-offline-v5";
 const CE_APP_SHELL_CACHE = `${CE_CACHE_VERSION}-shell`;
 const CE_RUNTIME_CACHE = `${CE_CACHE_VERSION}-runtime`;
 

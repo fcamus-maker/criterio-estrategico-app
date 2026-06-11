@@ -1,3 +1,14 @@
+import type {
+  AmbitoEvaluacion,
+  CategoriaHallazgoV2,
+  ConfianzaClasificacionV2,
+  Criticidad,
+  ModuloPreguntasV2,
+  NormativaAplicable,
+  PreguntaSugeridaMotorV2,
+  TipoEvento,
+} from "./motor-v2/types";
+
 export const STORAGE_REPORTE_ACTUAL = "ce_mobile_v2_reporte_actual";
 export const STORAGE_HISTORIAL = "ce_mobile_v2_historial_reportes";
 const STORAGE_HISTORIAL_SCOPED_PREFIX = "ce_mobile_v2_historial_reportes_scope_";
@@ -81,6 +92,36 @@ export type UltimoIntentoEnvioReporteV2 = {
   centralOk?: boolean;
 };
 
+export type EvaluacionMotorV2Storage = {
+  evaluacion_motor_version?: "v2" | "fallback";
+  ambito_principal?: AmbitoEvaluacion;
+  ambitos_secundarios?: AmbitoEvaluacion[];
+  tipo_evento?: TipoEvento;
+  criticidad_base?: Criticidad;
+  criticidad_final?: Criticidad;
+  justificacion_tecnica?: string;
+  resumen_ejecutivo?: string;
+  medida_inmediata_v2?: string;
+  plazo_sugerido_v2?: string;
+  requiere_suspension?: boolean;
+  requiere_contencion_ambiental?: boolean;
+  requiere_revision_manual?: boolean;
+  normativa_probable?: NormativaAplicable[];
+  senales_criticas?: string[];
+  factores_elevadores?: string[];
+  factores_limitantes?: string[];
+  inconsistencias?: string[];
+  categoria_detectada?: CategoriaHallazgoV2;
+  modulo_preguntas_sugerido?: ModuloPreguntasV2;
+  preguntas_sugeridas?: PreguntaSugeridaMotorV2[];
+  preguntas_criticas_respondidas?: string[];
+  preguntas_faltantes_recomendadas?: PreguntaSugeridaMotorV2[];
+  justificacion_modulo_preguntas?: string;
+  confianza_clasificacion?: ConfianzaClasificacionV2;
+  palabras_clave_detectadas?: string[];
+  fuente_evaluacion?: "motor_v2" | "fallback";
+};
+
 export type ReporteV2Storage = {
   offlineId?: string;
   scopeLocal?: string;
@@ -126,7 +167,7 @@ export type ReporteV2Storage = {
     prioridad?: string;
     recomendacion?: string;
     accionInmediata?: string;
-  };
+  } & EvaluacionMotorV2Storage;
   cierre?: Record<string, unknown>;
   asignacionCierre?: Record<string, unknown>;
   estadoLocal?: EstadoLocalReporteV2;
@@ -702,6 +743,18 @@ export function leerReporteActualV2(): ReporteV2Storage | null {
 export function guardarReporteActualV2(reporte: ReporteV2Storage) {
   obtenerWindowConMemoria()[MEMORIA_REPORTE_ACTUAL] = reporte;
   return guardarJsonSeguroV2(STORAGE_REPORTE_ACTUAL, crearReporteLivianoV2(reporte));
+}
+
+export function limpiarReporteActualV2() {
+  delete obtenerWindowConMemoria()[MEMORIA_REPORTE_ACTUAL];
+
+  try {
+    localStorage.removeItem(STORAGE_REPORTE_ACTUAL);
+    return true;
+  } catch (error) {
+    console.warn("No se pudo limpiar reporte V2 actual.", error);
+    return false;
+  }
 }
 
 export function cargarHistorialLivianoV2(scopeLocal?: string): ReporteV2Storage[] {

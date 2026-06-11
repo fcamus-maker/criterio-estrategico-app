@@ -218,6 +218,7 @@ export type HallazgoCentral = {
   prioridad?: PrioridadHallazgoCentral;
   puntajeEvaluacion?: number;
   respuestasEvaluacion?: Record<string, string>;
+  evaluacionMotorV2?: Record<string, unknown>;
   accionInmediata?: string;
   recomendacion?: string;
 

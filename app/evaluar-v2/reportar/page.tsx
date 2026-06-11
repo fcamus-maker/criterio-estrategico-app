@@ -351,26 +351,43 @@ export default function ReportarV2Page() {
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        setUbicacion({
+        const gpsCapturado: UbicacionV2 = {
           latitud: position.coords.latitude,
           longitud: position.coords.longitude,
           precisionGps: position.coords.accuracy,
           fechaHoraGeolocalizacion: new Date().toISOString(),
           estadoGeolocalizacion: "obtenido",
-        });
-        setMensaje("Ubicación GPS real capturada correctamente.");
+        };
+
+        setUbicacion(gpsCapturado);
+        setFotos((actuales) =>
+          actuales.map((foto) => ({
+            ...foto,
+            gpsAt: gpsCapturado.fechaHoraGeolocalizacion,
+            gps: gpsMetadata(gpsCapturado),
+          }))
+        );
+        setError("");
+        setMensaje(
+          fotos.length > 0
+            ? "Ubicación GPS real capturada y asociada a las fotografías del reporte."
+            : "Ubicación GPS real capturada correctamente."
+        );
         setCapturandoGps(false);
         vibrarOk();
       },
       (geolocationError) => {
         const permisoDenegado = geolocationError.code === geolocationError.PERMISSION_DENIED;
+        const motivo = permisoDenegado
+          ? "El usuario denegó el permiso de ubicación."
+          : geolocationError.message || "No se pudo obtener la ubicación del dispositivo.";
+
         setUbicacion({
           fechaHoraGeolocalizacion: new Date().toISOString(),
           estadoGeolocalizacion: permisoDenegado ? "denegado" : "error",
-          motivoGeolocalizacion: permisoDenegado
-            ? "El usuario denegó el permiso de ubicación."
-            : geolocationError.message || "No se pudo obtener la ubicación del dispositivo.",
+          motivoGeolocalizacion: motivo,
         });
+        setMensaje("");
         setError(
           permisoDenegado
             ? "GPS no obtenido. Para prueba local por IP puede requerirse HTTPS o permiso de ubicación del navegador. El reporte puede continuar sin coordenadas, pero quedará marcado sin GPS."

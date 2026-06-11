@@ -9,8 +9,11 @@ import {
   subirCriticidad,
 } from "./matrizCriticidadV2";
 import { obtenerNormativaProbableV2 } from "./matrizLegalV2";
+import { obtenerPreguntasAdaptativasV2 } from "./preguntasAdaptativasV2";
+import { clasificarHallazgoPorDescripcion } from "./routerHallazgoV2";
 import type {
   AmbitoEvaluacion,
+  ClasificacionHallazgoV2,
   Criticidad,
   DatosAmbientales,
   DatosLegales,
@@ -30,6 +33,21 @@ const PALABRAS_EMERGENCIA = ["emergencia", "extintor", "evacuacion", "incendio",
 const PALABRAS_ACTO = ["acto inseguro", "trabajador realiza", "sin arnes", "sin epp"];
 const PALABRAS_INCIDENTE = ["incidente", "accidente", "golpeado", "lesion", "derrame ocurrido"];
 const PALABRAS_CASI_ACCIDENTE = ["casi accidente", "near miss", "amago"];
+const PALABRAS_LEGALES = [
+  "documento",
+  "documental",
+  "procedimiento",
+  "permiso",
+  "ast",
+  "pts",
+  "ptp",
+  "matriz",
+  "induccion",
+  "registro",
+  "capacitacion",
+  "certificado",
+  "autorizacion",
+];
 
 function normalizarInput(input: EvaluacionInputV2): EvaluacionNormalizadaV2 {
   return {
@@ -86,21 +104,51 @@ function hayDatoLegal(datos?: DatosLegales): boolean {
   return Object.values(datos).some((valor) => Boolean(valor));
 }
 
+function clasificacionSemanticaEsUtil(clasificacion: ClasificacionHallazgoV2): boolean {
+  return clasificacion.categoriaDetectada !== "otro_indeterminado" && clasificacion.confianza !== "baja";
+}
+
+function haySenalLegalTextual(input: EvaluacionNormalizadaV2, clasificacion: ClasificacionHallazgoV2): boolean {
+  return (
+    clasificacion.requierePreguntasLegales ||
+    input.ambitoDeclarado === "legal_documental" ||
+    textoIncluye(input.textoBusqueda, PALABRAS_LEGALES) ||
+    Boolean(input.datosLegales?.normaDeclarada)
+  );
+}
+
 function agregarAmbito(ambitos: AmbitoEvaluacion[], ambito: AmbitoEvaluacion): void {
   if (!ambitos.includes(ambito)) ambitos.push(ambito);
 }
 
-function clasificarAmbitos(input: EvaluacionNormalizadaV2): {
+function mayorCriticidad(a: Criticidad, b: Criticidad): Criticidad {
+  return obtenerPesoCriticidad(a) >= obtenerPesoCriticidad(b) ? a : b;
+}
+
+function clasificarAmbitos(
+  input: EvaluacionNormalizadaV2,
+  clasificacion: ClasificacionHallazgoV2
+): {
   ambitoPrincipal: AmbitoEvaluacion;
   ambitosSecundarios: AmbitoEvaluacion[];
 } {
   const ambitos: AmbitoEvaluacion[] = [];
+  const usarRouter = clasificacionSemanticaEsUtil(clasificacion);
 
-  if (input.ambitoDeclarado) agregarAmbito(ambitos, input.ambitoDeclarado);
+  if (usarRouter) agregarAmbito(ambitos, clasificacion.ambitoSugerido);
+  if (usarRouter) {
+    clasificacion.ambitosSecundariosSugeridos.forEach((ambito) => agregarAmbito(ambitos, ambito));
+  }
+  if (input.ambitoDeclarado && (!usarRouter || input.ambitoDeclarado === clasificacion.ambitoSugerido)) {
+    agregarAmbito(ambitos, input.ambitoDeclarado);
+  }
   if (hayDatoAmbiental(input.datosAmbientales) || textoIncluye(input.textoBusqueda, PALABRAS_AMBIENTE)) {
     agregarAmbito(ambitos, "medio_ambiente");
   }
-  if (hayDatoLegal(input.datosLegales) || respuestaIncluye(input, ["documento", "permiso", "procedimiento", "ast", "pts", "ptp"])) {
+  if (
+    (hayDatoLegal(input.datosLegales) && haySenalLegalTextual(input, clasificacion)) ||
+    respuestaIncluye(input, ["documento", "permiso", "procedimiento", "ast", "pts", "ptp"])
+  ) {
     agregarAmbito(ambitos, "legal_documental");
   }
   if (textoIncluye(input.textoBusqueda, PALABRAS_SALUD)) {
@@ -121,7 +169,11 @@ function clasificarAmbitos(input: EvaluacionNormalizadaV2): {
   };
 }
 
-function clasificarTipoEvento(input: EvaluacionNormalizadaV2, ambitoPrincipal: AmbitoEvaluacion): TipoEvento {
+function clasificarTipoEvento(
+  input: EvaluacionNormalizadaV2,
+  ambitoPrincipal: AmbitoEvaluacion,
+  clasificacion: ClasificacionHallazgoV2
+): TipoEvento {
   if (ambitoPrincipal === "emergencia" || textoIncluye(input.textoBusqueda, PALABRAS_EMERGENCIA)) {
     return "emergencia";
   }
@@ -131,7 +183,11 @@ function clasificarTipoEvento(input: EvaluacionNormalizadaV2, ambitoPrincipal: A
     return input.datosAmbientales?.existeImpactoAmbiental ? "impacto_ambiental" : "aspecto_ambiental";
   }
 
-  if (hayDatoLegal(input.datosLegales) || ambitoPrincipal === "legal_documental") {
+  if (clasificacionSemanticaEsUtil(clasificacion) && clasificacion.tipoEventoSugerido !== "otro") {
+    return clasificacion.tipoEventoSugerido;
+  }
+
+  if ((hayDatoLegal(input.datosLegales) && haySenalLegalTextual(input, clasificacion)) || ambitoPrincipal === "legal_documental") {
     return "desviacion_legal_documental";
   }
 
@@ -310,7 +366,8 @@ function aplicarTopes(
 function detectarIncoherencias(
   input: EvaluacionNormalizadaV2,
   criticidadFinal: Criticidad,
-  senalesCriticas: string[]
+  senalesCriticas: string[],
+  clasificacion: ClasificacionHallazgoV2
 ): string[] {
   const inconsistencias: string[] = [];
 
@@ -333,6 +390,21 @@ function detectarIncoherencias(
   if (criticidadFinal === "CRITICO" && senalesCriticas.length === 0) {
     inconsistencias.push("Criticidad CRITICO sin senal critica real.");
   }
+
+  if (
+    clasificacionSemanticaEsUtil(clasificacion) &&
+    !clasificacion.requierePreguntasLegales &&
+    hayDatoLegal(input.datosLegales) &&
+    !haySenalLegalTextual(input, clasificacion)
+  ) {
+    inconsistencias.push("Respuestas/documentos legales no son coherentes con la descripcion principal del hallazgo.");
+  }
+
+  if (clasificacion.confianza === "baja") {
+    inconsistencias.push("Clasificacion semantica de baja confianza; aplicar preguntas generales antes de cerrar evaluacion.");
+  }
+
+  clasificacion.advertencias.forEach((advertencia) => inconsistencias.push(advertencia));
 
   return inconsistencias;
 }
@@ -380,9 +452,23 @@ function generarJustificacion(
   senalesCriticas: string[],
   factoresElevadores: string[],
   factoresLimitantes: string[],
-  inconsistencias: string[]
+  inconsistencias: string[],
+  clasificacion: ClasificacionHallazgoV2
 ): string {
-  const partes = [`Base ${criticidadBase}; final ${criticidadFinal}.`];
+  const partes = [
+    `Categoria detectada: ${clasificacion.categoriaDetectada} (${clasificacion.confianza}).`,
+    `Base ${criticidadBase}; final ${criticidadFinal}.`,
+  ];
+  if (clasificacion.palabrasClaveDetectadas.length > 0) {
+    partes.push(`Palabras clave: ${clasificacion.palabrasClaveDetectadas.join(", ")}.`);
+  }
+  partes.push(clasificacion.justificacionModuloPreguntas);
+  if (clasificacion.senalesElevanCriticidad.length > 0) {
+    partes.push(`Senales a confirmar que elevan: ${clasificacion.senalesElevanCriticidad.join(" ")}`);
+  }
+  if (clasificacion.senalesPermitenCritico.length > 0) {
+    partes.push(`CRITICO solo con: ${clasificacion.senalesPermitenCritico.join(" ")}`);
+  }
   if (senalesCriticas.length > 0) partes.push(`Senales criticas: ${senalesCriticas.join(" ")}`);
   if (factoresElevadores.length > 0) partes.push(`Eleva por: ${factoresElevadores.join(" ")}`);
   if (factoresLimitantes.length > 0) partes.push(`Se limita por: ${factoresLimitantes.join(" ")}`);
@@ -400,18 +486,36 @@ function generarResumenEjecutivo(
   return `Hallazgo ${tipoEvento} en ambito ${ambitoPrincipal}, evaluado como ${criticidadFinal}.${revision}`;
 }
 
+function preguntasCriticasRespondidas(input: EvaluacionNormalizadaV2): string[] {
+  const idsCriticos = ["p1", "p2", "p3", "p4", "p7", "p9", "p10", "p14", "p20"];
+
+  return idsCriticos
+    .filter((id) => input.respuestas[id] !== undefined && input.respuestas[id] !== null && input.respuestas[id] !== "")
+    .map((id) => `${id}: ${String(input.respuestas[id])}`);
+}
+
 export function evaluarHallazgoV2(input: EvaluacionInputV2): EvaluacionResultadoV2 {
   const normalizado = normalizarInput(input);
-  const { ambitoPrincipal, ambitosSecundarios } = clasificarAmbitos(normalizado);
-  const tipoEvento = clasificarTipoEvento(normalizado, ambitoPrincipal);
-  const { criticidadBase, topeMaximo } = calcularCriticidadBaseV2(normalizado);
+  const clasificacion = clasificarHallazgoPorDescripcion(normalizado);
+  const { ambitoPrincipal, ambitosSecundarios } = clasificarAmbitos(normalizado, clasificacion);
+  const tipoEvento = clasificarTipoEvento(normalizado, ambitoPrincipal, clasificacion);
+  const baseMatriz = calcularCriticidadBaseV2(normalizado);
+  const criticidadBase = clasificacionSemanticaEsUtil(clasificacion)
+    ? mayorCriticidad(baseMatriz.criticidadBase, clasificacion.criticidadBaseSugerida || baseMatriz.criticidadBase)
+    : baseMatriz.criticidadBase;
+  const topeMaximo = clasificacionSemanticaEsUtil(clasificacion)
+    ? clasificacion.topeCriticidadSugerido || baseMatriz.topeMaximo
+    : baseMatriz.topeMaximo;
   const senalesCriticas = detectarSenalesCriticas(normalizado);
   const factoresElevadores = calcularFactoresElevadores(normalizado, senalesCriticas);
   const factoresLimitantes = calcularFactoresLimitantes(normalizado);
   const criticidadElevada = aplicarElevadores(criticidadBase, factoresElevadores, senalesCriticas);
   const criticidadFinal = aplicarTopes(normalizado, criticidadElevada, topeMaximo, senalesCriticas, factoresLimitantes);
-  const inconsistencias = detectarIncoherencias(normalizado, criticidadFinal, senalesCriticas);
-  const requiereRevisionManual = inconsistencias.length > 0 || senalesCriticas.some((senal) => senal.includes("legal"));
+  const inconsistencias = detectarIncoherencias(normalizado, criticidadFinal, senalesCriticas, clasificacion);
+  const requiereRevisionManual =
+    inconsistencias.length > 0 ||
+    clasificacion.requiereRevisionManual ||
+    senalesCriticas.some((senal) => senal.includes("legal"));
   const requiereContencionAmbiental =
     Boolean(normalizado.datosAmbientales?.requiereContencion) ||
     senalesCriticas.some((senal) => senal.toLowerCase().includes("derrame") || senal.toLowerCase().includes("ambiental"));
@@ -424,7 +528,7 @@ export function evaluarHallazgoV2(input: EvaluacionInputV2): EvaluacionResultado
     );
 
   const ambitosParaNormativa = [ambitoPrincipal, ...ambitosSecundarios];
-  const normativaProbable = obtenerNormativaProbableV2(ambitosParaNormativa, normalizado);
+  const normativaProbable = obtenerNormativaProbableV2(ambitosParaNormativa, normalizado, clasificacion);
   const medidaInmediata = definirMedidaInmediata(
     normalizado,
     criticidadFinal,
@@ -438,7 +542,8 @@ export function evaluarHallazgoV2(input: EvaluacionInputV2): EvaluacionResultado
     senalesCriticas,
     factoresElevadores,
     factoresLimitantes,
-    inconsistencias
+    inconsistencias,
+    clasificacion
   );
   const resumenEjecutivo = generarResumenEjecutivo(
     criticidadFinal,
@@ -446,6 +551,11 @@ export function evaluarHallazgoV2(input: EvaluacionInputV2): EvaluacionResultado
     tipoEvento,
     requiereRevisionManual
   );
+  const preguntasSugeridas = obtenerPreguntasAdaptativasV2(
+    clasificacion.moduloPreguntasSugerido,
+    clasificacion.confianza
+  );
+  const preguntasRespondidas = preguntasCriticasRespondidas(normalizado);
 
   return {
     ambitoPrincipal,
@@ -465,5 +575,13 @@ export function evaluarHallazgoV2(input: EvaluacionInputV2): EvaluacionResultado
     normativaProbable,
     justificacionTecnica,
     resumenEjecutivo,
+    categoriaDetectada: clasificacion.categoriaDetectada,
+    moduloPreguntasSugerido: clasificacion.moduloPreguntasSugerido,
+    preguntasSugeridas,
+    preguntasCriticasRespondidas: preguntasRespondidas,
+    preguntasFaltantesRecomendadas: preguntasSugeridas,
+    justificacionModuloPreguntas: clasificacion.justificacionModuloPreguntas,
+    confianzaClasificacion: clasificacion.confianza,
+    palabrasClaveDetectadas: clasificacion.palabrasClaveDetectadas,
   };
 }

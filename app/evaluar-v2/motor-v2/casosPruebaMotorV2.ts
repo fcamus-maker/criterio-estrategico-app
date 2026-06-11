@@ -3,13 +3,16 @@ import type { CasoPruebaMotorV2, Criticidad, ResultadoCasoPruebaMotorV2 } from "
 
 export const casosPruebaMotorV2: CasoPruebaMotorV2[] = [
   {
-    nombre: "Maleta abierta inofensiva sin transito",
+    nombre: "Maleta abierta en area de trabajo",
     criticidadEsperada: ["BAJO", "MEDIO"],
-    observacionEsperada: "Nunca debe ser CRITICO.",
+    categoriaEsperada: "orden_aseo_objeto_fuera_lugar",
+    ambitoEsperado: "seguridad_laboral",
+    tipoEventoEsperado: "condicion_subestandar",
+    observacionEsperada: "Nunca debe ser CRITICO ni legal/documental.",
     input: {
-      tipoHallazgo: "Orden y aseo menor",
-      descripcion: "Maleta abierta inofensiva sin transito ni obstruccion critica.",
-      area: "Oficina",
+      tipoHallazgo: "Reporte movil V2",
+      descripcion: "Maleta abierta en area de trabajo.",
+      area: "Area de trabajo",
       actividad: "Transito normal",
       respuestas: {},
       exposicionPersonas: "sin_exposicion",
@@ -38,6 +41,7 @@ export const casosPruebaMotorV2: CasoPruebaMotorV2[] = [
   {
     nombre: "Derrame menor contenido en bandeja",
     criticidadEsperada: "MEDIO",
+    categoriaEsperada: "derrame_fuga",
     observacionEsperada: "Ambiental contenido, sin salida a medio receptor.",
     input: {
       tipoHallazgo: "Aspecto ambiental",
@@ -60,6 +64,8 @@ export const casosPruebaMotorV2: CasoPruebaMotorV2[] = [
   {
     nombre: "Derrame de sustancia peligrosa hacia suelo o alcantarillado",
     criticidadEsperada: "CRITICO",
+    categoriaEsperada: "derrame_fuga",
+    ambitoEsperado: "medio_ambiente",
     observacionEsperada: "Senal critica ambiental.",
     input: {
       tipoHallazgo: "Impacto ambiental",
@@ -110,6 +116,8 @@ export const casosPruebaMotorV2: CasoPruebaMotorV2[] = [
   {
     nombre: "Cable energizado expuesto",
     criticidadEsperada: "CRITICO",
+    categoriaEsperada: "electrico",
+    ambitoEsperado: "seguridad_laboral",
     observacionEsperada: "Senal critica de seguridad.",
     input: {
       tipoHallazgo: "Energia peligrosa",
@@ -161,6 +169,9 @@ export const casosPruebaMotorV2: CasoPruebaMotorV2[] = [
   {
     nombre: "Documento faltante sin actividad riesgosa inmediata",
     criticidadEsperada: ["BAJO", "MEDIO"],
+    categoriaEsperada: "documentos_legales_preventivos",
+    ambitoEsperado: "legal_documental",
+    tipoEventoEsperado: "desviacion_legal_documental",
     observacionEsperada: "Legal/documental con tope MEDIO.",
     input: {
       tipoHallazgo: "Documento faltante",
@@ -176,6 +187,29 @@ export const casosPruebaMotorV2: CasoPruebaMotorV2[] = [
       datosLegales: {
         documentoFaltante: true,
         faltaHabilitaActividadRiesgosa: false,
+      },
+    },
+  },
+  {
+    nombre: "Sin AST para trabajo en altura",
+    criticidadEsperada: ["ALTO", "CRITICO"],
+    categoriaEsperada: "procedimientos_ast_permisos",
+    ambitoEsperado: "legal_documental",
+    tipoEventoEsperado: "desviacion_legal_documental",
+    observacionEsperada: "Mixto documental y trabajo critico; requiere preguntas de exposicion y suspension.",
+    input: {
+      tipoHallazgo: "Falta documental en trabajo critico",
+      descripcion: "Sin AST para trabajo en altura con personas expuestas en plataforma.",
+      area: "Estructura",
+      actividad: "Trabajo en altura",
+      respuestas: {},
+      exposicionPersonas: "directa",
+      consecuencia: "fatal",
+      probabilidad: "alta",
+      controlesExistentes: "inexistentes",
+      datosLegales: {
+        astPtpPtsFaltante: true,
+        faltaHabilitaActividadRiesgosa: true,
       },
     },
   },
@@ -294,16 +328,29 @@ function criticidadAprobada(
 export function ejecutarCasosPruebaMotorV2(): ResultadoCasoPruebaMotorV2[] {
   return casosPruebaMotorV2.map((caso) => {
     const resultado = evaluarHallazgoV2(caso.input);
-    const aprobado = criticidadAprobada(caso.criticidadEsperada, resultado.criticidadFinal);
+    const categoriaAprobada =
+      !caso.categoriaEsperada || caso.categoriaEsperada === resultado.categoriaDetectada;
+    const ambitoAprobado =
+      !caso.ambitoEsperado || caso.ambitoEsperado === resultado.ambitoPrincipal;
+    const tipoEventoAprobado =
+      !caso.tipoEventoEsperado || caso.tipoEventoEsperado === resultado.tipoEvento;
+    const aprobado =
+      criticidadAprobada(caso.criticidadEsperada, resultado.criticidadFinal) &&
+      categoriaAprobada &&
+      ambitoAprobado &&
+      tipoEventoAprobado;
 
     return {
       nombre: caso.nombre,
       criticidadEsperada: caso.criticidadEsperada,
       criticidadObtenida: resultado.criticidadFinal,
+      categoriaDetectada: resultado.categoriaDetectada,
+      ambitoPrincipal: resultado.ambitoPrincipal,
+      tipoEvento: resultado.tipoEvento,
       aprobado,
       observacion: aprobado
         ? caso.observacionEsperada
-        : `${caso.observacionEsperada} Obtenido: ${resultado.criticidadFinal}. ${resultado.justificacionTecnica}`,
+        : `${caso.observacionEsperada} Obtenido: ${resultado.criticidadFinal}; categoria ${resultado.categoriaDetectada}; ambito ${resultado.ambitoPrincipal}; tipo ${resultado.tipoEvento}. ${resultado.justificacionTecnica}`,
     };
   });
 }

@@ -10,6 +10,7 @@ import type {
   SeguimientoCierreCentral,
   TipoHallazgoCentral,
 } from "../types/hallazgoCentral";
+import type { EvaluacionMotorV2Storage } from "../evaluar-v2/storageReporteV2";
 
 export type FotoReporteV2Central = {
   id?: string;
@@ -66,7 +67,7 @@ export type EvaluacionReporteV2Central = {
   prioridad?: string;
   recomendacion?: string;
   accionInmediata?: string;
-};
+} & EvaluacionMotorV2Storage;
 
 export type CierreReporteV2Central = {
   responsableCorreccionTipo?: string;
@@ -431,6 +432,42 @@ function radarPreventivoDesdeReporte(
   };
 }
 
+function evaluacionMotorV2DesdeReporte(
+  evaluacion: EvaluacionReporteV2Central | undefined
+) {
+  if (!evaluacion?.evaluacion_motor_version) return undefined;
+
+  return {
+    evaluacion_motor_version: evaluacion.evaluacion_motor_version,
+    ambito_principal: evaluacion.ambito_principal,
+    ambitos_secundarios: evaluacion.ambitos_secundarios,
+    tipo_evento: evaluacion.tipo_evento,
+    criticidad_base: evaluacion.criticidad_base,
+    criticidad_final: evaluacion.criticidad_final,
+    justificacion_tecnica: evaluacion.justificacion_tecnica,
+    resumen_ejecutivo: evaluacion.resumen_ejecutivo,
+    medida_inmediata_v2: evaluacion.medida_inmediata_v2,
+    plazo_sugerido_v2: evaluacion.plazo_sugerido_v2,
+    requiere_suspension: evaluacion.requiere_suspension,
+    requiere_contencion_ambiental: evaluacion.requiere_contencion_ambiental,
+    requiere_revision_manual: evaluacion.requiere_revision_manual,
+    normativa_probable: evaluacion.normativa_probable,
+    senales_criticas: evaluacion.senales_criticas,
+    factores_elevadores: evaluacion.factores_elevadores,
+    factores_limitantes: evaluacion.factores_limitantes,
+    inconsistencias: evaluacion.inconsistencias,
+    categoria_detectada: evaluacion.categoria_detectada,
+    modulo_preguntas_sugerido: evaluacion.modulo_preguntas_sugerido,
+    preguntas_sugeridas: evaluacion.preguntas_sugeridas,
+    preguntas_criticas_respondidas: evaluacion.preguntas_criticas_respondidas,
+    preguntas_faltantes_recomendadas: evaluacion.preguntas_faltantes_recomendadas,
+    justificacion_modulo_preguntas: evaluacion.justificacion_modulo_preguntas,
+    confianza_clasificacion: evaluacion.confianza_clasificacion,
+    palabras_clave_detectadas: evaluacion.palabras_clave_detectadas,
+    fuente_evaluacion: evaluacion.fuente_evaluacion,
+  };
+}
+
 export function adaptarReporteV2AHallazgoCentral(
   reporte: ReporteV2CentralEntrada,
   indice = 0
@@ -480,6 +517,7 @@ export function adaptarReporteV2AHallazgoCentral(
     prioridad,
     puntajeEvaluacion: reporte.evaluacion?.puntaje,
     respuestasEvaluacion: reporte.evaluacion?.respuestas,
+    evaluacionMotorV2: evaluacionMotorV2DesdeReporte(reporte.evaluacion),
     accionInmediata: texto(reporte.evaluacion?.accionInmediata),
     recomendacion: texto(reporte.evaluacion?.recomendacion),
     estado,

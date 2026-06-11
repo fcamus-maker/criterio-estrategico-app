@@ -1,6 +1,19 @@
-import type { AmbitoEvaluacion, EvaluacionInputV2, NormativaAplicable } from "./types";
+import type {
+  AmbitoEvaluacion,
+  ClasificacionHallazgoV2,
+  EvaluacionInputV2,
+  NormativaAplicable,
+} from "./types";
 
 export const MATRIZ_LEGAL_V2: NormativaAplicable[] = [
+  {
+    norma: "Gestion preventiva general",
+    materia: "Orden y control operacional",
+    fuente: "Marco preventivo general pendiente de validacion especifica",
+    nivelConfianza: "pendiente_validacion",
+    requiereValidacionLegal: true,
+    aplicaCuando: "Hallazgos menores de orden, aseo u objeto fuera de lugar sin infraccion especifica validada.",
+  },
   {
     norma: "Ley 16.744",
     materia: "Seguridad y salud laboral",
@@ -113,17 +126,35 @@ function buscarMateria(materia: string): NormativaAplicable | undefined {
   return MATRIZ_LEGAL_V2.find((norma) => norma.materia.toLowerCase() === materia.toLowerCase());
 }
 
+function normativaSugerida(nombre: string): NormativaAplicable {
+  return {
+    norma: nombre,
+    materia: "Normativa probable asociada por clasificacion preventiva",
+    fuente: "Router semantico Motor V2 / fuente oficial pendiente de validacion especifica",
+    nivelConfianza: "pendiente_validacion",
+    requiereValidacionLegal: true,
+    aplicaCuando: "Materia sugerida por la familia del hallazgo; no constituye transgresion ni articulo validado.",
+  };
+}
+
 function textoIncluyePalabra(texto: string, palabra: string): boolean {
   return new RegExp(`(^|\\W)${palabra}(\\W|$)`, "i").test(texto);
 }
 
 export function obtenerNormativaProbableV2(
   ambitos: AmbitoEvaluacion[],
-  input: EvaluacionInputV2
+  input: EvaluacionInputV2,
+  clasificacion?: ClasificacionHallazgoV2
 ): NormativaAplicable[] {
   const normas: NormativaAplicable[] = [];
   const ambientales = input.datosAmbientales;
   const legales = input.datosLegales;
+
+  if (clasificacion?.categoriaDetectada === "orden_aseo_objeto_fuera_lugar") {
+    const gestionGeneral = buscarNorma("Gestion preventiva general");
+    if (gestionGeneral) agregarSiNoExiste(normas, gestionGeneral);
+    return normas;
+  }
 
   if (ambitos.includes("seguridad_laboral") || ambitos.includes("emergencia")) {
     const ley16744 = buscarNorma("Ley 16.744");
@@ -183,6 +214,11 @@ export function obtenerNormativaProbableV2(
       aplicaCuando: "Norma indicada manualmente durante la evaluacion.",
     });
   }
+
+  clasificacion?.normativaProbableSugerida.forEach((nombreNorma) => {
+    const existente = buscarNorma(nombreNorma) || buscarMateria(nombreNorma);
+    agregarSiNoExiste(normas, existente || normativaSugerida(nombreNorma));
+  });
 
   return normas;
 }

@@ -1,9 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { preguntasEvaluacion } from "@/app/types/evaluacion";
 import { useRouter } from "next/navigation";
 import { navegarEvaluarV2 } from "../../offlineNavigation";
+import {
+  aplicarResultadoMotorV2AReporte,
+  evaluarReporteConMotorV2Seguro,
+} from "../../motor-v2/adaptadorMotorV2";
+import {
+  obtenerFormularioAdaptativoV2,
+  puntajeRespuestasAdaptativasV2,
+  type PreguntaFormularioAdaptativaV2,
+} from "../../motor-v2/formularioAdaptativoV2";
 import {
   guardarReporteActualV2,
   leerReporteActualV2,
@@ -24,7 +32,7 @@ type ReporteV2 = ReporteV2Storage & {
     prioridad?: string;
     recomendacion?: string;
     accionInmediata?: string;
-  };
+  } & ReporteV2Storage["evaluacion"];
 };
 
 function vibrarOk() {
@@ -33,14 +41,7 @@ function vibrarOk() {
   }
 }
 
-function calcularResultado(respuestas: Record<string, string>) {
-  const puntaje = preguntasEvaluacion.reduce((total, pregunta) => {
-    const respuesta = respuestas[pregunta.id];
-    const opcion = pregunta.opciones.find((item) => item.value === respuesta);
-
-    return total + (opcion?.score || 0);
-  }, 0);
-
+function calcularResultado(puntaje: number) {
   if (puntaje >= 80) {
     return {
       puntaje,
@@ -100,7 +101,9 @@ export default function EvaluacionPaso2V2Page() {
     return () => window.cancelAnimationFrame(frameId);
   }, []);
 
-  const preguntas = preguntasEvaluacion.filter((p) => p.paso === 3);
+  const formularioAdaptativo = reporte ? obtenerFormularioAdaptativoV2(reporte) : null;
+  const preguntas = formularioAdaptativo?.preguntas.filter((pregunta) => pregunta.paso === 2) || [];
+  const totalPreguntas = formularioAdaptativo?.preguntas.length || 0;
 
   const seleccionar = (id: string, value: string) => {
     setRespuestas((actuales) => ({
@@ -114,7 +117,7 @@ export default function EvaluacionPaso2V2Page() {
     if (navegando) return;
     if (!reporte) return;
 
-    const faltanRespuestas = preguntasEvaluacion.some(
+    const faltanRespuestas = (formularioAdaptativo?.preguntas || []).some(
       (pregunta) => !respuestas[pregunta.id]
     );
 
@@ -123,15 +126,36 @@ export default function EvaluacionPaso2V2Page() {
       return;
     }
 
-    const resultado = calcularResultado(respuestas);
-    const actualizado = {
+    const puntajeAdaptativo = formularioAdaptativo
+      ? puntajeRespuestasAdaptativasV2(formularioAdaptativo.preguntas, respuestas)
+      : 0;
+    const resultado = {
+      ...calcularResultado(puntajeAdaptativo),
+      puntaje: puntajeAdaptativo,
+    };
+    const clasificacion = formularioAdaptativo?.clasificacion;
+    const reporteConResultadoAnterior = {
       ...reporte,
       evaluacion: {
         ...(reporte.evaluacion || {}),
         respuestas,
+        categoria_detectada: clasificacion?.categoriaDetectada,
+        modulo_preguntas_sugerido: clasificacion?.moduloPreguntasSugerido,
+        preguntas_sugeridas: formularioAdaptativo?.preguntas,
+        preguntas_faltantes_recomendadas: formularioAdaptativo?.preguntas,
+        justificacion_modulo_preguntas: clasificacion?.justificacionModuloPreguntas,
+        confianza_clasificacion: clasificacion?.confianza,
+        palabras_clave_detectadas: clasificacion?.palabrasClaveDetectadas,
         ...resultado,
       },
     };
+    const resultadoMotorV2 = evaluarReporteConMotorV2Seguro(
+      reporteConResultadoAnterior
+    );
+    const actualizado = aplicarResultadoMotorV2AReporte(
+      reporteConResultadoAnterior,
+      resultadoMotorV2
+    );
 
     guardarReporteActualV2(actualizado);
     setNavegando(true);
@@ -154,6 +178,86 @@ export default function EvaluacionPaso2V2Page() {
           boxShadow: "0 8px 16px rgba(0,0,0,0.28)",
         }
       : {};
+
+  const etiquetaCategoria = (valor?: string) =>
+    valor
+      ? valor
+          .split("_")
+          .filter(Boolean)
+          .map((parte) => parte.charAt(0).toUpperCase() + parte.slice(1))
+          .join(" ")
+      : "No determinada";
+
+  const renderPregunta = (pregunta: PreguntaFormularioAdaptativaV2) => (
+    <section key={pregunta.id} style={cardStyle}>
+      <div style={{ fontSize: "12px", opacity: 0.62, marginBottom: "6px" }}>
+        {etiquetaCategoria(pregunta.modulo)}
+      </div>
+      <div
+        style={{
+          fontSize: "16px",
+          fontWeight: 800,
+          lineHeight: 1.35,
+          marginBottom: "8px",
+        }}
+      >
+        {pregunta.texto}
+      </div>
+      <div style={{ fontSize: "12px", lineHeight: 1.4, opacity: 0.7, marginBottom: "12px" }}>
+        {pregunta.objetivo}
+      </div>
+      {pregunta.tipoRespuesta === "texto" ? (
+        <textarea
+          value={respuestas[pregunta.id] || ""}
+          onChange={(event) => seleccionar(pregunta.id, event.target.value)}
+          placeholder="Escribe una respuesta breve"
+          rows={3}
+          style={{
+            width: "100%",
+            resize: "vertical",
+            border: "1px solid rgba(255,255,255,0.18)",
+            borderRadius: "16px",
+            padding: "13px",
+            boxSizing: "border-box",
+            color: "white",
+            background: "rgba(255,255,255,0.10)",
+            fontSize: "15px",
+            fontWeight: 700,
+            outline: "none",
+          }}
+        />
+      ) : (
+        <div style={{ display: "grid", gap: "8px" }}>
+          {(Array.isArray(pregunta.opciones) ? pregunta.opciones : []).map((opcion) => {
+            const activa = respuestas[pregunta.id] === opcion.value;
+
+            return (
+              <button
+                key={opcion.value}
+                type="button"
+                onClick={() => seleccionar(pregunta.id, opcion.value)}
+                {...feedbackBoton(`${pregunta.id}-${opcion.value}`)}
+                style={{
+                  ...buttonStyle,
+                  color: activa ? "#08172d" : "white",
+                  background: activa
+                    ? "linear-gradient(135deg, #67ef48 0%, #d7ff39 100%)"
+                    : "rgba(255,255,255,0.10)",
+                  border: activa
+                    ? "1px solid rgba(103,239,72,0.40)"
+                    : "1px solid rgba(255,255,255,0.14)",
+                  textAlign: "left",
+                  ...estiloFeedback(`${pregunta.id}-${opcion.value}`),
+                }}
+              >
+                {opcion.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
 
   const pageStyle = {
     minHeight: "100vh",
@@ -240,7 +344,7 @@ export default function EvaluacionPaso2V2Page() {
             Evaluación
           </h1>
           <p style={{ margin: "8px 0 0", opacity: 0.75 }}>
-            Paso 2 de 2 — Condición documental
+            Paso 2 de 2 — Señales específicas
           </p>
         </header>
 
@@ -280,53 +384,29 @@ export default function EvaluacionPaso2V2Page() {
               <div style={{ marginTop: "6px", fontSize: "14px", opacity: 0.78 }}>
                 {reporte.area || "Sin área"} · {reporte.empresa || "Sin empresa"}
               </div>
-            </section>
-
-            {preguntas.map((pregunta) => (
-              <section key={pregunta.id} style={cardStyle}>
-                <div style={{ fontSize: "12px", opacity: 0.62, marginBottom: "6px" }}>
-                  Condición documental
-                </div>
+              {formularioAdaptativo && (
                 <div
                   style={{
-                    fontSize: "16px",
-                    fontWeight: 800,
-                    lineHeight: 1.35,
-                    marginBottom: "12px",
+                    marginTop: "12px",
+                    padding: "10px",
+                    borderRadius: "14px",
+                    background: "rgba(103,239,72,0.10)",
+                    border: "1px solid rgba(103,239,72,0.20)",
+                    fontSize: "12px",
+                    lineHeight: 1.45,
                   }}
                 >
-                  {pregunta.texto}
+                  <strong>Módulo:</strong>{" "}
+                  {etiquetaCategoria(formularioAdaptativo.clasificacion.moduloPreguntasSugerido)}
+                  <br />
+                  <strong>Confianza:</strong> {formularioAdaptativo.clasificacion.confianza}
+                  <br />
+                  {formularioAdaptativo.clasificacion.justificacionModuloPreguntas}
                 </div>
-                <div style={{ display: "grid", gap: "8px" }}>
-                  {pregunta.opciones.map((opcion) => {
-                    const activa = respuestas[pregunta.id] === opcion.value;
+              )}
+            </section>
 
-                    return (
-                      <button
-                        key={opcion.value}
-                        type="button"
-                        onClick={() => seleccionar(pregunta.id, opcion.value)}
-                        {...feedbackBoton(`${pregunta.id}-${opcion.value}`)}
-                        style={{
-                          ...buttonStyle,
-                          color: activa ? "#08172d" : "white",
-                          background: activa
-                            ? "linear-gradient(135deg, #67ef48 0%, #d7ff39 100%)"
-                            : "rgba(255,255,255,0.10)",
-                          border: activa
-                            ? "1px solid rgba(103,239,72,0.40)"
-                            : "1px solid rgba(255,255,255,0.14)",
-                          textAlign: "left",
-                          ...estiloFeedback(`${pregunta.id}-${opcion.value}`),
-                        }}
-                      >
-                        {opcion.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
-            ))}
+            {preguntas.map(renderPregunta)}
 
             {error && (
               <section
@@ -357,7 +437,9 @@ export default function EvaluacionPaso2V2Page() {
                 ...estiloFeedback("ver-resultado"),
               }}
             >
-              {navegando ? "Calculando..." : "Ver resultado"}
+              {navegando
+                ? "Calculando..."
+                : `Ver resultado (${preguntas.length}/${totalPreguntas})`}
             </button>
           </>
         )}

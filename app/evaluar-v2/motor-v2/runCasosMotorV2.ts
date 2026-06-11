@@ -7,6 +7,9 @@ export type ReporteCasoMotorV2 = {
   criticidadEsperada: Criticidad | Criticidad[];
   criticidadObtenida: Criticidad;
   aprobado: boolean;
+  categoriaDetectada: string;
+  moduloPreguntasSugerido: string;
+  confianzaClasificacion: string;
   ambitoPrincipal: string;
   tipoEvento: string;
   requiereRevisionManual: boolean;
@@ -29,6 +32,9 @@ export function generarReporteCasosMotorV2(): ReporteCasoMotorV2[] {
       criticidadEsperada: caso.criticidadEsperada,
       criticidadObtenida: resultado.criticidadFinal,
       aprobado: Boolean(validacionBase?.aprobado),
+      categoriaDetectada: resultado.categoriaDetectada,
+      moduloPreguntasSugerido: resultado.moduloPreguntasSugerido,
+      confianzaClasificacion: resultado.confianzaClasificacion,
       ambitoPrincipal: resultado.ambitoPrincipal,
       tipoEvento: resultado.tipoEvento,
       requiereRevisionManual: resultado.requiereRevisionManual,
@@ -40,4 +46,3 @@ export function generarReporteCasosMotorV2(): ReporteCasoMotorV2[] {
     };
   });
 }
-

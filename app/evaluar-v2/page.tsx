@@ -14,11 +14,16 @@ import {
   subirFotoPerfilUsuarioActual,
 } from "../services/profilePhotoService";
 import PwaInstallCard from "../components/PwaInstallCard";
+import {
+  esErrorChunkStale,
+  MENSAJE_CHUNK_STALE,
+} from "./chunkLoadRecovery";
 import { navegarEvaluarV2 } from "./offlineNavigation";
 import {
   cargarHistorialLivianoV2,
   crearScopeLocalReporteV2,
   listarReportesPendientesLocalesV2,
+  limpiarReporteActualV2,
 } from "./storageReporteV2";
 import {
   cargarSupervisorV2UsuarioActual,
@@ -162,19 +167,36 @@ export default function EvaluarV2HomePage() {
     setPendientesLocales(pendientes.length);
   };
 
+  const recargarEstadoLocal = (scope = scopeLocalReporte) => {
+    if (!scope) {
+      setHistorial([]);
+      setPendientesLocales(0);
+      return;
+    }
+
+    setHistorial(cargarHistorialLivianoV2(scope));
+    void actualizarPendientesLocales(scope);
+  };
+
   useEffect(() => {
     const actualizarConexion = () => {
       setOnline(typeof navigator === "undefined" ? true : navigator.onLine);
-      void actualizarPendientesLocales(scopeLocalReporte);
+      recargarEstadoLocal(scopeLocalReporte);
     };
 
     actualizarConexion();
     window.addEventListener("online", actualizarConexion);
     window.addEventListener("offline", actualizarConexion);
+    window.addEventListener("focus", actualizarConexion);
+    window.addEventListener("pageshow", actualizarConexion);
+    document.addEventListener("visibilitychange", actualizarConexion);
 
     return () => {
       window.removeEventListener("online", actualizarConexion);
       window.removeEventListener("offline", actualizarConexion);
+      window.removeEventListener("focus", actualizarConexion);
+      window.removeEventListener("pageshow", actualizarConexion);
+      document.removeEventListener("visibilitychange", actualizarConexion);
     };
   }, [scopeLocalReporte]);
 
@@ -384,6 +406,7 @@ export default function EvaluarV2HomePage() {
       return;
     }
 
+    limpiarReporteActualV2();
     setNavegandoReporte(true);
     setMensaje("");
     vibrarOk();
@@ -424,6 +447,12 @@ export default function EvaluarV2HomePage() {
       setHistorial(cargarHistorialLivianoV2(scopeLocalReporte));
       vibrarOk();
     } catch (error) {
+      if (esErrorChunkStale(error)) {
+        setMensaje(MENSAJE_CHUNK_STALE);
+        await actualizarPendientesLocales(scopeLocalReporte);
+        return;
+      }
+
       setMensaje(
         `No se pudo sincronizar pendientes: ${
           error instanceof Error ? error.message : String(error)
