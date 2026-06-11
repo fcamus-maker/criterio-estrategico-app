@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { navegarEvaluarV2 } from "../offlineNavigation";
 import {
   cargarHistorialLivianoV2,
+  crearScopeLocalReporteV2,
   eliminarEvidenciaLocalV2,
   guardarReporteActualV2,
   prepararReporteConEvidenciasLocalesV2,
@@ -69,8 +70,17 @@ function vibrarOk() {
   }
 }
 
-function obtenerTotalHistorial() {
-  return cargarHistorialLivianoV2().length;
+function scopeDesdeSupervisor(supervisor: SupervisorV2) {
+  return crearScopeLocalReporteV2({
+    userId: supervisor.reportanteUserId || supervisor.supervisorUserId || supervisor.userId,
+    email: supervisor.email,
+    empresaId: supervisor.empresaId,
+    obraId: supervisor.obraId,
+  });
+}
+
+function obtenerTotalHistorial(supervisor: SupervisorV2) {
+  return cargarHistorialLivianoV2(scopeDesdeSupervisor(supervisor)).length;
 }
 
 function estimarBytesDataUrl(dataUrl: string) {
@@ -422,15 +432,22 @@ export default function ReportarV2Page() {
     };
     const codigoReporte = crearCodigoReporteMovil(
       supervisor,
-      obtenerTotalHistorial() + 1
+      obtenerTotalHistorial(supervisor) + 1
     );
+    const scopeLocal = scopeDesdeSupervisor(supervisor);
 
     const reporteV2 = {
+      scopeLocal,
       codigo: codigoReporte,
       supervisor: supervisor.nombre,
       cargo: supervisor.cargo,
       empresa: supervisor.empresa,
       obra: supervisor.obra,
+      empresaId: supervisor.empresaId,
+      obraId: supervisor.obraId,
+      reportanteUserId: supervisor.reportanteUserId || supervisor.userId,
+      supervisorUserId: supervisor.supervisorUserId || supervisor.userId,
+      reportanteEmail: supervisor.email,
       siglaEmpresa: supervisor.siglaEmpresa,
       siglaProyecto: supervisor.siglaProyecto,
       supervisorFoto: supervisor.foto,

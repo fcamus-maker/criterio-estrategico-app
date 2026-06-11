@@ -41,6 +41,9 @@ export type ResultadoRepositorioCentral<T> =
 export type FiltrosHallazgosCentrales = {
   empresa?: string;
   obra?: string;
+  empresaId?: string;
+  obraId?: string;
+  sinAcceso?: boolean;
   area?: string;
   estado?: EstadoHallazgoCentral;
   estadoCierre?: string;
@@ -195,6 +198,14 @@ function tamanoArchivoStorage(archivo: SubirEvidenciaHallazgoInput["archivo"]) {
 function texto(valor: unknown, fallback = "") {
   const limpio = String(valor ?? "").trim();
   return limpio || fallback;
+}
+
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function uuidSupabase(valor: unknown) {
+  const limpio = texto(valor);
+  return UUID_REGEX.test(limpio) ? limpio : null;
 }
 
 function segmentoStorage(valor: unknown, fallback: string) {
@@ -713,6 +724,13 @@ function mapearHallazgoAFilaSupabase(hallazgo: HallazgoCentral) {
     estado_sincronizacion: "SINCRONIZADO",
     empresa: hallazgo.empresa,
     obra: hallazgo.obra,
+    empresa_id: uuidSupabase(hallazgo.empresaId),
+    obra_id: uuidSupabase(hallazgo.obraId),
+    reportante_user_id: uuidSupabase(hallazgo.reportanteUserId),
+    supervisor_user_id: uuidSupabase(hallazgo.supervisorUserId),
+    responsable_cierre_user_id: uuidSupabase(hallazgo.responsableCierreUserId),
+    mandante_id: uuidSupabase(hallazgo.mandanteId),
+    contratista_id: uuidSupabase(hallazgo.contratistaId),
     proyecto: hallazgo.proyecto,
     area: hallazgo.area,
     sigla_empresa: hallazgo.siglaEmpresa,
@@ -811,6 +829,14 @@ function asignarSiDefinido(
   if (valor !== undefined) fila[columna] = valor;
 }
 
+function asignarUuidSiDefinido(
+  fila: Record<string, unknown>,
+  columna: string,
+  valor: unknown
+) {
+  if (valor !== undefined) fila[columna] = uuidSupabase(valor);
+}
+
 function mapearCambiosAFilaSupabase(cambios: Partial<HallazgoCentral>) {
   const fila: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
@@ -827,6 +853,17 @@ function mapearCambiosAFilaSupabase(cambios: Partial<HallazgoCentral>) {
   asignarSiDefinido(fila, "estado_sincronizacion", cambios.estadoSincronizacion);
   asignarSiDefinido(fila, "empresa", cambios.empresa);
   asignarSiDefinido(fila, "obra", cambios.obra);
+  asignarUuidSiDefinido(fila, "empresa_id", cambios.empresaId);
+  asignarUuidSiDefinido(fila, "obra_id", cambios.obraId);
+  asignarUuidSiDefinido(fila, "reportante_user_id", cambios.reportanteUserId);
+  asignarUuidSiDefinido(fila, "supervisor_user_id", cambios.supervisorUserId);
+  asignarUuidSiDefinido(
+    fila,
+    "responsable_cierre_user_id",
+    cambios.responsableCierreUserId
+  );
+  asignarUuidSiDefinido(fila, "mandante_id", cambios.mandanteId);
+  asignarUuidSiDefinido(fila, "contratista_id", cambios.contratistaId);
   asignarSiDefinido(fila, "proyecto", cambios.proyecto);
   asignarSiDefinido(fila, "area", cambios.area);
   asignarSiDefinido(fila, "sigla_empresa", cambios.siglaEmpresa);
@@ -982,6 +1019,14 @@ function mapearFilaSupabaseAHallazgo(fila: Record<string, unknown>): HallazgoCen
     ) as HallazgoCentral["estadoSincronizacion"],
     empresa: texto(fila.empresa, "Sin empresa"),
     obra: texto(fila.obra, "Sin obra"),
+    empresaId: uuidSupabase(fila.empresa_id) || undefined,
+    obraId: uuidSupabase(fila.obra_id) || undefined,
+    reportanteUserId: uuidSupabase(fila.reportante_user_id) || undefined,
+    supervisorUserId: uuidSupabase(fila.supervisor_user_id) || undefined,
+    responsableCierreUserId:
+      uuidSupabase(fila.responsable_cierre_user_id) || undefined,
+    mandanteId: uuidSupabase(fila.mandante_id) || undefined,
+    contratistaId: uuidSupabase(fila.contratista_id) || undefined,
     proyecto: texto(fila.proyecto),
     area: texto(fila.area, "Sin area"),
     siglaEmpresa: texto(fila.sigla_empresa),
@@ -1060,6 +1105,8 @@ function aplicarFiltrosSupabase<T extends SupabaseFilterQuery<T>>(
 ) {
   let consulta = query;
 
+  if (filtros.empresaId) consulta = consulta.eq("empresa_id", filtros.empresaId);
+  if (filtros.obraId) consulta = consulta.eq("obra_id", filtros.obraId);
   if (filtros.empresa) consulta = consulta.eq("empresa", filtros.empresa);
   if (filtros.obra) consulta = consulta.eq("obra", filtros.obra);
   if (filtros.area) consulta = consulta.eq("area", filtros.area);
@@ -1306,6 +1353,8 @@ export async function cargarHallazgosGestionVigente(
 export async function listarHallazgosCentrales(
   filtros: FiltrosHallazgosCentrales = {}
 ): Promise<ResultadoRepositorioCentral<HallazgoCentral[]>> {
+  if (filtros.sinAcceso) return lecturaVacia([]);
+
   const { cliente, habilitado } = await obtenerSupabaseDisponible();
   if (!habilitado || !cliente) return lecturaVacia([]);
 

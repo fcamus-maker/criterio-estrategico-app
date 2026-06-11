@@ -1,5 +1,6 @@
 export const STORAGE_REPORTE_ACTUAL = "ce_mobile_v2_reporte_actual";
 export const STORAGE_HISTORIAL = "ce_mobile_v2_historial_reportes";
+const STORAGE_HISTORIAL_SCOPED_PREFIX = "ce_mobile_v2_historial_reportes_scope_";
 const MAX_HISTORIAL_LOCAL = 50;
 const MEMORIA_REPORTE_ACTUAL = "__ce_mobile_v2_reporte_actual_completo";
 const EVIDENCIAS_DB = "ce_mobile_v2_evidencias";
@@ -82,12 +83,18 @@ export type UltimoIntentoEnvioReporteV2 = {
 
 export type ReporteV2Storage = {
   offlineId?: string;
+  scopeLocal?: string;
   codigo?: string;
   supervisor?: string;
   supervisorFoto?: string;
   cargo?: string;
   empresa?: string;
   obra?: string;
+  empresaId?: string;
+  obraId?: string;
+  reportanteUserId?: string;
+  supervisorUserId?: string;
+  reportanteEmail?: string;
   proyecto?: string;
   siglaEmpresa?: string;
   siglaProyecto?: string;
@@ -131,6 +138,13 @@ export type ReporteV2Storage = {
     mensaje?: string;
     fecha?: string;
   };
+};
+
+export type ScopeLocalReporteV2Input = {
+  userId?: string | null;
+  email?: string | null;
+  empresaId?: string | null;
+  obraId?: string | null;
 };
 
 export type ReporteLocalCompletoV2 = ReporteV2Storage & {
@@ -186,6 +200,44 @@ function normalizarParteOfflineId(valor: string) {
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "")
     .slice(0, 96);
+}
+
+function normalizarParteScope(valor: unknown) {
+  return String(valor || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9@._-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 120);
+}
+
+export function crearScopeLocalReporteV2(input: ScopeLocalReporteV2Input) {
+  const usuario = normalizarParteScope(input.userId || input.email);
+  const empresa = normalizarParteScope(input.empresaId);
+  const obra = normalizarParteScope(input.obraId);
+
+  if (!usuario || !empresa || !obra) return "";
+  return `${usuario}:${empresa}:${obra}`;
+}
+
+export function scopeLocalDesdeReporteV2(reporte: ReporteV2Storage) {
+  const existente = String(reporte.scopeLocal || "").trim();
+  if (existente) return existente;
+
+  return crearScopeLocalReporteV2({
+    userId: reporte.reportanteUserId || reporte.supervisorUserId,
+    email: reporte.reportanteEmail,
+    empresaId: reporte.empresaId,
+    obraId: reporte.obraId,
+  });
+}
+
+export function claveHistorialScopedV2(scopeLocal: string) {
+  const scope = normalizarParteScope(scopeLocal);
+  return scope ? `${STORAGE_HISTORIAL_SCOPED_PREFIX}${scope}` : STORAGE_HISTORIAL;
 }
 
 function crearOfflineIdReporteV2(reporte: ReporteV2Storage) {
@@ -458,7 +510,8 @@ export async function leerReporteLocalCompletoV2(
 }
 
 export async function listarReportesLocalesCompletosV2(
-  estadoLocal?: EstadoLocalReporteV2
+  estadoLocal?: EstadoLocalReporteV2,
+  scopeLocal?: string
 ): Promise<ReporteLocalCompletoV2[]> {
   const db = await abrirDbEvidencias();
   if (!db) return [];
@@ -476,9 +529,14 @@ export async function listarReportesLocalesCompletosV2(
         ? (request.result as ReporteLocalCompletoV2[])
         : [];
       resolve(
-        reportes.sort((a, b) =>
-          String(b.actualizadoEn || "").localeCompare(String(a.actualizadoEn || ""))
-        )
+        reportes
+          .filter((reporte) => {
+            if (!scopeLocal) return true;
+            return scopeLocalDesdeReporteV2(reporte) === scopeLocal;
+          })
+          .sort((a, b) =>
+            String(b.actualizadoEn || "").localeCompare(String(a.actualizadoEn || ""))
+          )
       );
     };
     request.onerror = () => {
@@ -488,12 +546,14 @@ export async function listarReportesLocalesCompletosV2(
   });
 }
 
-export async function listarReportesPendientesLocalesV2(): Promise<
+export async function listarReportesPendientesLocalesV2(
+  scopeLocal?: string
+): Promise<
   ReporteLocalCompletoV2[]
 > {
   const [pendientes, conError] = await Promise.all([
-    listarReportesLocalesCompletosV2("pendiente"),
-    listarReportesLocalesCompletosV2("error"),
+    listarReportesLocalesCompletosV2("pendiente", scopeLocal),
+    listarReportesLocalesCompletosV2("error", scopeLocal),
   ]);
 
   const porId = new Map<string, ReporteLocalCompletoV2>();
@@ -527,6 +587,7 @@ export async function guardarReporteLocalCompletoV2(
   };
   const reporteLocal: ReporteLocalCompletoV2 = {
     ...reporteConId,
+    scopeLocal: reporteConId.scopeLocal || scopeLocalDesdeReporteV2(reporteConId),
     estadoLocal,
     ultimoIntentoEnvio: intento,
     creadoEn: reporteConId.creadoEn || ahora,
@@ -643,9 +704,10 @@ export function guardarReporteActualV2(reporte: ReporteV2Storage) {
   return guardarJsonSeguroV2(STORAGE_REPORTE_ACTUAL, crearReporteLivianoV2(reporte));
 }
 
-export function cargarHistorialLivianoV2(): ReporteV2Storage[] {
+export function cargarHistorialLivianoV2(scopeLocal?: string): ReporteV2Storage[] {
   try {
-    const guardado = JSON.parse(localStorage.getItem(STORAGE_HISTORIAL) || "[]");
+    const clave = scopeLocal ? claveHistorialScopedV2(scopeLocal) : STORAGE_HISTORIAL;
+    const guardado = JSON.parse(localStorage.getItem(clave) || "[]");
     return Array.isArray(guardado) ? guardado.map(crearReporteLivianoV2) : [];
   } catch (error) {
     console.warn("No se pudo leer historial V2 local.", error);
@@ -654,8 +716,12 @@ export function cargarHistorialLivianoV2(): ReporteV2Storage[] {
 }
 
 export function guardarHistorialLivianoV2(reporte: ReporteV2Storage) {
-  const historial = cargarHistorialLivianoV2();
-  const reporteLiviano = crearReporteLivianoV2(reporte);
+  const scopeLocal = scopeLocalDesdeReporteV2(reporte);
+  const historial = cargarHistorialLivianoV2(scopeLocal);
+  const reporteLiviano = crearReporteLivianoV2({
+    ...reporte,
+    scopeLocal,
+  });
   const indiceExistente = historial.findIndex(
     (item) => item.codigo && item.codigo === reporteLiviano.codigo
   );
@@ -667,5 +733,5 @@ export function guardarHistorialLivianoV2(reporte: ReporteV2Storage) {
       : [...historial, reporteLiviano];
   const limitado = actualizado.slice(-MAX_HISTORIAL_LOCAL);
 
-  return guardarJsonSeguroV2(STORAGE_HISTORIAL, limitado);
+  return guardarJsonSeguroV2(claveHistorialScopedV2(scopeLocal), limitado);
 }

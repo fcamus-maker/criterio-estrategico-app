@@ -1,5 +1,6 @@
 import {
   crearReporteCentralLivianoV2,
+  crearScopeLocalReporteV2,
   asegurarOfflineIdReporteV2,
   eliminarEvidenciaLocalV2,
   guardarReporteLocalCompletoV2,
@@ -18,6 +19,7 @@ import {
 } from "../repositories/hallazgosCentralRepository";
 import { rolPuedeEntrarEvaluarV2CE } from "./authAccess";
 import { obtenerAuthProfileActual } from "./authProfileService";
+import type { ProfileCE } from "../types/authRoles";
 
 export type ResultadoGuardadoReporteV2 = {
   offlineId: string;
@@ -63,6 +65,45 @@ function navegadorSinConexion() {
   return typeof navigator !== "undefined" && navigator.onLine === false;
 }
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function uuidSeguro(valor: unknown) {
+  const texto = String(valor || "").trim();
+  return UUID_REGEX.test(texto) ? texto : "";
+}
+
+function aplicarIdentidadReporteMovil(
+  reporte: ReporteV2Storage,
+  perfil: ProfileCE,
+  userId: string
+): ReporteV2Storage {
+  const usuarioId = uuidSeguro(userId || perfil.id);
+  const empresaId = uuidSeguro(reporte.empresaId) || uuidSeguro(perfil.empresaId);
+  const obraId = uuidSeguro(reporte.obraId) || uuidSeguro(perfil.obraId);
+  const reportanteUserId = uuidSeguro(reporte.reportanteUserId) || usuarioId;
+  const supervisorUserId = uuidSeguro(reporte.supervisorUserId) || usuarioId;
+  const reportanteEmail = reporte.reportanteEmail || perfil.email || undefined;
+  const scopeLocal =
+    reporte.scopeLocal ||
+    crearScopeLocalReporteV2({
+      userId: reportanteUserId || supervisorUserId,
+      email: reportanteEmail,
+      empresaId,
+      obraId,
+    });
+
+  return {
+    ...reporte,
+    scopeLocal: scopeLocal || undefined,
+    empresaId: empresaId || undefined,
+    obraId: obraId || undefined,
+    reportanteUserId: reportanteUserId || undefined,
+    supervisorUserId: supervisorUserId || undefined,
+    reportanteEmail,
+  };
+}
+
 function resolverEstadoLocalFinal(
   centralOk: boolean,
   evidenciasPendientes: number,
@@ -104,6 +145,8 @@ async function validarSesionReporteMovil() {
   return {
     ok: true as const,
     rol: auth.perfil.rol,
+    perfil: auth.perfil,
+    userId: auth.usuario?.id || auth.perfil.id,
   };
 }
 
@@ -323,9 +366,17 @@ export async function guardarReporteV2Completo(
   const fechaGuardado = new Date().toISOString();
   const estadoRepositorio = obtenerEstadoRepositorioCentral();
   const tablaDestino = obtenerTablaDestinoHallazgosCentral();
+  const sesionReporte = await validarSesionReporteMovil();
+  const reporteConIdentidad = sesionReporte.ok
+    ? aplicarIdentidadReporteMovil(
+        reporte,
+        sesionReporte.perfil,
+        sesionReporte.userId
+      )
+    : reporte;
   const reportePreparado: ReporteV2Storage = {
     ...(await prepararReporteConEvidenciasLocalesV2(
-      await hidratarReporteConEvidenciasLocalesV2(reporte)
+      await hidratarReporteConEvidenciasLocalesV2(reporteConIdentidad)
     )).reporte,
     estado: "abierto",
     estadoCierre: "abierto",
@@ -349,14 +400,16 @@ export async function guardarReporteV2Completo(
     offlineId: respaldoInicial.reporte.offlineId,
     empresa: reporteBase.empresa,
     obra: reporteBase.obra,
+    tieneEmpresaId: Boolean(reporteBase.empresaId),
+    tieneObraId: Boolean(reporteBase.obraId),
+    tieneReportanteUserId: Boolean(reporteBase.reportanteUserId),
+    tieneSupervisorUserId: Boolean(reporteBase.supervisorUserId),
     fotos: Array.isArray(reporteBase.fotos) ? reporteBase.fotos.length : 0,
     tablaDestino,
     supabaseHabilitado: estadoRepositorio.habilitado,
     supabaseConfigurado: estadoRepositorio.configurado,
     banderaSupabaseActiva: estadoRepositorio.banderaActiva,
   });
-
-  const sesionReporte = await validarSesionReporteMovil();
 
   if (!sesionReporte.ok) {
     const fotos = Array.isArray(reporteBase.fotos) ? reporteBase.fotos : [];
@@ -425,6 +478,8 @@ export async function guardarReporteV2Completo(
   logDesarrollo("sesion reporte movil OK", {
     codigo,
     rol: sesionReporte.rol,
+    tieneEmpresaId: Boolean(reporteBase.empresaId),
+    tieneObraId: Boolean(reporteBase.obraId),
   });
 
   if (navegadorSinConexion()) {
@@ -621,7 +676,9 @@ export async function guardarReporteV2Completo(
   };
 }
 
-export async function sincronizarReportesPendientesV2(): Promise<
+export async function sincronizarReportesPendientesV2(
+  scopeLocal?: string
+): Promise<
   ResultadoSincronizacionPendientesV2
 > {
   if (navegadorSinConexion()) {
@@ -635,7 +692,7 @@ export async function sincronizarReportesPendientesV2(): Promise<
     };
   }
 
-  const pendientesLocales = await listarReportesPendientesLocalesV2();
+  const pendientesLocales = await listarReportesPendientesLocalesV2(scopeLocal);
   const resultados: ResultadoGuardadoReporteV2[] = [];
 
   for (const reporte of pendientesLocales) {

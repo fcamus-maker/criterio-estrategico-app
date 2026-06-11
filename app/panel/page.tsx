@@ -35,6 +35,11 @@ import {
   obtenerAuthProfileActual,
 } from "../services/authProfileService";
 import {
+  construirAlcanceVisibleCE,
+  filtrosHallazgosDesdeAlcanceCE,
+  type AlcanceVisibleCE,
+} from "../services/visibleScope";
+import {
   comprimirFotoPerfilUsuario,
   quitarFotoPerfilUsuarioActual,
   subirFotoPerfilUsuarioActual,
@@ -577,9 +582,10 @@ const [guardadoConfig, setGuardadoConfig] = useState(false);
     router.prefetch("/panel/mapa-gps");
   }, [router]);
 const [fechaActualizacion, setFechaActualizacion] = useState<Date | null>(null);
-const [filasPanel, setFilasPanel] = useState<HallazgoPanelExtendido[]>(hallazgosMock);
+const [filasPanel, setFilasPanel] = useState<HallazgoPanelExtendido[]>([]);
 const [cargandoHallazgosPanel, setCargandoHallazgosPanel] = useState(true);
 const [hallazgosAnuladosResumen, setHallazgosAnuladosResumen] = useState<HallazgoPanelExtendido[]>([]);
+const [alcancePanel, setAlcancePanel] = useState<AlcanceVisibleCE | null>(null);
 const [metaDiariaReportes, setMetaDiariaReportes] = useState(leerMetaDiariaReportes);
 const [fechaMetaDiariaActual, setFechaMetaDiariaActual] = useState(fechaLocalISO);
 const [calendarioMetaAbierto, setCalendarioMetaAbierto] = useState(false);
@@ -841,6 +847,7 @@ const [menuExportacionMetaAbierto, setMenuExportacionMetaAbierto] = useState(fal
     Código: "Code",
     Acción: "Action",
     "No hay hallazgos para el filtro seleccionado.": "No findings for the selected filter.",
+    "Sin reportes registrados para esta empresa.": "No reports registered for this company.",
     "Ver informe": "View report",
     "Informe Ejecutivo": "Executive Report",
     "Configuración del sistema": "System settings",
@@ -1230,10 +1237,17 @@ const [menuExportacionMetaAbierto, setMenuExportacionMetaAbierto] = useState(fal
   }, [metaDiariaReportes]);
 
   useEffect(() => {
+    if (!alcancePanel) return;
+
     let activo = true;
     setCargandoHallazgosPanel(true);
+    const alcanceGlobal = alcancePanel.isGlobal;
 
-    void cargarHallazgosPanelConFuentesOpcionales(hallazgosMock)
+    void cargarHallazgosPanelConFuentesOpcionales(hallazgosMock, {
+      filtros: filtrosHallazgosDesdeAlcanceCE(alcancePanel),
+      permitirFallbackMock: alcanceGlobal,
+      incluirReportesLocales: alcanceGlobal,
+    })
       .then((hallazgos) => {
         if (activo) {
           setFilasPanel(hallazgos);
@@ -1246,10 +1260,13 @@ const [menuExportacionMetaAbierto, setMenuExportacionMetaAbierto] = useState(fal
     return () => {
       activo = false;
     };
-  }, []);
+  }, [alcancePanel]);
 
   useEffect(() => {
+    if (!alcancePanel) return;
+
     let activo = true;
+    const filtrosAlcance = filtrosHallazgosDesdeAlcanceCE(alcancePanel);
 
     async function cargarResumenHallazgosAnulados() {
       try {
@@ -1260,6 +1277,7 @@ const [menuExportacionMetaAbierto, setMenuExportacionMetaAbierto] = useState(fal
         while (activo) {
           const respuesta = await listarHallazgosCentrales({
             estado: "ANULADO",
+            ...filtrosAlcance,
             limit: limitePagina,
             offset,
           });
@@ -1290,7 +1308,7 @@ const [menuExportacionMetaAbierto, setMenuExportacionMetaAbierto] = useState(fal
     return () => {
       activo = false;
     };
-  }, []);
+  }, [alcancePanel]);
 
   const formatearUltimaActualizacion = (fecha: Date | null) => {
     if (!fecha) return "";
@@ -3156,7 +3174,7 @@ useEffect(() => {
 
   return () => window.clearInterval(intervalo);
 }, [totalHistoricoHallazgos]);
-const [hallazgoActivo, setHallazgoActivo] = useState<HallazgoPanelExtendido>(filas[0]);
+const [hallazgoActivo, setHallazgoActivo] = useState<HallazgoPanelExtendido>(hallazgosMock[0]);
 const [hallazgoSeleccionadoInformeId, setHallazgoSeleccionadoInformeId] = useState("");
 const [filtroRapido, setFiltroRapido] = useState<"HOY" | "SEMANA" | "MES" | "PERSONALIZADO">("HOY");
 const [filtroEmpresa, setFiltroEmpresa] = useState("TODAS");
@@ -3220,6 +3238,10 @@ const [authPerfilPanel, setAuthPerfilPanel] = useState<{
   id?: string;
   rol?: string;
   email?: string | null;
+  empresaId?: string | null;
+  obraId?: string | null;
+  isGlobal?: boolean;
+  perfilIncompleto?: boolean;
 }>({});
 const [usuario, setUsuario] = useState({
   ...usuarioMock,
@@ -3574,11 +3596,17 @@ useEffect(() => {
 
     const auth = await obtenerAuthProfileActual();
     if (!activo) return;
+    const alcanceVisible = construirAlcanceVisibleCE(auth.perfil);
+    setAlcancePanel(alcanceVisible);
 
     setAuthPerfilPanel({
       id: auth.perfil?.id || auth.usuario?.id,
       rol: auth.perfil?.rol,
       email: auth.perfil?.email || auth.usuario?.email,
+      empresaId: auth.perfil?.empresaId,
+      obraId: auth.perfil?.obraId,
+      isGlobal: alcanceVisible.isGlobal,
+      perfilIncompleto: alcanceVisible.perfilIncompleto,
     });
 
     const nombreGuardado =
@@ -4898,7 +4926,12 @@ const cargarVistaHallazgosActivos = async () => {
   setErrorRestauracionHallazgo("");
 
   try {
-    const hallazgos = await cargarHallazgosPanelConFuentesOpcionales(hallazgosMock);
+    const alcanceGlobal = alcancePanel?.isGlobal === true;
+    const hallazgos = await cargarHallazgosPanelConFuentesOpcionales(hallazgosMock, {
+      filtros: alcancePanel ? filtrosHallazgosDesdeAlcanceCE(alcancePanel) : { sinAcceso: true },
+      permitirFallbackMock: alcanceGlobal,
+      incluirReportesLocales: alcanceGlobal,
+    });
     setFilasPanel(hallazgos);
     setVistaBorradosActiva(false);
     limpiarFiltros();
@@ -10408,7 +10441,11 @@ style={{
 	      borderTop: tema.bordeSutil,
     }}
   >
-	    {t("No hay hallazgos para el filtro seleccionado.")}
+	    {t(
+        !alcancePanel?.isGlobal && filas.length === 0
+          ? "Sin reportes registrados para esta empresa."
+          : "No hay hallazgos para el filtro seleccionado."
+      )}
   </div>
 ) : (
   filasFiltradas.map((fila, index) => {

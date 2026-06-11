@@ -20,6 +20,11 @@ import {
   resolvePlatformTheme,
   usePlatformPreferences,
 } from "../../services/platformPreferences";
+import { obtenerAuthProfileActual } from "../../services/authProfileService";
+import {
+  construirAlcanceVisibleCE,
+  filtrosHallazgosDesdeAlcanceCE,
+} from "../../services/visibleScope";
 import PreventiveLegalRibbon from "../../components/PreventiveLegalRibbon";
 
 declare global {
@@ -875,9 +880,7 @@ export default function MapaGpsHallazgosPage() {
   const bordeInterno = temaClaro
     ? "1px solid rgba(100,116,139,0.20)"
     : "1px solid rgba(148,163,184,0.18)";
-  const [hallazgos, setHallazgos] = useState<HallazgoCentral[]>(
-    () => hallazgosMock.map((hallazgo) => convertirPanelACentral(hallazgo))
-  );
+  const [hallazgos, setHallazgos] = useState<HallazgoCentral[]>([]);
   const [cargando, setCargando] = useState(false);
   const [filtros, setFiltros] = useState<FiltrosVista>(filtrosIniciales);
   const [modoMapa, setModoMapa] = useState<ModoMapa>("calor");
@@ -897,17 +900,36 @@ export default function MapaGpsHallazgosPage() {
 
   async function cargarDatos() {
     setCargando(true);
+    let alcanceGlobal = false;
     try {
-      const datosPanel = await cargarHallazgosPanelConFuentesOpcionales(hallazgosMock);
+      const auth = await obtenerAuthProfileActual();
+      const alcance = construirAlcanceVisibleCE(auth.perfil);
+      alcanceGlobal = alcance.isGlobal;
+      const datosPanel = await cargarHallazgosPanelConFuentesOpcionales(hallazgosMock, {
+        filtros: filtrosHallazgosDesdeAlcanceCE(alcance),
+        permitirFallbackMock: alcanceGlobal,
+        incluirReportesLocales: alcanceGlobal,
+      });
       const centrales = datosPanel.map((hallazgo) =>
         convertirPanelACentral(hallazgo as HallazgoPanelExtendido)
       );
       setHallazgos(centrales);
-      setMensaje("Vista actualizada con hallazgos disponibles para analisis territorial.");
+      setMensaje(
+        centrales.length > 0
+          ? "Vista actualizada con hallazgos disponibles para analisis territorial."
+          : "Sin hallazgos GPS para esta empresa"
+      );
     } catch (error) {
       console.warn("No se pudo cargar la vista de mapa GPS.", error);
-      setHallazgos(hallazgosMock.map((hallazgo) => convertirPanelACentral(hallazgo)));
-      setMensaje("Se uso fallback local para mantener disponible el mapa ejecutivo.");
+      const fallback = alcanceGlobal
+        ? hallazgosMock.map((hallazgo) => convertirPanelACentral(hallazgo))
+        : [];
+      setHallazgos(fallback);
+      setMensaje(
+        alcanceGlobal
+          ? "Se uso fallback local para mantener disponible el mapa ejecutivo."
+          : "Sin hallazgos GPS para esta empresa"
+      );
     } finally {
       setCargando(false);
     }

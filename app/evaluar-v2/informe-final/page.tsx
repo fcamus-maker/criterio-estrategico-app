@@ -5,6 +5,7 @@ import {
   guardarReporteLocalCompletoV2,
   hidratarReporteConEvidenciasLocalesV2,
   leerReporteActualV2,
+  scopeLocalDesdeReporteV2,
   type EstadoLocalReporteV2,
   type ReporteV2Storage,
 } from "../storageReporteV2";
@@ -220,7 +221,9 @@ export default function InformeFinalV2Page() {
       const { sincronizarReportesPendientesV2 } = await import(
         "@/app/services/guardarReporteV2Completo"
       );
-      const resultado = await sincronizarReportesPendientesV2();
+      const resultado = await sincronizarReportesPendientesV2(
+        reporte ? scopeLocalDesdeReporteV2(reporte) : undefined
+      );
       const todoOk = resultado.errores === 0 && resultado.pendientes === 0;
 
       setMensajeGuardado(resultado.mensaje);

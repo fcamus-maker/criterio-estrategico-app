@@ -5,6 +5,7 @@ import {
   type ReporteV2,
 } from "../adapters/reporteV2ToHallazgoPanel";
 import { listarHallazgosCentrales } from "../../repositories/hallazgosCentralRepository";
+import type { FiltrosHallazgosCentrales } from "../../repositories/hallazgosCentralRepository";
 
 const STORAGE_HISTORIAL_V2 = "ce_mobile_v2_historial_reportes";
 const CACHE_TTL_MS = 60_000;
@@ -13,9 +14,29 @@ let cacheHallazgosPanel:
   | {
       timestamp: number;
       data: HallazgoPanel[];
+      key: string;
     }
   | null = null;
-let cargaHallazgosPanelEnCurso: Promise<HallazgoPanel[]> | null = null;
+let cargaHallazgosPanelEnCurso:
+  | {
+      key: string;
+      promesa: Promise<HallazgoPanel[]>;
+    }
+  | null = null;
+
+type OpcionesCargaHallazgosPanel = {
+  filtros?: FiltrosHallazgosCentrales;
+  permitirFallbackMock?: boolean;
+  incluirReportesLocales?: boolean;
+};
+
+function claveCache(opciones: OpcionesCargaHallazgosPanel) {
+  return JSON.stringify({
+    filtros: opciones.filtros || {},
+    permitirFallbackMock: opciones.permitirFallbackMock !== false,
+    incluirReportesLocales: opciones.incluirReportesLocales !== false,
+  });
+}
 
 function leerReportesV2Locales(): ReporteV2[] {
   if (typeof window === "undefined") return [];
@@ -58,30 +79,42 @@ function combinarHallazgosSinDuplicar(
 }
 
 export async function cargarHallazgosPanelConFuentesOpcionales(
-  hallazgosBase: HallazgoPanel[]
+  hallazgosBase: HallazgoPanel[],
+  opciones: OpcionesCargaHallazgosPanel = {}
 ): Promise<HallazgoPanel[]> {
   const ahora = Date.now();
+  const key = claveCache(opciones);
+  const permitirFallbackMock = opciones.permitirFallbackMock !== false;
+  const incluirReportesLocales = opciones.incluirReportesLocales !== false;
 
   if (
     cacheHallazgosPanel &&
+    cacheHallazgosPanel.key === key &&
     ahora - cacheHallazgosPanel.timestamp < CACHE_TTL_MS
   ) {
     return cacheHallazgosPanel.data;
   }
 
-  if (cargaHallazgosPanelEnCurso) {
-    return cargaHallazgosPanelEnCurso;
+  if (cargaHallazgosPanelEnCurso?.key === key) {
+    return cargaHallazgosPanelEnCurso.promesa;
   }
 
-  cargaHallazgosPanelEnCurso = (async () => {
+  const promesa = (async () => {
     try {
-      const respuestaCentral = await listarHallazgosCentrales({ limit: 500 });
+      const respuestaCentral = await listarHallazgosCentrales({
+        limit: 500,
+        ...(opciones.filtros || {}),
+      });
 
-      if (respuestaCentral.ok && respuestaCentral.data.length > 0) {
+      if (
+        respuestaCentral.ok &&
+        (respuestaCentral.data.length > 0 || !permitirFallbackMock)
+      ) {
         const hallazgosCentrales = adaptarHallazgosCentralesAHallazgosPanel(
           respuestaCentral.data
         );
         cacheHallazgosPanel = {
+          key,
           timestamp: Date.now(),
           data: hallazgosCentrales,
         };
@@ -106,23 +139,46 @@ export async function cargarHallazgosPanelConFuentesOpcionales(
         });
       }
     } catch (error) {
-      console.warn(
-        "No se pudo leer repositorio central de hallazgos. Usando fallback local/mock.",
-        error
-      );
+      if (permitirFallbackMock) {
+        console.warn(
+          "No se pudo leer repositorio central de hallazgos. Usando fallback local/mock.",
+          error
+        );
+      } else {
+        console.warn(
+          "No se pudo leer repositorio central de hallazgos para alcance restringido.",
+          error
+        );
+      }
     }
 
-    const fallback = cargarHallazgosPanelConReportesV2(hallazgosBase);
+    if (!permitirFallbackMock) {
+      cacheHallazgosPanel = {
+        key,
+        timestamp: Date.now(),
+        data: [],
+      };
+      return [];
+    }
+
+    const fallback = incluirReportesLocales
+      ? cargarHallazgosPanelConReportesV2(hallazgosBase)
+      : hallazgosBase;
     cacheHallazgosPanel = {
+      key,
       timestamp: Date.now(),
       data: fallback,
     };
     return fallback;
   })();
 
+  cargaHallazgosPanelEnCurso = { key, promesa };
+
   try {
-    return await cargaHallazgosPanelEnCurso;
+    return await promesa;
   } finally {
-    cargaHallazgosPanelEnCurso = null;
+    if (cargaHallazgosPanelEnCurso?.key === key) {
+      cargaHallazgosPanelEnCurso = null;
+    }
   }
 }

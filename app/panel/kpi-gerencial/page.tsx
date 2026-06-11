@@ -20,6 +20,10 @@ import {
   usePlatformPreferences,
 } from "../../services/platformPreferences";
 import { obtenerAuthProfileActual } from "../../services/authProfileService";
+import {
+  construirAlcanceVisibleCE,
+  filtrosHallazgosDesdeAlcanceCE,
+} from "../../services/visibleScope";
 import PreventiveLegalRibbon from "../../components/PreventiveLegalRibbon";
 import { readClientBrandingFromPanelConfig } from "../../services/clientBranding";
 
@@ -1154,9 +1158,7 @@ export default function KpiGerencialAvanzadoPage() {
     fontSize: "11px",
     fontWeight: 950,
   };
-  const [hallazgos, setHallazgos] = useState<HallazgoKpiGerencial[]>(
-    () => hallazgosMock.map((hallazgo) => convertirHallazgoKpi(hallazgo))
-  );
+  const [hallazgos, setHallazgos] = useState<HallazgoKpiGerencial[]>([]);
   const [cargando, setCargando] = useState(false);
   const [filtros, setFiltros] = useState<FiltrosVista>(filtrosIniciales);
   const [accionActiva, setAccionActiva] = useState("");
@@ -1202,18 +1204,37 @@ export default function KpiGerencialAvanzadoPage() {
     useState<UsuarioGeneradorInforme>(() => leerUsuarioGeneradorInforme());
 
   async function cargarDatos() {
+    setCargando(true);
+    let alcanceGlobal = false;
     try {
-      const datosPanel = await cargarHallazgosPanelConFuentesOpcionales(hallazgosMock);
-      setHallazgos(
-        datosPanel.map((hallazgo) =>
+      const auth = await obtenerAuthProfileActual();
+      const alcance = construirAlcanceVisibleCE(auth.perfil);
+      alcanceGlobal = alcance.isGlobal;
+      const datosPanel = await cargarHallazgosPanelConFuentesOpcionales(hallazgosMock, {
+        filtros: filtrosHallazgosDesdeAlcanceCE(alcance),
+        permitirFallbackMock: alcanceGlobal,
+        incluirReportesLocales: alcanceGlobal,
+      });
+      const hallazgosKpi = datosPanel.map((hallazgo) =>
           convertirHallazgoKpi(hallazgo as HallazgoPanelGerencial)
-        )
       );
-      setMensaje("Analisis actualizado con hallazgos disponibles para gerencia.");
+      setHallazgos(hallazgosKpi);
+      setMensaje(
+        hallazgosKpi.length > 0
+          ? "Analisis actualizado con hallazgos disponibles para gerencia."
+          : "Sin reportes registrados para esta empresa."
+      );
     } catch (error) {
       console.warn("No se pudo cargar KPI Gerencial Avanzado.", error);
-      setHallazgos(hallazgosMock.map((hallazgo) => convertirHallazgoKpi(hallazgo)));
-      setMensaje("Se uso fallback local para mantener disponible el modulo gerencial.");
+      const fallback = alcanceGlobal
+        ? hallazgosMock.map((hallazgo) => convertirHallazgoKpi(hallazgo))
+        : [];
+      setHallazgos(fallback);
+      setMensaje(
+        alcanceGlobal
+          ? "Se uso fallback local para mantener disponible el modulo gerencial."
+          : "Sin reportes registrados para esta empresa."
+      );
     } finally {
       setCargando(false);
     }

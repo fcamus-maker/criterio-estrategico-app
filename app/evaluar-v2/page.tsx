@@ -15,27 +15,19 @@ import {
 } from "../services/profilePhotoService";
 import PwaInstallCard from "../components/PwaInstallCard";
 import { navegarEvaluarV2 } from "./offlineNavigation";
-import { listarReportesPendientesLocalesV2 } from "./storageReporteV2";
+import {
+  cargarHistorialLivianoV2,
+  crearScopeLocalReporteV2,
+  listarReportesPendientesLocalesV2,
+} from "./storageReporteV2";
 import {
   cargarSupervisorV2UsuarioActual,
-  cargarSupervisorV2LocalReciente,
   crearCodigoReporteMovil,
   guardarSupervisorV2EnClave,
   perfilSupervisorV2Completo,
   SUPERVISOR_V2_VACIO,
+  type SupervisorV2,
 } from "./supervisorProfileStorage";
-
-type SupervisorV2 = {
-  nombre: string;
-  cargo: string;
-  empresa: string;
-  obra: string;
-  siglaEmpresa: string;
-  siglaProyecto: string;
-  foto: string;
-};
-
-const STORAGE_HISTORIAL = "ce_mobile_v2_historial_reportes";
 
 const textosMobileEn: Record<string, string> = {
   "Supervisor activo": "Active supervisor",
@@ -47,10 +39,13 @@ const textosMobileEn: Record<string, string> = {
   "Obra / Proyecto": "Site / Project",
   "Sigla empresa": "Company code",
   "Sigla obra / proyecto": "Site / project code",
+  Siglas: "Codes",
+  "Sin asignar": "Not assigned",
   "Próximo código": "Next code",
   "Código pendiente": "Pending code",
   "Complete el perfil para generar el código del reporte.": "Complete the profile to generate the report code.",
   "Complete empresa, obra y siglas para generar el código del reporte.": "Complete company, site and codes to generate the report code.",
+  "No se pudo resolver empresa/obra asignada desde el perfil.": "The assigned company/site could not be resolved from the profile.",
   "Editar perfil del supervisor": "Edit supervisor profile",
   "Crear perfil del supervisor": "Create supervisor profile",
   "Completar perfil": "Complete profile",
@@ -82,17 +77,6 @@ function vibrarOk() {
   }
 }
 
-function cargarHistorial(): Array<{ estado?: string; estadoCierre?: string }> {
-  if (typeof window === "undefined") return [];
-
-  try {
-    const guardado = JSON.parse(localStorage.getItem(STORAGE_HISTORIAL) || "[]");
-    return Array.isArray(guardado) ? guardado : [];
-  } catch {
-    return [];
-  }
-}
-
 export default function EvaluarV2HomePage() {
   const router = useRouter();
   const preferencias = usePlatformPreferences();
@@ -119,6 +103,7 @@ export default function EvaluarV2HomePage() {
   const [fotoPerfilPreview, setFotoPerfilPreview] = useState("");
   const [online, setOnline] = useState(true);
   const [pendientesLocales, setPendientesLocales] = useState(0);
+  const [scopeLocalReporte, setScopeLocalReporte] = useState("");
   const [sincronizandoPendientes, setSincronizandoPendientes] = useState(false);
   const [ajusteFotoPerfil, setAjusteFotoPerfil] = useState({
     zoom: 1,
@@ -127,30 +112,29 @@ export default function EvaluarV2HomePage() {
   });
   const [fotoPerfilQuitada, setFotoPerfilQuitada] = useState(false);
 
+  const scopeDesdeSupervisor = (item: SupervisorV2) =>
+    crearScopeLocalReporteV2({
+      userId: item.reportanteUserId || item.supervisorUserId || item.userId,
+      email: item.email,
+      empresaId: item.empresaId,
+      obraId: item.obraId,
+    });
+
   useEffect(() => {
-    const localReciente = cargarSupervisorV2LocalReciente();
-    if (localReciente) {
-      const supervisorLocal = localReciente.supervisor;
-      setSupervisor(supervisorLocal);
-      setDraft(supervisorLocal);
-      setClaveSupervisor(localReciente.clave);
-      setPerfilSupervisorGuardado(
-        localReciente.tienePerfilGuardado &&
-          perfilSupervisorV2Completo(supervisorLocal)
-      );
-    }
-    setHistorial(cargarHistorial());
+    setHistorial([]);
 
     const frameId = window.requestAnimationFrame(async () => {
       const contexto = await cargarSupervisorV2UsuarioActual();
       const supervisorGuardado = contexto.supervisor;
-      const tienePerfil =
-        contexto.tienePerfilGuardado &&
-        perfilSupervisorV2Completo(supervisorGuardado);
+      const tienePerfil = perfilSupervisorV2Completo(supervisorGuardado);
+      const scope = scopeDesdeSupervisor(supervisorGuardado);
       setSupervisor(supervisorGuardado);
       setDraft(supervisorGuardado);
       setClaveSupervisor(contexto.clave);
       setPerfilSupervisorGuardado(tienePerfil);
+      setScopeLocalReporte(scope);
+      setHistorial(cargarHistorialLivianoV2(scope));
+      void actualizarPendientesLocales(scope);
       setEditorPerfilAbierto(false);
       setFotoPerfilArchivo(null);
       setFotoPerfilPreview("");
@@ -168,15 +152,20 @@ export default function EvaluarV2HomePage() {
     };
   }, [fotoPerfilPreview]);
 
-  const actualizarPendientesLocales = async () => {
-    const pendientes = await listarReportesPendientesLocalesV2();
+  const actualizarPendientesLocales = async (scope = scopeLocalReporte) => {
+    if (!scope) {
+      setPendientesLocales(0);
+      return;
+    }
+
+    const pendientes = await listarReportesPendientesLocalesV2(scope);
     setPendientesLocales(pendientes.length);
   };
 
   useEffect(() => {
     const actualizarConexion = () => {
       setOnline(typeof navigator === "undefined" ? true : navigator.onLine);
-      void actualizarPendientesLocales();
+      void actualizarPendientesLocales(scopeLocalReporte);
     };
 
     actualizarConexion();
@@ -187,7 +176,7 @@ export default function EvaluarV2HomePage() {
       window.removeEventListener("online", actualizarConexion);
       window.removeEventListener("offline", actualizarConexion);
     };
-  }, []);
+  }, [scopeLocalReporte]);
 
   const contadores = useMemo(() => {
     const reportados = historial.length;
@@ -219,6 +208,17 @@ export default function EvaluarV2HomePage() {
       .slice(0, 2)
       .map((parte) => parte.charAt(0).toUpperCase())
       .join("") || "CE";
+  const mensajePerfilIncompleto = useMemo(() => {
+    if (supervisor.errorContextoPerfil) {
+      return supervisor.errorContextoPerfil;
+    }
+
+    if (supervisor.empresaId || supervisor.obraId) {
+      return "No se pudo resolver empresa/obra asignada desde el perfil.";
+    }
+
+    return "Complete el perfil para generar el código del reporte.";
+  }, [supervisor]);
 
   const esFotoTemporal = (foto: string) =>
     foto.startsWith("blob:") || foto.startsWith("data:");
@@ -237,6 +237,13 @@ export default function EvaluarV2HomePage() {
       siglaEmpresa: draft.siglaEmpresa.trim().toUpperCase(),
       siglaProyecto: draft.siglaProyecto.trim().toUpperCase(),
       foto: esFotoTemporal(draft.foto) ? fotoPersistenteActual : draft.foto,
+      empresaId: draft.empresaId || supervisor.empresaId,
+      obraId: draft.obraId || supervisor.obraId,
+      userId: draft.userId || supervisor.userId,
+      email: draft.email || supervisor.email,
+      reportanteUserId: draft.reportanteUserId || supervisor.reportanteUserId,
+      supervisorUserId: draft.supervisorUserId || supervisor.supervisorUserId,
+      errorContextoPerfil: draft.errorContextoPerfil || supervisor.errorContextoPerfil,
     };
 
     if (!perfilSupervisorV2Completo(actualizado)) {
@@ -275,8 +282,12 @@ export default function EvaluarV2HomePage() {
 
     try {
       guardarSupervisorV2EnClave(claveSupervisor, actualizado);
+      const scope = scopeDesdeSupervisor(actualizado);
       setSupervisor(actualizado);
       setDraft(actualizado);
+      setScopeLocalReporte(scope);
+      setHistorial(cargarHistorialLivianoV2(scope));
+      void actualizarPendientesLocales(scope);
       setPerfilSupervisorGuardado(true);
       setFotoPerfilArchivo(null);
       setFotoPerfilPreview("");
@@ -297,8 +308,12 @@ export default function EvaluarV2HomePage() {
 
       try {
         guardarSupervisorV2EnClave(claveSupervisor, sinFoto);
+        const scope = scopeDesdeSupervisor(sinFoto);
         setSupervisor(sinFoto);
         setDraft(sinFoto);
+        setScopeLocalReporte(scope);
+        setHistorial(cargarHistorialLivianoV2(scope));
+        void actualizarPendientesLocales(scope);
         setPerfilSupervisorGuardado(true);
         setFotoPerfilArchivo(null);
         setFotoPerfilPreview("");
@@ -365,9 +380,7 @@ export default function EvaluarV2HomePage() {
 
     if (!perfilSupervisorGuardado || !perfilSupervisorV2Completo(supervisor)) {
       setEditorPerfilAbierto(true);
-      setMensaje(
-        "Complete el perfil para generar el código del reporte."
-      );
+      setMensaje(mensajePerfilIncompleto);
       return;
     }
 
@@ -405,10 +418,10 @@ export default function EvaluarV2HomePage() {
       const { sincronizarReportesPendientesV2 } = await import(
         "@/app/services/guardarReporteV2Completo"
       );
-      const resultado = await sincronizarReportesPendientesV2();
+      const resultado = await sincronizarReportesPendientesV2(scopeLocalReporte);
       setMensaje(resultado.mensaje);
-      await actualizarPendientesLocales();
-      setHistorial(cargarHistorial());
+      await actualizarPendientesLocales(scopeLocalReporte);
+      setHistorial(cargarHistorialLivianoV2(scopeLocalReporte));
       vibrarOk();
     } catch (error) {
       setMensaje(
@@ -710,23 +723,31 @@ export default function EvaluarV2HomePage() {
           >
             <div>
               <div style={{ fontSize: "11px", opacity: 0.62 }}>{t("Empresa")}</div>
-              <div style={{ fontWeight: 800 }}>{supervisor.empresa}</div>
+              <div style={{ fontWeight: 800 }}>
+                {supervisor.empresa || t("Sin asignar")}
+              </div>
             </div>
             <div>
               <div style={{ fontSize: "11px", opacity: 0.62 }}>{t("Obra / Proyecto")}</div>
-              <div style={{ fontWeight: 800 }}>{supervisor.obra}</div>
+              <div style={{ fontWeight: 800 }}>
+                {supervisor.obra || t("Sin asignar")}
+              </div>
             </div>
             <div>
               <div style={{ fontSize: "11px", opacity: 0.62 }}>
                 {t("Sigla empresa")}
               </div>
-              <div style={{ fontWeight: 800 }}>{supervisor.siglaEmpresa}</div>
+              <div style={{ fontWeight: 800 }}>
+                {supervisor.siglaEmpresa || t("Sin asignar")}
+              </div>
             </div>
             <div>
               <div style={{ fontSize: "11px", opacity: 0.62 }}>
                 {t("Sigla obra / proyecto")}
               </div>
-              <div style={{ fontWeight: 800 }}>{supervisor.siglaProyecto}</div>
+              <div style={{ fontWeight: 800 }}>
+                {supervisor.siglaProyecto || t("Sin asignar")}
+              </div>
             </div>
           </div>
           <div
@@ -754,7 +775,7 @@ export default function EvaluarV2HomePage() {
                     lineHeight: 1.35,
                   }}
                 >
-                  {t("Complete el perfil para generar el código del reporte.")}
+                  {t(mensajePerfilIncompleto)}
                 </div>
               </>
             )}
@@ -857,7 +878,7 @@ export default function EvaluarV2HomePage() {
                 </span>
                 <input
                   type="text"
-                  value={draft[campo as keyof SupervisorV2]}
+                  value={String(draft[campo as keyof SupervisorV2] || "")}
                   onChange={(e) =>
                     actualizarDraft(campo as keyof SupervisorV2, e.target.value)
                   }
