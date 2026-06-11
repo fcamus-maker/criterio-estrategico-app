@@ -191,6 +191,13 @@ export type HallazgoCentral = {
   // Contexto operacional.
   empresa: string;
   obra: string;
+  empresaId?: string;
+  obraId?: string;
+  reportanteUserId?: string;
+  supervisorUserId?: string;
+  responsableCierreUserId?: string;
+  mandanteId?: string;
+  contratistaId?: string;
   proyecto?: string;
   area: string;
   siglaEmpresa?: string;

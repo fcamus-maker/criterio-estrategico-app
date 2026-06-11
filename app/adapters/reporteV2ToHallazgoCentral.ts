@@ -93,6 +93,10 @@ export type ReporteV2CentralEntrada = {
   cargo?: string;
   empresa?: string;
   obra?: string;
+  empresaId?: string;
+  obraId?: string;
+  reportanteUserId?: string;
+  supervisorUserId?: string;
   proyecto?: string;
   siglaEmpresa?: string;
   siglaProyecto?: string;
@@ -454,6 +458,10 @@ export function adaptarReporteV2AHallazgoCentral(
     estadoSincronizacion: "LOCAL",
     empresa: texto(reporte.empresa, "Sin empresa"),
     obra: texto(reporte.obra, "Sin obra"),
+    empresaId: texto(reporte.empresaId),
+    obraId: texto(reporte.obraId),
+    reportanteUserId: texto(reporte.reportanteUserId),
+    supervisorUserId: texto(reporte.supervisorUserId),
     proyecto: texto(reporte.proyecto || reporte.obra, "Sin proyecto"),
     area: texto(reporte.area, "Sin area"),
     siglaEmpresa: texto(reporte.siglaEmpresa),
@@ -503,7 +511,7 @@ export function adaptarReporteV2AHallazgoCentral(
       },
     ],
     auditoria: {
-      creadoPor: texto(reporte.supervisor),
+      creadoPor: texto(reporte.reportanteUserId || reporte.supervisorUserId || reporte.supervisor),
       versionApp: "mobile-v2",
     },
     rawMobileV2: reporte as Record<string, unknown>,

@@ -50,18 +50,39 @@ export async function intentarGuardarReporteV2EnRepositorioCentral(
       const requiereActualizarEvidencias = tieneEvidenciasEntrantes &&
         JSON.stringify(existente.data.evidencias || []) !==
           JSON.stringify(hallazgoCentral.evidencias || []);
+      const requiereCompletarUuid = Boolean(
+        (hallazgoCentral.empresaId && !existente.data.empresaId) ||
+          (hallazgoCentral.obraId && !existente.data.obraId) ||
+          (hallazgoCentral.reportanteUserId && !existente.data.reportanteUserId) ||
+          (hallazgoCentral.supervisorUserId && !existente.data.supervisorUserId)
+      );
 
       if (process.env.NODE_ENV !== "production") {
         console.info("[mobile-v2] hallazgo central existente", {
           codigo: hallazgoCentral.codigo,
           id: existente.data.id,
           requiereActualizarEvidencias,
+          requiereCompletarUuid,
         });
       }
 
-      if (requiereActualizarEvidencias && existente.data.id) {
+      if ((requiereActualizarEvidencias || requiereCompletarUuid) && existente.data.id) {
         const actualizado = await actualizarHallazgoCentral(existente.data.id, {
-          evidencias: hallazgoCentral.evidencias,
+          ...(requiereActualizarEvidencias
+            ? { evidencias: hallazgoCentral.evidencias }
+            : {}),
+          ...(requiereCompletarUuid
+            ? {
+                empresaId: hallazgoCentral.empresaId || existente.data.empresaId,
+                obraId: hallazgoCentral.obraId || existente.data.obraId,
+                reportanteUserId:
+                  hallazgoCentral.reportanteUserId ||
+                  existente.data.reportanteUserId,
+                supervisorUserId:
+                  hallazgoCentral.supervisorUserId ||
+                  existente.data.supervisorUserId,
+              }
+            : {}),
           rawMobileV2: hallazgoCentral.rawMobileV2,
           fechaActualizacion: new Date().toISOString(),
         });
