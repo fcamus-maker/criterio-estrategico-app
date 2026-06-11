@@ -338,6 +338,7 @@ function detectarIncoherencias(
 }
 
 function definirMedidaInmediata(
+  input: EvaluacionNormalizadaV2,
   criticidadFinal: Criticidad,
   senalesCriticas: string[],
   requiereContencionAmbiental: boolean
@@ -352,10 +353,16 @@ function definirMedidaInmediata(
     return "Controlar la condicion antes de continuar y verificar cierre con responsable.";
   }
   if (criticidadFinal === "MEDIO") {
+    if (esHallazgoMenorV2(input) && !input.datosLegales?.documentoFaltante) {
+      return "Retirar u ordenar el elemento, verificar que no obstruya transito y dejar registro simple.";
+    }
     return "Corregir la desviacion y registrar seguimiento preventivo.";
   }
   if (senalesCriticas.length > 0) {
     return "Revisar senal critica declarada y validar control operacional.";
+  }
+  if (esHallazgoMenorV2(input) && !input.datosLegales?.documentoFaltante) {
+    return "Retirar u ordenar el elemento, verificar transito y cerrar como correccion simple.";
   }
   return "Registrar y corregir en rutina operativa.";
 }
@@ -418,7 +425,12 @@ export function evaluarHallazgoV2(input: EvaluacionInputV2): EvaluacionResultado
 
   const ambitosParaNormativa = [ambitoPrincipal, ...ambitosSecundarios];
   const normativaProbable = obtenerNormativaProbableV2(ambitosParaNormativa, normalizado);
-  const medidaInmediata = definirMedidaInmediata(criticidadFinal, senalesCriticas, requiereContencionAmbiental);
+  const medidaInmediata = definirMedidaInmediata(
+    normalizado,
+    criticidadFinal,
+    senalesCriticas,
+    requiereContencionAmbiental
+  );
   const plazoSugerido = definirPlazo(criticidadFinal);
   const justificacionTecnica = generarJustificacion(
     criticidadBase,

@@ -28,7 +28,7 @@ export const REGLAS_CRITICIDAD_V2: ReglaCriticidadV2[] = [
     nombre: "Orden y aseo menor",
     criticidadBase: "BAJO",
     topeMaximo: "MEDIO",
-    palabrasClave: ["orden", "aseo", "desorden", "limpieza", "menor"],
+    palabrasClave: ["orden", "aseo", "desorden", "limpieza"],
   },
   {
     id: "objeto_inofensivo",
@@ -225,8 +225,12 @@ export function esHallazgoMenorV2(input: EvaluacionInputV2): boolean {
   const regla = obtenerReglaCriticidadV2(input);
   if (regla?.categoria === "menor") return true;
 
+  if (input.datosAmbientales?.derrameOFuga || input.datosAmbientales?.existeAspectoAmbiental) {
+    return false;
+  }
+
   const texto = obtenerTextoBusquedaMotorV2(input);
-  return ["menor", "inofensivo", "sin transito", "sin exposicion"].some((palabra) => texto.includes(palabra));
+  return ["inofensivo", "sin transito", "sin exposicion", "objeto menor"].some((palabra) => texto.includes(palabra));
 }
 
 export function calcularCriticidadBaseV2(input: EvaluacionInputV2): {
@@ -253,4 +257,3 @@ export function calcularCriticidadBaseV2(input: EvaluacionInputV2): {
 
   return { criticidadBase: "MEDIO", topeMaximo: "ALTO" };
 }
-

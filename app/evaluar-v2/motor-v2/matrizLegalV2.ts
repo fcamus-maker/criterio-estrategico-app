@@ -113,6 +113,10 @@ function buscarMateria(materia: string): NormativaAplicable | undefined {
   return MATRIZ_LEGAL_V2.find((norma) => norma.materia.toLowerCase() === materia.toLowerCase());
 }
 
+function textoIncluyePalabra(texto: string, palabra: string): boolean {
+  return new RegExp(`(^|\\W)${palabra}(\\W|$)`, "i").test(texto);
+}
+
 export function obtenerNormativaProbableV2(
   ambitos: AmbitoEvaluacion[],
   input: EvaluacionInputV2
@@ -132,7 +136,7 @@ export function obtenerNormativaProbableV2(
     const ds594 = buscarNorma("DS 594");
     if (ds594) agregarSiNoExiste(normas, ds594);
     const ruido = buscarMateria("Ruido");
-    if (ruido && input.descripcion.toLowerCase().includes("ruido")) agregarSiNoExiste(normas, ruido);
+    if (ruido && textoIncluyePalabra(input.descripcion, "ruido")) agregarSiNoExiste(normas, ruido);
   }
 
   if (ambitos.includes("medio_ambiente") || ambientales?.existeAspectoAmbiental || ambientales?.existeImpactoAmbiental) {
@@ -182,4 +186,3 @@ export function obtenerNormativaProbableV2(
 
   return normas;
 }
-

@@ -75,3 +75,8 @@ Este helper retorna:
 - Comparar salida V1 vs V2 antes de reemplazar produccion.
 - Validar con reportes online/offline de prueba.
 
+## Ajustes MOTOR-3B
+
+- Se ajusto la regla de hallazgo menor para que la palabra generica `menor` no degrade eventos ambientales como derrames contenidos.
+- Se mantuvo el tope de hallazgos menores para objetos inofensivos, orden/aseo y casos sin exposicion.
+- Se ajusto la deteccion legal de ruido para que no se active por substrings accidentales como `obstruido`.
