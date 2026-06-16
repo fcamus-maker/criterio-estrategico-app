@@ -468,6 +468,73 @@ function evaluacionMotorV2DesdeReporte(
   };
 }
 
+function textoOpcional(valor: unknown) {
+  const limpio = texto(valor);
+  return limpio || undefined;
+}
+
+function listaUnicaTexto(valor: unknown) {
+  const salida = Array.isArray(valor)
+    ? valor
+        .map((item) => {
+          if (item && typeof item === "object" && "norma" in item) {
+            return texto((item as { norma?: unknown }).norma);
+          }
+
+          return texto(item);
+        })
+        .filter(Boolean)
+    : listaTexto(typeof valor === "string" ? valor : undefined);
+
+  return Array.from(new Set(salida));
+}
+
+function evaluacionPreventivaDesdeMotorV2(
+  evaluacion: EvaluacionReporteV2Central | undefined
+) {
+  if (!evaluacion?.evaluacion_motor_version) return undefined;
+
+  const preventiva: Record<string, unknown> = {
+    analisisEjecutivo: textoOpcional(evaluacion.resumen_ejecutivo),
+    marcoLegalRelacionado: listaUnicaTexto(evaluacion.normativa_probable),
+    familiaRiesgoPrincipal: textoOpcional(
+      evaluacion.categoria_detectada || evaluacion.modulo_preguntas_sugerido
+    ),
+    palabrasClaveDetectadas: listaUnicaTexto(evaluacion.palabras_clave_detectadas),
+    criteriosCriticosDetectados: listaUnicaTexto(evaluacion.senales_criticas),
+    motivoTecnicoHallazgo: textoOpcional(evaluacion.justificacion_tecnica),
+    versionMotorPreventivo: textoOpcional(evaluacion.evaluacion_motor_version),
+    nivelSuficienciaInformacion: textoOpcional(evaluacion.confianza_clasificacion),
+    criticidadPreventiva: textoOpcional(
+      evaluacion.criticidad || evaluacion.criticidad_final
+    ),
+    prioridad: textoOpcional(evaluacion.prioridad),
+  };
+
+  Object.entries(preventiva).forEach(([clave, valor]) => {
+    if (
+      valor === undefined ||
+      (Array.isArray(valor) && valor.length === 0)
+    ) {
+      delete preventiva[clave];
+    }
+  });
+
+  return Object.keys(preventiva).length ? preventiva : undefined;
+}
+
+function rawMobileV2DesdeReporte(reporte: ReporteV2CentralEntrada) {
+  const evaluacionPreventiva = evaluacionPreventivaDesdeMotorV2(reporte.evaluacion);
+  const rawMobileV2 = reporte as Record<string, unknown>;
+
+  if (!evaluacionPreventiva) return rawMobileV2;
+
+  return {
+    ...rawMobileV2,
+    evaluacionPreventiva,
+  };
+}
+
 export function adaptarReporteV2AHallazgoCentral(
   reporte: ReporteV2CentralEntrada,
   indice = 0
@@ -552,7 +619,7 @@ export function adaptarReporteV2AHallazgoCentral(
       creadoPor: texto(reporte.reportanteUserId || reporte.supervisorUserId || reporte.supervisor),
       versionApp: "mobile-v2",
     },
-    rawMobileV2: reporte as Record<string, unknown>,
+    rawMobileV2: rawMobileV2DesdeReporte(reporte),
     fechaCreacion: texto(reporte.fechaGuardado, fechaHoraReporteISO),
     fechaActualizacion: texto(reporte.fechaGuardado, fechaHoraReporteISO),
     createdAt: texto(reporte.fechaGuardado, fechaHoraReporteISO),

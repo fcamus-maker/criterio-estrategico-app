@@ -9,6 +9,25 @@ import {
   type EvidenciaPanel,
 } from "../panel/evidenciasPanel";
 
+type DebilidadesRespaldoPreventivaPanel = {
+  evidencia?: string[];
+  trazabilidad?: string[];
+  cierre?: string[];
+  calidadRespaldo?: string;
+  resumen?: string;
+};
+
+export type EvaluacionPreventivaPanel = {
+  analisisEjecutivo?: string;
+  marcoLegalRelacionado?: string[];
+  criteriosCriticosDetectados?: string[];
+  familiaRiesgoPrincipal?: string;
+  debilidadesRespaldo?: DebilidadesRespaldoPreventivaPanel;
+  nivelSuficienciaInformacion?: string;
+  motivoTecnicoHallazgo?: string;
+  versionMotorPreventivo?: string;
+};
+
 export type HallazgoPanelDesdeCentral = HallazgoPanel & {
   origen?: HallazgoCentral["origen"];
   area?: string;
@@ -49,6 +68,7 @@ export type HallazgoPanelDesdeCentral = HallazgoPanel & {
   evidenciasPanel?: EvidenciaPanel[];
   totalEvidencias?: number;
   evidenciasPendientesVisualizacion?: number;
+  evaluacionPreventiva?: EvaluacionPreventivaPanel;
   borradoLogico?: {
     fechaHora?: string;
     motivo?: string;
@@ -121,6 +141,20 @@ function unirLista(valor: string[] | undefined, fallback = "") {
   return salida.length ? salida.join(", ") : fallback;
 }
 
+function listaTexto(valor: unknown) {
+  if (Array.isArray(valor)) {
+    return valor.map((item) => texto(item)).filter(Boolean);
+  }
+
+  const limpio = texto(valor);
+  if (!limpio) return [];
+
+  return limpio
+    .split(/[;,]/)
+    .map((item) => texto(item))
+    .filter(Boolean);
+}
+
 function evidenciasRecibidasPanel(hallazgo: HallazgoCentral) {
   const evidencias = hallazgo.seguimientoCierre?.evidenciaRecibida || [];
   const textoEvidencias = evidencias
@@ -138,6 +172,54 @@ function objetoRegistro(valor: unknown): Record<string, unknown> {
   return valor && typeof valor === "object" && !Array.isArray(valor)
     ? (valor as Record<string, unknown>)
     : {};
+}
+
+function evaluacionPreventivaPanel(
+  hallazgo: HallazgoCentral
+): EvaluacionPreventivaPanel | undefined {
+  const rawMobileV2 = objetoRegistro(hallazgo.rawMobileV2);
+  const preventivaRaw = objetoRegistro(rawMobileV2.evaluacionPreventiva);
+  if (!Object.keys(preventivaRaw).length) return undefined;
+
+  const debilidadesRaw = objetoRegistro(preventivaRaw.debilidadesRespaldo);
+  const debilidadesRespaldo = {
+    evidencia: listaTexto(debilidadesRaw.evidencia),
+    trazabilidad: listaTexto(debilidadesRaw.trazabilidad),
+    cierre: listaTexto(debilidadesRaw.cierre),
+    calidadRespaldo: texto(debilidadesRaw.calidadRespaldo),
+    resumen: texto(debilidadesRaw.resumen),
+  };
+  const tieneDebilidades =
+    debilidadesRespaldo.evidencia.length > 0 ||
+    debilidadesRespaldo.trazabilidad.length > 0 ||
+    debilidadesRespaldo.cierre.length > 0 ||
+    Boolean(debilidadesRespaldo.calidadRespaldo || debilidadesRespaldo.resumen);
+
+  const evaluacion: EvaluacionPreventivaPanel = {
+    analisisEjecutivo: texto(preventivaRaw.analisisEjecutivo),
+    marcoLegalRelacionado: listaTexto(preventivaRaw.marcoLegalRelacionado),
+    criteriosCriticosDetectados: listaTexto(
+      preventivaRaw.criteriosCriticosDetectados
+    ),
+    familiaRiesgoPrincipal: texto(preventivaRaw.familiaRiesgoPrincipal),
+    debilidadesRespaldo: tieneDebilidades ? debilidadesRespaldo : undefined,
+    nivelSuficienciaInformacion: texto(
+      preventivaRaw.nivelSuficienciaInformacion
+    ),
+    motivoTecnicoHallazgo: texto(preventivaRaw.motivoTecnicoHallazgo),
+    versionMotorPreventivo: texto(preventivaRaw.versionMotorPreventivo),
+  };
+  const tieneDatos =
+    Boolean(evaluacion.analisisEjecutivo) ||
+    Boolean(evaluacion.familiaRiesgoPrincipal) ||
+    Boolean(evaluacion.nivelSuficienciaInformacion) ||
+    Boolean(evaluacion.motivoTecnicoHallazgo) ||
+    Boolean(evaluacion.versionMotorPreventivo) ||
+    Boolean(evaluacion.debilidadesRespaldo) ||
+    Boolean(evaluacion.marcoLegalRelacionado?.length) ||
+    Boolean(evaluacion.criteriosCriticosDetectados?.length);
+
+  return tieneDatos ? evaluacion : undefined;
 }
 
 function obtenerBorradoLogico(hallazgo: HallazgoCentral) {
@@ -197,6 +279,7 @@ export function adaptarHallazgoCentralAHallazgoPanel(
     evidenciasPanel,
     totalEvidencias: evidenciasPanel.length,
     evidenciasPendientesVisualizacion: evidenciasPanel.length - evidenciasVisibles,
+    evaluacionPreventiva: evaluacionPreventivaPanel(hallazgo),
     supervisorFoto: texto(
       hallazgo.reportante.fotoUrl || hallazgo.reportante.fotoDataUrl
     ),
