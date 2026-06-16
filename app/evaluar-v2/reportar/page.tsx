@@ -17,6 +17,12 @@ import {
   SUPERVISOR_V2_VACIO,
   type SupervisorV2,
 } from "../supervisorProfileStorage";
+import {
+  EtapasPremium,
+  FirmaPremium,
+  HeaderReportePremium,
+  PremiumMobileViewport,
+} from "../evaluacion/componentesPremium";
 
 type FotoV2 = {
   id: string;
@@ -522,9 +528,9 @@ export default function ReportarV2Page() {
     minHeight: "100dvh",
     width: "100%",
     maxWidth: "100vw",
-    backgroundColor: "#061327",
+    backgroundColor: "#020b1f",
     background:
-      "radial-gradient(circle at 50% 0%, #2563eb 0%, #0b1f3a 42%, #061327 100%)",
+      "radial-gradient(circle at 22% 12%, rgba(60,130,220,0.46) 0%, rgba(7,32,68,0.92) 31%, rgba(2,12,32,1) 72%), linear-gradient(180deg, #05244a 0%, #020b1f 100%)",
     color: "white",
     fontFamily: "Arial, sans-serif",
     overflowX: "hidden" as const,
@@ -538,19 +544,21 @@ export default function ReportarV2Page() {
     maxWidth: "430px",
     margin: "0 auto",
     padding:
-      "calc(16px + env(safe-area-inset-top)) 16px calc(96px + env(safe-area-inset-bottom))",
+      "calc(12px + env(safe-area-inset-top)) 15px calc(36px + env(safe-area-inset-bottom))",
     boxSizing: "border-box" as const,
     overflowX: "hidden" as const,
+    overscrollBehaviorY: "contain" as const,
     touchAction: "pan-y" as const,
   };
 
   const cardStyle = {
-    borderRadius: "22px",
+    borderRadius: "18px",
     background:
-      "linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.07))",
-    border: "1px solid rgba(255,255,255,0.16)",
-    boxShadow: "0 18px 36px rgba(0,0,0,0.28)",
-    padding: "16px",
+      "linear-gradient(180deg, rgba(22,72,124,0.66), rgba(4,26,60,0.78))",
+    border: "1px solid rgba(151,197,255,0.30)",
+    boxShadow:
+      "0 18px 42px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.11), inset 0 -1px 0 rgba(33,150,243,0.10)",
+    padding: "14px",
     boxSizing: "border-box" as const,
     maxWidth: "100%",
     overflowX: "hidden" as const,
@@ -562,9 +570,9 @@ export default function ReportarV2Page() {
     maxWidth: "100%",
     fontSize: "16px",
     boxSizing: "border-box" as const,
-    border: "1px solid rgba(255,255,255,0.14)",
+    border: "1px solid rgba(151,197,255,0.20)",
     borderRadius: "14px",
-    background: "rgba(255,255,255,0.10)",
+    background: "rgba(3,20,48,0.24)",
     color: "white",
     padding: "12px 13px",
     outline: "none",
@@ -575,8 +583,8 @@ export default function ReportarV2Page() {
     width: "100%",
     fontSize: "16px",
     touchAction: "manipulation" as const,
-    border: "none",
-    borderRadius: "16px",
+    border: "1px solid rgba(128,184,255,0.50)",
+    borderRadius: "18px",
     padding: "14px",
     fontWeight: 900,
     cursor: "pointer",
@@ -594,31 +602,22 @@ export default function ReportarV2Page() {
   };
 
   return (
-    <main
-      className="ce-mobile-app-shell"
-      style={pageStyle}
-      onDoubleClick={(event) => {
-        event.preventDefault();
-      }}
-    >
+    <>
+      <PremiumMobileViewport />
+      <main
+        className="ce-mobile-app-shell"
+        style={pageStyle}
+        onDoubleClick={(event) => {
+          event.preventDefault();
+        }}
+      >
       <div style={containerStyle}>
+        <HeaderReportePremium
+          subtitulo="Reporte preventivo"
+          detalle="Evidencia, ubicación, responsable y trazabilidad de terreno."
+        />
+        <EtapasPremium actual={1} />
         <header style={{ marginBottom: "14px" }}>
-          <div
-            style={{
-              width: "76px",
-              height: "76px",
-              borderRadius: "50%",
-              margin: "0 0 12px",
-              backgroundImage: "url('/logo.png')",
-              backgroundPosition: "center",
-              backgroundRepeat: "no-repeat",
-              backgroundSize: "cover",
-              overflow: "hidden",
-              border: "1px solid rgba(255,255,255,0.28)",
-              boxShadow: "0 14px 28px rgba(0,0,0,0.28)",
-            }}
-            aria-label="Logo Criterio Estratégico"
-          />
           <a
             href="/evaluar-v2"
             style={{
@@ -648,9 +647,9 @@ export default function ReportarV2Page() {
               marginTop: "10px",
               padding: "6px 10px",
               borderRadius: "999px",
-              background: "rgba(103,239,72,0.14)",
-              border: "1px solid rgba(103,239,72,0.28)",
-              color: "#d9f99d",
+              background: "rgba(32,123,255,0.16)",
+              border: "1px solid rgba(112,182,255,0.34)",
+              color: "rgba(221,240,255,0.92)",
               fontSize: "11px",
               lineHeight: 1,
               fontWeight: 900,
@@ -671,7 +670,7 @@ export default function ReportarV2Page() {
           >
             El reporte queda asociado a usuario, fecha, evidencia, ubicación GPS,
             criticidad y trazabilidad para seguimiento preventivo.
-          </p>
+            </p>
         </header>
 
         <section
@@ -865,11 +864,15 @@ export default function ReportarV2Page() {
             style={{
               ...buttonStyle,
               marginBottom: "12px",
-              color: "#08172d",
+              color: "white",
               background:
                 fotos.length >= 3
                   ? "rgba(255,255,255,0.42)"
-                  : "linear-gradient(135deg, #67ef48 0%, #d7ff39 100%)",
+                  : "linear-gradient(180deg, #2593ff 0%, #145ee9 48%, #07339b 100%)",
+              boxShadow:
+                fotos.length >= 3
+                  ? "none"
+                  : "0 18px 32px rgba(15,94,255,0.34), inset 0 1px 0 rgba(255,255,255,0.28)",
               opacity: fotos.length >= 3 || procesandoFotos ? 0.72 : 1,
               ...estiloFeedback("tomar-foto"),
             }}
@@ -1084,18 +1087,21 @@ export default function ReportarV2Page() {
           {...feedbackBoton("validar")}
           style={{
             ...buttonStyle,
-            color: "#08172d",
+            color: "white",
             background: navegando
               ? "rgba(255,255,255,0.18)"
-              : "linear-gradient(135deg, #facc15, #f97316)",
-            boxShadow: "0 14px 28px rgba(249,115,22,0.22)",
+              : "linear-gradient(180deg, #2593ff 0%, #145ee9 48%, #07339b 100%)",
+            boxShadow:
+              "0 20px 36px rgba(15,94,255,0.42), inset 0 1px 0 rgba(255,255,255,0.30), inset 0 -10px 24px rgba(0,18,94,0.30)",
             opacity: navegando ? 0.72 : 1,
             ...estiloFeedback("validar"),
           }}
         >
           {navegando ? "Continuando..." : "Validar reporte"}
         </button>
+        <FirmaPremium />
       </div>
-    </main>
+      </main>
+    </>
   );
 }
