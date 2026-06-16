@@ -20,6 +20,12 @@ import {
   type EstadoLocalReporteV2,
   type ReporteV2Storage,
 } from "../storageReporteV2";
+import {
+  EtapasPremium,
+  FirmaPremium,
+  HeaderReportePremium,
+  PremiumMobileViewport,
+} from "../evaluacion/componentesPremium";
 
 type FotoV2 = {
   id: string;
@@ -121,27 +127,27 @@ function obtenerEstiloCriticidad(criticidad?: string) {
   if (criticidad === "CRÍTICO") {
     return {
       background:
-        "linear-gradient(180deg, rgba(255,90,90,0.96) 0%, rgba(185,32,32,0.90) 100%)",
-      border: "1px solid rgba(255,255,255,0.22)",
-      boxShadow: "0 18px 36px rgba(185,32,32,0.34)",
+        "linear-gradient(180deg, rgba(190,24,45,0.98) 0%, rgba(88,12,24,0.94) 100%)",
+      border: "1px solid rgba(255,164,164,0.38)",
+      boxShadow: "0 18px 36px rgba(127,29,29,0.36)",
     };
   }
 
   if (criticidad === "ALTO") {
     return {
       background:
-        "linear-gradient(180deg, rgba(250,173,20,0.96) 0%, rgba(196,120,12,0.90) 100%)",
-      border: "1px solid rgba(255,255,255,0.22)",
-      boxShadow: "0 18px 36px rgba(196,120,12,0.34)",
+        "linear-gradient(180deg, rgba(249,115,22,0.98) 0%, rgba(194,65,12,0.92) 100%)",
+      border: "1px solid rgba(255,190,128,0.42)",
+      boxShadow: "0 18px 36px rgba(194,65,12,0.34)",
     };
   }
 
   if (criticidad === "MEDIO") {
     return {
       background:
-        "linear-gradient(180deg, rgba(24,144,255,0.96) 0%, rgba(18,90,180,0.90) 100%)",
-      border: "1px solid rgba(255,255,255,0.22)",
-      boxShadow: "0 18px 36px rgba(18,90,180,0.34)",
+        "linear-gradient(180deg, rgba(234,179,8,0.96) 0%, rgba(161,98,7,0.90) 100%)",
+      border: "1px solid rgba(253,224,71,0.34)",
+      boxShadow: "0 18px 36px rgba(161,98,7,0.28)",
     };
   }
 
@@ -352,9 +358,9 @@ export default function InformeFinalV2Page() {
     minHeight: "100dvh",
     width: "100%",
     maxWidth: "100vw",
-    backgroundColor: "#061327",
+    backgroundColor: "#020b1f",
     background:
-      "radial-gradient(circle at 50% 0%, #2563eb 0%, #0b1f3a 42%, #061327 100%)",
+      "radial-gradient(circle at 22% 12%, rgba(60,130,220,0.46) 0%, rgba(7,32,68,0.92) 31%, rgba(2,12,32,1) 72%), linear-gradient(180deg, #05244a 0%, #020b1f 100%)",
     color: "white",
     fontFamily: "Arial, sans-serif",
     overflowX: "hidden" as const,
@@ -368,19 +374,21 @@ export default function InformeFinalV2Page() {
     maxWidth: "430px",
     margin: "0 auto",
     padding:
-      "calc(16px + env(safe-area-inset-top)) 16px calc(112px + env(safe-area-inset-bottom))",
+      "calc(12px + env(safe-area-inset-top)) 15px calc(36px + env(safe-area-inset-bottom))",
     boxSizing: "border-box" as const,
     overflowX: "hidden" as const,
+    overscrollBehaviorY: "contain" as const,
     touchAction: "pan-y" as const,
   };
 
   const cardStyle = {
-    borderRadius: "22px",
+    borderRadius: "18px",
     background:
-      "linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.07))",
-    border: "1px solid rgba(255,255,255,0.16)",
-    boxShadow: "0 18px 36px rgba(0,0,0,0.28)",
-    padding: "16px",
+      "linear-gradient(180deg, rgba(22,72,124,0.66), rgba(4,26,60,0.78))",
+    border: "1px solid rgba(151,197,255,0.30)",
+    boxShadow:
+      "0 18px 42px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.11), inset 0 -1px 0 rgba(33,150,243,0.10)",
+    padding: "14px",
     boxSizing: "border-box" as const,
     maxWidth: "100%",
     overflowX: "hidden" as const,
@@ -393,8 +401,8 @@ export default function InformeFinalV2Page() {
     maxWidth: "100%",
     fontSize: "16px",
     touchAction: "manipulation" as const,
-    border: "none",
-    borderRadius: "16px",
+    border: "1px solid rgba(128,184,255,0.50)",
+    borderRadius: "18px",
     padding: "14px",
     fontWeight: 900,
     cursor: "pointer",
@@ -419,75 +427,21 @@ export default function InformeFinalV2Page() {
   const estiloCriticidad = obtenerEstiloCriticidad(criticidad);
 
   return (
-    <main
-      className="ce-mobile-app-shell"
-      style={pageStyle}
-      onDoubleClick={(event) => {
-        event.preventDefault();
-      }}
-    >
+    <>
+      <PremiumMobileViewport />
+      <main
+        className="ce-mobile-app-shell"
+        style={pageStyle}
+        onDoubleClick={(event) => {
+          event.preventDefault();
+        }}
+      >
       <div style={containerStyle}>
-        <header style={{ textAlign: "center", marginBottom: "18px" }}>
-          <div
-            style={{
-              width: "88px",
-              height: "88px",
-              borderRadius: "50%",
-              margin: "0 auto 12px",
-              backgroundImage: "url('/logo.png')",
-              backgroundPosition: "center",
-              backgroundRepeat: "no-repeat",
-              backgroundSize: "cover",
-              overflow: "hidden",
-              border: "1px solid rgba(255,255,255,0.28)",
-              boxShadow: "0 16px 34px rgba(0,0,0,0.32)",
-            }}
-            aria-label="Logo Criterio Estratégico"
-          />
-          <div style={{ fontSize: "14px", fontWeight: 800, opacity: 0.82 }}>
-            Criterio Estratégico
-          </div>
-          <h1
-            style={{
-              margin: "8px 0 0",
-              fontSize: "25px",
-              lineHeight: 1.08,
-              fontWeight: 900,
-              letterSpacing: "0",
-            }}
-          >
-            INFORME FINAL PREVENTIVO
-          </h1>
-          <div
-            style={{
-              display: "inline-flex",
-              marginTop: "10px",
-              padding: "6px 10px",
-              borderRadius: "999px",
-              background: "rgba(103,239,72,0.14)",
-              border: "1px solid rgba(103,239,72,0.28)",
-              color: "#d9f99d",
-              fontSize: "11px",
-              lineHeight: 1,
-              fontWeight: 900,
-            }}
-          >
-            Trazabilidad preventiva · DS 44
-          </div>
-          <p
-            style={{
-              margin: "10px auto 0",
-              maxWidth: "360px",
-              fontSize: "13px",
-              lineHeight: 1.42,
-              fontWeight: 750,
-              opacity: 0.74,
-            }}
-          >
-            Informe preventivo orientado a evidencia documental, criticidad,
-            responsables, seguimiento de cierre y lectura ejecutiva de la gestión.
-          </p>
-        </header>
+        <HeaderReportePremium
+          subtitulo="Informe final preventivo"
+          detalle="Trazabilidad preventiva, evidencia, responsables y seguimiento de cierre."
+        />
+        <EtapasPremium actual={6} />
 
         {!cargado && (
           <section style={cardStyle}>Cargando informe...</section>
@@ -510,8 +464,9 @@ export default function InformeFinalV2Page() {
               {...feedbackBoton("volver-reportar")}
               style={{
                 ...buttonStyle,
-                color: "#08172d",
-                background: "linear-gradient(135deg, #67ef48 0%, #d7ff39 100%)",
+                color: "white",
+                background:
+                  "linear-gradient(180deg, #2593ff 0%, #145ee9 48%, #07339b 100%)",
                 ...estiloFeedback("volver-reportar"),
               }}
             >
@@ -974,17 +929,17 @@ export default function InformeFinalV2Page() {
                 disabled={guardando || guardado}
                 style={{
                   ...buttonStyle,
-                  color: guardado ? "white" : "#08172d",
+                  color: "white",
                   background: guardando
                     ? "rgba(255,255,255,0.18)"
                     : guardado && estadoSincronizacion === "central-ok"
                       ? "linear-gradient(135deg, #22c55e, #15803d)"
                       : guardado
                         ? "linear-gradient(135deg, #f59e0b, #c2410c)"
-                      : "linear-gradient(135deg, #facc15, #f97316)",
+                      : "linear-gradient(180deg, #2593ff 0%, #145ee9 48%, #07339b 100%)",
                   boxShadow: guardado && estadoSincronizacion === "central-ok"
                     ? "0 14px 28px rgba(34,197,94,0.22)"
-                    : "0 14px 28px rgba(249,115,22,0.22)",
+                    : "0 20px 36px rgba(15,94,255,0.42), inset 0 1px 0 rgba(255,255,255,0.30), inset 0 -10px 24px rgba(0,18,94,0.30)",
                   opacity: guardando ? 0.72 : 1,
                   ...estiloFeedback("guardar"),
                 }}
@@ -1084,8 +1039,9 @@ export default function InformeFinalV2Page() {
                 {...feedbackBoton("inicio")}
                 style={{
                   ...buttonStyle,
-                  color: "#08172d",
-                  background: "linear-gradient(135deg, #67ef48 0%, #d7ff39 100%)",
+                  color: "white",
+                  background:
+                    "linear-gradient(180deg, rgba(22,72,124,0.72), rgba(4,26,60,0.84))",
                   ...estiloFeedback("inicio"),
                 }}
               >
@@ -1094,7 +1050,9 @@ export default function InformeFinalV2Page() {
             </div>
           </>
         )}
+        <FirmaPremium />
       </div>
-    </main>
+      </main>
+    </>
   );
 }

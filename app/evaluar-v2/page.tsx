@@ -33,6 +33,10 @@ import {
   SUPERVISOR_V2_VACIO,
   type SupervisorV2,
 } from "./supervisorProfileStorage";
+import {
+  FirmaPremium,
+  PremiumMobileViewport,
+} from "./evaluacion/componentesPremium";
 
 const textosMobileEn: Record<string, string> = {
   "Supervisor activo": "Active supervisor",
@@ -483,13 +487,11 @@ export default function EvaluarV2HomePage() {
     minHeight: "100dvh",
     width: "100%",
     maxWidth: "100vw",
-    display: "grid",
-    alignItems: "center",
-    backgroundColor: "#061327",
+    backgroundColor: "#020b1f",
     background:
       temaClaro
-        ? "radial-gradient(circle at 50% 0%, rgba(37,99,235,0.16) 0%, #f8fafc 42%, #eaf2ff 100%)"
-        : "radial-gradient(circle at 50% 0%, #2563eb 0%, #0b1f3a 42%, #061327 100%)",
+        ? "radial-gradient(circle at 18% 8%, rgba(78,148,255,0.20) 0%, #f8fafc 45%, #eaf2ff 100%)"
+        : "radial-gradient(circle at 22% 12%, rgba(60,130,220,0.46) 0%, rgba(7,32,68,0.92) 31%, rgba(2,12,32,1) 72%), linear-gradient(180deg, #05244a 0%, #020b1f 100%)",
     color: temaClaro ? "#0f172a" : "white",
     fontFamily: "Arial, sans-serif",
     overflowX: "hidden" as const,
@@ -504,23 +506,26 @@ export default function EvaluarV2HomePage() {
     minWidth: 0,
     margin: "0 auto",
     padding:
-      "calc(clamp(22px, 6dvh, 54px) + env(safe-area-inset-top)) 16px calc(clamp(20px, 4dvh, 42px) + env(safe-area-inset-bottom))",
+      "calc(12px + env(safe-area-inset-top)) 15px calc(32px + env(safe-area-inset-bottom))",
     boxSizing: "border-box" as const,
     overflowX: "hidden" as const,
+    overscrollBehaviorY: "contain" as const,
     touchAction: "pan-y" as const,
     display: "grid",
-    gap: "clamp(10px, 1.5dvh, 14px)",
+    gap: "12px",
   };
 
   const cardStyle = {
-    borderRadius: "22px",
+    borderRadius: "18px",
     background:
       temaClaro
         ? "linear-gradient(180deg, rgba(255,255,255,0.94), rgba(241,245,249,0.86))"
-        : "linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.07))",
-    border: temaClaro ? "1px solid rgba(100,116,139,0.22)" : "1px solid rgba(255,255,255,0.16)",
-    boxShadow: temaClaro ? "0 18px 36px rgba(15,23,42,0.12)" : "0 18px 36px rgba(0,0,0,0.28)",
-    padding: "16px",
+        : "linear-gradient(180deg, rgba(22,72,124,0.66), rgba(4,26,60,0.78))",
+    border: temaClaro ? "1px solid rgba(100,116,139,0.22)" : "1px solid rgba(151,197,255,0.30)",
+    boxShadow: temaClaro
+      ? "0 18px 36px rgba(15,23,42,0.12)"
+      : "0 18px 42px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.11), inset 0 -1px 0 rgba(33,150,243,0.10)",
+    padding: "14px",
     boxSizing: "border-box" as const,
     maxWidth: "100%",
     minWidth: 0,
@@ -545,8 +550,8 @@ export default function EvaluarV2HomePage() {
     width: "100%",
     fontSize: "16px",
     touchAction: "manipulation" as const,
-    border: "none",
-    borderRadius: "16px",
+    border: "1px solid rgba(128,184,255,0.50)",
+    borderRadius: "18px",
     padding: "15px",
     fontWeight: 900,
     cursor: "pointer",
@@ -556,28 +561,28 @@ export default function EvaluarV2HomePage() {
   };
 
   return (
-    <main
-      className="ce-mobile-app-shell"
-      style={pageStyle}
-      onDoubleClick={(event) => {
-        event.preventDefault();
-      }}
-    >
+    <>
+      <PremiumMobileViewport />
+      <main
+        className="ce-mobile-app-shell"
+        style={pageStyle}
+        onDoubleClick={(event) => {
+          event.preventDefault();
+        }}
+      >
       <div style={containerStyle}>
         <header style={{ textAlign: "center" }}>
           <div
             style={{
-              width: "clamp(74px, 20vw, 88px)",
-              height: "clamp(74px, 20vw, 88px)",
-              borderRadius: "50%",
-              margin: "0 auto clamp(10px, 1.6dvh, 14px)",
-              backgroundImage: "url('/logo.png')",
+              width: "72px",
+              height: "72px",
+              margin: "0 auto 6px",
+              backgroundColor: "transparent",
+              backgroundImage: "url('/assets/logo-ce.png')",
               backgroundPosition: "center",
               backgroundRepeat: "no-repeat",
-              backgroundSize: "cover",
-              overflow: "hidden",
-              border: "1px solid rgba(255,255,255,0.28)",
-              boxShadow: "0 16px 34px rgba(0,0,0,0.32)",
+              backgroundSize: "contain",
+              filter: "drop-shadow(0 12px 24px rgba(0,0,0,0.44))",
             }}
             aria-label="Logo Criterio Estratégico"
           />
@@ -841,14 +846,16 @@ export default function EvaluarV2HomePage() {
           onClick={irAReporte}
           disabled={navegandoReporte}
           {...feedbackBoton("reportar")}
-          style={{
-            ...buttonStyle,
-            display: "block",
-            textAlign: "center",
-            textDecoration: "none",
-            color: "#08172d",
-            background: "linear-gradient(135deg, #67ef48 0%, #d7ff39 100%)",
-            boxShadow: "0 14px 28px rgba(103,239,72,0.22)",
+            style={{
+              ...buttonStyle,
+              display: "block",
+              textAlign: "center",
+              textDecoration: "none",
+            color: "white",
+            background:
+              "linear-gradient(180deg, #2593ff 0%, #145ee9 48%, #07339b 100%)",
+            boxShadow:
+              "0 20px 36px rgba(15,94,255,0.42), inset 0 1px 0 rgba(255,255,255,0.30), inset 0 -10px 24px rgba(0,18,94,0.30)",
             opacity: navegandoReporte ? 0.76 : 1,
             ...estiloFeedback("reportar"),
           }}
@@ -1271,7 +1278,9 @@ export default function EvaluarV2HomePage() {
         <div>
           <PwaInstallCard theme={temaClaro ? "light" : "dark"} compact />
         </div>
+        <FirmaPremium />
       </div>
-    </main>
+      </main>
+    </>
   );
 }

@@ -19,7 +19,10 @@ import {
   type EvidenciaPanel,
 } from "./evidenciasPanel";
 import { cargarHallazgosPanelConFuentesOpcionales } from "./sources/hallazgosPanelSource";
-import { adaptarHallazgosCentralesAHallazgosPanel } from "../adapters/hallazgoCentralToHallazgoPanel";
+import {
+  adaptarHallazgosCentralesAHallazgosPanel,
+  type EvaluacionPreventivaPanel,
+} from "../adapters/hallazgoCentralToHallazgoPanel";
 import {
   actualizarHallazgoCentral,
   listarHallazgosCentrales,
@@ -66,6 +69,7 @@ type HallazgoPanelExtendido = HallazgoPanel & {
   evidenciasPanel?: EvidenciaPanel[];
   totalEvidencias?: number;
   evidenciasPendientesVisualizacion?: number;
+  evaluacionPreventiva?: EvaluacionPreventivaPanel;
   borradoLogico?: {
     fechaHora?: string;
     motivo?: string;
@@ -319,6 +323,15 @@ type FormatosExportacionConfig = Record<FormatoExportacion, boolean>;
 type FormatoHojaPDF = "carta" | "a4";
 type OrientacionPDF = "vertical" | "horizontal";
 type PerfilPermiso = "administrador" | "supervisor" | "gerencia" | "cliente";
+type LogoFitConfig = "contain" | "cover";
+
+type LogoAjusteConfig = {
+  logoScale: number;
+  logoOffsetX: number;
+  logoOffsetY: number;
+  logoFit: LogoFitConfig;
+  logoPosition: string;
+};
 
 type OpcionesPDFConfig = {
   evidenciaFotografica: boolean;
@@ -331,6 +344,11 @@ type OpcionesPDFConfig = {
 type PanelConfigPersistida = {
   nombreEmpresaConfig: string;
   logoEmpresaConfig: string;
+  logoScale: number;
+  logoOffsetX: number;
+  logoOffsetY: number;
+  logoFit: LogoFitConfig;
+  logoPosition: string;
   brandingPC: boolean;
   brandingPDF: boolean;
   formatosExportacion: FormatosExportacionConfig;
@@ -339,6 +357,39 @@ type PanelConfigPersistida = {
   modoSistema: "claro" | "oscuro" | "automatico";
   idiomaSistema: "es" | "en" | "auto";
 };
+
+const LOGO_AJUSTE_DEFECTO: LogoAjusteConfig = {
+  logoScale: 1,
+  logoOffsetX: 0,
+  logoOffsetY: 0,
+  logoFit: "contain",
+  logoPosition: "center",
+};
+
+function clampNumber(value: unknown, min: number, max: number, fallback: number) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return fallback;
+  return Math.min(max, Math.max(min, numericValue));
+}
+
+function normalizarLogoAjuste(
+  configuracion?: Partial<PanelConfigPersistida> | null
+): LogoAjusteConfig {
+  const logoFit = configuracion?.logoFit === "cover" ? "cover" : "contain";
+  const logoPosition =
+    typeof configuracion?.logoPosition === "string" &&
+    configuracion.logoPosition.trim()
+      ? configuracion.logoPosition.trim()
+      : LOGO_AJUSTE_DEFECTO.logoPosition;
+
+  return {
+    logoScale: clampNumber(configuracion?.logoScale, 0.6, 2.2, LOGO_AJUSTE_DEFECTO.logoScale),
+    logoOffsetX: clampNumber(configuracion?.logoOffsetX, -48, 48, LOGO_AJUSTE_DEFECTO.logoOffsetX),
+    logoOffsetY: clampNumber(configuracion?.logoOffsetY, -48, 48, LOGO_AJUSTE_DEFECTO.logoOffsetY),
+    logoFit,
+    logoPosition,
+  };
+}
 
 function leerConfiguracionPanelPersistida(): Partial<PanelConfigPersistida> | null {
   if (typeof window === "undefined") return null;
@@ -647,6 +698,26 @@ const [logoEmpresaConfig, setLogoEmpresaConfig] = useState(() => {
   return typeof configuracion?.logoEmpresaConfig === "string"
     ? configuracion.logoEmpresaConfig
     : "";
+});
+const [logoScale, setLogoScale] = useState(() => {
+  const configuracion = leerConfiguracionPanelPersistida();
+  return normalizarLogoAjuste(configuracion).logoScale;
+});
+const [logoOffsetX, setLogoOffsetX] = useState(() => {
+  const configuracion = leerConfiguracionPanelPersistida();
+  return normalizarLogoAjuste(configuracion).logoOffsetX;
+});
+const [logoOffsetY, setLogoOffsetY] = useState(() => {
+  const configuracion = leerConfiguracionPanelPersistida();
+  return normalizarLogoAjuste(configuracion).logoOffsetY;
+});
+const [logoFit, setLogoFit] = useState<LogoFitConfig>(() => {
+  const configuracion = leerConfiguracionPanelPersistida();
+  return normalizarLogoAjuste(configuracion).logoFit;
+});
+const [logoPosition, setLogoPosition] = useState(() => {
+  const configuracion = leerConfiguracionPanelPersistida();
+  return normalizarLogoAjuste(configuracion).logoPosition;
 });
 const [logoInputKey, setLogoInputKey] = useState(0);
 const [brandingPC, setBrandingPC] = useState(() => {
@@ -995,6 +1066,22 @@ const [menuExportacionMetaAbierto, setMenuExportacionMetaAbierto] = useState(fal
     "Seleccionar logo": "Select logo",
     "Quitar logo": "Remove logo",
     "Seleccione o quite el logo corporativo": "Select or remove the corporate logo",
+    "Ajuste de logo": "Logo adjustment",
+    "Tamaño": "Size",
+    "Mover horizontalmente": "Move horizontally",
+    "Mover verticalmente": "Move vertically",
+    "Encuadre": "Framing",
+    Contener: "Contain",
+    Cubrir: "Cover",
+    "Reducir tamaño": "Reduce size",
+    "Aumentar tamaño": "Increase size",
+    "Mover a la izquierda": "Move left",
+    "Mover a la derecha": "Move right",
+    "Mover arriba": "Move up",
+    "Mover abajo": "Move down",
+    "Restablecer ajuste": "Reset adjustment",
+    "Guardar ajuste": "Save adjustment",
+    "Fallback CE": "CE fallback",
     "Configuración local guardada en este navegador": "Local settings saved in this browser",
     "Debe existir al menos un formato de exportación activo": "At least one export format must remain active",
     "Apariencia del sistema": "System appearance",
@@ -1070,6 +1157,7 @@ const [menuExportacionMetaAbierto, setMenuExportacionMetaAbierto] = useState(fal
     "máximo 5 días": "maximum 5 days",
     "Plazo sugerido": "Suggested deadline",
     "Imprimir informe": "Print report",
+    "Imprimir / Guardar como PDF": "Print / Save as PDF",
     "Preparar correo": "Prepare email",
     "Generar resumen": "Generate summary",
     "Acciones operativas": "Operational actions",
@@ -1106,7 +1194,6 @@ const [menuExportacionMetaAbierto, setMenuExportacionMetaAbierto] = useState(fal
     "Evidencia fotográfica": "Photo evidence",
     "Sin evidencia fotográfica": "No photo evidence",
     "Medida inmediata": "Immediate action",
-    "Descargar PDF": "Download PDF",
     "Borrar hallazgo": "Delete finding",
     "Más acciones": "More actions",
     "Ver borrados": "View deleted",
@@ -1187,15 +1274,69 @@ const [menuExportacionMetaAbierto, setMenuExportacionMetaAbierto] = useState(fal
     mostrarLogoCliente: brandingPC,
     mostrarLogoCE: true,
   });
+  const informeBranding = resolveClientBranding({
+    nombreCliente: nombreEmpresaVisible,
+    logoUrl: logoEmpresaConfig,
+    mostrarLogoCliente: brandingPDF,
+    mostrarLogoCE: true,
+  });
+  const logoPreviewUrl = logoEmpresaConfig || clientBranding.logoCeUrl;
+  const logoPreviewNombre = logoEmpresaConfig ? nombreEmpresaVisible : "Criterio Estratégico";
+  const logoAjusteActual: LogoAjusteConfig = {
+    logoScale,
+    logoOffsetX,
+    logoOffsetY,
+    logoFit,
+    logoPosition,
+  };
+  const logoAjusteTransform = `translate(${logoOffsetX}px, ${logoOffsetY}px) scale(${logoScale})`;
+  const logoAjusteImageStyle: React.CSSProperties = {
+    width: "100%",
+    height: "100%",
+    objectFit: logoFit,
+    objectPosition: logoPosition,
+    transform: logoAjusteTransform,
+    transformOrigin: "center",
+    display: "block",
+  };
+  const logoDefaultImageStyle: React.CSSProperties = {
+    width: "100%",
+    height: "100%",
+    objectFit: "contain",
+    objectPosition: "center",
+    transform: "translate(0px, 0px) scale(1)",
+    transformOrigin: "center",
+    display: "block",
+  };
+  const logoPreviewImageStyle = logoEmpresaConfig
+    ? logoAjusteImageStyle
+    : logoDefaultImageStyle;
+  const panelUsaLogoEmpresa = Boolean(clientBranding.logoUrl && clientBranding.mostrarLogoCliente);
+  const panelLogoImageStyle = panelUsaLogoEmpresa
+    ? logoAjusteImageStyle
+    : logoDefaultImageStyle;
+  const informeUsaLogoEmpresa = Boolean(informeBranding.logoUrl && informeBranding.mostrarLogoCliente);
+  const logoScaleInforme = informeUsaLogoEmpresa ? logoScale : LOGO_AJUSTE_DEFECTO.logoScale;
+  const logoOffsetXInforme = informeUsaLogoEmpresa ? logoOffsetX : LOGO_AJUSTE_DEFECTO.logoOffsetX;
+  const logoOffsetYInforme = informeUsaLogoEmpresa ? logoOffsetY : LOGO_AJUSTE_DEFECTO.logoOffsetY;
+  const logoFitInforme = informeUsaLogoEmpresa ? logoFit : LOGO_AJUSTE_DEFECTO.logoFit;
+  const logoPositionInforme = informeUsaLogoEmpresa ? logoPosition : LOGO_AJUSTE_DEFECTO.logoPosition;
   const hayFormatoExportacionActivo = Object.values(formatosExportacion).some(Boolean);
   const cargarLogoEmpresa = async (archivo: File | undefined) => {
     if (!archivo) return;
 
     try {
       const logoPreparado = await prepararLogoEmpresaParaPersistencia(archivo);
+      const ajusteInicial = LOGO_AJUSTE_DEFECTO;
       setLogoEmpresaConfig(logoPreparado);
+      setLogoScale(ajusteInicial.logoScale);
+      setLogoOffsetX(ajusteInicial.logoOffsetX);
+      setLogoOffsetY(ajusteInicial.logoOffsetY);
+      setLogoFit(ajusteInicial.logoFit);
+      setLogoPosition(ajusteInicial.logoPosition);
       guardarConfiguracionPanelPersistida({
         logoEmpresaConfig: logoPreparado,
+        ...ajusteInicial,
       });
     } catch (error) {
       console.warn("No se pudo cargar el logo de empresa.", error);
@@ -1203,11 +1344,32 @@ const [menuExportacionMetaAbierto, setMenuExportacionMetaAbierto] = useState(fal
   };
 
   const quitarLogoEmpresa = () => {
+    const ajusteInicial = LOGO_AJUSTE_DEFECTO;
     setLogoEmpresaConfig("");
+    setLogoScale(ajusteInicial.logoScale);
+    setLogoOffsetX(ajusteInicial.logoOffsetX);
+    setLogoOffsetY(ajusteInicial.logoOffsetY);
+    setLogoFit(ajusteInicial.logoFit);
+    setLogoPosition(ajusteInicial.logoPosition);
     guardarConfiguracionPanelPersistida({
       logoEmpresaConfig: "",
+      ...ajusteInicial,
     });
     setLogoInputKey((valor) => valor + 1);
+  };
+
+  const guardarAjusteLogo = () => {
+    guardarConfiguracionPanelPersistida(logoAjusteActual);
+    setGuardadoConfig(true);
+  };
+
+  const restablecerAjusteLogo = () => {
+    const ajusteInicial = LOGO_AJUSTE_DEFECTO;
+    setLogoScale(ajusteInicial.logoScale);
+    setLogoOffsetX(ajusteInicial.logoOffsetX);
+    setLogoOffsetY(ajusteInicial.logoOffsetY);
+    setLogoFit(ajusteInicial.logoFit);
+    setLogoPosition(ajusteInicial.logoPosition);
   };
 
   const alternarFormatoExportacion = (formato: FormatoExportacion) => {
@@ -1242,6 +1404,11 @@ const [menuExportacionMetaAbierto, setMenuExportacionMetaAbierto] = useState(fal
     const configuracion: PanelConfigPersistida = {
       nombreEmpresaConfig: nombreEmpresaVisible,
       logoEmpresaConfig,
+      logoScale,
+      logoOffsetX,
+      logoOffsetY,
+      logoFit,
+      logoPosition,
       brandingPC,
       brandingPDF,
       formatosExportacion,
@@ -1283,6 +1450,13 @@ const [menuExportacionMetaAbierto, setMenuExportacionMetaAbierto] = useState(fal
       if (typeof configuracion.logoEmpresaConfig === "string") {
         setLogoEmpresaConfig(configuracion.logoEmpresaConfig);
       }
+
+      const ajusteLogoGuardado = normalizarLogoAjuste(configuracion);
+      setLogoScale(ajusteLogoGuardado.logoScale);
+      setLogoOffsetX(ajusteLogoGuardado.logoOffsetX);
+      setLogoOffsetY(ajusteLogoGuardado.logoOffsetY);
+      setLogoFit(ajusteLogoGuardado.logoFit);
+      setLogoPosition(ajusteLogoGuardado.logoPosition);
 
       if (typeof configuracion.brandingPC === "boolean") {
         setBrandingPC(configuracion.brandingPC);
@@ -1509,7 +1683,8 @@ const exportarExcel = () => {
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
 };
-const generarInformeEmpresaObra = () => {
+const generarInformeEmpresaObra = (opciones: { imprimir?: boolean } = {}) => {
+  const imprimirAlAbrir = opciones.imprimir === true;
   const hallazgoSeleccionadoParaInforme = hallazgoSeleccionadoInforme;
   const filasInformeEmpresaObra = hallazgoSeleccionadoParaInforme
     ? [hallazgoSeleccionadoParaInforme]
@@ -1972,12 +2147,15 @@ const generarInformeEmpresaObra = () => {
   const pagina1Html = `
     <section class="sheet">
       <div class="header">
-        <div>
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-            <img src="${escapeHtml(clientBranding.logoPrincipalUrl)}" alt="${escapeHtml(clientBranding.nombrePrincipal)}" style="width:42px;height:42px;object-fit:contain;border:1px solid #dbeafe;border-radius:10px;background:#fff;padding:4px;" />
-            <div>
-              <h1>INFORME EJECUTIVO PREVENTIVO</h1>
-              <div class="sub">${escapeHtml(clientBranding.nombrePrincipal)} · ${escapeHtml(clientBranding.poweredByText)} · Emisión: ${escapeHtml(fechaEmision)}</div>
+        <div class="report-brand">
+          <div class="report-logo-slot">
+            <img class="report-logo" src="${escapeHtml(informeBranding.logoPrincipalUrl)}" alt="${escapeHtml(informeBranding.nombrePrincipal)}" />
+          </div>
+          <div class="report-title-block">
+            <div class="report-brand-name">${escapeHtml(informeBranding.nombrePrincipal)}</div>
+            <h1>INFORME EJECUTIVO PREVENTIVO</h1>
+            <div class="sub">
+              ${escapeHtml(informeBranding.poweredByText)} · Emisión: ${escapeHtml(fechaEmision)}
             </div>
           </div>
         </div>
@@ -2402,12 +2580,20 @@ const generarInformeEmpresaObra = () => {
             box-sizing: border-box;
           }
 
+          html {
+            min-height: 100%;
+            background: #e5e7eb;
+            overflow-y: auto;
+          }
+
           body {
             margin: 0;
             padding: 24px 0 48px;
             font-family: Arial, sans-serif;
             color: #111827;
             background: #e5e7eb;
+            min-height: 100vh;
+            overflow-y: auto;
           }
 
           .source-report {
@@ -2435,8 +2621,11 @@ const generarInformeEmpresaObra = () => {
 
           .paged-report {
             display: grid;
-            gap: 28px;
+            gap: 12px;
             justify-content: center;
+            min-height: 100vh;
+            padding-bottom: 18px;
+            overflow: visible;
           }
 
           .preview-status {
@@ -2455,8 +2644,15 @@ const generarInformeEmpresaObra = () => {
 
           .preview-page-shell {
             display: grid;
-            gap: 8px;
+            gap: 4px;
             justify-items: center;
+            page-break-after: always;
+            break-after: page;
+          }
+
+          .preview-page-shell:last-child {
+            page-break-after: auto;
+            break-after: auto;
           }
 
           .preview-page-label {
@@ -2473,17 +2669,35 @@ const generarInformeEmpresaObra = () => {
             max-width: calc(100vw - 48px);
             height: 279mm;
             margin: 0 auto;
-            padding: 12mm;
+            padding: 10mm;
             background: #ffffff;
             border: 1px solid #d1d5db;
             border-radius: 8px;
             box-shadow: 0 2px 14px rgba(15, 23, 42, 0.12);
-            overflow: hidden;
+            overflow: visible;
           }
 
           .preview-page-content {
-            height: 255mm;
-            overflow: hidden;
+            height: 259mm;
+            overflow: visible;
+          }
+
+          .preview-page-content > .sheet {
+            width: 100%;
+            min-height: auto;
+            margin: 0;
+            padding: 0;
+            background: transparent;
+          }
+
+          .preview-page-shell.is-flexible-page .preview-page {
+            height: auto;
+            min-height: 279mm;
+          }
+
+          .preview-page-shell.is-flexible-page .preview-page-content {
+            height: auto;
+            min-height: 259mm;
           }
 
           .page-flow-block {
@@ -2491,7 +2705,7 @@ const generarInformeEmpresaObra = () => {
           }
 
           .page-flow-block + .page-flow-block {
-            margin-top: 12px;
+            margin-top: 8px;
           }
 
           .header,
@@ -2500,18 +2714,62 @@ const generarInformeEmpresaObra = () => {
             justify-content: space-between;
             align-items: flex-start;
             gap: 16px;
-            margin-bottom: 18px;
+            margin-bottom: 14px;
+          }
+
+          .report-brand {
+            display: grid;
+            grid-template-columns: 84px minmax(0, 1fr);
+            gap: 16px;
+            align-items: center;
+            min-width: 0;
+          }
+
+          .report-logo-slot {
+            width: 84px;
+            height: 72px;
+            border: 1px solid #cbd5e1;
+            border-radius: 14px;
+            background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8px;
+            overflow: hidden;
+          }
+
+          .report-logo {
+            width: 100%;
+            height: 100%;
+            object-fit: ${logoFitInforme};
+            object-position: ${escapeHtml(logoPositionInforme)};
+            transform: translate(${logoOffsetXInforme}px, ${logoOffsetYInforme}px) scale(${logoScaleInforme});
+            transform-origin: center;
+            display: block;
+          }
+
+          .report-title-block {
+            min-width: 0;
+          }
+
+          .report-brand-name {
+            margin-bottom: 4px;
+            color: #163a70;
+            font-size: 12px;
+            font-weight: 900;
+            letter-spacing: 0.7px;
+            text-transform: uppercase;
           }
 
           h1 {
             margin: 0 0 6px;
-            font-size: 28px;
+            font-size: 26px;
             line-height: 1.1;
           }
 
           .page-title {
             margin: 0 0 6px;
-            font-size: 24px;
+            font-size: 21px;
             line-height: 1.15;
           }
 
@@ -2544,8 +2802,8 @@ const generarInformeEmpresaObra = () => {
           .meta-grid {
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 12px;
-            margin-bottom: 16px;
+            gap: 9px;
+            margin-bottom: 10px;
           }
 
           .meta-item,
@@ -2558,7 +2816,7 @@ const generarInformeEmpresaObra = () => {
           }
 
           .meta-item {
-            padding: 10px 12px;
+            padding: 8px 10px;
           }
 
           .label,
@@ -2578,12 +2836,12 @@ const generarInformeEmpresaObra = () => {
           .generated-by-card {
             display: grid;
             grid-template-columns: 58px minmax(0, 1fr) minmax(150px, 0.45fr);
-            gap: 12px;
+            gap: 10px;
             align-items: center;
-            margin: 0 0 14px;
+            margin: 0 0 10px;
             border: 1px solid #d1d5db;
             border-radius: 12px;
-            padding: 12px;
+            padding: 10px;
             background: #f8fafc;
           }
 
@@ -2653,30 +2911,30 @@ const generarInformeEmpresaObra = () => {
           .grid-2 {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 14px;
-            margin-top: 14px;
+            gap: 10px;
+            margin-top: 10px;
           }
 
           .card {
-            padding: 14px;
+            padding: 11px;
           }
 
           .section-title {
-            margin-bottom: 10px;
+            margin-bottom: 7px;
             font-weight: 800;
           }
 
          .ranking-card {
   display: grid;
   grid-template-columns: 120px 1fr;
-  gap: 12px;
+  gap: 10px;
   align-items: start;
 }
 
 .ranking-badge {
-  min-height: 92px;
+  min-height: 82px;
   border-radius: 12px;
-  padding: 12px 10px;
+  padding: 10px 9px;
   color: #ffffff;
   display: flex;
   flex-direction: column;
@@ -2705,9 +2963,9 @@ const generarInformeEmpresaObra = () => {
 }
 
           .ranking-info {
-            display: grid;
-            gap: 10px;
-          }
+  display: grid;
+  gap: 7px;
+}
 
           .ranking-chip {
             display: inline-flex;
@@ -2715,8 +2973,8 @@ const generarInformeEmpresaObra = () => {
             gap: 8px;
             width: fit-content;
             border: 1px solid #d1d5db;
-            border-radius: 999px;
-            padding: 6px 10px;
+  border-radius: 999px;
+  padding: 5px 9px;
             background: #f9fafb;
             font-size: 12px;
             font-weight: 800;
@@ -2734,7 +2992,7 @@ const generarInformeEmpresaObra = () => {
           .text-block {
             font-size: 13px;
             color: #374151;
-            line-height: 1.65;
+            line-height: 1.5;
           }
 
           .strong {
@@ -2744,23 +3002,23 @@ const generarInformeEmpresaObra = () => {
          .kpi-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
+  gap: 8px;
 }
 
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 8px;
 }
 
 .kpi,
 .summary-stat {
-  padding: 12px;
+  padding: 10px;
 }
 
 .kpi-value {
-  margin-top: 6px;
-  font-size: 24px;
+  margin-top: 5px;
+  font-size: 21px;
   font-weight: 900;
   line-height: 1;
 }
@@ -2775,13 +3033,13 @@ const generarInformeEmpresaObra = () => {
 
           .bar-list {
             display: grid;
-            gap: 12px;
+            gap: 8px;
           }
 
           .bar-row {
             display: grid;
             grid-template-columns: 140px 1fr 48px;
-            gap: 10px;
+            gap: 8px;
             align-items: center;
           }
 
@@ -2829,7 +3087,7 @@ const generarInformeEmpresaObra = () => {
           .table-report th,
           .table-report td {
             border: 1px solid #d1d5db;
-            padding: 8px 10px;
+            padding: 6px 8px;
             text-align: left;
             vertical-align: top;
           }
@@ -2847,13 +3105,13 @@ const generarInformeEmpresaObra = () => {
 
           .finding-list {
             display: grid;
-            gap: 12px;
+            gap: 8px;
           }
 
           .finding-card {
             border: 1px solid #d1d5db;
             border-radius: 12px;
-            padding: 12px;
+            padding: 10px;
             background: #ffffff;
           }
 
@@ -2861,8 +3119,8 @@ const generarInformeEmpresaObra = () => {
             display: flex;
             align-items: flex-start;
             justify-content: space-between;
-            gap: 12px;
-            margin-bottom: 10px;
+            gap: 10px;
+            margin-bottom: 8px;
           }
 
           .finding-code {
@@ -2891,13 +3149,13 @@ const generarInformeEmpresaObra = () => {
           .finding-grid {
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 10px;
+            gap: 8px;
           }
 
           .finding-field {
             border: 1px solid #e5e7eb;
             border-radius: 10px;
-            padding: 9px 10px;
+            padding: 7px 9px;
             background: #f9fafb;
           }
 
@@ -2914,7 +3172,7 @@ const generarInformeEmpresaObra = () => {
             margin-top: 10px;
             border: 1px solid #dbe2ea;
             border-radius: 10px;
-            padding: 10px;
+            padding: 8px;
             background: #f8fafc;
           }
 
@@ -2922,7 +3180,7 @@ const generarInformeEmpresaObra = () => {
             margin-top: 6px;
             color: #1f2937;
             font-size: 12.5px;
-            line-height: 1.55;
+            line-height: 1.45;
             white-space: pre-wrap;
             overflow-wrap: anywhere;
           }
@@ -2951,13 +3209,13 @@ const generarInformeEmpresaObra = () => {
 
           .evidence-list {
             display: grid;
-            gap: 14px;
+            gap: 9px;
           }
 
           .evidence-card {
             border: 1px solid #d1d5db;
             border-radius: 12px;
-            padding: 12px;
+            padding: 10px;
             background: #ffffff;
           }
 
@@ -2965,8 +3223,8 @@ const generarInformeEmpresaObra = () => {
             display: flex;
             align-items: flex-start;
             justify-content: space-between;
-            gap: 12px;
-            margin-bottom: 10px;
+            gap: 10px;
+            margin-bottom: 8px;
           }
 
           .evidence-code {
@@ -3042,6 +3300,8 @@ const generarInformeEmpresaObra = () => {
 
             .paged-report {
               display: block;
+              min-height: auto;
+              padding-bottom: 0;
             }
 
             .preview-page-shell {
@@ -3117,6 +3377,8 @@ const generarInformeEmpresaObra = () => {
             var previewStatus = document.getElementById("preview-status");
             var sourceHtml = source ? source.innerHTML : "";
             var frame = 0;
+            var imprimirAutomaticamente = ${imprimirAlAbrir ? "true" : "false"};
+            var impresionProgramada = false;
 
             function crearPagina() {
               var shell = document.createElement("section");
@@ -3140,15 +3402,30 @@ const generarInformeEmpresaObra = () => {
               };
             }
 
-            function crearBloque(elementos) {
+            function crearBloque(elementos, claseLista) {
               var block = document.createElement("div");
               block.className = "page-flow-block";
 
               elementos.forEach(function (elemento) {
-                block.appendChild(elemento);
+                block.appendChild(elemento.cloneNode(true));
               });
 
+              if (claseLista) {
+                block.className += " " + claseLista;
+              }
+
               return block;
+            }
+
+            function crearBloqueLista(tarjetas, claseLista) {
+              var wrapper = document.createElement("div");
+              wrapper.className = claseLista;
+
+              tarjetas.forEach(function (tarjeta) {
+                wrapper.appendChild(tarjeta.cloneNode(true));
+              });
+
+              return crearBloque([wrapper]);
             }
 
             function recolectarBloques() {
@@ -3161,22 +3438,28 @@ const generarInformeEmpresaObra = () => {
                 for (var index = 0; index < children.length; index += 1) {
                   var child = children[index];
                   var next = children[index + 1];
-                  var isPageHead = child.classList && child.classList.contains("page-head");
-                  var nextIsEvidenceList =
-                    next && next.classList && next.classList.contains("evidence-list");
+                  var isPageHead =
+                    child.classList && child.classList.contains("page-head");
                   var nextIsFindingList =
                     next && next.classList && next.classList.contains("finding-list");
+                  var nextIsEvidenceList =
+                    next && next.classList && next.classList.contains("evidence-list");
 
-                  if (isPageHead && (nextIsEvidenceList || nextIsFindingList)) {
-                    var detailCards = Array.prototype.slice.call(next.children);
+                  if (isPageHead && (nextIsFindingList || nextIsEvidenceList)) {
+                    var listClass = nextIsFindingList ? "finding-list" : "evidence-list";
+                    var cards = Array.prototype.slice.call(next.children);
 
-                    if (detailCards.length > 0) {
-                      bloques.push(crearBloque([child, detailCards.shift()]));
-                      detailCards.forEach(function (card) {
-                        bloques.push(crearBloque([card]));
-                      });
-                    } else {
+                    if (cards.length === 0) {
                       bloques.push(crearBloque([child, next]));
+                    } else {
+                      var firstList = document.createElement("div");
+                      firstList.className = listClass;
+                      firstList.appendChild(cards[0].cloneNode(true));
+                      bloques.push(crearBloque([child, firstList]));
+
+                      cards.slice(1).forEach(function (card) {
+                        bloques.push(crearBloqueLista([card], listClass));
+                      });
                     }
 
                     index += 1;
@@ -3186,6 +3469,20 @@ const generarInformeEmpresaObra = () => {
                   if (isPageHead && next) {
                     bloques.push(crearBloque([child, next]));
                     index += 1;
+                    continue;
+                  }
+
+                  if (
+                    child.classList &&
+                    (child.classList.contains("finding-list") ||
+                      child.classList.contains("evidence-list"))
+                  ) {
+                    var childListClass = child.classList.contains("finding-list")
+                      ? "finding-list"
+                      : "evidence-list";
+                    Array.prototype.slice.call(child.children).forEach(function (card) {
+                      bloques.push(crearBloqueLista([card], childListClass));
+                    });
                     continue;
                   }
 
@@ -3202,6 +3499,33 @@ const generarInformeEmpresaObra = () => {
                 imagen.addEventListener("load", programarPaginacion, { once: true });
                 imagen.addEventListener("error", programarPaginacion, { once: true });
               });
+            }
+
+            function actualizarPaginasFlexibles() {
+              if (!pagedReport) return;
+
+              Array.prototype.slice
+                .call(pagedReport.querySelectorAll(".preview-page-shell"))
+                .forEach(function (paginaShell) {
+                  var content = paginaShell.querySelector(".preview-page-content");
+                  if (!content) return;
+
+                  paginaShell.classList.remove("is-flexible-page");
+
+                  if (content.scrollHeight > content.clientHeight + 2) {
+                    paginaShell.classList.add("is-flexible-page");
+                  }
+                });
+            }
+
+            function imprimirInformeActual() {
+              if (!imprimirAutomaticamente || impresionProgramada) return;
+
+              impresionProgramada = true;
+              window.setTimeout(function () {
+                window.focus();
+                window.print();
+              }, 1050);
             }
 
             function paginarInforme() {
@@ -3237,6 +3561,8 @@ const generarInformeEmpresaObra = () => {
                 }
               });
 
+              actualizarPaginasFlexibles();
+
               if (previewStatus) {
                 previewStatus.textContent =
                   "Vista previa de impresión · " +
@@ -3245,6 +3571,7 @@ const generarInformeEmpresaObra = () => {
               }
 
               registrarImagenes();
+              imprimirInformeActual();
             }
 
             function programarPaginacion() {
@@ -3271,10 +3598,6 @@ const generarInformeEmpresaObra = () => {
   ventana.document.write(html);
   ventana.document.close();
   ventana.focus();
-
-  setTimeout(() => {
-    ventana.print();
-  }, 350);
 };
 useEffect(() => {
   let frame = 0;
@@ -5826,298 +6149,6 @@ const totalEstadoReportes = estadoReportesResumen.reduce(
   (sum, item) => sum + item.total,
   0
 );
-const descargarPDFHallazgoActivo = async () => {
-  const escapeHtml = (valor: unknown) =>
-    String(valor ?? "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
-
-  const h = hallazgoActivo;
-
-  const html = `
-    <!DOCTYPE html>
-    <html lang="es">
-      <head>
-        <meta charset="UTF-8" />
-        <title>${escapeHtml(h.codigo)}</title>
-        <style>
-          body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 32px;
-            color: #111827;
-            background: white;
-          }
-          .wrap {
-            max-width: 900px;
-            margin: 0 auto;
-          }
-          h1 {
-            font-size: 24px;
-            margin: 0 0 8px;
-          }
-          .sub {
-            color: #4b5563;
-            margin-bottom: 24px;
-          }
-          .grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px 20px;
-          }
-          .label {
-            font-size: 12px;
-            color: #6b7280;
-            margin-bottom: 4px;
-          }
-          .value {
-            font-size: 14px;
-            font-weight: 700;
-          }
-          .card {
-            border: 1px solid #d1d5db;
-            border-radius: 12px;
-            padding: 14px;
-            margin-top: 14px;
-          }
-          .text {
-            white-space: pre-wrap;
-            line-height: 1.5;
-            font-size: 14px;
-          }
-          .chip {
-  display: inline-block;
-  padding: 6px 10px;
-  border-radius: 999px;
-  border: 1px solid #d1d5db;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.evidence-grid {
-  margin-top: 8px;
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  align-items: flex-start;
-}
-
-.evidence-thumb {
-  width: 190px;
-  height: 190px;
-  border: 1px solid #d1d5db;
-  border-radius: 10px;
-  padding: 6px;
-  background: #f9fafb;
-  box-sizing: border-box;
-  overflow: hidden;
-  flex: 0 0 auto;
-}
-
-.evidence-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 8px;
-  display: block;
-}
-
-.evidence-note,
-.evidence-pending {
-  margin-top: 8px;
-  color: #6b7280;
-  font-size: 12px;
-  line-height: 1.45;
-}
-
-.evidence-pending {
-  border: 1px solid #d1d5db;
-  border-radius: 10px;
-  padding: 12px;
-  background: #f9fafb;
-}
-
-@page {
-  size: Letter;
-  margin: 16mm;
-}
-
-.page {
-  width: min(216mm, calc(100vw - 64px));
-  min-height: 279mm;
-  margin: 0 auto;
-  padding: 16mm;
-  background: #ffffff;
-  box-sizing: border-box;
-}
-
-.wrap {
-  max-width: 100%;
-  margin: 0 auto;
-}
-
-@media screen {
-  body {
-    margin: 0;
-    padding: 32px 0 64px;
-    background: #e5e7eb;
-  }
-
-  .page {
-    border: 1px solid #d1d5db;
-    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
-    border-radius: 4px;
-  }
-}
-
-@media print {
-  body {
-    margin: 0;
-    padding: 0;
-    background: #ffffff;
-  }
-
-  .page {
-    width: auto;
-    min-height: auto;
-    margin: 0;
-    padding: 0;
-    border: none;
-    box-shadow: none;
-    border-radius: 0;
-  }
-}
-        </style>
-      </head>
-      <body>
-      <div class="page">
-        <div class="wrap">
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
-            <img src="${escapeHtml(clientBranding.logoPrincipalUrl)}" alt="${escapeHtml(clientBranding.nombrePrincipal)}" style="width:42px;height:42px;object-fit:contain;border:1px solid #dbeafe;border-radius:10px;background:#fff;padding:4px;" />
-            <div>
-              <h1>INFORME EJECUTIVO PREVENTIVO</h1>
-              <div class="sub">${escapeHtml(clientBranding.nombrePrincipal)} · ${escapeHtml(clientBranding.poweredByText)}</div>
-            </div>
-          </div>
-          <div style="margin:10px 0 16px;padding:10px 12px;border:1px solid #bfdbfe;border-radius:10px;background:#eff6ff;color:#1e3a8a;font-size:12px;line-height:1.45;font-weight:700;">
-            Herramienta de apoyo a la gestión preventiva y trazabilidad de hallazgos, alineada a Ley 16.744, DS 44 y DS 594.
-          </div>
-
-          <div class="grid">
-            <div>
-              <div class="label">Código</div>
-              <div class="value">${escapeHtml(h.codigo)}</div>
-            </div>
-            <div>
-              <div class="label">Fecha / Hora</div>
-              <div class="value">${escapeHtml(h.fechaHora)}</div>
-            </div>
-            <div>
-              <div class="label">Empresa</div>
-              <div class="value">${escapeHtml(h.empresa)}</div>
-            </div>
-            <div>
-              <div class="label">Estado</div>
-              <div class="value">${escapeHtml(h.estado)}</div>
-            </div>
-            <div>
-              <div class="label">Reportante</div>
-              <div class="value">${escapeHtml(h.reportante)}</div>
-            </div>
-            <div>
-              <div class="label">Cargo</div>
-              <div class="value">${escapeHtml(h.cargo)}</div>
-            </div>
-            <div>
-              <div class="label">Teléfono</div>
-              <div class="value">${escapeHtml(h.telefono)}</div>
-            </div>
-            <div>
-              <div class="label">Tipo de hallazgo</div>
-              <div class="value">${escapeHtml(h.tipoHallazgo)}</div>
-            </div>
-            <div>
-              <div class="label">Criticidad</div>
-              <div class="chip">${escapeHtml(h.criticidad)}</div>
-            </div>
-          </div>
-
-         <div class="card">
-  <div class="label">Descripción</div>
-  <div class="text">${escapeHtml(h.descripcion)}</div>
-</div>
-
-${generarEvidenciasInformeHtml(h, escapeHtml)}
-</div>
-
-<div class="card">
-  <div class="label">Medida inmediata</div>
-  <div class="text">${escapeHtml(h.medidaInmediata)}</div>
-</div>
-        </div>
-        </div>
-      </body>
-    </html>
-  `;
-
-  const nombreArchivo = `${String(h.codigo || "hallazgo").replace(/[^\w-]+/g, "-")}.pdf`;
-
-const parser = new DOMParser();
-const docPdf = parser.parseFromString(html, "text/html");
-const estilos = docPdf.querySelector("style")?.innerHTML || "";
-const contenido = docPdf.body.innerHTML;
-
-const contenedor = document.createElement("div");
-contenedor.style.position = "fixed";
-contenedor.style.left = "-99999px";
-contenedor.style.top = "0";
-contenedor.style.zIndex = "-1";
-contenedor.style.background = "#ffffff";
-contenedor.innerHTML = `<style>${estilos}</style>${contenido}`;
-document.body.appendChild(contenedor);
-
-const elementoPdf = contenedor.querySelector(".page") as HTMLElement | null;
-if (!elementoPdf) {
-  document.body.removeChild(contenedor);
-  return;
-}
-
-type Html2PdfWorkerLocal = {
-  set: (options: Record<string, unknown>) => Html2PdfWorkerLocal;
-  from: (element: HTMLElement) => Html2PdfWorkerLocal;
-  save: () => Promise<void>;
-};
-type Html2PdfFactoryLocal = () => Html2PdfWorkerLocal;
-const html2pdf = (await import("html2pdf.js")).default as unknown as Html2PdfFactoryLocal;
-
-try {
-  await html2pdf()
-    .set(
-      {
-        margin: 0,
-        filename: nombreArchivo,
-        image: { type: "jpeg", quality: 0.98 },
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          backgroundColor: "#ffffff",
-        },
-        jsPDF: {
-          unit: "mm",
-          format: "letter",
-          orientation: "portrait",
-        },
-        pagebreak: { mode: ["css", "legacy"] },
-      } as Record<string, unknown>
-    )
-    .from(elementoPdf)
-    .save();
-} finally {
-  document.body.removeChild(contenedor);
-}
-};
 useEffect(() => {
   if (filasFiltradas.length === 0) {
     if (hallazgoSeleccionadoInformeId) {
@@ -6963,6 +6994,23 @@ const riesgoOperativoPrincipal =
     color: premiumTextoAzul,
     boxShadow: "0 10px 24px rgba(0,0,0,0.18)",
   };
+  const evaluacionPreventivaActiva = hallazgoActivo.evaluacionPreventiva;
+  const debilidadesPreventivasActivas =
+    evaluacionPreventivaActiva?.debilidadesRespaldo;
+  const debilidadesPreventivasDetalle = [
+    {
+      etiqueta: "Evidencia",
+      items: debilidadesPreventivasActivas?.evidencia || [],
+    },
+    {
+      etiqueta: "Trazabilidad",
+      items: debilidadesPreventivasActivas?.trazabilidad || [],
+    },
+    {
+      etiqueta: "Cierre",
+      items: debilidadesPreventivasActivas?.cierre || [],
+    },
+  ].filter((grupo) => grupo.items.length > 0);
 
 	  return (
     <main
@@ -7130,12 +7178,7 @@ const riesgoOperativoPrincipal =
         <img
           src={clientBranding.logoPrincipalUrl}
           alt={clientBranding.nombrePrincipal}
-          style={{
-            width: clientBranding.logoUrl && clientBranding.mostrarLogoCliente ? "40px" : "36px",
-            height: clientBranding.logoUrl && clientBranding.mostrarLogoCliente ? "40px" : "36px",
-            objectFit: "contain",
-            display: "block",
-          }}
+          style={panelLogoImageStyle}
         />
       </div>
     </div>
@@ -11657,72 +11700,71 @@ style={{
   <div
     style={{
       display: "grid",
-      gridTemplateColumns: "140px 1fr",
+      gridTemplateColumns: "190px 1fr",
       gap: "18px",
       alignItems: "stretch",
     }}
   >
     <div
-  style={{
-    minHeight: "140px",
-    ...premiumInnerStyle,
-	    boxShadow: temaClaro ? "inset 0 1px 0 rgba(255,255,255,0.9)" : "inset 0 1px 0 rgba(255,255,255,0.05)",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    textAlign: "center",
-	    color: tema.textoMedio,
-    fontSize: "13px",
-    fontWeight: 700,
-    padding: "14px",
-    gap: "8px",
-  }}
->
-  {logoEmpresaConfig ? (
-    <img
-      src={logoEmpresaConfig}
-      alt={t("Logo empresa")}
       style={{
-        width: "76px",
-        height: "76px",
-        objectFit: "contain",
-        display: "block",
-      }}
-    />
-  ) : (
-    <div
-      style={{
-        width: "46px",
-        height: "46px",
-        borderRadius: "14px",
-	        border: tema.borde,
-	        background: tema.tarjetaElevada,
+        minHeight: "220px",
+        ...premiumInnerStyle,
+        boxShadow: temaClaro
+          ? "inset 0 1px 0 rgba(255,255,255,0.9)"
+          : "inset 0 1px 0 rgba(255,255,255,0.05)",
         display: "flex",
+        flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        fontSize: "18px",
-        color: "#dbeafe",
-        boxShadow: "0 6px 14px rgba(0,0,0,0.14)",
+        textAlign: "center",
+        color: tema.textoMedio,
+        fontSize: "13px",
+        fontWeight: 700,
+        padding: "14px",
+        gap: "10px",
       }}
     >
-      ⬒
+      <div
+        style={{
+          width: "132px",
+          height: "96px",
+          borderRadius: "18px",
+          border: temaClaro
+            ? "1px solid rgba(15,23,42,0.16)"
+            : "1px solid rgba(148,163,184,0.24)",
+          background: temaClaro
+            ? "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)"
+            : "linear-gradient(180deg, rgba(248,250,252,0.96), rgba(226,232,240,0.90))",
+          boxShadow: temaClaro
+            ? "0 10px 24px rgba(15,23,42,0.10)"
+            : "0 12px 26px rgba(0,0,0,0.28)",
+          overflow: "hidden",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "8px",
+        }}
+      >
+        <img
+          src={logoPreviewUrl}
+          alt={logoPreviewNombre}
+          style={logoPreviewImageStyle}
+        />
+      </div>
+
+      <div>{logoEmpresaConfig ? t("Logo empresa") : t("Fallback CE")}</div>
+
+      <div
+        style={{
+          fontSize: "11px",
+          fontWeight: 600,
+          opacity: 0.68,
+          lineHeight: 1.4,
+        }}
+      >
+        PNG, SVG o JPG
+      </div>
     </div>
-  )}
-
-	  <div>{t("Logo empresa")}</div>
-
-  <div
-    style={{
-      fontSize: "11px",
-      fontWeight: 600,
-      opacity: 0.68,
-      lineHeight: 1.4,
-    }}
-  >
-    PNG, SVG o JPG
-  </div>
-</div>
 
     <div
       style={{
@@ -11806,6 +11848,216 @@ style={{
           }}
         >
           {t("Seleccione o quite el logo corporativo")}
+        </div>
+      </div>
+
+      <div
+        style={{
+          ...premiumInnerStyle,
+          padding: "14px",
+          display: "grid",
+          gap: "12px",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "12px",
+            flexWrap: "wrap",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "12px",
+              fontWeight: 900,
+              color: tema.texto,
+              letterSpacing: "0.3px",
+              textTransform: "uppercase",
+            }}
+          >
+            {t("Ajuste de logo")}
+          </div>
+          <div
+            style={{
+              fontSize: "11px",
+              fontWeight: 800,
+              color: tema.textoSuave,
+            }}
+          >
+            {Math.round(logoScale * 100)}% · X {Math.round(logoOffsetX)} · Y {Math.round(logoOffsetY)}
+          </div>
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3, minmax(160px, 1fr))",
+            gap: "12px",
+          }}
+        >
+          <div>
+            <div style={{ fontSize: "11px", fontWeight: 800, color: tema.textoSuave, marginBottom: "8px" }}>
+              {t("Tamaño")}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <button
+                type="button"
+                aria-label={t("Reducir tamaño")}
+                onClick={() => setLogoScale((valor) => clampNumber(valor - 0.08, 0.6, 2.2, 1))}
+                style={{ ...premiumSecondaryButtonStyle, width: "34px", height: "34px", padding: 0, borderRadius: "10px" }}
+              >
+                -
+              </button>
+              <input
+                type="range"
+                min={0.6}
+                max={2.2}
+                step={0.05}
+                value={logoScale}
+                onChange={(event) => setLogoScale(clampNumber(event.target.value, 0.6, 2.2, 1))}
+                style={{ width: "100%" }}
+              />
+              <button
+                type="button"
+                aria-label={t("Aumentar tamaño")}
+                onClick={() => setLogoScale((valor) => clampNumber(valor + 0.08, 0.6, 2.2, 1))}
+                style={{ ...premiumSecondaryButtonStyle, width: "34px", height: "34px", padding: 0, borderRadius: "10px" }}
+              >
+                +
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <div style={{ fontSize: "11px", fontWeight: 800, color: tema.textoSuave, marginBottom: "8px" }}>
+              {t("Mover horizontalmente")}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <button
+                type="button"
+                aria-label={t("Mover a la izquierda")}
+                onClick={() => setLogoOffsetX((valor) => clampNumber(valor - 4, -48, 48, 0))}
+                style={{ ...premiumSecondaryButtonStyle, width: "34px", height: "34px", padding: 0, borderRadius: "10px" }}
+              >
+                ←
+              </button>
+              <input
+                type="range"
+                min={-48}
+                max={48}
+                step={1}
+                value={logoOffsetX}
+                onChange={(event) => setLogoOffsetX(clampNumber(event.target.value, -48, 48, 0))}
+                style={{ width: "100%" }}
+              />
+              <button
+                type="button"
+                aria-label={t("Mover a la derecha")}
+                onClick={() => setLogoOffsetX((valor) => clampNumber(valor + 4, -48, 48, 0))}
+                style={{ ...premiumSecondaryButtonStyle, width: "34px", height: "34px", padding: 0, borderRadius: "10px" }}
+              >
+                →
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <div style={{ fontSize: "11px", fontWeight: 800, color: tema.textoSuave, marginBottom: "8px" }}>
+              {t("Mover verticalmente")}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <button
+                type="button"
+                aria-label={t("Mover arriba")}
+                onClick={() => setLogoOffsetY((valor) => clampNumber(valor - 4, -48, 48, 0))}
+                style={{ ...premiumSecondaryButtonStyle, width: "34px", height: "34px", padding: 0, borderRadius: "10px" }}
+              >
+                ↑
+              </button>
+              <input
+                type="range"
+                min={-48}
+                max={48}
+                step={1}
+                value={logoOffsetY}
+                onChange={(event) => setLogoOffsetY(clampNumber(event.target.value, -48, 48, 0))}
+                style={{ width: "100%" }}
+              />
+              <button
+                type="button"
+                aria-label={t("Mover abajo")}
+                onClick={() => setLogoOffsetY((valor) => clampNumber(valor + 4, -48, 48, 0))}
+                style={{ ...premiumSecondaryButtonStyle, width: "34px", height: "34px", padding: 0, borderRadius: "10px" }}
+              >
+                ↓
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            gap: "10px",
+            flexWrap: "wrap",
+            alignItems: "center",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "11px",
+              fontWeight: 800,
+              color: tema.textoSuave,
+              marginRight: "4px",
+            }}
+          >
+            {t("Encuadre")}
+          </div>
+          {(["contain", "cover"] as LogoFitConfig[]).map((fit) => (
+            <button
+              key={fit}
+              type="button"
+              onClick={() => setLogoFit(fit)}
+              style={{
+                padding: "9px 12px",
+                borderRadius: "999px",
+                ...(logoFit === fit ? premiumActiveToggleStyle : premiumInactiveToggleStyle),
+                fontSize: "11px",
+                fontWeight: 900,
+                cursor: "pointer",
+              }}
+            >
+              {fit === "contain" ? t("Contener") : t("Cubrir")}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={restablecerAjusteLogo}
+            style={{
+              ...premiumSecondaryButtonStyle,
+              padding: "9px 12px",
+              borderRadius: "999px",
+              fontSize: "11px",
+              fontWeight: 900,
+            }}
+          >
+            {t("Restablecer ajuste")}
+          </button>
+          <button
+            type="button"
+            onClick={guardarAjusteLogo}
+            style={{
+              ...premiumPrimaryButtonStyle,
+              padding: "9px 12px",
+              borderRadius: "999px",
+              fontSize: "11px",
+              fontWeight: 900,
+            }}
+          >
+            {t("Guardar ajuste")}
+          </button>
         </div>
       </div>
 
@@ -12912,6 +13164,336 @@ style={{
 	      </div>
 	    </div>
 
+    {evaluacionPreventivaActiva ? (
+      <div
+        style={{
+          marginBottom: "12px",
+          padding: "13px",
+          borderRadius: "16px",
+          background: temaClaro
+            ? "linear-gradient(180deg, rgba(239,246,255,0.92), rgba(255,255,255,0.88))"
+            : "linear-gradient(180deg, rgba(30,64,175,0.22), rgba(15,23,42,0.76))",
+          border: temaClaro
+            ? "1px solid rgba(37,99,235,0.24)"
+            : "1px solid rgba(96,165,250,0.26)",
+          boxShadow: temaClaro
+            ? "0 12px 26px rgba(37,99,235,0.10)"
+            : "0 14px 32px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.06)",
+          display: "grid",
+          gap: "12px",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "10px",
+          }}
+        >
+          <div>
+            <div
+              style={{
+                fontSize: "11px",
+                opacity: 0.72,
+                marginBottom: "3px",
+                fontWeight: 900,
+                textTransform: "uppercase",
+                letterSpacing: "0.6px",
+              }}
+            >
+              {t("Motor preventivo")}
+            </div>
+            <div
+              style={{
+                fontSize: "14px",
+                fontWeight: 950,
+                color: tema.texto,
+              }}
+            >
+              {t("Análisis técnico del hallazgo")}
+            </div>
+          </div>
+          <span
+            style={{
+              flex: "0 0 auto",
+              padding: "6px 9px",
+              borderRadius: "999px",
+              border: temaClaro
+                ? "1px solid rgba(37,99,235,0.22)"
+                : "1px solid rgba(147,197,253,0.24)",
+              background: temaClaro
+                ? "rgba(219,234,254,0.76)"
+                : "rgba(37,99,235,0.18)",
+              color: temaClaro ? "#1e40af" : "#bfdbfe",
+              fontSize: "10px",
+              fontWeight: 950,
+              lineHeight: 1,
+            }}
+          >
+            {t("Solo lectura")}
+          </span>
+        </div>
+
+        {evaluacionPreventivaActiva.analisisEjecutivo ? (
+          <div
+            style={{
+              padding: "11px",
+              borderRadius: "13px",
+              background: tema.tarjetaSuave,
+              border: tema.bordeSutil,
+              color: tema.texto,
+              fontSize: "12px",
+              lineHeight: 1.55,
+              fontWeight: 760,
+              textAlign: "justify",
+            }}
+          >
+            {evaluacionPreventivaActiva.analisisEjecutivo}
+          </div>
+        ) : null}
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+            gap: "8px",
+          }}
+        >
+          {[
+            [t("Familia de riesgo"), evaluacionPreventivaActiva.familiaRiesgoPrincipal],
+            [
+              t("Suficiencia de información"),
+              evaluacionPreventivaActiva.nivelSuficienciaInformacion,
+            ],
+            [
+              t("Versión motor preventivo"),
+              evaluacionPreventivaActiva.versionMotorPreventivo,
+            ],
+          ]
+            .filter(([, valor]) => Boolean(valor))
+            .map(([titulo, valor]) => (
+              <div
+                key={String(titulo)}
+                style={{
+                  minWidth: 0,
+                  padding: "10px",
+                  borderRadius: "12px",
+                  background: temaClaro
+                    ? "rgba(255,255,255,0.76)"
+                    : "rgba(15,23,42,0.56)",
+                  border: tema.bordeSutil,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "10px",
+                    opacity: 0.7,
+                    marginBottom: "4px",
+                    fontWeight: 900,
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {titulo}
+                </div>
+                <div
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: 900,
+                    lineHeight: 1.35,
+                    color: tema.texto,
+                    overflowWrap: "anywhere",
+                  }}
+                >
+                  {valor}
+                </div>
+              </div>
+            ))}
+        </div>
+
+        {evaluacionPreventivaActiva.motivoTecnicoHallazgo ? (
+          <div
+            style={{
+              padding: "11px",
+              borderRadius: "13px",
+              background: tema.tarjetaSuave,
+              border: tema.bordeSutil,
+              fontSize: "12px",
+              lineHeight: 1.5,
+              color: tema.textoMedio,
+            }}
+          >
+            <div
+              style={{
+                fontSize: "10px",
+                opacity: 0.72,
+                marginBottom: "4px",
+                fontWeight: 900,
+                textTransform: "uppercase",
+              }}
+            >
+              {t("Motivo técnico")}
+            </div>
+            {evaluacionPreventivaActiva.motivoTecnicoHallazgo}
+          </div>
+        ) : null}
+
+        {evaluacionPreventivaActiva.criteriosCriticosDetectados?.length ? (
+          <div>
+            <div
+              style={{
+                fontSize: "10px",
+                opacity: 0.72,
+                marginBottom: "7px",
+                fontWeight: 900,
+                textTransform: "uppercase",
+              }}
+            >
+              {t("Criterios críticos")}
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+              {evaluacionPreventivaActiva.criteriosCriticosDetectados.map(
+                (criterio) => (
+                  <span
+                    key={criterio}
+                    style={{
+                      padding: "6px 8px",
+                      borderRadius: "999px",
+                      background: temaClaro
+                        ? "rgba(254,243,199,0.74)"
+                        : "rgba(245,158,11,0.13)",
+                      border: temaClaro
+                        ? "1px solid rgba(217,119,6,0.25)"
+                        : "1px solid rgba(251,191,36,0.24)",
+                      color: temaClaro ? "#92400e" : "#fde68a",
+                      fontSize: "10px",
+                      fontWeight: 900,
+                      lineHeight: 1.15,
+                    }}
+                  >
+                    {criterio}
+                  </span>
+                )
+              )}
+            </div>
+          </div>
+        ) : null}
+
+        {evaluacionPreventivaActiva.marcoLegalRelacionado?.length ? (
+          <div>
+            <div
+              style={{
+                fontSize: "10px",
+                opacity: 0.72,
+                marginBottom: "7px",
+                fontWeight: 900,
+                textTransform: "uppercase",
+              }}
+            >
+              {t("Marco legal relacionado")}
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+              {evaluacionPreventivaActiva.marcoLegalRelacionado.map((norma) => (
+                <span
+                  key={norma}
+                  style={{
+                    padding: "6px 8px",
+                    borderRadius: "999px",
+                    background: temaClaro
+                      ? "rgba(219,234,254,0.82)"
+                      : "rgba(37,99,235,0.18)",
+                    border: temaClaro
+                      ? "1px solid rgba(37,99,235,0.22)"
+                      : "1px solid rgba(147,197,253,0.24)",
+                    color: temaClaro ? "#1e40af" : "#bfdbfe",
+                    fontSize: "10px",
+                    fontWeight: 900,
+                    lineHeight: 1.15,
+                  }}
+                >
+                  {norma}
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {debilidadesPreventivasActivas ? (
+          <div
+            style={{
+              padding: "11px",
+              borderRadius: "13px",
+              background: tema.tarjetaSuave,
+              border: tema.bordeSutil,
+              display: "grid",
+              gap: "8px",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "10px",
+                opacity: 0.72,
+                fontWeight: 900,
+                textTransform: "uppercase",
+              }}
+            >
+              {t("Debilidades de respaldo")}
+            </div>
+            {debilidadesPreventivasActivas.calidadRespaldo ? (
+              <div
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 900,
+                  color: tema.texto,
+                }}
+              >
+                {t("Calidad de respaldo")}:{" "}
+                {debilidadesPreventivasActivas.calidadRespaldo}
+              </div>
+            ) : null}
+            {debilidadesPreventivasActivas.resumen ? (
+              <div
+                style={{
+                  fontSize: "12px",
+                  lineHeight: 1.5,
+                  color: tema.textoMedio,
+                }}
+              >
+                {debilidadesPreventivasActivas.resumen}
+              </div>
+            ) : null}
+            {debilidadesPreventivasDetalle.map((grupo) => (
+              <div key={grupo.etiqueta}>
+                <div
+                  style={{
+                    fontSize: "10px",
+                    opacity: 0.68,
+                    marginBottom: "4px",
+                    fontWeight: 900,
+                  }}
+                >
+                  {t(grupo.etiqueta)}
+                </div>
+                <div
+                  style={{
+                    display: "grid",
+                    gap: "4px",
+                    fontSize: "12px",
+                    lineHeight: 1.4,
+                    color: tema.textoSuave,
+                  }}
+                >
+                  {grupo.items.map((item) => (
+                    <div key={item}>• {item}</div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    ) : null}
+
 	    <div
 	      style={{
 	        padding: "14px",
@@ -13389,7 +13971,7 @@ style={{
     </div>
 
     <button
-    onClick={descargarPDFHallazgoActivo}
+      onClick={() => generarInformeEmpresaObra({ imprimir: true })}
       style={{
         width: "100%",
         marginTop: 0,
@@ -13403,7 +13985,7 @@ style={{
         boxShadow: "0 10px 22px rgba(109,255,72,0.22)",
       }}
     >
-	      {t("Descargar PDF")}
+      {t("Imprimir / Guardar como PDF")}
     </button>
   </>
 )}

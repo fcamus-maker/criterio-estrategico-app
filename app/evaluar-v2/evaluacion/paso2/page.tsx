@@ -17,6 +17,14 @@ import {
   leerReporteActualV2,
   type ReporteV2Storage,
 } from "../../storageReporteV2";
+import {
+  AutoGuardadoPremium,
+  EtapasPremium,
+  FirmaPremium,
+  HeaderReportePremium,
+  PremiumMobileViewport,
+  ProgresoPreguntasPremium,
+} from "../componentesPremium";
 
 type ReporteV2 = ReporteV2Storage & {
   codigo?: string;
@@ -104,6 +112,9 @@ export default function EvaluacionPaso2V2Page() {
   const formularioAdaptativo = reporte ? obtenerFormularioAdaptativoV2(reporte) : null;
   const preguntas = formularioAdaptativo?.preguntas.filter((pregunta) => pregunta.paso === 2) || [];
   const totalPreguntas = formularioAdaptativo?.preguntas.length || 0;
+  const preguntasTotales = formularioAdaptativo?.preguntas || [];
+  const respondidasTotal = preguntasTotales.filter((pregunta) => respuestas[pregunta.id]).length;
+  const preguntaActual = Math.min(respondidasTotal + 1, Math.max(totalPreguntas, 1));
 
   const seleccionar = (id: string, value: string) => {
     setRespuestas((actuales) => ({
@@ -239,13 +250,16 @@ export default function EvaluacionPaso2V2Page() {
                 {...feedbackBoton(`${pregunta.id}-${opcion.value}`)}
                 style={{
                   ...buttonStyle,
-                  color: activa ? "#08172d" : "white",
+                  color: "white",
                   background: activa
-                    ? "linear-gradient(135deg, #67ef48 0%, #d7ff39 100%)"
-                    : "rgba(255,255,255,0.10)",
+                    ? "linear-gradient(180deg, #2593ff 0%, #145ee9 48%, #07339b 100%)"
+                    : "rgba(3,20,48,0.24)",
                   border: activa
-                    ? "1px solid rgba(103,239,72,0.40)"
-                    : "1px solid rgba(255,255,255,0.14)",
+                    ? "1px solid rgba(169,215,255,0.72)"
+                    : "1px solid rgba(151,197,255,0.20)",
+                  boxShadow: activa
+                    ? "0 14px 26px rgba(15,94,255,0.30), inset 0 1px 0 rgba(255,255,255,0.25)"
+                    : "none",
                   textAlign: "left",
                   ...estiloFeedback(`${pregunta.id}-${opcion.value}`),
                 }}
@@ -260,12 +274,14 @@ export default function EvaluacionPaso2V2Page() {
   );
 
   const pageStyle = {
-    minHeight: "100vh",
+    minHeight: "100dvh",
+    backgroundColor: "#020b1f",
     background:
-      "radial-gradient(circle at 50% 0%, #2563eb 0%, #0b1f3a 42%, #061327 100%)",
+      "radial-gradient(circle at 22% 12%, rgba(60,130,220,0.46) 0%, rgba(7,32,68,0.92) 31%, rgba(2,12,32,1) 72%), linear-gradient(180deg, #05244a 0%, #020b1f 100%)",
     color: "white",
     fontFamily: "Arial, sans-serif",
     overflowX: "hidden" as const,
+    overscrollBehaviorY: "none" as const,
     touchAction: "pan-y" as const,
   };
 
@@ -273,19 +289,23 @@ export default function EvaluacionPaso2V2Page() {
     width: "100%",
     maxWidth: "430px",
     margin: "0 auto",
-    padding: "16px 16px calc(96px + env(safe-area-inset-bottom))",
+    minHeight: "100dvh",
+    padding:
+      "calc(12px + env(safe-area-inset-top)) 15px calc(34px + env(safe-area-inset-bottom))",
     boxSizing: "border-box" as const,
     overflowX: "hidden" as const,
+    overscrollBehaviorY: "contain" as const,
     touchAction: "pan-y" as const,
   };
 
   const cardStyle = {
-    borderRadius: "22px",
+    borderRadius: "18px",
     background:
-      "linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.07))",
-    border: "1px solid rgba(255,255,255,0.16)",
-    boxShadow: "0 18px 36px rgba(0,0,0,0.28)",
-    padding: "16px",
+      "linear-gradient(180deg, rgba(22,72,124,0.66), rgba(4,26,60,0.78))",
+    border: "1px solid rgba(151,197,255,0.30)",
+    boxShadow:
+      "0 18px 42px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.11), inset 0 -1px 0 rgba(33,150,243,0.10)",
+    padding: "14px",
     boxSizing: "border-box" as const,
     maxWidth: "100%",
     overflowX: "hidden" as const,
@@ -297,8 +317,8 @@ export default function EvaluacionPaso2V2Page() {
     maxWidth: "100%",
     fontSize: "16px",
     touchAction: "manipulation" as const,
-    border: "none",
-    borderRadius: "16px",
+    border: "1px solid rgba(128,184,255,0.50)",
+    borderRadius: "18px",
     padding: "14px",
     fontWeight: 900,
     cursor: "pointer",
@@ -307,13 +327,20 @@ export default function EvaluacionPaso2V2Page() {
   };
 
   return (
-    <main
-      style={pageStyle}
-      onDoubleClick={(event) => {
-        event.preventDefault();
-      }}
-    >
+    <>
+      <PremiumMobileViewport />
+      <main
+        style={pageStyle}
+        onDoubleClick={(event) => {
+          event.preventDefault();
+        }}
+      >
       <div style={containerStyle}>
+        <HeaderReportePremium
+          subtitulo="Evaluación preventiva"
+          detalle="Ronda enfocada según señales y respuestas registradas."
+        />
+        <EtapasPremium actual={2} />
         <header style={{ marginBottom: "14px" }}>
           <a
             href="/evaluar-v2/evaluacion/paso1"
@@ -332,20 +359,6 @@ export default function EvaluacionPaso2V2Page() {
           >
             Volver al paso 1
           </a>
-          <h1
-            style={{
-              margin: "14px 0 0",
-              fontSize: "25px",
-              lineHeight: 1.08,
-              fontWeight: 900,
-              letterSpacing: "0",
-            }}
-          >
-            Evaluación
-          </h1>
-          <p style={{ margin: "8px 0 0", opacity: 0.75 }}>
-            Paso 2 de 2 — Señales específicas
-          </p>
         </header>
 
         {!cargado && <section style={cardStyle}>Cargando evaluación...</section>}
@@ -364,8 +377,9 @@ export default function EvaluacionPaso2V2Page() {
                 display: "block",
                 textAlign: "center",
                 textDecoration: "none",
-                color: "#08172d",
-                background: "linear-gradient(135deg, #67ef48 0%, #d7ff39 100%)",
+                color: "white",
+                background:
+                  "linear-gradient(180deg, #2593ff 0%, #145ee9 48%, #07339b 100%)",
                 ...estiloFeedback("sin-reporte"),
               }}
             >
@@ -377,6 +391,12 @@ export default function EvaluacionPaso2V2Page() {
         {reporte && (
           <>
             <section style={cardStyle}>
+              <ProgresoPreguntasPremium
+                actual={preguntaActual}
+                total={totalPreguntas || preguntas.length}
+                respondidas={respondidasTotal}
+                detalle="Ronda enfocada"
+              />
               <div style={{ fontSize: "12px", opacity: 0.65 }}>Reporte</div>
               <div style={{ fontSize: "18px", fontWeight: 900 }}>
                 {reporte.codigo || "Sin código"}
@@ -390,8 +410,8 @@ export default function EvaluacionPaso2V2Page() {
                     marginTop: "12px",
                     padding: "10px",
                     borderRadius: "14px",
-                    background: "rgba(103,239,72,0.10)",
-                    border: "1px solid rgba(103,239,72,0.20)",
+                    background: "rgba(32,123,255,0.13)",
+                    border: "1px solid rgba(112,182,255,0.28)",
                     fontSize: "12px",
                     lineHeight: 1.45,
                   }}
@@ -428,11 +448,12 @@ export default function EvaluacionPaso2V2Page() {
               {...feedbackBoton("ver-resultado")}
               style={{
                 ...buttonStyle,
-                color: "#08172d",
+                color: "white",
                 background: navegando
                   ? "rgba(255,255,255,0.18)"
-                  : "linear-gradient(135deg, #facc15, #f97316)",
-                boxShadow: "0 14px 28px rgba(249,115,22,0.22)",
+                  : "linear-gradient(180deg, #2593ff 0%, #145ee9 48%, #07339b 100%)",
+                boxShadow:
+                  "0 20px 36px rgba(15,94,255,0.42), inset 0 1px 0 rgba(255,255,255,0.30), inset 0 -10px 24px rgba(0,18,94,0.30)",
                 opacity: navegando ? 0.72 : 1,
                 ...estiloFeedback("ver-resultado"),
               }}
@@ -441,9 +462,12 @@ export default function EvaluacionPaso2V2Page() {
                 ? "Calculando..."
                 : `Ver resultado (${preguntas.length}/${totalPreguntas})`}
             </button>
+            <AutoGuardadoPremium />
           </>
         )}
+        <FirmaPremium />
       </div>
-    </main>
+      </main>
+    </>
   );
 }
