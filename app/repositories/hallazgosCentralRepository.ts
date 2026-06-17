@@ -64,6 +64,18 @@ export type FiltrosMapaGpsCentral = FiltrosHallazgosCentrales & {
   sector?: string;
 };
 
+export type ResumenHistorialSupervisorCentral = {
+  reportados: number;
+  abiertos: number;
+  cerrados: number;
+};
+
+export type FiltrosHistorialSupervisorCentral = {
+  userId?: string | null;
+  empresaId?: string | null;
+  obraId?: string | null;
+};
+
 export type PuntoMapaHallazgoCentral = {
   id?: string;
   codigo: string;
@@ -1144,6 +1156,19 @@ const ESTADOS_BACKLOG_GESTION_VIGENTE: EstadoHallazgoCentral[] = [
   "EN_SEGUIMIENTO",
 ];
 
+type FilaHistorialSupervisorCentral = {
+  codigo?: string | null;
+  estado?: string | null;
+  estado_cierre?: string | null;
+};
+
+function esFilaCerradaHistorialSupervisor(fila: FilaHistorialSupervisorCentral) {
+  const estado = texto(fila.estado).toUpperCase();
+  const estadoCierre = texto(fila.estado_cierre).toUpperCase();
+
+  return estado === "CERRADO" || estadoCierre === "CERRADO";
+}
+
 function fechaLecturaGestion(valor: unknown) {
   return fechaSoloSupabase(valor) || "";
 }
@@ -1274,6 +1299,80 @@ function filtrosBaseGestionVigente(
     estadoCierre: filtros.estadoCierre,
     limit: filtros.limit || 500,
   };
+}
+
+export async function obtenerResumenHistorialSupervisorCentral(
+  filtros: FiltrosHistorialSupervisorCentral
+): Promise<ResultadoRepositorioCentral<ResumenHistorialSupervisorCentral>> {
+  const userId = uuidSupabase(filtros.userId);
+  const empresaId = uuidSupabase(filtros.empresaId);
+  const obraId = uuidSupabase(filtros.obraId);
+
+  if (!userId) {
+    return {
+      ok: false,
+      error: "No se pudo resolver el perfil del supervisor para consultar historial central.",
+      origen: "central-disabled",
+    };
+  }
+
+  const { cliente, habilitado } = await obtenerSupabaseDisponible();
+  if (!habilitado || !cliente) {
+    return falloRepositorioDesactivado<ResumenHistorialSupervisorCentral>();
+  }
+
+  try {
+    const limitePagina = 500;
+    let offset = 0;
+    let reportados = 0;
+    let cerrados = 0;
+
+    while (true) {
+      let query = cliente
+        .from(TABLA_HALLAZGOS_CENTRAL)
+        .select("codigo,estado,estado_cierre")
+        .or(`supervisor_user_id.eq.${userId},reportante_user_id.eq.${userId}`)
+        .neq("estado", "ANULADO")
+        .order("fecha_iso", { ascending: false, nullsFirst: false })
+        .range(offset, offset + limitePagina - 1);
+
+      if (empresaId) query = query.eq("empresa_id", empresaId);
+      if (obraId) query = query.eq("obra_id", obraId);
+
+      const { data, error } = await query;
+      if (error) {
+        return falloSupabase(
+          error,
+          "No se pudo leer historial central del supervisor desde Supabase."
+        );
+      }
+
+      const filas = Array.isArray(data)
+        ? (data as FilaHistorialSupervisorCentral[])
+        : [];
+
+      reportados += filas.length;
+      cerrados += filas.filter(esFilaCerradaHistorialSupervisor).length;
+
+      if (filas.length < limitePagina) break;
+      offset += limitePagina;
+    }
+
+    return {
+      ok: true,
+      data: {
+        reportados,
+        cerrados,
+        abiertos: Math.max(reportados - cerrados, 0),
+      },
+      origen: "supabase",
+    };
+  } catch (error) {
+    return falloSupabase(
+      error,
+      "Fallo inesperado leyendo historial central del supervisor."
+    );
+  }
 }
 
 export async function cargarHallazgosGestionVigente(

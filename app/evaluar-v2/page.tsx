@@ -7,6 +7,7 @@ import {
   resolvePlatformTheme,
   usePlatformPreferences,
 } from "../services/platformPreferences";
+import { obtenerResumenHistorialSupervisorCentral } from "../repositories/hallazgosCentralRepository";
 import { cerrarSesionCE } from "../services/authProfileService";
 import {
   comprimirFotoPerfilUsuario,
@@ -42,6 +43,12 @@ const textosMobileEn: Record<string, string> = {
   "Supervisor activo": "Active supervisor",
   "Reportar Hallazgo": "Report Finding",
   "Contadores locales": "Local counters",
+  "Historial del supervisor": "Supervisor history",
+  "Historial central no disponible temporalmente.": "Central history is temporarily unavailable.",
+  "Consultando historial central...": "Checking central history...",
+  "Historial sincronizado desde plataforma central.": "History synced from the central platform.",
+  "Pendientes en este dispositivo": "Pending on this device",
+  "Reportes locales pendientes de sincronización": "Local reports pending synchronization",
   "Hallazgos, inspecciones e ITO de terreno": "Findings, inspections and field ITO",
   "Registro preventivo en terreno alineado a la gestión DS 44, con evidencia, GPS y trazabilidad.": "Field preventive record aligned with DS 44 management, with evidence, GPS and traceability.",
   Empresa: "Company",
@@ -86,6 +93,18 @@ function vibrarOk() {
   }
 }
 
+type ContadoresSupervisor = {
+  reportados: number;
+  abiertos: number;
+  cerrados: number;
+};
+
+const CONTADORES_SUPERVISOR_CERO: ContadoresSupervisor = {
+  reportados: 0,
+  abiertos: 0,
+  cerrados: 0,
+};
+
 export default function EvaluarV2HomePage() {
   const router = useRouter();
   const preferencias = usePlatformPreferences();
@@ -96,9 +115,17 @@ export default function EvaluarV2HomePage() {
   const [supervisor, setSupervisor] =
     useState<SupervisorV2>(SUPERVISOR_V2_VACIO);
   const [draft, setDraft] = useState<SupervisorV2>(SUPERVISOR_V2_VACIO);
-  const [historial, setHistorial] = useState<
+  const [historialLocal, setHistorialLocal] = useState<
     Array<{ estado?: string; estadoCierre?: string }>
   >([]);
+  const [contadores, setContadores] = useState<ContadoresSupervisor>(
+    CONTADORES_SUPERVISOR_CERO
+  );
+  const [historialCentralDisponible, setHistorialCentralDisponible] =
+    useState(false);
+  const [cargandoHistorialCentral, setCargandoHistorialCentral] =
+    useState(false);
+  const [mensajeHistorialCentral, setMensajeHistorialCentral] = useState("");
   const [mensaje, setMensaje] = useState("");
   const [botonActivo, setBotonActivo] = useState("");
   const [editorPerfilAbierto, setEditorPerfilAbierto] = useState(false);
@@ -129,8 +156,61 @@ export default function EvaluarV2HomePage() {
       obraId: item.obraId,
     });
 
+  const actualizarHistorialCentral = async (item: SupervisorV2) => {
+    const userId = item.reportanteUserId || item.supervisorUserId || item.userId;
+
+    if (!userId) {
+      setContadores(CONTADORES_SUPERVISOR_CERO);
+      setHistorialCentralDisponible(false);
+      setMensajeHistorialCentral("");
+      setCargandoHistorialCentral(false);
+      return;
+    }
+
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      setContadores(CONTADORES_SUPERVISOR_CERO);
+      setHistorialCentralDisponible(false);
+      setMensajeHistorialCentral(
+        "Historial central no disponible temporalmente."
+      );
+      setCargandoHistorialCentral(false);
+      return;
+    }
+
+    setCargandoHistorialCentral(true);
+    setMensajeHistorialCentral("");
+
+    try {
+      const resultado = await obtenerResumenHistorialSupervisorCentral({
+        userId,
+        empresaId: item.empresaId,
+        obraId: item.obraId,
+      });
+
+      if (resultado.ok) {
+        setContadores(resultado.data);
+        setHistorialCentralDisponible(true);
+        setMensajeHistorialCentral("");
+      } else {
+        setContadores(CONTADORES_SUPERVISOR_CERO);
+        setHistorialCentralDisponible(false);
+        setMensajeHistorialCentral(
+          "Historial central no disponible temporalmente."
+        );
+      }
+    } catch {
+      setContadores(CONTADORES_SUPERVISOR_CERO);
+      setHistorialCentralDisponible(false);
+      setMensajeHistorialCentral(
+        "Historial central no disponible temporalmente."
+      );
+    } finally {
+      setCargandoHistorialCentral(false);
+    }
+  };
+
   useEffect(() => {
-    setHistorial([]);
+    setHistorialLocal([]);
 
     const frameId = window.requestAnimationFrame(async () => {
       const contexto = await cargarSupervisorV2UsuarioActual();
@@ -142,8 +222,9 @@ export default function EvaluarV2HomePage() {
       setClaveSupervisor(contexto.clave);
       setPerfilSupervisorGuardado(tienePerfil);
       setScopeLocalReporte(scope);
-      setHistorial(cargarHistorialLivianoV2(scope));
+      setHistorialLocal(cargarHistorialLivianoV2(scope));
       void actualizarPendientesLocales(scope);
+      void actualizarHistorialCentral(supervisorGuardado);
       setEditorPerfilAbierto(false);
       setFotoPerfilArchivo(null);
       setFotoPerfilPreview("");
@@ -173,12 +254,12 @@ export default function EvaluarV2HomePage() {
 
   const recargarEstadoLocal = (scope = scopeLocalReporte) => {
     if (!scope) {
-      setHistorial([]);
+      setHistorialLocal([]);
       setPendientesLocales(0);
       return;
     }
 
-    setHistorial(cargarHistorialLivianoV2(scope));
+    setHistorialLocal(cargarHistorialLivianoV2(scope));
     void actualizarPendientesLocales(scope);
   };
 
@@ -186,6 +267,7 @@ export default function EvaluarV2HomePage() {
     const actualizarConexion = () => {
       setOnline(typeof navigator === "undefined" ? true : navigator.onLine);
       recargarEstadoLocal(scopeLocalReporte);
+      void actualizarHistorialCentral(supervisor);
     };
 
     actualizarConexion();
@@ -202,31 +284,26 @@ export default function EvaluarV2HomePage() {
       window.removeEventListener("pageshow", actualizarConexion);
       document.removeEventListener("visibilitychange", actualizarConexion);
     };
-  }, [scopeLocalReporte]);
-
-  const contadores = useMemo(() => {
-    const reportados = historial.length;
-    const cerrados = historial.filter((reporte) => {
-      const estado = String(reporte.estado || "").toLowerCase();
-      const estadoCierre = String(reporte.estadoCierre || "").toLowerCase();
-
-      return estado === "cerrado" || estadoCierre === "cerrado";
-    }).length;
-
-    return {
-      reportados,
-      cerrados,
-      abiertos: Math.max(reportados - cerrados, 0),
-    };
-  }, [historial]);
+  }, [scopeLocalReporte, supervisor]);
 
   const codigoPreview = useMemo(() => {
     if (!perfilSupervisorGuardado || !perfilSupervisorV2Completo(supervisor)) {
       return "";
     }
 
-    return crearCodigoReporteMovil(supervisor, contadores.reportados + 1);
-  }, [contadores.reportados, perfilSupervisorGuardado, supervisor]);
+    const siguienteCorrelativo = historialCentralDisponible
+      ? contadores.reportados + pendientesLocales + 1
+      : historialLocal.length + 1;
+
+    return crearCodigoReporteMovil(supervisor, siguienteCorrelativo);
+  }, [
+    contadores.reportados,
+    historialCentralDisponible,
+    historialLocal.length,
+    pendientesLocales,
+    perfilSupervisorGuardado,
+    supervisor,
+  ]);
   const inicialSupervisor =
     supervisor.nombre
       .trim()
@@ -312,8 +389,9 @@ export default function EvaluarV2HomePage() {
       setSupervisor(actualizado);
       setDraft(actualizado);
       setScopeLocalReporte(scope);
-      setHistorial(cargarHistorialLivianoV2(scope));
+      setHistorialLocal(cargarHistorialLivianoV2(scope));
       void actualizarPendientesLocales(scope);
+      void actualizarHistorialCentral(actualizado);
       setPerfilSupervisorGuardado(true);
       setFotoPerfilArchivo(null);
       setFotoPerfilPreview("");
@@ -338,8 +416,9 @@ export default function EvaluarV2HomePage() {
         setSupervisor(sinFoto);
         setDraft(sinFoto);
         setScopeLocalReporte(scope);
-        setHistorial(cargarHistorialLivianoV2(scope));
+        setHistorialLocal(cargarHistorialLivianoV2(scope));
         void actualizarPendientesLocales(scope);
+        void actualizarHistorialCentral(sinFoto);
         setPerfilSupervisorGuardado(true);
         setFotoPerfilArchivo(null);
         setFotoPerfilPreview("");
@@ -448,7 +527,8 @@ export default function EvaluarV2HomePage() {
       const resultado = await sincronizarReportesPendientesV2(scopeLocalReporte);
       setMensaje(resultado.mensaje);
       await actualizarPendientesLocales(scopeLocalReporte);
-      setHistorial(cargarHistorialLivianoV2(scopeLocalReporte));
+      setHistorialLocal(cargarHistorialLivianoV2(scopeLocalReporte));
+      await actualizarHistorialCentral(supervisor);
       vibrarOk();
     } catch (error) {
       if (esErrorChunkStale(error)) {
@@ -1211,7 +1291,7 @@ export default function EvaluarV2HomePage() {
               marginBottom: "10px",
             }}
           >
-            {t("Contadores locales")}
+            {t("Historial del supervisor")}
           </div>
 
           <div
@@ -1272,6 +1352,81 @@ export default function EvaluarV2HomePage() {
                 </div>
               </div>
             ))}
+          </div>
+          <div
+            style={{
+              marginTop: "10px",
+              fontSize: "12px",
+              lineHeight: 1.35,
+              fontWeight: 800,
+              color: temaClaro ? "#475569" : "rgba(226,232,240,0.74)",
+            }}
+          >
+            {cargandoHistorialCentral
+              ? t("Consultando historial central...")
+              : mensajeHistorialCentral
+                ? t(mensajeHistorialCentral)
+                : historialCentralDisponible
+                  ? t("Historial sincronizado desde plataforma central.")
+                  : ""}
+          </div>
+        </section>
+
+        <section
+          style={{
+            ...cardStyle,
+            padding: "14px",
+            display: "grid",
+            gap: "10px",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "12px",
+              fontWeight: 900,
+              letterSpacing: "0",
+              opacity: 0.7,
+            }}
+          >
+            {t("Pendientes en este dispositivo")}
+          </div>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "12px",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "12px",
+                lineHeight: 1.35,
+                fontWeight: 800,
+                color: temaClaro ? "#475569" : "rgba(226,232,240,0.78)",
+              }}
+            >
+              {t("Reportes locales pendientes de sincronización")}
+            </div>
+            <div
+              style={{
+                minWidth: "48px",
+                borderRadius: "14px",
+                padding: "8px 10px",
+                textAlign: "center",
+                fontSize: "22px",
+                fontWeight: 950,
+                color: temaClaro ? "#0f172a" : "white",
+                background: temaClaro
+                  ? "rgba(15,23,42,0.06)"
+                  : "rgba(255,255,255,0.08)",
+                border: temaClaro
+                  ? "1px solid rgba(15,23,42,0.10)"
+                  : "1px solid rgba(255,255,255,0.12)",
+              }}
+            >
+              {pendientesLocales}
+            </div>
           </div>
         </section>
 
