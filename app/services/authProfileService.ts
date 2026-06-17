@@ -1,6 +1,6 @@
 import { obtenerSupabaseCliente } from "@/lib/supabaseClient";
 import { esRoleCE, type ProfileCE, type RoleCE } from "@/app/types/authRoles";
-import type { User } from "@supabase/supabase-js";
+import type { SupabaseClient, User } from "@supabase/supabase-js";
 
 const AUTH_LOCAL_STORAGE_KEY = "ce_auth_profile_local";
 
@@ -46,6 +46,50 @@ type FilaProfileCE = {
 function sanitizarError(error: unknown) {
   if (error instanceof Error) return error.message.slice(0, 220);
   return String(error || "Error desconocido").slice(0, 220);
+}
+
+function esErrorRefreshTokenInvalido(error: unknown) {
+  const mensaje = sanitizarError(error).toLowerCase();
+  return (
+    mensaje.includes("invalid refresh token") ||
+    mensaje.includes("refresh token not found")
+  );
+}
+
+function esClaveAuthSupabase(clave: string) {
+  const claveNormalizada = clave.toLowerCase();
+  return (
+    claveNormalizada === "supabase.auth.token" ||
+    (claveNormalizada.startsWith("sb-") &&
+      (claveNormalizada.includes("-auth-token") ||
+        claveNormalizada.endsWith("-code-verifier") ||
+        claveNormalizada.endsWith("-user")))
+  );
+}
+
+function limpiarStorageAuthSupabase() {
+  if (typeof window === "undefined") return;
+
+  const contenedores = [window.localStorage, window.sessionStorage];
+
+  contenedores.forEach((storage) => {
+    for (let indice = storage.length - 1; indice >= 0; indice -= 1) {
+      const clave = storage.key(indice);
+      if (clave && esClaveAuthSupabase(clave)) {
+        storage.removeItem(clave);
+      }
+    }
+  });
+}
+
+async function limpiarSesionSupabaseCorrupta(cliente?: SupabaseClient | null) {
+  try {
+    await cliente?.auth.signOut({ scope: "local" });
+  } catch {
+    // La sesion ya puede estar corrupta; la limpieza manual es el respaldo real.
+  }
+
+  limpiarStorageAuthSupabase();
 }
 
 function rolLocalPorEmail(email: string): RoleCE {
@@ -203,6 +247,30 @@ export async function obtenerAuthProfileActual(): Promise<EstadoAuthProfileCE> {
       await cliente.auth.getUser();
 
     if (usuarioError || !usuarioData.user) {
+      if (usuarioError && esErrorRefreshTokenInvalido(usuarioError)) {
+        await limpiarSesionSupabaseCorrupta(cliente);
+
+        const perfilLocal =
+          leerPerfilLocalDemoPermitido() ||
+          (esOrigenLocalDemo() ? leerPerfilLocal() : null);
+
+        if (perfilLocal) {
+          return {
+            usuario: null,
+            perfil: perfilLocal,
+            autenticado: true,
+            perfilDisponible: true,
+          };
+        }
+
+        return {
+          usuario: null,
+          perfil: null,
+          autenticado: false,
+          perfilDisponible: false,
+        };
+      }
+
       const perfilLocal = leerPerfilLocalDemoPermitido();
 
       if (perfilLocal) {
@@ -298,6 +366,30 @@ export async function obtenerAuthProfileActual(): Promise<EstadoAuthProfileCE> {
       perfilDisponible: true,
     };
   } catch (error) {
+    if (esErrorRefreshTokenInvalido(error)) {
+      await limpiarSesionSupabaseCorrupta(cliente);
+
+      const perfilLocal =
+        leerPerfilLocalDemoPermitido() ||
+        (esOrigenLocalDemo() ? leerPerfilLocal() : null);
+
+      if (perfilLocal) {
+        return {
+          usuario: null,
+          perfil: perfilLocal,
+          autenticado: true,
+          perfilDisponible: true,
+        };
+      }
+
+      return {
+        usuario: null,
+        perfil: null,
+        autenticado: false,
+        perfilDisponible: false,
+      };
+    }
+
     const perfilOffline = navegadorSinConexion() ? leerPerfilLocal() : null;
 
     if (perfilOffline) {

@@ -49,6 +49,20 @@ export function obtenerEstadoSupabaseCliente(): EstadoSupabaseCliente {
   };
 }
 
+function esOrigenLocalCliente() {
+  if (typeof window === "undefined") return false;
+
+  const hostname = window.location.hostname;
+  return (
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname === "::1" ||
+    hostname.startsWith("192.168.") ||
+    hostname.startsWith("10.") ||
+    /^172\.(1[6-9]|2\d|3[0-1])\./.test(hostname)
+  );
+}
+
 export async function obtenerSupabaseCliente(): Promise<SupabaseClient | null> {
   if (!supabaseHabilitado) return null;
   if (supabaseClienteCache) return supabaseClienteCache;
@@ -56,7 +70,14 @@ export async function obtenerSupabaseCliente(): Promise<SupabaseClient | null> {
   const { createClient } = await import("@supabase/supabase-js");
   supabaseClienteCache = createClient(
     supabaseUrl as string,
-    supabaseAnonKey as string
+    supabaseAnonKey as string,
+    {
+      auth: {
+        autoRefreshToken: !esOrigenLocalCliente(),
+        persistSession: true,
+        detectSessionInUrl: true,
+      },
+    }
   );
 
   return supabaseClienteCache;

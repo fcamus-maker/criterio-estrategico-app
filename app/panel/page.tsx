@@ -81,12 +81,29 @@ type HallazgoPanelExtendido = HallazgoPanel & {
 };
 
 const META_DIARIA_REPORTES_STORAGE_KEY = "ce_panel_meta_diaria_reportes";
+const ZONA_HORARIA_PANEL = "America/Santiago";
 
 function fechaLocalISO(fecha = new Date()) {
-  const year = fecha.getFullYear();
-  const month = String(fecha.getMonth() + 1).padStart(2, "0");
-  const day = String(fecha.getDate()).padStart(2, "0");
+  const partes = new Intl.DateTimeFormat("en-CA", {
+    timeZone: ZONA_HORARIA_PANEL,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(fecha);
+  const year = partes.find((parte) => parte.type === "year")?.value || "0000";
+  const month = partes.find((parte) => parte.type === "month")?.value || "01";
+  const day = partes.find((parte) => parte.type === "day")?.value || "01";
   return `${year}-${month}-${day}`;
+}
+
+function desplazarFechaISO(fechaISO: string, dias: number) {
+  const [year, month, day] = fechaISO.split("-").map(Number);
+  const fecha = new Date(Date.UTC(year, month - 1, day + dias));
+  const yearFinal = fecha.getUTCFullYear();
+  const monthFinal = String(fecha.getUTCMonth() + 1).padStart(2, "0");
+  const dayFinal = String(fecha.getUTCDate()).padStart(2, "0");
+
+  return `${yearFinal}-${monthFinal}-${dayFinal}`;
 }
 
 function leerMetaDiariaReportes() {
@@ -101,51 +118,71 @@ function generarEvidenciasInformeHtml(
   hallazgo: HallazgoPanelExtendido,
   escapeHtml: (valor: unknown) => string
 ) {
-  const evidencias = obtenerEvidenciasPanel(hallazgo);
-  const evidenciasVisibles = evidencias
-    .filter((evidencia) => evidencia.url)
-    .slice(0, 3);
+  try {
+    const evidenciasRaw = obtenerEvidenciasPanel(hallazgo);
+    const evidencias = Array.isArray(evidenciasRaw) ? evidenciasRaw : [];
+    const evidenciasVisibles = evidencias
+      .filter(
+        (evidencia) =>
+          evidencia &&
+          typeof evidencia === "object" &&
+          typeof evidencia.url === "string" &&
+          evidencia.url.trim()
+      )
+      .slice(0, 3);
 
-  if (evidenciasVisibles.length > 0) {
+    if (evidenciasVisibles.length > 0) {
+      return `
+        <div style="margin-top:16px;">
+          <div class="label">Evidencias fotográficas</div>
+          <div class="evidence-grid">
+            ${evidenciasVisibles
+              .map(
+                (evidencia) => `
+                  <div class="evidence-thumb">
+                    <img src="${escapeHtml(evidencia.url)}" alt="Evidencia fotográfica" />
+                  </div>
+                `
+              )
+              .join("")}
+          </div>
+          <div class="evidence-note">
+            ${escapeHtml(
+              evidencias.length > evidenciasVisibles.length
+                ? `${evidencias.length} evidencia(s) registrada(s); se muestran las disponibles para visualización.`
+                : `${evidencias.length} evidencia(s) registrada(s).`
+            )}
+          </div>
+        </div>
+      `;
+    }
+
+    if (evidencias.length > 0) {
+      return `
+        <div style="margin-top:16px;">
+          <div class="label">Evidencias fotográficas</div>
+          <div class="evidence-pending">
+            ${escapeHtml(
+              evidencias[0]?.mensajeVisualizacion || "Evidencia no disponible."
+            )}
+            <br />
+            ${escapeHtml(`${evidencias.length} evidencia(s) registrada(s) en Storage.`)}
+          </div>
+        </div>
+      `;
+    }
+  } catch (error) {
+    console.warn("No se pudieron renderizar evidencias del informe.", error);
+
     return `
       <div style="margin-top:16px;">
         <div class="label">Evidencias fotográficas</div>
-        <div class="evidence-grid">
-          ${evidenciasVisibles
-            .map(
-              (evidencia) => `
-                <div class="evidence-thumb">
-                  <img src="${escapeHtml(evidencia.url)}" alt="Evidencia fotográfica" />
-                </div>
-              `
-            )
-            .join("")}
-        </div>
-        <div class="evidence-note">
-          ${escapeHtml(
-            evidencias.length > evidenciasVisibles.length
-              ? `${evidencias.length} evidencia(s) registrada(s); se muestran las disponibles para visualización.`
-              : `${evidencias.length} evidencia(s) registrada(s).`
-          )}
-        </div>
+        <div class="evidence-pending">Evidencia no disponible.</div>
       </div>
     `;
   }
 
-  if (evidencias.length > 0) {
-    return `
-      <div style="margin-top:16px;">
-        <div class="label">Evidencias fotográficas</div>
-        <div class="evidence-pending">
-          ${escapeHtml(evidencias[0]?.mensajeVisualizacion)}
-          <br />
-          ${escapeHtml(`${evidencias.length} evidencia(s) registrada(s) en Storage.`)}
-        </div>
-      </div>
-    `;
-  }
-
-  return `<div class="text" style="color:#6b7280;">Sin evidencia fotográfica adjunta.</div>`;
+  return `<div class="text" style="color:#6b7280;">Sin evidencia fotográfica registrada.</div>`;
 }
 
 function identidadHallazgoPanel(hallazgo?: Partial<HallazgoPanelExtendido> | null) {
@@ -1685,6 +1722,86 @@ const exportarExcel = () => {
 };
 const generarInformeEmpresaObra = (opciones: { imprimir?: boolean } = {}) => {
   const imprimirAlAbrir = opciones.imprimir === true;
+  const escapeHtml = (valor: unknown) =>
+    String(valor ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  const ventana = window.open("", "_blank", "width=1200,height=1200");
+
+  if (!ventana) {
+    window.alert(
+      "No fue posible abrir la ventana del informe. Revise el bloqueo de ventanas emergentes."
+    );
+    return;
+  }
+
+  const htmlEstadoInforme = (titulo: string, detalle?: string) => `
+    <!DOCTYPE html>
+    <html lang="es">
+      <head>
+        <meta charset="UTF-8" />
+        <title>Informe empresa/obra</title>
+        <style>
+          body {
+            margin: 0;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            background: #e5e7eb;
+            color: #111827;
+            font-family: Arial, sans-serif;
+          }
+          .status-card {
+            width: min(520px, calc(100vw - 32px));
+            border: 1px solid #d1d5db;
+            border-radius: 18px;
+            background: #ffffff;
+            box-shadow: 0 20px 50px rgba(15, 23, 42, 0.16);
+            padding: 24px;
+            text-align: center;
+          }
+          .status-title {
+            color: #163a70;
+            font-size: 20px;
+            font-weight: 900;
+            line-height: 1.2;
+          }
+          .status-detail {
+            margin-top: 10px;
+            color: #4b5563;
+            font-size: 14px;
+            line-height: 1.45;
+          }
+        </style>
+      </head>
+      <body>
+        <section class="status-card">
+          <div class="status-title">${escapeHtml(titulo)}</div>
+          ${
+            detalle
+              ? `<div class="status-detail">${escapeHtml(detalle)}</div>`
+              : ""
+          }
+        </section>
+      </body>
+    </html>
+  `;
+  const escribirVentanaInforme = (contenido: string) => {
+    ventana.document.open();
+    ventana.document.write(contenido);
+    ventana.document.close();
+  };
+
+  escribirVentanaInforme(
+    htmlEstadoInforme(
+      "Generando informe ejecutivo...",
+      "Preparando datos, evidencias y vista de impresión."
+    )
+  );
+  ventana.focus();
+
   const hallazgoSeleccionadoParaInforme = hallazgoSeleccionadoInforme;
   const filasInformeEmpresaObra = hallazgoSeleccionadoParaInforme
     ? [hallazgoSeleccionadoParaInforme]
@@ -1695,17 +1812,17 @@ const generarInformeEmpresaObra = (opciones: { imprimir?: boolean } = {}) => {
     filtroEmpresa === "TODAS" &&
     filtroObra === "TODAS"
   ) {
+    escribirVentanaInforme(
+      htmlEstadoInforme(
+        "Seleccione una empresa u obra",
+        "Debe elegir una empresa, una obra o un hallazgo antes de generar el informe."
+      )
+    );
     window.alert("Seleccione una empresa o una obra para generar el informe.");
     return;
   }
 
-  const escapeHtml = (valor: unknown) =>
-    String(valor ?? "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
-
+  try {
   const normalizarTexto = (valor: unknown) =>
     String(valor ?? "")
       .normalize("NFD")
@@ -2139,10 +2256,44 @@ const generarInformeEmpresaObra = (opciones: { imprimir?: boolean } = {}) => {
 
   const supervisorChunks = chunkArray(supervisoresPendientes, 8);
   const hallazgoChunks = chunkArray(filasInformeEmpresaObra, 12);
-  const hallazgosConEvidencia = filasInformeEmpresaObra.filter(
-    (item) => obtenerEvidenciasPanel(item).length > 0
-  );
-  const evidenciaChunks = chunkArray(hallazgosConEvidencia, 6);
+  const textoInforme = (valor: unknown, fallback = "Sin registro") => {
+    const limpio = String(valor ?? "").trim();
+    return limpio || fallback;
+  };
+  const gpsInforme = (fila: HallazgoPanelExtendido) => {
+    const gps = fila.gps;
+    const latitud = typeof gps?.latitud === "number" ? gps.latitud : undefined;
+    const longitud = typeof gps?.longitud === "number" ? gps.longitud : undefined;
+
+    if (typeof latitud === "number" && typeof longitud === "number") {
+      return `${latitud.toFixed(6)}, ${longitud.toFixed(6)}${
+        gps?.precisionGps ? ` · precisión ${gps.precisionGps} m` : ""
+      }${
+        gps?.fechaHoraGeolocalizacion
+          ? ` · ${gps.fechaHoraGeolocalizacion}`
+          : ""
+      }`;
+    }
+
+    return textoInforme(gps?.estadoGeolocalizacion, "Sin trazabilidad GPS registrada");
+  };
+  const responsableInforme = (fila: HallazgoPanelExtendido) =>
+    textoInforme(
+      fila.responsableCierreNombre ||
+        fila.responsable,
+      "Sin responsable asignado"
+    );
+  const marcoLegalInforme = (fila: HallazgoPanelExtendido) =>
+    fila.evaluacionPreventiva?.marcoLegalRelacionado?.length
+      ? fila.evaluacionPreventiva.marcoLegalRelacionado.join(" · ")
+      : "Ley 16.744 · DS 44 · DS 594";
+  const analisisEjecutivoInforme = (fila: HallazgoPanelExtendido) =>
+    textoInforme(
+      fila.evaluacionPreventiva?.analisisEjecutivo ||
+        fila.evaluacionPreventiva?.motivoTecnicoHallazgo ||
+        fila.recomendacion,
+      "Análisis ejecutivo no disponible para este hallazgo."
+    );
 
   const pagina1Html = `
     <section class="sheet">
@@ -2384,11 +2535,9 @@ const generarInformeEmpresaObra = (opciones: { imprimir?: boolean } = {}) => {
     </section>
   `;
 
-  const supervisorPagesHtml = (supervisorChunks.length ? supervisorChunks : [[]]).map((chunk, index, arr) => {
-    const filasSupervisor =
-      chunk.length === 0
-        ? `<tr><td colspan="8">No hay supervisores con hallazgos pendientes en el período seleccionado.</td></tr>`
-        : chunk
+  const supervisorPagesHtml = supervisorChunks.length
+    ? supervisorChunks.map((chunk, index, arr) => {
+        const filasSupervisor = chunk
             .map(
               (supervisor) => `
                 <tr>
@@ -2405,47 +2554,46 @@ const generarInformeEmpresaObra = (opciones: { imprimir?: boolean } = {}) => {
             )
             .join("");
 
-    return `
-      <section class="sheet">
-        <div class="page-head">
-          <div>
-            <h2 class="page-title">Análisis de supervisores con hallazgos pendientes</h2>
-            <div class="page-subtitle">
-              Resumen de responsables con hallazgos abiertos o en seguimiento dentro del período analizado.
+        return `
+          <section class="sheet">
+            <div class="page-head">
+              <div>
+                <h2 class="page-title">Análisis de supervisores con hallazgos pendientes</h2>
+                <div class="page-subtitle">
+                  Resumen de responsables con hallazgos abiertos o en seguimiento dentro del período analizado.
+                </div>
+              </div>
+              <div class="page-counter">Bloque ${index + 1} de ${arr.length}</div>
             </div>
-          </div>
-          <div class="page-counter">Bloque ${index + 1} de ${arr.length}</div>
-        </div>
 
-        <div class="card">
-          <table class="table-report">
-            <thead>
-              <tr>
-                <th>Supervisor</th>
-                <th>Pendientes</th>
-                <th>Abiertos</th>
-                <th>En seguimiento</th>
-                <th>Máx. criticidad</th>
-                <th>Más antiguo</th>
-                <th>Promedio</th>
-                <th>Códigos asociados</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${filasSupervisor}
-            </tbody>
-          </table>
-          <div class="table-note">
-            ${escapeHtml(
-              supervisoresPendientes.length === 0
-                ? "Sin supervisores con hallazgos pendientes dentro del período seleccionado."
-                : `Se presentan ${chunk.length} supervisor(es) en este bloque, ordenados por criticidad, cantidad de pendientes y antigüedad.`
-            )}
-          </div>
-        </div>
-      </section>
-    `;
-  }).join("");
+            <div class="card">
+              <table class="table-report">
+                <thead>
+                  <tr>
+                    <th>Supervisor</th>
+                    <th>Pendientes</th>
+                    <th>Abiertos</th>
+                    <th>En seguimiento</th>
+                    <th>Máx. criticidad</th>
+                    <th>Más antiguo</th>
+                    <th>Promedio</th>
+                    <th>Códigos asociados</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${filasSupervisor}
+                </tbody>
+              </table>
+              <div class="table-note">
+                ${escapeHtml(
+                  `Se presentan ${chunk.length} supervisor(es) en este bloque, ordenados por criticidad, cantidad de pendientes y antigüedad.`
+                )}
+              </div>
+            </div>
+          </section>
+        `;
+      }).join("")
+    : "";
 
   const detallePagesHtml = (hallazgoChunks.length ? hallazgoChunks : [[]]).map((chunk, index, arr) => {
     const detalleHallazgos =
@@ -2460,6 +2608,16 @@ const generarInformeEmpresaObra = (opciones: { imprimir?: boolean } = {}) => {
               (fila) => {
                 const descripcionHallazgo =
                   String(fila.descripcion || "").trim() || "Sin descripción registrada.";
+                const analisisHallazgo = analisisEjecutivoInforme(fila);
+                const marcoLegalHallazgo = marcoLegalInforme(fila);
+                const accionInmediata = textoInforme(
+                  fila.medidaInmediata,
+                  "Acción inmediata no registrada."
+                );
+                const recomendacionHallazgo = textoInforme(
+                  fila.recomendacion,
+                  "Recomendación no registrada."
+                );
 
                 return `
                   <div class="finding-card avoid-break">
@@ -2475,6 +2633,10 @@ const generarInformeEmpresaObra = (opciones: { imprimir?: boolean } = {}) => {
 
                     <div class="finding-grid">
                       <div class="finding-field">
+                        <div class="label">Código</div>
+                        <div class="finding-value">${escapeHtml(fila.codigo)}</div>
+                      </div>
+                      <div class="finding-field">
                         <div class="label">Tipo de hallazgo</div>
                         <div class="finding-value">${escapeHtml(fila.tipoHallazgo)}</div>
                       </div>
@@ -2486,12 +2648,45 @@ const generarInformeEmpresaObra = (opciones: { imprimir?: boolean } = {}) => {
                         <div class="label">Fecha / Hora</div>
                         <div class="finding-value">${escapeHtml(fila.fechaHora)}</div>
                       </div>
+                      <div class="finding-field">
+                        <div class="label">Supervisor</div>
+                        <div class="finding-value">${escapeHtml(fila.reportante)}</div>
+                      </div>
+                      <div class="finding-field">
+                        <div class="label">Responsable</div>
+                        <div class="finding-value">${escapeHtml(responsableInforme(fila))}</div>
+                      </div>
+                      <div class="finding-field finding-field-full">
+                        <div class="label">GPS / trazabilidad</div>
+                        <div class="finding-value">${escapeHtml(gpsInforme(fila))}</div>
+                      </div>
                     </div>
 
                     <div class="finding-description">
                       <div class="label">Descripción del hallazgo</div>
                       <div class="finding-description-text">${escapeHtml(descripcionHallazgo)}</div>
                     </div>
+
+                    <div class="finding-grid finding-grid-compact">
+                      <div class="finding-field finding-field-full">
+                        <div class="label">Acción inmediata</div>
+                        <div class="finding-value">${escapeHtml(accionInmediata)}</div>
+                      </div>
+                      <div class="finding-field finding-field-full">
+                        <div class="label">Recomendación</div>
+                        <div class="finding-value">${escapeHtml(recomendacionHallazgo)}</div>
+                      </div>
+                      <div class="finding-field finding-field-full">
+                        <div class="label">Análisis ejecutivo</div>
+                        <div class="finding-value finding-text">${escapeHtml(analisisHallazgo)}</div>
+                      </div>
+                      <div class="finding-field finding-field-full">
+                        <div class="label">Marco legal relacionado</div>
+                        <div class="finding-value">${escapeHtml(marcoLegalHallazgo)}</div>
+                      </div>
+                    </div>
+
+                    ${generarEvidenciasInformeHtml(fila, escapeHtml)}
                   </div>
                 `;
               }
@@ -2520,49 +2715,6 @@ const generarInformeEmpresaObra = (opciones: { imprimir?: boolean } = {}) => {
       </section>
     `;
   }).join("");
-
-  const evidenciaPagesHtml = evidenciaChunks.length
-    ? evidenciaChunks
-        .map((chunk, index, arr) => {
-          const tarjetas = chunk
-            .map(
-              (hallazgo) => `
-                <div class="evidence-card avoid-break">
-                  <div class="evidence-card-head">
-                    <div>
-                      <div class="evidence-code">${escapeHtml(hallazgo.codigo)}</div>
-                      <div class="evidence-meta">
-                        ${escapeHtml(hallazgo.empresa)} · ${escapeHtml(hallazgo.obra)} · ${escapeHtml(hallazgo.fechaHora)}
-                      </div>
-                    </div>
-                    <div class="evidence-chip">${escapeHtml(hallazgo.criticidad)}</div>
-                  </div>
-                  ${generarEvidenciasInformeHtml(hallazgo, escapeHtml)}
-                </div>
-              `
-            )
-            .join("");
-
-          return `
-            <section class="sheet">
-              <div class="page-head">
-                <div>
-                  <h2 class="page-title">Anexo de evidencias fotográficas</h2>
-                  <div class="page-subtitle">
-                    Evidencias asociadas a los hallazgos filtrados. Si una imagen no puede visualizarse, se informa su registro en Storage para trazabilidad.
-                  </div>
-                </div>
-                <div class="page-counter">Bloque ${index + 1} de ${arr.length}</div>
-              </div>
-
-              <div class="evidence-list">
-                ${tarjetas}
-              </div>
-            </section>
-          `;
-        })
-        .join("")
-    : "";
 
   const html = `
     <!DOCTYPE html>
@@ -2621,11 +2773,44 @@ const generarInformeEmpresaObra = (opciones: { imprimir?: boolean } = {}) => {
 
           .paged-report {
             display: grid;
-            gap: 12px;
+            gap: 10px;
             justify-content: center;
             min-height: 100vh;
             padding-bottom: 18px;
             overflow: visible;
+            counter-reset: report-page;
+          }
+
+          .paged-report > .sheet {
+            position: relative;
+            width: 216mm;
+            max-width: calc(100vw - 48px);
+            min-height: auto;
+            margin: 0 auto;
+            padding: 10mm;
+            background: #ffffff;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            box-shadow: 0 2px 14px rgba(15, 23, 42, 0.12);
+            overflow: visible;
+            page-break-after: auto;
+            break-after: auto;
+            counter-increment: report-page;
+          }
+
+          .paged-report > .sheet:last-child {
+            page-break-after: auto;
+            break-after: auto;
+          }
+
+          .paged-report > .sheet::before {
+            content: "Página " counter(report-page);
+            position: absolute;
+            right: 10mm;
+            top: 5mm;
+            color: #374151;
+            font-size: 12px;
+            font-weight: 900;
           }
 
           .preview-status {
@@ -2646,8 +2831,8 @@ const generarInformeEmpresaObra = (opciones: { imprimir?: boolean } = {}) => {
             display: grid;
             gap: 4px;
             justify-items: center;
-            page-break-after: always;
-            break-after: page;
+            page-break-after: auto;
+            break-after: auto;
           }
 
           .preview-page-shell:last-child {
@@ -2667,7 +2852,8 @@ const generarInformeEmpresaObra = (opciones: { imprimir?: boolean } = {}) => {
           .preview-page {
             width: 216mm;
             max-width: calc(100vw - 48px);
-            height: 279mm;
+            height: auto;
+            min-height: auto;
             margin: 0 auto;
             padding: 10mm;
             background: #ffffff;
@@ -2678,7 +2864,7 @@ const generarInformeEmpresaObra = (opciones: { imprimir?: boolean } = {}) => {
           }
 
           .preview-page-content {
-            height: 259mm;
+            height: auto;
             overflow: visible;
           }
 
@@ -2692,12 +2878,12 @@ const generarInformeEmpresaObra = (opciones: { imprimir?: boolean } = {}) => {
 
           .preview-page-shell.is-flexible-page .preview-page {
             height: auto;
-            min-height: 279mm;
+            min-height: auto;
           }
 
           .preview-page-shell.is-flexible-page .preview-page-content {
             height: auto;
-            min-height: 259mm;
+            min-height: auto;
           }
 
           .page-flow-block {
@@ -3152,6 +3338,14 @@ const generarInformeEmpresaObra = (opciones: { imprimir?: boolean } = {}) => {
             gap: 8px;
           }
 
+          .finding-grid-compact {
+            margin-top: 10px;
+          }
+
+          .finding-field-full {
+            grid-column: 1 / -1;
+          }
+
           .finding-field {
             border: 1px solid #e5e7eb;
             border-radius: 10px;
@@ -3166,6 +3360,11 @@ const generarInformeEmpresaObra = (opciones: { imprimir?: boolean } = {}) => {
             font-weight: 800;
             line-height: 1.35;
             overflow-wrap: anywhere;
+          }
+
+          .finding-text {
+            font-weight: 700;
+            line-height: 1.45;
           }
 
           .finding-description {
@@ -3307,13 +3506,36 @@ const generarInformeEmpresaObra = (opciones: { imprimir?: boolean } = {}) => {
             .preview-page-shell {
               display: block;
               margin: 0;
-              page-break-after: always;
-              break-after: page;
+              page-break-after: auto;
+              break-after: auto;
             }
 
             .preview-page-shell:last-child {
               page-break-after: auto;
               break-after: auto;
+            }
+
+            .paged-report > .sheet {
+              width: auto;
+              max-width: none;
+              min-height: auto;
+              margin: 0;
+              padding: 0;
+              background: #ffffff;
+              border: none;
+              border-radius: 0;
+              box-shadow: none;
+              page-break-after: auto;
+              break-after: auto;
+            }
+
+            .paged-report > .sheet:last-child {
+              page-break-after: auto;
+              break-after: auto;
+            }
+
+            .paged-report > .sheet::before {
+              display: none;
             }
 
             .preview-page {
@@ -3361,243 +3583,41 @@ const generarInformeEmpresaObra = (opciones: { imprimir?: boolean } = {}) => {
       </head>
       <body>
         <div id="preview-status" class="preview-status">
-          Preparando vista previa paginada...
+          ${imprimirAlAbrir ? "Preparando impresión / PDF..." : "Vista previa del informe · desplácese para revisar todas las hojas"}
         </div>
-        <main id="paged-report" class="paged-report"></main>
-        <main id="source-report" class="source-report" aria-hidden="true">
+        <main id="paged-report" class="paged-report">
           ${pagina1Html}
           ${supervisorPagesHtml}
           ${detallePagesHtml}
-          ${evidenciaPagesHtml}
         </main>
-        <script>
-          (function () {
-            var source = document.getElementById("source-report");
-            var pagedReport = document.getElementById("paged-report");
-            var previewStatus = document.getElementById("preview-status");
-            var sourceHtml = source ? source.innerHTML : "";
-            var frame = 0;
-            var imprimirAutomaticamente = ${imprimirAlAbrir ? "true" : "false"};
-            var impresionProgramada = false;
-
-            function crearPagina() {
-              var shell = document.createElement("section");
-              var label = document.createElement("div");
-              var page = document.createElement("article");
-              var content = document.createElement("div");
-
-              shell.className = "preview-page-shell";
-              label.className = "preview-page-label";
-              page.className = "preview-page";
-              content.className = "preview-page-content";
-
-              page.appendChild(content);
-              shell.appendChild(label);
-              shell.appendChild(page);
-              pagedReport.appendChild(shell);
-
-              return {
-                label: label,
-                content: content,
-              };
-            }
-
-            function crearBloque(elementos, claseLista) {
-              var block = document.createElement("div");
-              block.className = "page-flow-block";
-
-              elementos.forEach(function (elemento) {
-                block.appendChild(elemento.cloneNode(true));
-              });
-
-              if (claseLista) {
-                block.className += " " + claseLista;
-              }
-
-              return block;
-            }
-
-            function crearBloqueLista(tarjetas, claseLista) {
-              var wrapper = document.createElement("div");
-              wrapper.className = claseLista;
-
-              tarjetas.forEach(function (tarjeta) {
-                wrapper.appendChild(tarjeta.cloneNode(true));
-              });
-
-              return crearBloque([wrapper]);
-            }
-
-            function recolectarBloques() {
-              var bloques = [];
-              var sheets = Array.prototype.slice.call(source.querySelectorAll(".sheet"));
-
-              sheets.forEach(function (sheet) {
-                var children = Array.prototype.slice.call(sheet.children);
-
-                for (var index = 0; index < children.length; index += 1) {
-                  var child = children[index];
-                  var next = children[index + 1];
-                  var isPageHead =
-                    child.classList && child.classList.contains("page-head");
-                  var nextIsFindingList =
-                    next && next.classList && next.classList.contains("finding-list");
-                  var nextIsEvidenceList =
-                    next && next.classList && next.classList.contains("evidence-list");
-
-                  if (isPageHead && (nextIsFindingList || nextIsEvidenceList)) {
-                    var listClass = nextIsFindingList ? "finding-list" : "evidence-list";
-                    var cards = Array.prototype.slice.call(next.children);
-
-                    if (cards.length === 0) {
-                      bloques.push(crearBloque([child, next]));
-                    } else {
-                      var firstList = document.createElement("div");
-                      firstList.className = listClass;
-                      firstList.appendChild(cards[0].cloneNode(true));
-                      bloques.push(crearBloque([child, firstList]));
-
-                      cards.slice(1).forEach(function (card) {
-                        bloques.push(crearBloqueLista([card], listClass));
-                      });
-                    }
-
-                    index += 1;
-                    continue;
-                  }
-
-                  if (isPageHead && next) {
-                    bloques.push(crearBloque([child, next]));
-                    index += 1;
-                    continue;
-                  }
-
-                  if (
-                    child.classList &&
-                    (child.classList.contains("finding-list") ||
-                      child.classList.contains("evidence-list"))
-                  ) {
-                    var childListClass = child.classList.contains("finding-list")
-                      ? "finding-list"
-                      : "evidence-list";
-                    Array.prototype.slice.call(child.children).forEach(function (card) {
-                      bloques.push(crearBloqueLista([card], childListClass));
-                    });
-                    continue;
-                  }
-
-                  bloques.push(crearBloque([child]));
-                }
-              });
-
-              return bloques;
-            }
-
-            function registrarImagenes() {
-              document.querySelectorAll("#paged-report img").forEach(function (imagen) {
-                if (imagen.complete) return;
-                imagen.addEventListener("load", programarPaginacion, { once: true });
-                imagen.addEventListener("error", programarPaginacion, { once: true });
-              });
-            }
-
-            function actualizarPaginasFlexibles() {
-              if (!pagedReport) return;
-
-              Array.prototype.slice
-                .call(pagedReport.querySelectorAll(".preview-page-shell"))
-                .forEach(function (paginaShell) {
-                  var content = paginaShell.querySelector(".preview-page-content");
-                  if (!content) return;
-
-                  paginaShell.classList.remove("is-flexible-page");
-
-                  if (content.scrollHeight > content.clientHeight + 2) {
-                    paginaShell.classList.add("is-flexible-page");
-                  }
+        ${
+          imprimirAlAbrir
+            ? `<script>
+                window.addEventListener("load", function () {
+                  window.setTimeout(function () {
+                    window.focus();
+                    window.print();
+                  }, 450);
                 });
-            }
-
-            function imprimirInformeActual() {
-              if (!imprimirAutomaticamente || impresionProgramada) return;
-
-              impresionProgramada = true;
-              window.setTimeout(function () {
-                window.focus();
-                window.print();
-              }, 1050);
-            }
-
-            function paginarInforme() {
-              if (!source || !pagedReport) return;
-
-              source.innerHTML = sourceHtml;
-              pagedReport.innerHTML = "";
-
-              var bloques = recolectarBloques();
-              var pagina = crearPagina();
-
-              bloques.forEach(function (bloque) {
-                pagina.content.appendChild(bloque);
-
-                if (
-                  pagina.content.scrollHeight > pagina.content.clientHeight + 2 &&
-                  pagina.content.children.length > 1
-                ) {
-                  pagina.content.removeChild(bloque);
-                  pagina = crearPagina();
-                  pagina.content.appendChild(bloque);
-                }
-              });
-
-              var paginas = Array.prototype.slice.call(
-                pagedReport.querySelectorAll(".preview-page-shell")
-              );
-
-              paginas.forEach(function (paginaShell, index) {
-                var label = paginaShell.querySelector(".preview-page-label");
-                if (label) {
-                  label.textContent = "Página " + (index + 1) + " de " + paginas.length;
-                }
-              });
-
-              actualizarPaginasFlexibles();
-
-              if (previewStatus) {
-                previewStatus.textContent =
-                  "Vista previa de impresión · " +
-                  paginas.length +
-                  (paginas.length === 1 ? " página" : " páginas");
-              }
-
-              registrarImagenes();
-              imprimirInformeActual();
-            }
-
-            function programarPaginacion() {
-              window.cancelAnimationFrame(frame);
-              frame = window.requestAnimationFrame(paginarInforme);
-            }
-
-            window.addEventListener("load", programarPaginacion);
-            window.addEventListener("resize", programarPaginacion);
-
-            programarPaginacion();
-            window.setTimeout(programarPaginacion, 250);
-            window.setTimeout(programarPaginacion, 900);
-          })();
-        </script>
+              </script>`
+            : ""
+        }
       </body>
     </html>
   `;
 
-  const ventana = window.open("", "_blank", "width=1200,height=1200");
-  if (!ventana) return;
-
-  ventana.document.open();
-  ventana.document.write(html);
-  ventana.document.close();
+  escribirVentanaInforme(html);
   ventana.focus();
+  } catch (error) {
+    console.error("No fue posible generar el informe empresa/obra.", error);
+    escribirVentanaInforme(
+      htmlEstadoInforme(
+        "No fue posible generar el informe.",
+        "Revise evidencias o datos del hallazgo."
+      )
+    );
+    ventana.focus();
+  }
 };
 useEffect(() => {
   let frame = 0;
@@ -4202,14 +4222,6 @@ const quitarFiltro = (filtro: string) => {
     setFiltroFechaHasta("");
   }
 };
-const formatearFechaInput = (fecha: Date) => {
-  const year = fecha.getFullYear();
-  const month = String(fecha.getMonth() + 1).padStart(2, "0");
-  const day = String(fecha.getDate()).padStart(2, "0");
-
-  return `${year}-${month}-${day}`;
-};
-
 const aplicarFiltroRapido = (
   modo: "HOY" | "SEMANA" | "MES" | "PERSONALIZADO"
 ) => {
@@ -4221,19 +4233,19 @@ const aplicarFiltroRapido = (
     return;
   }
 
-  const hasta = new Date(fechaBase);
-  const desde = new Date(fechaBase);
+  const hasta = fechaLocalISO();
+  let desde = hasta;
 
   if (modo === "HOY") {
-    desde.setHours(0, 0, 0, 0);
+    desde = hasta;
   } else if (modo === "SEMANA") {
-    desde.setDate(desde.getDate() - 6);
+    desde = desplazarFechaISO(hasta, -6);
   } else if (modo === "MES") {
-    desde.setDate(1);
+    desde = `${hasta.slice(0, 8)}01`;
   }
 
-  setFiltroFechaDesde(formatearFechaInput(desde));
-  setFiltroFechaHasta(formatearFechaInput(hasta));
+  setFiltroFechaDesde(desde);
+  setFiltroFechaHasta(hasta);
 };
 
 const opcionesEmpresa = ["TODAS", ...new Set(filas.map((item) => item.empresa))];
@@ -4292,12 +4304,6 @@ const timestampsFilas = filas
 const fechaBase = new Date(
   timestampsFilas.length > 0 ? Math.max(...timestampsFilas) : Date.now()
 );
-
-const inicioDia = new Date(fechaBase);
-inicioDia.setHours(0, 0, 0, 0);
-
-const finDia = new Date(fechaBase);
-finDia.setHours(23, 59, 59, 999);
 
 const metaDiariaSegura = Math.max(1, Math.min(999, Math.round(metaDiariaReportes || 1)));
 const reportesHoy = filas.filter((item) => {
@@ -4594,18 +4600,13 @@ const imprimirCalendarioMeta = () => {
   window.setTimeout(() => ventana.print(), 250);
 };
 
-const inicioSemana = new Date(inicioDia);
-inicioSemana.setDate(inicioSemana.getDate() - 6);
-
-const inicioMes = new Date(
-  fechaBase.getFullYear(),
-  fechaBase.getMonth(),
-  1
-);
+const fechaHoyPanel = fechaLocalISO();
+const inicioSemanaPanel = desplazarFechaISO(fechaHoyPanel, -6);
+const inicioMesPanel = `${fechaHoyPanel.slice(0, 8)}01`;
 
 const filasBase = filas.filter((item) => {
   const timestampItem = timestampHallazgoPanel(item);
-  const fechaItem = timestampItem ? new Date(timestampItem) : null;
+  const fechaItem = timestampItem ? fechaLocalISO(new Date(timestampItem)) : "";
 
   const cumpleEmpresa =
     filtroEmpresa === "TODAS" || item.empresa === filtroEmpresa;
@@ -4625,11 +4626,11 @@ const filasBase = filas.filter((item) => {
 
   const cumpleFechaDesde =
     !filtroFechaDesde ||
-    (fechaItem !== null && fechaItem >= new Date(`${filtroFechaDesde}T00:00:00`));
+    (Boolean(fechaItem) && fechaItem >= filtroFechaDesde);
 
   const cumpleFechaHasta =
     !filtroFechaHasta ||
-    (fechaItem !== null && fechaItem <= new Date(`${filtroFechaHasta}T23:59:59`));
+    (Boolean(fechaItem) && fechaItem <= filtroFechaHasta);
 
   return (
     cumpleEmpresa &&
@@ -4644,18 +4645,18 @@ const filasBase = filas.filter((item) => {
 
 const filasFiltradas = filasBase.filter((item) => {
   const timestamp = timestampHallazgoPanel(item);
-  const fecha = timestamp ? new Date(timestamp) : null;
+  const fecha = timestamp ? fechaLocalISO(new Date(timestamp)) : "";
 
   if (filtroRapido === "HOY") {
-    return fecha !== null && fecha >= inicioDia && fecha <= finDia;
+    return fecha === fechaHoyPanel;
   }
 
   if (filtroRapido === "SEMANA") {
-    return fecha !== null && fecha >= inicioSemana && fecha <= finDia;
+    return Boolean(fecha) && fecha >= inicioSemanaPanel && fecha <= fechaHoyPanel;
   }
 
   if (filtroRapido === "MES") {
-    return fecha !== null && fecha >= inicioMes && fecha <= finDia;
+    return Boolean(fecha) && fecha >= inicioMesPanel && fecha <= fechaHoyPanel;
   }
 
   return true;
@@ -10558,32 +10559,6 @@ style={{
               </div>
             ) : null}
 
-            {!vistaBorradosActiva && hallazgoSeleccionadoInforme ? (
-              <div
-                style={{
-                  padding: "12px 14px",
-                  borderRadius: "14px",
-                  border: temaClaro
-                    ? "1px solid rgba(37,99,235,0.22)"
-                    : "1px solid rgba(96,165,250,0.28)",
-                  background: temaClaro
-                    ? "rgba(219,234,254,0.62)"
-                    : "rgba(30,64,175,0.20)",
-                  color: temaClaro ? "#1e3a8a" : "#bfdbfe",
-                  fontSize: "12px",
-                  fontWeight: 850,
-                  lineHeight: 1.45,
-                }}
-              >
-                Hallazgo seleccionado:{" "}
-                <span style={{ fontWeight: 950 }}>
-                  {hallazgoSeleccionadoInforme.codigo ||
-                    identidadHallazgoPanel(hallazgoSeleccionadoInforme)}
-                </span>{" "}
-                · Informe empresa/obra usará este código.
-              </div>
-            ) : null}
-
             <div
               ref={listadoReportesRef}
               className="ce-panel-table"
@@ -13168,7 +13143,7 @@ style={{
       <div
         style={{
           marginBottom: "12px",
-          padding: "13px",
+          padding: "11px",
           borderRadius: "16px",
           background: temaClaro
             ? "linear-gradient(180deg, rgba(239,246,255,0.92), rgba(255,255,255,0.88))"
@@ -13180,7 +13155,9 @@ style={{
             ? "0 12px 26px rgba(37,99,235,0.10)"
             : "0 14px 32px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.06)",
           display: "grid",
-          gap: "12px",
+          gap: "9px",
+          maxHeight: "360px",
+          overflowY: "auto",
         }}
       >
         <div
