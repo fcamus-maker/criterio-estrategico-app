@@ -19,6 +19,7 @@ import {
 } from "../repositories/hallazgosCentralRepository";
 import { rolPuedeEntrarEvaluarV2CE } from "./authAccess";
 import { obtenerAuthProfileActual } from "./authProfileService";
+import { obtenerSupabaseCliente } from "@/lib/supabaseClient";
 import type { ProfileCE } from "../types/authRoles";
 
 export type ResultadoGuardadoReporteV2 = {
@@ -71,6 +72,255 @@ const UUID_REGEX =
 function uuidSeguro(valor: unknown) {
   const texto = String(valor || "").trim();
   return UUID_REGEX.test(texto) ? texto : "";
+}
+
+function textoSeguro(valor: unknown) {
+  return String(valor ?? "").trim();
+}
+
+function normalizarClave(valor: unknown) {
+  return textoSeguro(valor)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function coincideTexto(valor: unknown, candidato: unknown) {
+  const normalizado = normalizarClave(valor);
+  const normalizadoCandidato = normalizarClave(candidato);
+
+  return Boolean(
+    normalizado &&
+      normalizadoCandidato &&
+      normalizado === normalizadoCandidato
+  );
+}
+
+function esContextoDemoLocal(reporte: ReporteV2Storage, perfil?: ProfileCE) {
+  const valores = [
+    reporte.empresaId,
+    reporte.obraId,
+    perfil?.empresaId,
+    perfil?.obraId,
+    reporte.reportanteEmail,
+    perfil?.email,
+  ]
+    .map((valor) => textoSeguro(valor).toLowerCase())
+    .filter(Boolean);
+
+  const tieneIdentidadDemo = valores.some(
+    (valor) =>
+      valor.includes("local-demo") ||
+      valor.endsWith(".demo@criterioestrategico.cl")
+  );
+
+  if (tieneIdentidadDemo) return true;
+
+  if (typeof window === "undefined") return false;
+
+  return new URLSearchParams(window.location.search).get("demo") === "1";
+}
+
+type ContextoOperacionalResuelto = {
+  empresaId?: string;
+  obraId?: string;
+  empresa?: string;
+  obra?: string;
+  siglaEmpresa?: string;
+  siglaProyecto?: string;
+};
+
+const DEMO_EMPRESA_ID_FALLBACK = "ce012cb3-3fac-4201-93fd-38b5c5dc482b";
+const DEMO_OBRA_ID_FALLBACK = "894333b8-eaf5-4e6a-94c9-e33e1241b27e";
+
+async function resolverContextoDesdeCatalogos(
+  reporte: ReporteV2Storage
+): Promise<ContextoOperacionalResuelto> {
+  const cliente = await obtenerSupabaseCliente();
+  if (!cliente) return {};
+
+  const contexto: ContextoOperacionalResuelto = {};
+  let empresaId = uuidSeguro(reporte.empresaId);
+  let obraId = uuidSeguro(reporte.obraId);
+  const empresaReporte = textoSeguro(reporte.empresa);
+  const obraReporte = textoSeguro(reporte.obra);
+  const siglaEmpresaReporte = textoSeguro(reporte.siglaEmpresa);
+  const siglaObraReporte = textoSeguro(reporte.siglaProyecto);
+
+  try {
+    const { data: empresas } = await cliente
+      .from("empresas")
+      .select("id,nombre,sigla")
+      .limit(100);
+
+    const empresasDisponibles = Array.isArray(empresas)
+      ? (empresas as Array<{
+          id?: string | null;
+          nombre?: string | null;
+          sigla?: string | null;
+        }>)
+      : [];
+
+    const empresaEncontrada = empresaId
+      ? empresasDisponibles.find((empresa) => uuidSeguro(empresa.id) === empresaId)
+      : empresasDisponibles.find(
+          (empresa) =>
+            coincideTexto(empresa.nombre, empresaReporte) ||
+            coincideTexto(empresa.sigla, siglaEmpresaReporte)
+        );
+
+    if (empresaEncontrada) {
+      empresaId = uuidSeguro(empresaEncontrada.id) || empresaId;
+      contexto.empresaId = empresaId || undefined;
+      contexto.empresa = textoSeguro(empresaEncontrada.nombre) || undefined;
+      contexto.siglaEmpresa = textoSeguro(empresaEncontrada.sigla) || undefined;
+    }
+  } catch (error) {
+    logDesarrollo("contexto empresas no resuelto", {
+      codigo: reporte.codigo,
+      error: sanitizarError(error),
+    });
+  }
+
+  try {
+    let queryObras = cliente
+      .from("obras")
+      .select("id,nombre,sigla,empresa_id");
+
+    if (empresaId) {
+      queryObras = queryObras.eq("empresa_id", empresaId);
+    }
+
+    const { data: obras } = await queryObras.limit(100);
+    const obrasDisponibles = Array.isArray(obras)
+      ? (obras as Array<{
+          id?: string | null;
+          nombre?: string | null;
+          sigla?: string | null;
+          empresa_id?: string | null;
+        }>)
+      : [];
+
+    const obraEncontrada = obraId
+      ? obrasDisponibles.find((obra) => uuidSeguro(obra.id) === obraId)
+      : obrasDisponibles.find(
+          (obra) =>
+            coincideTexto(obra.nombre, obraReporte) ||
+            coincideTexto(obra.sigla, siglaObraReporte)
+        );
+
+    if (obraEncontrada) {
+      obraId = uuidSeguro(obraEncontrada.id) || obraId;
+      empresaId = empresaId || uuidSeguro(obraEncontrada.empresa_id);
+      contexto.obraId = obraId || undefined;
+      contexto.empresaId = contexto.empresaId || empresaId || undefined;
+      contexto.obra = textoSeguro(obraEncontrada.nombre) || undefined;
+      contexto.siglaProyecto = textoSeguro(obraEncontrada.sigla) || undefined;
+    }
+  } catch (error) {
+    logDesarrollo("contexto obras no resuelto", {
+      codigo: reporte.codigo,
+      error: sanitizarError(error),
+    });
+  }
+
+  if (contexto.empresaId && contexto.obraId) return contexto;
+
+  try {
+    const { data: hallazgos } = await cliente
+      .from("hallazgos_central")
+      .select("empresa,obra,empresa_id,obra_id,sigla_empresa,sigla_proyecto")
+      .not("empresa_id", "is", null)
+      .not("obra_id", "is", null)
+      .limit(200);
+
+    const hallazgosDisponibles = Array.isArray(hallazgos)
+      ? (hallazgos as Array<{
+          empresa?: string | null;
+          obra?: string | null;
+          empresa_id?: string | null;
+          obra_id?: string | null;
+          sigla_empresa?: string | null;
+          sigla_proyecto?: string | null;
+        }>)
+      : [];
+
+    const hallazgoRelacionado = hallazgosDisponibles.find(
+      (hallazgo) =>
+        (coincideTexto(hallazgo.empresa, empresaReporte) ||
+          coincideTexto(hallazgo.sigla_empresa, siglaEmpresaReporte)) &&
+        (coincideTexto(hallazgo.obra, obraReporte) ||
+          coincideTexto(hallazgo.sigla_proyecto, siglaObraReporte))
+    );
+
+    if (hallazgoRelacionado) {
+      return {
+        empresaId: contexto.empresaId || uuidSeguro(hallazgoRelacionado.empresa_id),
+        obraId: contexto.obraId || uuidSeguro(hallazgoRelacionado.obra_id),
+        empresa: contexto.empresa || textoSeguro(hallazgoRelacionado.empresa),
+        obra: contexto.obra || textoSeguro(hallazgoRelacionado.obra),
+        siglaEmpresa:
+          contexto.siglaEmpresa || textoSeguro(hallazgoRelacionado.sigla_empresa),
+        siglaProyecto:
+          contexto.siglaProyecto || textoSeguro(hallazgoRelacionado.sigla_proyecto),
+      };
+    }
+  } catch (error) {
+    logDesarrollo("contexto central no resuelto", {
+      codigo: reporte.codigo,
+      error: sanitizarError(error),
+    });
+  }
+
+  return contexto;
+}
+
+async function completarContextoOperacionalReporte(
+  reporte: ReporteV2Storage,
+  perfil: ProfileCE,
+  userId: string
+): Promise<ReporteV2Storage> {
+  const base = aplicarIdentidadReporteMovil(reporte, perfil, userId);
+  let contexto = await resolverContextoDesdeCatalogos(base);
+  const esDemo = esContextoDemoLocal(base, perfil);
+
+  if (esDemo && (!uuidSeguro(base.empresaId) || !uuidSeguro(base.obraId))) {
+    contexto = {
+      ...contexto,
+      empresaId:
+        uuidSeguro(contexto.empresaId) ||
+        uuidSeguro(base.empresaId) ||
+        DEMO_EMPRESA_ID_FALLBACK,
+      obraId:
+        uuidSeguro(contexto.obraId) ||
+        uuidSeguro(base.obraId) ||
+        DEMO_OBRA_ID_FALLBACK,
+    };
+  }
+
+  const empresaId =
+    uuidSeguro(base.empresaId) || uuidSeguro(contexto.empresaId) || undefined;
+  const obraId =
+    uuidSeguro(base.obraId) || uuidSeguro(contexto.obraId) || undefined;
+  const scopeLocal = crearScopeLocalReporteV2({
+    userId: base.reportanteUserId || base.supervisorUserId,
+    email: base.reportanteEmail,
+    empresaId,
+    obraId,
+  });
+
+  return {
+    ...base,
+    empresaId,
+    obraId,
+    empresa: contexto.empresa || base.empresa,
+    obra: contexto.obra || base.obra,
+    siglaEmpresa: contexto.siglaEmpresa || base.siglaEmpresa,
+    siglaProyecto: contexto.siglaProyecto || base.siglaProyecto,
+    scopeLocal: scopeLocal || base.scopeLocal,
+  };
 }
 
 function aplicarIdentidadReporteMovil(
@@ -368,7 +618,7 @@ export async function guardarReporteV2Completo(
   const tablaDestino = obtenerTablaDestinoHallazgosCentral();
   const sesionReporte = await validarSesionReporteMovil();
   const reporteConIdentidad = sesionReporte.ok
-    ? aplicarIdentidadReporteMovil(
+    ? await completarContextoOperacionalReporte(
         reporte,
         sesionReporte.perfil,
         sesionReporte.userId
