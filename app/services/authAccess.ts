@@ -20,6 +20,10 @@ export function rolPuedeEntrarPanelCE(rol: RoleCE) {
   return ROLES_PANEL.has(rol);
 }
 
+export function rolEsAppMovilCE(rol: RoleCE) {
+  return rol === "supervisor_reportante";
+}
+
 export function rolPuedeEntrarEvaluarV2CE(rol: RoleCE) {
   void rol;
   // Durante demo controlada se permite que roles administrativos entren a la app
