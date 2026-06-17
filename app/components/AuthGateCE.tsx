@@ -289,14 +289,9 @@ function esOrigenLocalOPrivado() {
   );
 }
 
-function esPerfilDemoControlado(perfil: ProfileCE) {
-  return Boolean(perfil.email?.trim().toLowerCase().endsWith(".demo@criterioestrategico.cl"));
-}
-
 function debeBloquearAppMovilEnEscritorio(perfil: ProfileCE) {
   if (!rolEsAppMovilCE(perfil.rol)) return false;
   if (esOrigenLocalOPrivado()) return false;
-  if (esPerfilDemoControlado(perfil)) return false;
 
   return !esMovilOTabletCliente();
 }
