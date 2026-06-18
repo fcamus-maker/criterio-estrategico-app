@@ -69,6 +69,101 @@ export type PreguntaSugeridaMotorV2 = {
   objetivo: string;
 };
 
+export type TipoRespuestaPreventiva =
+  | "si_no"
+  | "cumplimiento"
+  | "estado_equipo"
+  | "evidencia"
+  | "texto_breve"
+  | "ambito_general"
+  | "consecuencia_principal"
+  | "control_existente"
+  | "aplicabilidad_documental";
+
+export type AmbitoPreventivo =
+  | "seguridad_trabajadores"
+  | "medio_ambiente"
+  | "dano_material"
+  | "documental_legal"
+  | "operacional"
+  | "mixto"
+  | "no_verificable";
+
+export type SubtipoPreventivo =
+  | "condicion_insegura"
+  | "acto_inseguro"
+  | "brecha_documental"
+  | "incumplimiento_procedimiento"
+  | "equipo_herramienta_mal_estado"
+  | "sustancia_peligrosa"
+  | "equipo_emergencia"
+  | "transito_transporte"
+  | "orden_aseo"
+  | "instalacion_electrica"
+  | "trabajo_critico"
+  | "epp"
+  | "mantencion_certificacion"
+  | "capacitacion_difusion"
+  | "evidencia_registro"
+  | "otro";
+
+export type BibliotecaPreventivaId =
+  | "seguridad_trabajadores"
+  | "medio_ambiente"
+  | "dano_material"
+  | "documental_legal"
+  | "sustancias_peligrosas_hds"
+  | "equipos_emergencia"
+  | "transito_transporte"
+  | "electrico_herramientas"
+  | "orden_aseo"
+  | "trabajos_criticos"
+  | "epp"
+  | "mantencion_certificacion"
+  | "capacitacion_difusion"
+  | "evidencias_registros";
+
+export type OpcionPreventiva = {
+  label: string;
+  value: string;
+  score?: number;
+  requiereTexto?: boolean;
+  marcaNoAplica?: boolean;
+};
+
+export type EfectoPreguntaPreventiva = {
+  clasificacion?: string[];
+  criticidad?: string[];
+  recomendacion?: string[];
+};
+
+export type PreguntaPreventivaTipada = {
+  id: string;
+  textoVisible: string;
+  objetivoTecnico: string;
+  tipoRespuesta: TipoRespuestaPreventiva;
+  opciones?: OpcionPreventiva[];
+  cuandoAplica: string[];
+  cuandoNoAplica?: string[];
+  datoTecnicoCaptura: string;
+  efecto: EfectoPreguntaPreventiva;
+};
+
+export type BibliotecaPreventiva = {
+  id: BibliotecaPreventivaId;
+  nombreVisible: string;
+  ambito: AmbitoPreventivo;
+  subtipos: SubtipoPreventivo[];
+  controlesEsperados: string[];
+  documentosAplicables: string[];
+  consecuenciasProbables: string[];
+  accionesInmediatas: string[];
+  recomendacionesBase: string[];
+  normativaProbable: string[];
+  cuandoAplica: string[];
+  cuandoNoAplica: string[];
+};
+
 export type ClasificacionHallazgoV2 = {
   categoriaDetectada: CategoriaHallazgoV2;
   ambitoSugerido: AmbitoEvaluacion;
