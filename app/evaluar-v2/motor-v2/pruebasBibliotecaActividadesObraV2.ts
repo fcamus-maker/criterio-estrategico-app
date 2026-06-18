@@ -34,8 +34,8 @@ export type ResultadoEvaluacionBibliotecaActividadesObra = {
   resultadosRiesgos: ResultadoRiesgoActividadObra[];
 };
 
-const MINIMO_ACTIVIDADES_ESPERADAS = 14;
-const MINIMO_RIESGOS_TOTALES_ESPERADOS = 448;
+const MINIMO_ACTIVIDADES_ESPERADAS = 21;
+const MINIMO_RIESGOS_TOTALES_ESPERADOS = 672;
 const MINIMO_RIESGOS_POR_ACTIVIDAD = 32;
 const MINIMO_PALABRAS_DESCRIPCION = 45;
 const ACTIVIDADES_BLOQUE_B = new Set([
@@ -48,7 +48,19 @@ const ACTIVIDADES_BLOQUE_B = new Set([
   "escaleras_plataformas_elevadoras_accesos_temporales",
 ]);
 
-const EXPRESIONES_APLICABILIDAD_BLOQUE_B: Record<string, string[]> = {
+const ACTIVIDADES_BLOQUE_C = new Set([
+  "electricidad_provisoria_faena",
+  "electricidad_definitiva_canalizaciones_tableros",
+  "gasfiteria_redes_agua_potable_alcantarillado",
+  "redes_sanitarias_bajadas_agua_drenajes",
+  "climatizacion_ductos_ventilacion",
+  "pruebas_presion_fugas_puesta_servicio",
+  "canalizaciones_perforaciones_pasadas_muros_losas",
+]);
+
+const ACTIVIDADES_CON_PREGUNTAS_PROPIAS = new Set([...ACTIVIDADES_BLOQUE_B, ...ACTIVIDADES_BLOQUE_C]);
+
+const EXPRESIONES_APLICABILIDAD_POR_ACTIVIDAD: Record<string, string[]> = {
   andamios_plataformas_trabajo: ["andamio", "plataforma", "baranda", "rodapie", "tarjeta", "acceso"],
   trabajo_altura_lineas_vida_bordes_aberturas: ["altura", "linea de vida", "borde", "abertura", "vano", "arnes"],
   techumbres_cubiertas_paneles_tejas: ["techumbre", "cubierta", "panel", "teja", "plancha", "tragaluz"],
@@ -56,6 +68,13 @@ const EXPRESIONES_APLICABILIDAD_BLOQUE_B: Record<string, string[]> = {
   montaje_vigas_cerchas_elementos_altura: ["viga", "cercha", "montaje", "izaje", "rigger", "aparejo"],
   instalacion_luminarias_altura: ["luminaria", "tablero", "cable", "energia", "taladro"],
   escaleras_plataformas_elevadoras_accesos_temporales: ["escalera", "plataforma elevadora", "alza hombre", "pasarela", "estabilizador"],
+  electricidad_provisoria_faena: ["tablero", "provisorio", "cable", "extension", "diferencial", "humedad"],
+  electricidad_definitiva_canalizaciones_tableros: ["canalizacion", "tablero", "circuito", "energizacion", "cable", "bandeja"],
+  gasfiteria_redes_agua_potable_alcantarillado: ["gasfiteria", "agua potable", "alcantarillado", "tuberia", "termofusion", "fuga"],
+  redes_sanitarias_bajadas_agua_drenajes: ["red sanitaria", "bajada", "drenaje", "agua", "pendiente", "sello"],
+  climatizacion_ductos_ventilacion: ["climatizacion", "ducto", "ventilacion", "rejilla", "cielo falso", "equipo"],
+  pruebas_presion_fugas_puesta_servicio: ["prueba", "presion", "fuga", "valvula", "puesta en servicio", "acople"],
+  canalizaciones_perforaciones_pasadas_muros_losas: ["canalizacion", "perforacion", "pasada", "muro", "losa", "sello"],
 };
 
 const TEXTOS_PROHIBIDOS = [
@@ -166,7 +185,7 @@ function validarRiesgo(actividad: ActividadObraPreventiva, riesgo: RiesgoInheren
     erroresCriticos.push("Contiene texto interno prohibido.");
   }
 
-  const expresionesAplicabilidad = EXPRESIONES_APLICABILIDAD_BLOQUE_B[actividad.id];
+  const expresionesAplicabilidad = EXPRESIONES_APLICABILIDAD_POR_ACTIVIDAD[actividad.id];
   if (
     expresionesAplicabilidad &&
     !expresionesAplicabilidad.some((expresion) => textoAplicabilidad.includes(normalizarTextoPrueba(expresion)))
@@ -216,18 +235,18 @@ export function evaluarBibliotecaActividadesObra(): ResultadoEvaluacionBibliotec
     erroresCriticos.push(`Minimo de riesgos esperado ${MINIMO_RIESGOS_TOTALES_ESPERADOS}, obtenido ${resultadosRiesgos.length}.`);
   }
 
-  const preguntasEstrategicasBloqueB = actividades
-    .filter((actividad) => ACTIVIDADES_BLOQUE_B.has(actividad.id))
+  const preguntasEstrategicasPorActividad = actividades
+    .filter((actividad) => ACTIVIDADES_CON_PREGUNTAS_PROPIAS.has(actividad.id))
     .map((actividad) => ({
       id: actividad.id,
       firma: actividad.preguntasEstrategicasSugeridas.join(" | "),
     }));
-  const actividadesConPreguntasEstrategicasGenericas = preguntasEstrategicasBloqueB
+  const actividadesConPreguntasEstrategicasGenericas = preguntasEstrategicasPorActividad
     .filter((actual, indice, todas) => todas.findIndex((otra) => otra.firma === actual.firma) !== indice)
     .map((actividad) => actividad.id);
 
   if (actividadesConPreguntasEstrategicasGenericas.length > 0) {
-    erroresCriticos.push("Existen actividades del Bloque B con preguntas estrategicas identicas.");
+    erroresCriticos.push("Existen actividades de biblioteca ampliada con preguntas estrategicas identicas.");
   }
 
   const titulos = actividades.flatMap((actividad) => actividad.riesgosInherentes.map((riesgo) => riesgo.titulo));
