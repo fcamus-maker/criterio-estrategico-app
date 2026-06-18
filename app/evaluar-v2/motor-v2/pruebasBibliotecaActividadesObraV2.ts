@@ -34,8 +34,8 @@ export type ResultadoEvaluacionBibliotecaActividadesObra = {
   resultadosRiesgos: ResultadoRiesgoActividadObra[];
 };
 
-const MINIMO_ACTIVIDADES_ESPERADAS = 28;
-const MINIMO_RIESGOS_TOTALES_ESPERADOS = 896;
+const MINIMO_ACTIVIDADES_ESPERADAS = 35;
+const MINIMO_RIESGOS_TOTALES_ESPERADOS = 1120;
 const MINIMO_RIESGOS_POR_ACTIVIDAD = 32;
 const MINIMO_PALABRAS_DESCRIPCION = 45;
 const ACTIVIDADES_BLOQUE_B = new Set([
@@ -68,10 +68,21 @@ const ACTIVIDADES_BLOQUE_D = new Set([
   "terminaciones_menores_reparaciones_acabados_finales",
 ]);
 
+const ACTIVIDADES_BLOQUE_E = new Set([
+  "maquinaria_equipos_moviles_operacion_terreno",
+  "vehiculos_transporte_interno_trabajadores_materiales",
+  "carguio_descarga_materiales_camiones_acopios",
+  "izaje_gruas_elementos_amarre_carga_suspendida",
+  "bodegas_acopios_almacenamiento_materiales",
+  "logistica_interna_rutas_circulacion_interaccion_peaton_equipo",
+  "mantencion_inspeccion_preoperacional_equipos_moviles",
+]);
+
 const ACTIVIDADES_CON_PREGUNTAS_PROPIAS = new Set([
   ...ACTIVIDADES_BLOQUE_B,
   ...ACTIVIDADES_BLOQUE_C,
   ...ACTIVIDADES_BLOQUE_D,
+  ...ACTIVIDADES_BLOQUE_E,
 ]);
 
 const EXPRESIONES_APLICABILIDAD_POR_ACTIVIDAD: Record<string, string[]> = {
@@ -96,6 +107,13 @@ const EXPRESIONES_APLICABILIDAD_POR_ACTIVIDAD: Record<string, string[]> = {
   puertas_ventanas_marcos_quincalleria: ["puerta", "ventana", "marco", "quincalleria", "bisagra", "cerradura"],
   vidrios_espejos_paneles_fragiles: ["vidrio", "espejo", "panel", "fragil", "mampara", "borde"],
   terminaciones_menores_reparaciones_acabados_finales: ["terminacion", "reparacion", "acabado", "retoque", "limpieza", "entrega"],
+  maquinaria_equipos_moviles_operacion_terreno: ["maquinaria", "equipo movil", "operador", "radio de giro", "retroexcavadora", "terreno"],
+  vehiculos_transporte_interno_trabajadores_materiales: ["vehiculo", "transporte", "camioneta", "bus", "conductor", "ruta"],
+  carguio_descarga_materiales_camiones_acopios: ["carguio", "descarga", "camion", "acopio", "pallet", "materiales"],
+  izaje_gruas_elementos_amarre_carga_suspendida: ["izaje", "grua", "eslinga", "grillete", "rigger", "carga suspendida"],
+  bodegas_acopios_almacenamiento_materiales: ["bodega", "acopio", "almacenamiento", "estanteria", "pasillo", "materiales"],
+  logistica_interna_rutas_circulacion_interaccion_peaton_equipo: ["logistica", "ruta", "circulacion", "peaton", "equipo", "maniobra"],
+  mantencion_inspeccion_preoperacional_equipos_moviles: ["mantencion", "inspeccion", "preoperacional", "checklist", "equipo movil", "falla"],
 };
 
 const TEXTOS_PROHIBIDOS = [
