@@ -46,7 +46,14 @@ export type ActividadObraId =
   | "derrames_contencion_limpieza_suelo_agua"
   | "emergencias_equipos_respuesta_extintores_red_humeda_kit_derrame"
   | "bodegas_quimicos_compatibilidad_control_acceso"
-  | "control_ambiental_obra_polvo_ruido_emisiones_escorrentias";
+  | "control_ambiental_obra_polvo_ruido_emisiones_escorrentias"
+  | "matriz_riesgos_iper_actualizacion_cobertura"
+  | "procedimientos_pts_ast_art_permisos_trabajo"
+  | "charlas_capacitaciones_difusion_induccion"
+  | "certificaciones_mantenciones_inspecciones_equipos"
+  | "registros_evidencias_firmas_trazabilidad_documental"
+  | "control_contratistas_subcontratos_documentos_arranque"
+  | "cumplimiento_legal_preventivo_auditorias_obligaciones";
 
 export type TipoRiesgoActividadObra =
   | "seguridad_personas"
@@ -126,6 +133,10 @@ type ActividadBloqueE = ActividadBase & {
 
 type ActividadBloqueF = ActividadBase & {
   definicionesRiesgo: TemaRiesgoBloqueF[];
+};
+
+type ActividadBloqueG = ActividadBase & {
+  definicionesRiesgo: TemaRiesgoBloqueG[];
 };
 
 const documentosGenerales = ["Matriz de riesgos vigente", "AST/ART cuando exista tarea en ejecucion", "Registro de charla o difusion si aplica"];
@@ -638,6 +649,8 @@ type TemaRiesgoBloqueE = TemaRiesgoBloqueD;
 
 type TemaRiesgoBloqueF = TemaRiesgoBloqueD;
 
+type TemaRiesgoBloqueG = TemaRiesgoBloqueD;
+
 const documentosAltura = ["AST/ART", "PTS o procedimiento de trabajo en altura si aplica", "Matriz de riesgos vigente"];
 const documentosIzaje = ["Plan de izaje si aplica", "AST/ART", "Certificacion de aparejos o equipo de levante"];
 const documentosElectricos = ["Bloqueo/LOTO si aplica", "AST/ART", "Autorizacion de intervencion electrica si corresponde"];
@@ -652,6 +665,8 @@ const documentosNoLogisticaSimple = ["PTS si solo corresponde ordenamiento menor
 const documentosAmbientalesQuimicos = ["HDS/SDS vigente si hay sustancia peligrosa", "Matriz de riesgos vigente", "Registro ambiental o trazabilidad de retiro si aplica"];
 const documentosEmergenciaAmbiental = ["Inspeccion de equipo de emergencia si aplica", "Registro de respuesta o contencion si corresponde", "Matriz de riesgos vigente"];
 const documentosNoAmbientalSimple = ["PTS si solo corresponde limpieza o retiro simple", "Permiso especial si no existe trabajo critico", "AST/ART como requisito principal para correccion menor"];
+const documentosGestionDocumental = ["Matriz de riesgos vigente si aplica", "Procedimiento, AST/ART, PTS o permiso solo si habilita la tarea", "Registro de difusion, inspeccion o cierre si corresponde"];
+const documentosNoDocumentalSimple = ["PTS para hallazgo simple corregible en terreno", "Permiso especial si no existe trabajo critico", "AST/ART como sustituto de control fisico ausente"];
 
 const PERFILES_RIESGO_B: Record<CategoriaRiesgoBloqueB, PerfilRiesgoBloqueB> = {
   altura: {
@@ -1477,6 +1492,19 @@ function temaF(
   condicionObservada: string,
   criticidadOrientativa?: CriticidadOrientativaTaxonomia,
 ): TemaRiesgoBloqueF {
+  return { idBase, tituloBase, condicionTecnica, palabrasClaveBase, categoria, objetoPrincipal, condicionObservada, criticidadOrientativa };
+}
+
+function temaG(
+  idBase: string,
+  tituloBase: string,
+  condicionTecnica: string,
+  palabrasClaveBase: string[],
+  categoria: CategoriaRiesgoBloqueC,
+  objetoPrincipal: string,
+  condicionObservada: string,
+  criticidadOrientativa?: CriticidadOrientativaTaxonomia,
+): TemaRiesgoBloqueG {
   return { idBase, tituloBase, condicionTecnica, palabrasClaveBase, categoria, objetoPrincipal, condicionObservada, criticidadOrientativa };
 }
 
@@ -2795,6 +2823,209 @@ function crearActividadesBloqueF(): ActividadBloqueF[] {
   ];
 }
 
+function crearTemasBloqueG(objetoDocumental: string, palabrasOperacion: string[]): TemaRiesgoBloqueG[] {
+  return [
+    temaG("matriz_inexistente", `Matriz IPER inexistente en ${objetoDocumental}`, `${objetoDocumental} no cuenta con matriz IPER o matriz de riesgos identificable para respaldar peligros, controles y alcance preventivo aplicable`, [...palabrasOperacion, "matriz", "iper"], "matriz_no_cubre", "matriz de riesgos", "inexistente"),
+    temaG("matriz_desactualizada", `Matriz IPER desactualizada en ${objetoDocumental}`, `${objetoDocumental} utiliza matriz de riesgos que no refleja cambios de actividad, equipo, entorno, empresa, etapa de obra o condicion observada`, [...palabrasOperacion, "matriz desactualizada"], "matriz_no_cubre", "matriz de riesgos", "desactualizada"),
+    temaG("matriz_no_contempla_actividad", `Matriz no contempla actividad real en ${objetoDocumental}`, `${objetoDocumental} evidencia tarea ejecutada, contratista, frente o etapa que no esta incluida en matriz vigente`, [...palabrasOperacion, "actividad no cubierta"], "matriz_no_cubre", "actividad real", "no cubierta"),
+    temaG("matriz_no_contempla_riesgo", `Matriz no contempla riesgo especifico en ${objetoDocumental}`, `${objetoDocumental} mantiene exposicion relevante que no aparece como peligro, consecuencia, control o requisito en la matriz`, [...palabrasOperacion, "riesgo no cubierto"], "matriz_no_cubre", "riesgo especifico", "no cubierto"),
+    temaG("matriz_no_difundida", `Matriz no difundida en ${objetoDocumental}`, `${objetoDocumental} tiene matriz disponible pero sin evidencia de difusion a trabajadores, supervisor o contratista involucrado`, [...palabrasOperacion, "matriz difundida"], "autorizacion_documental", "difusion de matriz", "no evidenciada"),
+    temaG("procedimiento_inexistente", `Procedimiento inexistente en ${objetoDocumental}`, `${objetoDocumental} requiere metodo seguro por complejidad, criticidad o estandar de obra y no existe procedimiento aplicable`, [...palabrasOperacion, "procedimiento"], "autorizacion_documental", "procedimiento", "inexistente"),
+    temaG("procedimiento_desactualizado", `Procedimiento desactualizado en ${objetoDocumental}`, `${objetoDocumental} utiliza procedimiento que no refleja equipo, tecnica, riesgo, responsable, version o condicion operacional actual`, [...palabrasOperacion, "procedimiento desactualizado"], "autorizacion_documental", "procedimiento", "desactualizado"),
+    temaG("procedimiento_no_disponible", `Procedimiento no disponible en terreno en ${objetoDocumental}`, `${objetoDocumental} depende de procedimiento, pero este no esta disponible para consulta, difusion o verificacion en terreno`, [...palabrasOperacion, "procedimiento terreno"], "autorizacion_documental", "procedimiento", "no disponible"),
+    temaG("procedimiento_incumplido", `Procedimiento incumplido en ${objetoDocumental}`, `${objetoDocumental} cuenta con metodo definido pero la actividad observada no respeta secuencia, control, responsable o restriccion establecida`, [...palabrasOperacion, "incumplimiento procedimiento"], "autorizacion_documental", "procedimiento", "incumplido", "alto"),
+    temaG("pts_faltante", `PTS faltante en ${objetoDocumental}`, `${objetoDocumental} involucra trabajo critico o metodo especifico requerido sin PTS disponible y aplicable a la tarea real`, [...palabrasOperacion, "pts"], "autorizacion_documental", "PTS", "faltante", "alto"),
+    temaG("pts_vencido", `PTS vencido o desactualizado en ${objetoDocumental}`, `${objetoDocumental} mantiene PTS con fecha, version, responsable o alcance que no corresponde a la condicion observada`, [...palabrasOperacion, "pts vencido"], "autorizacion_documental", "PTS", "vencido o desactualizado"),
+    temaG("pts_no_difundido", `PTS no difundido en ${objetoDocumental}`, `${objetoDocumental} requiere PTS, pero trabajadores o supervisores no tienen respaldo de difusion y comprension`, [...palabrasOperacion, "pts difundido"], "autorizacion_documental", "difusion de PTS", "no evidenciada"),
+    temaG("ast_art_faltante", `AST/ART faltante en ${objetoDocumental}`, `${objetoDocumental} presenta tarea en ejecucion con riesgos variables, simultaneidad o cambio de condicion sin AST/ART aplicable`, [...palabrasOperacion, "ast", "art"], "autorizacion_documental", "AST/ART", "faltante"),
+    temaG("ast_art_incompleto", `AST/ART incompleto en ${objetoDocumental}`, `${objetoDocumental} tiene AST/ART sin peligros relevantes, controles, responsable, fecha, cuadrilla o condicion real de la tarea`, [...palabrasOperacion, "ast incompleto"], "autorizacion_documental", "AST/ART", "incompleto"),
+    temaG("ast_art_sin_firmas", `AST/ART sin firmas en ${objetoDocumental}`, `${objetoDocumental} registra analisis de tarea sin firmas o respaldo de participantes, supervisor o responsable de control`, [...palabrasOperacion, "firmas"], "autorizacion_documental", "AST/ART", "sin firmas"),
+    temaG("ast_art_no_relacionado", `AST/ART no relacionado con tarea real en ${objetoDocumental}`, `${objetoDocumental} presenta AST/ART que describe otra actividad, frente, fecha, equipo o riesgo distinto al observado`, [...palabrasOperacion, "ast no relacionado"], "autorizacion_documental", "AST/ART", "no relacionado"),
+    temaG("permiso_faltante", `Permiso de trabajo faltante en ${objetoDocumental}`, `${objetoDocumental} ejecuta actividad restringida que requiere permiso, autorizacion o validacion previa no disponible`, [...palabrasOperacion, "permiso"], "autorizacion_documental", "permiso de trabajo", "faltante", "alto"),
+    temaG("permiso_vencido", `Permiso vencido en ${objetoDocumental}`, `${objetoDocumental} mantiene permiso fuera de vigencia, fecha, turno, frente, responsable o alcance autorizado`, [...palabrasOperacion, "permiso vencido"], "autorizacion_documental", "permiso de trabajo", "vencido"),
+    temaG("permiso_no_autorizado", `Permiso no autorizado en ${objetoDocumental}`, `${objetoDocumental} presenta permiso sin aprobacion competente, firma autorizada o liberacion de controles previos`, [...palabrasOperacion, "permiso autorizado"], "autorizacion_documental", "permiso de trabajo", "no autorizado", "alto"),
+    temaG("permiso_no_corresponde", `Permiso no corresponde a la actividad en ${objetoDocumental}`, `${objetoDocumental} usa permiso de otra tarea, area, contratista, riesgo o fecha para habilitar actividad observada`, [...palabrasOperacion, "permiso actividad"], "autorizacion_documental", "permiso de trabajo", "no corresponde"),
+    temaG("trabajo_critico_sin_autorizacion", `Trabajo critico sin autorizacion en ${objetoDocumental}`, `${objetoDocumental} involucra altura, izaje, energia, excavacion, caliente, confinado o sustancia peligrosa sin autorizacion habilitante`, [...palabrasOperacion, "trabajo critico"], "autorizacion_documental", "trabajo critico", "sin autorizacion", "critico"),
+    temaG("charla_sin_firma", `Charla sin firma en ${objetoDocumental}`, `${objetoDocumental} registra charla, difusion o instruccion sin firmas suficientes para demostrar participacion de trabajadores involucrados`, [...palabrasOperacion, "charla", "firma"], "autorizacion_documental", "charla preventiva", "sin firma"),
+    temaG("charla_sin_respaldo", `Charla sin respaldo en ${objetoDocumental}`, `${objetoDocumental} declara charla o difusion realizada pero no cuenta con registro, fecha, tema, relator o asistentes`, [...palabrasOperacion, "charla respaldo"], "autorizacion_documental", "charla preventiva", "sin respaldo"),
+    temaG("charla_no_relacionada", `Charla no relacionada con riesgo observado en ${objetoDocumental}`, `${objetoDocumental} usa charla generica que no aborda peligro, conducta, control o tarea vinculada al hallazgo`, [...palabrasOperacion, "charla riesgo"], "autorizacion_documental", "charla preventiva", "no relacionada"),
+    temaG("induccion_no_acreditada", `Induccion no acreditada en ${objetoDocumental}`, `${objetoDocumental} involucra trabajador, contratista o visita sin induccion acreditada para obra, area o riesgo especifico`, [...palabrasOperacion, "induccion"], "autorizacion_documental", "induccion", "no acreditada"),
+    temaG("capacitacion_no_vigente", `Capacitacion requerida no vigente en ${objetoDocumental}`, `${objetoDocumental} exige competencia o capacitacion especifica y el respaldo se encuentra vencido, incompleto o no verificable`, [...palabrasOperacion, "capacitacion"], "autorizacion_documental", "capacitacion", "no vigente"),
+    temaG("certificacion_vencida", `Certificacion vencida en ${objetoDocumental}`, `${objetoDocumental} utiliza equipo, herramienta, EPP, aparejo, extintor o componente critico con certificacion vencida`, [...palabrasOperacion, "certificacion"], "mantencion_certificacion", "certificacion", "vencida"),
+    temaG("mantencion_vencida", `Mantencion vencida en ${objetoDocumental}`, `${objetoDocumental} mantiene equipo o sistema disponible para uso con mantencion vencida o falla pendiente`, [...palabrasOperacion, "mantencion"], "mantencion_certificacion", "mantencion", "vencida"),
+    temaG("checklist_incompleto", `Checklist incompleto en ${objetoDocumental}`, `${objetoDocumental} presenta inspeccion o checklist sin revisar puntos criticos, firma, fecha, equipo o condicion observada`, [...palabrasOperacion, "checklist"], "mantencion_certificacion", "checklist", "incompleto"),
+    temaG("evidencia_cierre_insuficiente", `Evidencia de cierre insuficiente en ${objetoDocumental}`, `${objetoDocumental} declara correccion o control aplicado, pero la evidencia no permite verificar resultado, alcance, fecha o responsable`, [...palabrasOperacion, "evidencia", "cierre"], "autorizacion_documental", "evidencia de cierre", "insuficiente"),
+    temaG("responsable_cierre_no_definido", `Responsable de cierre no definido en ${objetoDocumental}`, `${objetoDocumental} identifica brecha o accion preventiva sin asignar responsable, empresa, plazo, seguimiento o verificacion de cierre`, [...palabrasOperacion, "responsable"], "autorizacion_documental", "responsable de cierre", "no definido"),
+    temaG("documento_no_trazable", `Documento no trazable en ${objetoDocumental}`, `${objetoDocumental} usa documento sin version, fecha, obra, empresa, responsable, codigo o relacion clara con la actividad`, [...palabrasOperacion, "trazabilidad"], "rotulacion_identificacion", "documento preventivo", "no trazable"),
+  ];
+}
+
+function crearActividadesBloqueG(): ActividadBloqueG[] {
+  return [
+    {
+      id: "matriz_riesgos_iper_actualizacion_cobertura",
+      nombreVisible: "Matriz de riesgos, IPER, actualizacion y cobertura",
+      descripcionActividad:
+        "Gestion, revision, actualizacion, difusion y cobertura de matrices IPER o matrices de riesgos para actividades, cambios, frentes y riesgos observados.",
+      etapaObra: "Gestion documental preventiva",
+      contextoTecnico: "durante revision de matriz IPER, cobertura de riesgos, actualizacion de actividades, difusion y trazabilidad preventiva de obra",
+      palabrasClaveActividad: ["matriz", "iper", "riesgos", "actualizacion", "cobertura", "difusion"],
+      familiasPreventivasRelacionadas: ["documental_legal", "capacitacion_evidencias", "trabajos_criticos", "seguridad_trabajadores"],
+      desviacionesFrecuentes: ["omision_documental", "incumplimiento_legal_documental_probable", "falla_supervision_control_operacional"],
+      documentosFrecuentesAplicables: documentosGestionDocumental,
+      documentosQueNoAplicanPorDefecto: documentosNoDocumentalSimple,
+      preguntasEstrategicasSugeridas: [
+        "La matriz existe, esta vigente y cubre la actividad observada?",
+        "El riesgo especifico aparece con controles coherentes y verificables?",
+        "La matriz fue difundida a trabajadores, supervisor y contratista involucrado?",
+        "La brecha afecta una tarea critica o solo requiere actualizacion documental?",
+        "La condicion exige detener la actividad o regularizar antes de continuar?",
+      ],
+      erroresQueDebeEvitarElMotor: ["No exigir matriz como respuesta principal para una correccion simple si el control fisico inmediato resuelve el hallazgo."],
+      bibliotecasSecundariasRelacionadas: ["trabajos_criticos", "capacitacion_evidencias", "seguridad_trabajadores"],
+      definicionesRiesgo: crearTemasBloqueG("gestion de matriz IPER", ["matriz", "iper", "riesgo"]),
+    },
+    {
+      id: "procedimientos_pts_ast_art_permisos_trabajo",
+      nombreVisible: "Procedimientos, PTS, AST/ART y permisos de trabajo",
+      descripcionActividad:
+        "Control de procedimientos, PTS, AST/ART, permisos, autorizaciones, disponibilidad en terreno y coherencia entre documento y tarea real.",
+      etapaObra: "Control documental de tareas y trabajos criticos",
+      contextoTecnico: "durante revision de procedimientos, PTS, AST/ART, permisos de trabajo, autorizaciones y coherencia documental con la tarea real",
+      palabrasClaveActividad: ["procedimiento", "pts", "ast", "art", "permiso", "autorizacion"],
+      familiasPreventivasRelacionadas: ["documental_legal", "trabajos_criticos", "capacitacion_evidencias", "seguridad_trabajadores"],
+      desviacionesFrecuentes: ["trabajo_critico_sin_autorizacion_control", "omision_documental", "desviacion_procedimiento"],
+      documentosFrecuentesAplicables: documentosGestionDocumental,
+      documentosQueNoAplicanPorDefecto: documentosNoDocumentalSimple,
+      preguntasEstrategicasSugeridas: [
+        "La actividad requiere procedimiento, PTS, AST/ART, permiso o autorizacion?",
+        "El documento corresponde a la tarea, fecha, empresa, frente y riesgo observado?",
+        "El documento estaba disponible, vigente, firmado y difundido en terreno?",
+        "La ausencia documental afecta trabajo critico o solo respaldo administrativo?",
+        "Corresponde detener la tarea o regularizar sin sobredocumentar el hallazgo?",
+      ],
+      erroresQueDebeEvitarElMotor: ["No pedir PTS o permiso para cualquier hallazgo simple; validar primero si existe trabajo critico o requisito habilitante."],
+      bibliotecasSecundariasRelacionadas: ["trabajos_criticos", "energia_loto_electrico", "izaje_gruas_amarre"],
+      definicionesRiesgo: crearTemasBloqueG("control de procedimientos y permisos", ["procedimiento", "pts", "permiso"]),
+    },
+    {
+      id: "charlas_capacitaciones_difusion_induccion",
+      nombreVisible: "Charlas, capacitaciones, difusion e induccion",
+      descripcionActividad:
+        "Gestion de charlas, capacitaciones, difusion de procedimientos, induccion de trabajadores, competencias requeridas y respaldo de aprendizaje preventivo.",
+      etapaObra: "Capacitacion y difusion preventiva",
+      contextoTecnico: "durante revision de charlas, capacitaciones, induccion, difusion de procedimientos, competencias y evidencia de participacion preventiva",
+      palabrasClaveActividad: ["charla", "capacitacion", "difusion", "induccion", "firma", "competencia"],
+      familiasPreventivasRelacionadas: ["capacitacion_evidencias", "documental_legal", "seguridad_trabajadores", "trabajos_criticos"],
+      desviacionesFrecuentes: ["falta_conocimiento_capacitacion_difusion", "omision_documental", "falla_supervision_control_operacional"],
+      documentosFrecuentesAplicables: ["Registro de charla o difusion si aplica", "Registro de induccion", "Respaldo de capacitacion requerida"],
+      documentosQueNoAplicanPorDefecto: documentosNoDocumentalSimple,
+      preguntasEstrategicasSugeridas: [
+        "La charla, induccion o capacitacion corresponde al riesgo observado?",
+        "Existe respaldo firmado, fecha, relator, tema y participantes involucrados?",
+        "La brecha indica falta de conocimiento que pueda sostener la desviacion?",
+        "La capacitacion requerida se encuentra vigente y aplicable a la tarea?",
+        "Corresponde reforzar, difundir, registrar o detener una tarea por falta de competencia?",
+      ],
+      erroresQueDebeEvitarElMotor: ["No elevar una charla sin firma a criticidad critica si no existe exposicion activa o trabajo critico asociado."],
+      bibliotecasSecundariasRelacionadas: ["documental_legal", "epp", "trabajos_criticos"],
+      definicionesRiesgo: crearTemasBloqueG("gestion de charlas y capacitaciones", ["charla", "capacitacion", "induccion"]),
+    },
+    {
+      id: "certificaciones_mantenciones_inspecciones_equipos",
+      nombreVisible: "Certificaciones, mantenciones e inspecciones de equipos",
+      descripcionActividad:
+        "Control documental y tecnico de certificaciones, mantenciones, inspecciones, checklist, registros de revision y retiro de servicio de equipos criticos.",
+      etapaObra: "Control de equipos y certificaciones",
+      contextoTecnico: "durante revision de certificaciones, mantenciones, inspecciones, checklist, registros de equipo critico y retiro de servicio",
+      palabrasClaveActividad: ["certificacion", "mantencion", "inspeccion", "checklist", "equipo", "revision"],
+      familiasPreventivasRelacionadas: ["mantencion_certificacion", "documental_legal", "herramientas_equipos", "maquinaria_instalaciones"],
+      desviacionesFrecuentes: ["herramienta_equipo_mal_estado_usado_terreno", "omision_documental", "control_critico_ausente_no_verificado"],
+      documentosFrecuentesAplicables: ["Certificacion o mantencion vigente", "Registro de inspeccion", "Checklist preoperacional si aplica"],
+      documentosQueNoAplicanPorDefecto: documentosNoDocumentalSimple,
+      preguntasEstrategicasSugeridas: [
+        "El equipo o elemento critico requiere certificacion, mantencion o inspeccion vigente?",
+        "El registro corresponde al equipo observado, fecha, responsable y condicion real?",
+        "La falla implica retirar de servicio, bloquear uso o reparar antes de continuar?",
+        "El checklist revisa los puntos criticos o solo registra una revision incompleta?",
+        "La brecha es documental, operacional o ambas por uso de equipo disponible?",
+      ],
+      erroresQueDebeEvitarElMotor: ["No tratar certificacion vencida solo como papel si el equipo esta en uso o disponible para operar."],
+      bibliotecasSecundariasRelacionadas: ["maquinaria_instalaciones", "izaje_gruas_amarre", "equipos_emergencia"],
+      definicionesRiesgo: crearTemasBloqueG("control de certificaciones y mantenciones", ["certificacion", "mantencion", "inspeccion"]),
+    },
+    {
+      id: "registros_evidencias_firmas_trazabilidad_documental",
+      nombreVisible: "Registros, evidencias, firmas y trazabilidad documental",
+      descripcionActividad:
+        "Control de registros preventivos, evidencias fotograficas, firmas, versiones, fechas, responsables, trazabilidad de cierre y respaldo documental.",
+      etapaObra: "Trazabilidad preventiva y evidencias",
+      contextoTecnico: "durante revision de registros, evidencias, firmas, versiones, fechas, responsables, trazabilidad documental y respaldo de cierre",
+      palabrasClaveActividad: ["registro", "evidencia", "firma", "trazabilidad", "cierre", "version"],
+      familiasPreventivasRelacionadas: ["capacitacion_evidencias", "documental_legal", "seguridad_trabajadores", "dano_material"],
+      desviacionesFrecuentes: ["omision_documental", "falla_supervision_control_operacional", "requiere_revision_tecnica_legal"],
+      documentosFrecuentesAplicables: ["Registro de cierre si aplica", "Evidencia fotografica si corresponde", "Firma o responsable verificable"],
+      documentosQueNoAplicanPorDefecto: documentosNoDocumentalSimple,
+      preguntasEstrategicasSugeridas: [
+        "Existe evidencia suficiente para demostrar condicion, accion, responsable y cierre?",
+        "El registro contiene fecha, firma, version, empresa, obra y relacion con el hallazgo?",
+        "La falta de evidencia impide verificar control o solo requiere completar respaldo?",
+        "El responsable de cierre y plazo estan definidos y trazables?",
+        "Corresponde exigir nueva evidencia, regularizar registro o mantener hallazgo abierto?",
+      ],
+      erroresQueDebeEvitarElMotor: ["No confundir evidencia incompleta con incumplimiento legal grave si el control fisico ya esta verificado."],
+      bibliotecasSecundariasRelacionadas: ["documental_legal", "capacitacion_evidencias", "dano_material"],
+      definicionesRiesgo: crearTemasBloqueG("gestion de registros y evidencias", ["registro", "evidencia", "firma"]),
+    },
+    {
+      id: "control_contratistas_subcontratos_documentos_arranque",
+      nombreVisible: "Control de contratistas, subcontratos y documentos de arranque",
+      descripcionActividad:
+        "Revision de documentos de arranque, subcontratos, carpetas preventivas, nominas, inducciones, competencias y autorizaciones de empresas contratistas.",
+      etapaObra: "Control documental de empresas contratistas",
+      contextoTecnico: "durante control de contratistas, subcontratos, documentos de arranque, nominas, inducciones, competencias y autorizaciones de ingreso",
+      palabrasClaveActividad: ["contratista", "subcontrato", "carpeta", "arranque", "nomina", "induccion"],
+      familiasPreventivasRelacionadas: ["documental_legal", "capacitacion_evidencias", "seguridad_trabajadores", "trabajos_criticos"],
+      desviacionesFrecuentes: ["omision_documental", "incumplimiento_legal_documental_probable", "falla_supervision_control_operacional"],
+      documentosFrecuentesAplicables: ["Carpeta de arranque si aplica", "Nomina e induccion", "Autorizacion de ingreso o competencia requerida"],
+      documentosQueNoAplicanPorDefecto: documentosNoDocumentalSimple,
+      preguntasEstrategicasSugeridas: [
+        "La empresa, subcontrato o trabajador cuenta con documentos de arranque aplicables?",
+        "La nomina, induccion y competencia corresponden a la persona observada?",
+        "La actividad del contratista esta cubierta por matriz, procedimiento o autorizacion?",
+        "La brecha documental compromete ingreso, control operacional o solo respaldo administrativo?",
+        "Corresponde restringir actividad hasta regularizar documentos minimos?",
+      ],
+      erroresQueDebeEvitarElMotor: ["No permitir actividad critica de contratista sin documentos minimos, pero evitar exigir carpeta completa para correccion simple ya controlada."],
+      bibliotecasSecundariasRelacionadas: ["trabajos_criticos", "capacitacion_evidencias", "documental_legal"],
+      definicionesRiesgo: crearTemasBloqueG("control de contratistas", ["contratista", "subcontrato", "carpeta"]),
+    },
+    {
+      id: "cumplimiento_legal_preventivo_auditorias_obligaciones",
+      nombreVisible: "Cumplimiento legal preventivo, auditorias y obligaciones",
+      descripcionActividad:
+        "Gestion de obligaciones preventivas, auditorias, seguimiento de hallazgos, medidas correctivas, cumplimiento legal probable y control de reincidencias.",
+      etapaObra: "Cumplimiento preventivo y auditoria",
+      contextoTecnico: "durante revision de cumplimiento legal preventivo, auditorias, obligaciones, medidas correctivas, reincidencias y seguimiento de hallazgos",
+      palabrasClaveActividad: ["cumplimiento", "legal", "auditoria", "obligacion", "seguimiento", "hallazgo"],
+      familiasPreventivasRelacionadas: ["documental_legal", "capacitacion_evidencias", "seguridad_trabajadores", "medio_ambiente"],
+      desviacionesFrecuentes: ["incumplimiento_legal_documental_probable", "falla_supervision_control_operacional", "requiere_revision_tecnica_legal"],
+      documentosFrecuentesAplicables: ["Registro de auditoria o inspeccion si aplica", "Plan de accion", "Evidencia de cierre y seguimiento"],
+      documentosQueNoAplicanPorDefecto: documentosNoDocumentalSimple,
+      preguntasEstrategicasSugeridas: [
+        "Existe obligacion legal o preventiva aplicable al hallazgo observado?",
+        "La auditoria o inspeccion tiene medidas correctivas con responsable y plazo?",
+        "El hallazgo es reiterado, no cerrado o sin evidencia de seguimiento?",
+        "La brecha requiere revision tecnica/legal o regularizacion operacional inmediata?",
+        "El cierre documentado demuestra control real o solo compromiso declarado?",
+      ],
+      erroresQueDebeEvitarElMotor: ["No convertir toda desviacion en incumplimiento legal; usar revision tecnica cuando la obligacion no este confirmada."],
+      bibliotecasSecundariasRelacionadas: ["medio_ambiente", "trabajos_criticos", "capacitacion_evidencias"],
+      definicionesRiesgo: crearTemasBloqueG("cumplimiento preventivo y auditoria", ["cumplimiento", "auditoria", "obligacion"]),
+    },
+  ];
+}
+
 const PLANTILLAS_RIESGO: PlantillaRiesgo[] = [
   plantilla("caida_mismo_nivel", "Caida al mismo nivel por circulacion deficiente", "Superficie de transito con desniveles menores, materiales, barro o elementos sueltos {contexto}. La exposicion alcanza a trabajadores, visitas o equipos menores que circulan cerca de la actividad. La consecuencia probable es caida, golpe o torcedura, por lo que se espera ordenar, limpiar, segregar y mantener ruta segura antes de continuar.", ["caida", "tropiezo", "transito", "ruta"], "seguridad_personas", "desplazamiento por ruta no controlada", "superficie con obstaculos o desnivel", "ruta de circulacion", "obstaculo o superficie irregular", "trabajadores en desplazamiento", "caida mismo nivel o golpe", "ruta segura no verificada", ["retiro de obstaculos", "limpieza", "segregacion", "senalizacion"], "Retirar obstaculos, limpiar la ruta y delimitar el sector hasta dejar circulacion segura.", [], documentosNoSimples, ["orden_aseo_housekeeping", "seguridad_trabajadores"], ["condicion_insegura"], "medio", ["La ruta es usada por trabajadores o maquinaria?", "Existe alternativa segura de circulacion?"], ["Preguntar por PTS como requisito principal si basta limpieza o retiro."], "No convertir una condicion simple de transito en brecha documental principal."),
   plantilla("caida_distinto_nivel", "Caida a distinto nivel por borde o abertura", "Borde, excavacion, vano, plataforma o desnivel sin control fisico suficiente {contexto}. La exposicion involucra trabajadores proximos al borde o rutas cercanas, con consecuencia probable de caida grave. Se espera detener el acercamiento, instalar barrera, tapa, baranda o linea de vida y verificar autorizacion si corresponde trabajo en altura.", ["borde", "abertura", "altura", "desnivel"], "trabajo_critico", "acercamiento a borde sin control", "borde o abertura sin proteccion", "borde o abertura", "proteccion ausente", "trabajadores expuestos a altura o desnivel", "caida a distinto nivel", "proteccion perimetral ausente", ["barrera rigida", "baranda", "tapa resistente", "linea de vida si aplica"], "Detener exposicion al borde, segregar y colocar proteccion fisica antes de continuar.", ["AST/ART", "PTS si es trabajo en altura", "Matriz de riesgos"], ["HDS/SDS si no hay sustancias"], ["trabajos_criticos", "seguridad_trabajadores", "senalizacion_segregacion"], ["control_critico_ausente_no_verificado", "condicion_insegura"], "alto", ["Existe exposicion directa al borde?", "La actividad requiere permiso o autorizacion de altura?"], ["Tratar borde abierto como simple orden y aseo."], "No omitir control critico cuando existe exposicion a caida grave."),
@@ -3072,6 +3303,39 @@ function construirRiesgoBloqueF(actividad: ActividadBloqueF, definicion: TemaRie
   };
 }
 
+function construirRiesgoBloqueG(actividad: ActividadBloqueG, definicion: TemaRiesgoBloqueG): RiesgoInherenteActividadObra {
+  const perfil = PERFILES_RIESGO_C[definicion.categoria];
+
+  return {
+    id: `${actividad.id}_${definicion.idBase}`,
+    titulo: `${definicion.tituloBase} - ${actividad.nombreVisible}`,
+    descripcionTecnica:
+      `${definicion.condicionTecnica} ${actividad.contextoTecnico}. ` +
+      `La exposicion preventiva alcanza a ${perfil.exposicion}, con consecuencia probable de ${perfil.consecuenciaProbable}. ` +
+      `El control esperado debe considerar ${perfil.controlesEsperados.slice(0, 3).join(", ")} y diferenciar documento habilitante de respaldo administrativo. ` +
+      `Si la brecha compromete trabajo critico, equipo disponible o cierre verificable, corresponde regularizar, asignar responsable y mantener seguimiento.`,
+    palabrasClave: [...actividad.palabrasClaveActividad, ...definicion.palabrasClaveBase],
+    tipoRiesgo: perfil.tipoRiesgo,
+    actoInseguroAsociado: perfil.actoInseguroAsociado,
+    condicionInseguraAsociada: perfil.condicionInseguraAsociada,
+    objetoPrincipal: definicion.objetoPrincipal,
+    condicionObservada: definicion.condicionObservada,
+    exposicion: perfil.exposicion,
+    consecuenciaProbable: perfil.consecuenciaProbable,
+    controlFaltanteOFallido: perfil.controlFaltanteOFallido,
+    controlesEsperados: perfil.controlesEsperados,
+    accionInmediataSugerida: perfil.accionInmediataSugerida,
+    documentosAplicables: perfil.documentosAplicables,
+    documentosNoAplicables: perfil.documentosNoAplicables,
+    familiasPreventivas: perfil.familiasPreventivas,
+    desviacionesPreventivas: perfil.desviacionesPreventivas,
+    criticidadOrientativa: definicion.criticidadOrientativa || perfil.criticidadOrientativa,
+    preguntasSugeridas: perfil.preguntasSugeridas,
+    preguntasProhibidas: perfil.preguntasProhibidas,
+    errorQueDebeEvitar: perfil.errorQueDebeEvitar,
+  };
+}
+
 const ACTIVIDADES_BLOQUE_A: ActividadObraPreventiva[] = ACTIVIDADES_BASE.map((actividad) => ({
   ...actividad,
   riesgosInherentes: PLANTILLAS_RIESGO.map((plantillaRiesgo) => construirRiesgo(actividad, plantillaRiesgo)),
@@ -3117,6 +3381,14 @@ const ACTIVIDADES_BLOQUE_F_PUBLICAS: ActividadObraPreventiva[] = crearActividade
   };
 });
 
+const ACTIVIDADES_BLOQUE_G_PUBLICAS: ActividadObraPreventiva[] = crearActividadesBloqueG().map((actividad) => {
+  const { definicionesRiesgo, ...actividadPublica } = actividad;
+  return {
+    ...actividadPublica,
+    riesgosInherentes: definicionesRiesgo.map((definicion) => construirRiesgoBloqueG(actividad, definicion)),
+  };
+});
+
 export const BIBLIOTECA_ACTIVIDADES_OBRA_V2: ActividadObraPreventiva[] = [
   ...ACTIVIDADES_BLOQUE_A,
   ...ACTIVIDADES_BLOQUE_B_PUBLICAS,
@@ -3124,6 +3396,7 @@ export const BIBLIOTECA_ACTIVIDADES_OBRA_V2: ActividadObraPreventiva[] = [
   ...ACTIVIDADES_BLOQUE_D_PUBLICAS,
   ...ACTIVIDADES_BLOQUE_E_PUBLICAS,
   ...ACTIVIDADES_BLOQUE_F_PUBLICAS,
+  ...ACTIVIDADES_BLOQUE_G_PUBLICAS,
 ];
 
 function normalizarTextoActividad(texto: string): string {
