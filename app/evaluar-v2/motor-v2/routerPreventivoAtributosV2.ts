@@ -124,6 +124,18 @@ const EQUIVALENCIAS_TEXTO = [
   { canonico: "bodega sin hds", terminos: ["bodega sin hds", "hds no disponible", "hoja de seguridad no disponible"] },
   { canonico: "zona delimitada area segregada area restringida", terminos: ["zona delimitada", "area segregada", "area restringida"] },
   { canonico: "carga suspendida carga izada", terminos: ["carga suspendida", "carga izada"] },
+  { canonico: "lentes proteccion ocular antiparras", terminos: ["lentes", "lentes de seguridad", "proteccion ocular", "antiparras"] },
+  { canonico: "proteccion auditiva tapones orejeras", terminos: ["proteccion auditiva", "tapones", "orejeras"] },
+  { canonico: "partes moviles guardas resguardos protecciones", terminos: ["partes moviles", "guardas", "resguardos", "protecciones"] },
+  { canonico: "trabajo caliente permiso fuego soldadura esmerilado", terminos: ["trabajo en caliente", "permiso de fuego", "soldadura", "esmerilado"] },
+  { canonico: "entibacion talud proteccion excavacion", terminos: ["entibacion", "talud", "proteccion de excavacion"] },
+  { canonico: "clima adverso viento lluvia baja visibilidad", terminos: ["clima adverso", "condiciones climaticas adversas", "viento", "lluvia", "baja visibilidad"] },
+  { canonico: "matriz iper matriz riesgo matriz peligros", terminos: ["matriz iper", "matriz de riesgo", "matriz de riesgos", "matriz de peligros"] },
+  { canonico: "maquinaria maquina equipo movil equipo pesado", terminos: ["maquinaria", "maquina", "equipo movil", "equipo pesado"] },
+  { canonico: "peaton trabajador transitando transito peatonal", terminos: ["peaton", "trabajador transitando", "transito peatonal"] },
+  { canonico: "ruido exposicion auditiva", terminos: ["ruido", "exposicion auditiva"] },
+  { canonico: "polvo silice material particulado", terminos: ["polvo", "silice", "material particulado"] },
+  { canonico: "postura forzada sobreesfuerzo manejo manual", terminos: ["postura forzada", "sobreesfuerzo", "manejo manual"] },
 ];
 
 const SENALES_ATRIBUTO: DefinicionSenal[] = [
@@ -135,6 +147,8 @@ const SENALES_ATRIBUTO: DefinicionSenal[] = [
   senal("objeto", "elementos de izaje", ["grua", "eslinga", "grillete", "carga suspendida", "carga izada", "rigger"], ["izaje_gruas_amarre"], ["condicion_insegura"], 11),
   senal("objeto", "arnes", ["arnes", "linea de vida", "trabajo en altura", "altura"], ["trabajos_criticos", "epp"], ["incumplimiento_control_critico"], 11),
   senal("objeto", "calzado de seguridad", ["calzado", "zapato de seguridad", "botin", "botin de seguridad"], ["epp"], ["condicion_insegura"], 9),
+  senal("objeto", "proteccion ocular", ["lentes", "lentes de seguridad", "proteccion ocular", "antiparras"], ["epp"], ["incumplimiento_control_critico"], 12),
+  senal("objeto", "proteccion auditiva", ["proteccion auditiva", "tapones", "orejeras"], ["epp", "higiene_ocupacional"], ["incumplimiento_control_critico"], 12),
   senal("objeto", "HDS/SDS", ["hds", "sds", "hoja de datos de seguridad", "hoja de seguridad"], ["sustancias_hds", "documental_legal"], ["omision_documental"], 10),
   senal("objeto", "sustancia peligrosa", ["gasolina", "combustible", "bidon", "quimico", "sustancia", "derrame"], ["sustancias_hds", "medio_ambiente"], ["condicion_insegura"], 10),
   senal("objeto", "tablero o energia", ["tablero electrico", "energia", "equipo energizado", "enchufe", "cable"], ["energia_loto_electrico"], ["control_critico_ausente_no_verificado"], 10),
@@ -144,10 +158,14 @@ const SENALES_ATRIBUTO: DefinicionSenal[] = [
   senal("objeto", "barrera o senalizacion", ["barrera", "senalizacion", "senaletica", "delimitacion", "segregacion", "zona delimitada", "zona restringida"], ["senalizacion_segregacion"], ["evasion_barreras_senalizacion_segregacion"], 9),
   senal("objeto", "tapa o alcantarillado", ["tapa de alcantarillado", "alcantarillado", "tapa retirada", "tapa"], ["dano_material", "orden_aseo_housekeeping"], ["condicion_insegura"], 9),
   senal("objeto", "documento o registro", ["charla", "firma", "registro", "procedimiento", "permiso", "autorizacion", "matriz"], ["documental_legal", "capacitacion_evidencias"], ["omision_documental"], 8),
+  senal("objeto", "maquinaria", ["maquinaria", "maquina", "equipo movil", "equipo pesado", "partes moviles"], ["maquinaria_instalaciones"], ["condicion_insegura"], 12),
+  senal("objeto", "agente de higiene ocupacional", ["ruido", "polvo", "silice", "material particulado"], ["higiene_ocupacional"], ["control_critico_ausente_no_verificado"], 12),
+  senal("objeto", "ergonomia o manejo manual", ["levantamiento manual", "postura forzada", "sobreesfuerzo", "manejo manual"], ["ergonomia_manejo_manual"], ["acto_inseguro"], 12),
   senal("condicion", "vencido o no vigente", ["vencido", "no vigente", "sin mantencion", "mantencion vencida"], ["mantencion_certificacion"], ["condicion_insegura"], 12),
   senal("condicion", "obstruido", ["obstruido", "bloqueado", "sin acceso"], ["equipos_emergencia", "orden_aseo_housekeeping", "senalizacion_segregacion"], ["condicion_insegura"], 9),
   senal("condicion", "danado o mal estado", ["danado", "dañado", "deteriorado", "mal estado", "desgastado", "gastado", "trizado", "reparado con cinta", "cinta aisladora"], ["mantencion_certificacion", "dano_material"], ["condicion_insegura"], 10),
   senal("condicion", "sin respaldo documental", ["sin firma", "sin registro", "sin difusion", "no disponible", "no actualizado", "sin hds", "sin respaldo"], ["documental_legal", "capacitacion_evidencias"], ["omision_documental"], 9),
+  senal("condicion", "documento preventivo vencido", ["documentos vencidos", "documentos preventivos vencidos", "matriz sin actualizar", "matriz de riesgo sin actualizar"], ["documental_legal"], ["omision_documental"], 12),
   senal("condicion", "sin control fisico", ["sin proteccion", "sin segregacion", "sin delimitacion", "sin barrera", "sin senalizacion"], ["senalizacion_segregacion", "seguridad_trabajadores"], ["control_critico_ausente_no_verificado"], 10),
   senal("condicion", "sin autorizacion", ["sin autorizacion", "no autorizado", "sin permiso"], ["documental_legal", "trabajos_criticos"], ["acceso_zona_delimitada_sin_autorizacion"], 10),
   senal("condicion", "sin bloqueo", ["sin bloqueo", "sin loto", "sin energia cero", "equipo intervenido"], ["energia_loto_electrico", "trabajos_criticos"], ["incumplimiento_control_critico"], 12),
@@ -156,6 +174,7 @@ const SENALES_ATRIBUTO: DefinicionSenal[] = [
   senal("condicion", "uso inadecuado", ["uso inadecuado", "mala forma", "mal uso", "herramienta inadecuada", "equipo inadecuado"], ["herramientas_equipos"], ["uso_inadecuado_herramienta_equipo_maquinaria"], 10),
   senal("condicion", "derrame o fuga", ["derrame", "fuga", "filtracion"], ["medio_ambiente", "sustancias_hds"], ["evento_ambiental"], 11),
   senal("condicion", "terreno inestable", ["inestable", "resbaladizo", "barro", "deslizamiento", "terreno irregular"], ["clima_entorno", "excavaciones_suelos"], ["desplazamiento_terreno_inestable"], 9),
+  senal("condicion", "clima adverso", ["condiciones climaticas adversas", "clima adverso", "viento", "lluvia", "baja visibilidad"], ["clima_entorno"], ["condicion_climatica_o_terreno_aumenta_riesgo"], 12),
   senal("exposicion", "personas expuestas", ["trabajador", "trabajadores", "peaton", "peatones", "terceros", "operador", "conductor", "persona expuesta"], ["seguridad_trabajadores"], ["condicion_insegura"], 8),
   senal("exposicion", "transito interno", ["transito interno", "camino de circulacion", "zona de transito", "acceso a casino"], ["vehiculos_transporte", "orden_aseo_housekeeping"], ["transito_interno_inseguro"], 7),
   senal("exposicion", "linea de fuego", ["linea de fuego", "carga suspendida", "bajo carga"], ["seguridad_trabajadores", "izaje_gruas_amarre"], ["exposicion_linea_fuego"], 12),
@@ -167,6 +186,7 @@ const SENALES_ATRIBUTO: DefinicionSenal[] = [
   senal("consecuencia", "electrocucion", ["electrocucion", "choque electrico", "contacto electrico"], ["energia_loto_electrico"], ["control_critico_ausente_no_verificado"], 11),
   senal("consecuencia", "incendio o explosion", ["incendio", "explosion", "amago", "fuego", "humo"], ["emergencias_reales", "equipos_emergencia", "sustancias_hds"], ["suceso_peligroso_sin_lesion"], 12),
   senal("consecuencia", "atropello o colision", ["atropello", "colision", "volcamiento"], ["vehiculos_transporte", "seguridad_trabajadores"], ["interaccion_insegura_peaton_vehiculo_maquinaria"], 10),
+  senal("consecuencia", "atrapamiento", ["atrapamiento", "partes moviles", "atrapado entre"], ["maquinaria_instalaciones", "seguridad_trabajadores"], ["control_critico_ausente_no_verificado"], 12),
   senal("consecuencia", "contaminacion", ["contaminacion", "impacto ambiental", "derrame"], ["medio_ambiente"], ["evento_ambiental"], 10),
   senal("control", "EPP", ["epp", "arnes", "calzado de seguridad", "casco", "guante"], ["epp"], ["incumplimiento_control_critico"], 8),
   senal("control", "senalizacion o segregacion", ["senalizacion", "senaletica", "segregacion", "delimitacion", "barrera", "control de acceso"], ["senalizacion_segregacion"], ["control_critico_ausente_no_verificado"], 9),
@@ -481,6 +501,19 @@ function aplicarReglasDiferenciacion(
     );
   }
 
+  if (tiene(["charla", "charlas"]) && tiene(["sin", "firmadas", "firma", "registro"])) {
+    sumarFamilia(puntajesFamilia, "capacitacion_evidencias", 24, "Charla sin firma debe mantener capacitacion/evidencias como primaria.");
+    sumarFamilia(puntajesFamilia, "documental_legal", 12, "La firma faltante es respaldo documental de la difusion.");
+    sumarFamilia(puntajesFamilia, "seguridad_trabajadores", 2, "La difusion preventiva aplica a trabajadores, pero no desplaza capacitacion/evidencias.");
+    sumarDesviacion(
+      puntajesDesviacion,
+      "falta_conocimiento_capacitacion_difusion",
+      14,
+      "Charla sin firma o respaldo mantiene duda de difusion efectiva.",
+    );
+    sumarFamilia(puntajesFamilia, "seguridad_trabajadores", 8, "La difusion preventiva afecta a trabajadores expuestos.");
+  }
+
   if (tiene(["arnes", "altura", "3 metros", "tres metros"]) && tiene(["sin arnes", "sin epp", "trabajador"])) {
     agregarRegla(
       "trabajo en altura sin control critico",
@@ -491,6 +524,22 @@ function aplicarReglasDiferenciacion(
     );
   }
 
+  if (tiene(["arnes"]) && tiene(["deteriorado", "vencido", "mal estado"])) {
+    sumarFamilia(puntajesFamilia, "seguridad_trabajadores", 12, "Arnes deteriorado o vencido mantiene exposicion directa de trabajadores.");
+    sumarDesviacion(puntajesDesviacion, "control_critico_ausente_no_verificado", 14, "Arnes deteriorado o vencido afecta un control critico de altura.");
+  }
+
+  if (tiene(["lentes", "proteccion ocular", "antiparras"]) && tiene(["sin", "corte", "material", "herramienta"])) {
+    agregarRegla(
+      "proteccion ocular no utilizada",
+      "La ausencia de proteccion ocular durante corte o trabajo con material debe priorizar EPP y exposicion del trabajador.",
+      ["epp", "seguridad_trabajadores", "herramientas_equipos"],
+      ["incumplimiento_control_critico", "acto_inseguro"],
+      28,
+    );
+    sumarFamilia(puntajesFamilia, "epp", 14, "El objeto preventivo principal es proteccion ocular.");
+  }
+
   if (tiene(["gasolina", "combustible"]) && tiene(["bidon", "no certificado", "sin rotulacion"])) {
     agregarRegla(
       "combustible en envase no certificado",
@@ -498,6 +547,30 @@ function aplicarReglasDiferenciacion(
       ["sustancias_hds", "medio_ambiente", "equipos_emergencia", "documental_legal"],
       ["condicion_insegura"],
       23,
+    );
+  }
+
+  if (tiene(["sustancia", "quimica", "gasolina", "combustible"]) && tiene(["sin rotulacion", "rotulacion"])) {
+    agregarRegla(
+      "sustancia sin rotulacion",
+      "La falta de rotulacion de sustancia combina control fisico, informacion documental y potencial ambiental.",
+      ["sustancias_hds", "documental_legal", "medio_ambiente"],
+      ["condicion_insegura", "omision_documental"],
+      20,
+    );
+  }
+
+  if (tiene(["derrame", "combustible", "suelo"]) && tiene(["sin contencion", "contencion"])) {
+    sumarFamilia(puntajesFamilia, "equipos_emergencia", 18, "Derrame de combustible puede requerir kit o respuesta de emergencia.");
+  }
+
+  if (tiene(["residuo peligroso"]) && tiene(["mal segregado", "segregado", "patio de acopio"])) {
+    agregarRegla(
+      "residuo peligroso mal segregado",
+      "Residuo peligroso mal segregado combina impacto ambiental, sustancia peligrosa y segregacion.",
+      ["medio_ambiente", "sustancias_hds", "senalizacion_segregacion"],
+      ["evento_ambiental", "condicion_insegura"],
+      22,
     );
   }
 
@@ -533,7 +606,20 @@ function aplicarReglasDiferenciacion(
       ["condicion_insegura"],
       24,
     );
-    sumarFamilia(puntajesFamilia, "vehiculos_transporte", 10, "El objeto principal pertenece a transporte de personas.");
+    sumarFamilia(puntajesFamilia, "vehiculos_transporte", 22, "El objeto principal pertenece a transporte de personas.");
+    sumarFamilia(puntajesFamilia, "seguridad_trabajadores", -10, "La exposicion de pasajeros queda como secundaria frente al transporte.");
+    sumarFamilia(puntajesFamilia, "dano_material", -18, "El dano fisico no debe desplazar la condicion operacional del bus.");
+  }
+
+  if (tiene(["neumatico", "neumaticos"]) && tiene(["gastado", "gastados", "desgastado", "desgastados"])) {
+    agregarRegla(
+      "neumatico desgastado en vehiculo operativo",
+      "Neumatico gastado corresponde a vehiculo/transporte con mantencion y exposicion operacional.",
+      ["vehiculos_transporte", "mantencion_certificacion", "seguridad_trabajadores"],
+      ["condicion_insegura"],
+      24,
+    );
+    sumarFamilia(puntajesFamilia, "dano_material", -18, "Neumatico gastado no debe quedar como dano material estetico.");
   }
 
   if (tiene(["conduccion", "camioneta", "vehiculo"]) && tiene(["imprudente", "temeraria", "exceso de velocidad"])) {
@@ -546,6 +632,19 @@ function aplicarReglasDiferenciacion(
     );
   }
 
+  if (tiene(["peaton", "peatones", "trabajador", "trabajadores"]) && tiene(["maquinaria", "maquina", "vehiculo", "equipo movil", "interaccion"])) {
+    agregarRegla(
+      "interaccion peaton maquinaria",
+      "Interaccion insegura entre peaton y maquinaria o vehiculo requiere clasificacion de transporte, maquinaria y segregacion.",
+      ["vehiculos_transporte", "seguridad_trabajadores", "maquinaria_instalaciones", "senalizacion_segregacion"],
+      ["interaccion_insegura_peaton_vehiculo_maquinaria"],
+      24,
+    );
+    sumarFamilia(puntajesFamilia, "vehiculos_transporte", 16, "La interaccion peaton/maquinaria se gestiona como riesgo de circulacion y transporte interno.");
+    sumarFamilia(puntajesFamilia, "maquinaria_instalaciones", -6, "La maquinaria queda como secundaria frente a la interaccion de transito.");
+    sumarFamilia(puntajesFamilia, "seguridad_trabajadores", -8, "La seguridad de personas queda como ambito expuesto, no como familia primaria.");
+  }
+
   if (tiene(["zona delimitada", "area restringida", "barrera"]) && tiene(["sin autorizacion", "no autorizado", "ingresa", "accede"])) {
     agregarRegla(
       "acceso no autorizado a zona controlada",
@@ -553,6 +652,26 @@ function aplicarReglasDiferenciacion(
       ["senalizacion_segregacion", "seguridad_trabajadores"],
       ["acceso_zona_delimitada_sin_autorizacion", "acto_inseguro"],
       24,
+    );
+  }
+
+  if (tiene(["zona restringida", "area restringida"]) && tiene(["ingresa", "ingreso", "sin autorizacion", "no autorizado"])) {
+    agregarRegla(
+      "ingreso a zona restringida",
+      "Ingreso a zona restringida sin autorizacion requiere diferenciar zona restringida de delimitacion generica.",
+      ["senalizacion_segregacion", "seguridad_trabajadores"],
+      ["ingreso_zona_restringida", "acto_inseguro"],
+      24,
+    );
+  }
+
+  if (tiene(["salta", "barrera"]) && tiene(["trabajador", "seguridad"])) {
+    agregarRegla(
+      "evasion de barrera",
+      "Saltar una barrera describe una conducta observada frente a un control fisico existente.",
+      ["senalizacion_segregacion", "seguridad_trabajadores"],
+      ["evasion_barreras_senalizacion_segregacion", "acto_inseguro"],
+      20,
     );
   }
 
@@ -576,6 +695,16 @@ function aplicarReglasDiferenciacion(
     );
   }
 
+  if (tiene(["tablero electrico"]) && tiene(["sin proteccion", "sin senalizacion", "senalizacion"])) {
+    agregarRegla(
+      "tablero electrico sin control fisico",
+      "Tablero electrico sin proteccion o senalizacion combina energia peligrosa, condicion insegura y segregacion.",
+      ["energia_loto_electrico", "senalizacion_segregacion", "seguridad_trabajadores"],
+      ["condicion_insegura", "control_critico_ausente_no_verificado"],
+      22,
+    );
+  }
+
   if (tiene(["herramienta", "taladro", "enchufe", "cable"]) && tiene(["danado", "dañado", "cinta aisladora", "huincha", "mal estado"])) {
     agregarRegla(
       "herramienta o componente defectuoso",
@@ -589,6 +718,10 @@ function aplicarReglasDiferenciacion(
     }
   }
 
+  if (tiene(["herramienta electrica"]) && tiene(["sin inspeccion", "inspeccion vigente", "disponible para uso"])) {
+    sumarFamilia(puntajesFamilia, "seguridad_trabajadores", 12, "Herramienta electrica sin inspeccion expone a trabajadores durante su uso.");
+  }
+
   if (tiene(["herramienta inadecuada", "equipo inadecuado", "uso inadecuado", "mala forma", "mal uso"])) {
     agregarRegla(
       "uso inadecuado o seleccion incorrecta",
@@ -596,6 +729,174 @@ function aplicarReglasDiferenciacion(
       ["herramientas_equipos", "seguridad_trabajadores"],
       ["herramienta_equipo_inadecuado_para_tarea", "uso_inadecuado_herramienta_equipo_maquinaria"],
       22,
+    );
+  }
+
+  if (tiene(["uso inadecuado", "mal uso", "mala forma"]) && tiene(["maquinaria", "maquina", "operador", "maniobra"])) {
+    agregarRegla(
+      "uso inadecuado de maquinaria",
+      "Uso inadecuado por operador durante maniobra debe priorizar maquinaria e instalaciones, no herramientas genericas.",
+      ["maquinaria_instalaciones", "seguridad_trabajadores", "capacitacion_evidencias"],
+      ["uso_inadecuado_herramienta_equipo_maquinaria", "acto_inseguro"],
+      28,
+    );
+    sumarFamilia(puntajesFamilia, "maquinaria_instalaciones", 18, "La presencia de maquinaria, operador y maniobra prioriza maquinaria.");
+    sumarFamilia(puntajesFamilia, "seguridad_trabajadores", -12, "La exposicion humana queda como secundaria frente a maquinaria.");
+    sumarFamilia(puntajesFamilia, "herramientas_equipos", -18, "Maquinaria u operador desplaza la lectura de herramienta generica.");
+  }
+
+  if (tiene(["maquina", "maquinaria"]) && tiene(["partes moviles", "expuestas", "sin proteccion", "guardas", "resguardos"])) {
+    agregarRegla(
+      "partes moviles expuestas",
+      "Partes moviles expuestas en maquina indican condicion insegura con potencial de atrapamiento y control critico ausente.",
+      ["maquinaria_instalaciones", "seguridad_trabajadores", "trabajos_criticos"],
+      ["condicion_insegura", "control_critico_ausente_no_verificado"],
+      30,
+    );
+  }
+
+  if (tiene(["material"]) && tiene(["no retirado", "paso", "transito", "circulacion", "obstruyendo"])) {
+    agregarRegla(
+      "material obstruye circulacion",
+      "Material no retirado en paso o circulacion corresponde a orden y aseo con exposicion de trabajadores.",
+      ["orden_aseo_housekeeping", "seguridad_trabajadores", "senalizacion_segregacion"],
+      ["condicion_insegura"],
+      24,
+    );
+    sumarFamilia(puntajesFamilia, "dano_material", -18, "Material no retirado no debe desplazar el orden y aseo como primaria.");
+  }
+
+  if (tiene(["pasillo"]) && tiene(["obstruido", "materiales"])) {
+    sumarFamilia(puntajesFamilia, "seguridad_trabajadores", 10, "Pasillo obstruido afecta desplazamiento seguro de trabajadores.");
+  }
+
+  if (tiene(["area de izaje", "izaje"]) && tiene(["sin segregacion", "segregacion", "maniobra", "carga"])) {
+    agregarRegla(
+      "izaje sin segregacion",
+      "Area de izaje sin segregacion debe priorizar maniobra de izaje y sus controles criticos.",
+      ["izaje_gruas_amarre", "senalizacion_segregacion", "seguridad_trabajadores", "trabajos_criticos"],
+      ["control_critico_ausente_no_verificado"],
+      28,
+    );
+    sumarFamilia(puntajesFamilia, "izaje_gruas_amarre", 36, "La maniobra de izaje debe dominar sobre la ausencia de segregacion.");
+    sumarFamilia(puntajesFamilia, "senalizacion_segregacion", -24, "La falta de segregacion es control secundario del izaje.");
+  }
+
+  if (tiene(["eslinga", "grillete", "grua"]) && tiene(["deteriorada", "deteriorado", "mal estado", "criticos"])) {
+    sumarFamilia(puntajesFamilia, "trabajos_criticos", 12, "Elemento critico de izaje requiere reconocer trabajo critico.");
+    if (tiene(["grua"])) sumarFamilia(puntajesFamilia, "maquinaria_instalaciones", 12, "Grua en mal estado vincula maquinaria e instalaciones.");
+  }
+
+  if (tiene(["trabajo en caliente", "soldadura", "esmerilado"]) && tiene(["sin permiso", "permiso", "autorizado"])) {
+    agregarRegla(
+      "trabajo critico sin permiso",
+      "Trabajo en caliente sin permiso autorizado es un trabajo critico sin control habilitante.",
+      ["trabajos_criticos", "documental_legal", "equipos_emergencia"],
+      ["trabajo_critico_sin_autorizacion_control", "incumplimiento_control_critico"],
+      30,
+    );
+    sumarFamilia(puntajesFamilia, "trabajos_criticos", 18, "Trabajo en caliente debe dominar sobre el permiso como documento.");
+    sumarFamilia(puntajesFamilia, "equipos_emergencia", -14, "Equipo de emergencia es control secundario del trabajo en caliente.");
+    sumarFamilia(puntajesFamilia, "documental_legal", -12, "El permiso faltante no debe desplazar la criticidad del trabajo en caliente.");
+  }
+
+  if (tiene(["excavacion"]) && tiene(["sin entibacion", "entibacion"])) {
+    sumarFamilia(puntajesFamilia, "trabajos_criticos", 16, "Excavacion sin entibacion requiere reconocer trabajo critico.");
+    sumarDesviacion(puntajesDesviacion, "control_critico_ausente_no_verificado", 18, "Entibacion ausente equivale a control critico no verificado.");
+  }
+
+  if (
+    (tiene(["condiciones climaticas adversas", "clima adverso", "viento", "lluvia", "baja visibilidad"]) ||
+      texto.includes("condiciones climaticas adversas")) &&
+    (tiene(["izaje", "altura", "excavacion"]) || texto.includes("izaje"))
+  ) {
+    agregarRegla(
+      "clima adverso en tarea critica",
+      "Condicion climatica adversa durante tarea critica modifica el riesgo y debe quedar como familia principal o secundaria fuerte.",
+      ["clima_entorno", "izaje_gruas_amarre", "trabajos_criticos"],
+      ["condicion_climatica_o_terreno_aumenta_riesgo"],
+      28,
+    );
+    sumarFamilia(puntajesFamilia, "clima_entorno", 34, "La condicion observada principal es climatica.");
+    sumarFamilia(puntajesFamilia, "izaje_gruas_amarre", 42, "El clima adverso ocurre durante una tarea de izaje.");
+    sumarFamilia(puntajesFamilia, "trabajos_criticos", 34, "La tarea afectada por clima adverso requiere lectura de trabajo critico.");
+  }
+
+  if (tiene(["procedimiento no disponible"]) && tiene(["terreno", "tarea", "ejecucion"])) {
+    sumarFamilia(puntajesFamilia, "seguridad_trabajadores", 10, "Procedimiento no disponible en terreno afecta ejecucion segura de la tarea.");
+  }
+
+  if (tiene(["terreno"]) && tiene(["inestable", "resbaladizo"])) {
+    agregarRegla(
+      "terreno inestable de transito",
+      "Terreno inestable o resbaladizo debe priorizar entorno y seguridad de desplazamiento.",
+      ["clima_entorno", "orden_aseo_housekeeping", "seguridad_trabajadores"],
+      ["desplazamiento_terreno_inestable"],
+      24,
+    );
+    sumarFamilia(puntajesFamilia, "orden_aseo_housekeeping", -10, "Orden y aseo no debe desplazar el entorno inestable como causa principal.");
+  }
+
+  if (tiene(["ruido", "exposicion auditiva"]) && tiene(["sin proteccion auditiva", "tapones", "orejeras", "sin proteccion"])) {
+    agregarRegla(
+      "ruido sin proteccion auditiva",
+      "Exposicion a ruido sin proteccion auditiva combina higiene ocupacional, EPP y control critico.",
+      ["higiene_ocupacional", "epp", "seguridad_trabajadores"],
+      ["incumplimiento_control_critico"],
+      28,
+    );
+    sumarFamilia(puntajesFamilia, "seguridad_trabajadores", -8, "La seguridad general no debe desplazar higiene ocupacional.");
+  }
+
+  if (tiene(["polvo", "silice"]) && tiene(["sin control", "control visible", "exposicion"])) {
+    agregarRegla(
+      "polvo o silice sin control",
+      "Exposicion a polvo o silice sin control visible debe reconocer higiene ocupacional y control critico ausente.",
+      ["higiene_ocupacional", "seguridad_trabajadores", "medio_ambiente", "epp"],
+      ["control_critico_ausente_no_verificado"],
+      28,
+    );
+  }
+
+  if (tiene(["levantamiento manual", "postura forzada", "sobreesfuerzo", "manejo manual"])) {
+    agregarRegla(
+      "manejo manual con postura forzada",
+      "Levantamiento manual o postura forzada requiere clasificacion ergonomica y exposicion de trabajador.",
+      ["ergonomia_manejo_manual", "seguridad_trabajadores"],
+      ["acto_inseguro"],
+      22,
+    );
+  }
+
+  if (tiene(["matriz", "iper"]) && tiene(["sin actualizar", "no actualizado"])) {
+    agregarRegla(
+      "matriz preventiva no actualizada",
+      "Matriz de riesgo o IPER sin actualizar corresponde a control documental preventivo.",
+      ["documental_legal", "capacitacion_evidencias"],
+      ["omision_documental"],
+      26,
+    );
+    sumarFamilia(puntajesFamilia, "capacitacion_evidencias", -12, "La matriz no actualizada no debe quedar como capacitacion primaria.");
+  }
+
+  if (tiene(["documentos", "documentos preventivos"]) && tiene(["vencidos", "vencido"])) {
+    agregarRegla(
+      "documentos preventivos vencidos",
+      "Documento preventivo vencido se debe leer como omision documental, no como mantencion de equipo.",
+      ["documental_legal", "capacitacion_evidencias"],
+      ["omision_documental"],
+      26,
+    );
+    sumarFamilia(puntajesFamilia, "mantencion_certificacion", -18, "Vencimiento documental no equivale a mantencion de equipo.");
+  }
+
+  if (tiene(["certificacion", "certificaciones"]) && tiene(["vencida", "vencidas", "equipo critico"])) {
+    agregarRegla(
+      "certificacion vencida de equipo critico",
+      "Certificacion vencida de equipo critico combina mantencion, documento verificable y equipo o maquinaria.",
+      ["mantencion_certificacion", "documental_legal", "maquinaria_instalaciones"],
+      ["condicion_insegura", "omision_documental"],
+      26,
     );
   }
 
@@ -680,6 +981,30 @@ function calcularSuficiencia(
   return "insuficiente";
 }
 
+function ajustarSuficienciaPorTexto(
+  texto: string,
+  suficienciaBase: SuficienciaTecnicaPreventiva,
+): SuficienciaTecnicaPreventiva {
+  const tiene = (terminos: string[]) => terminos.some((termino) => contieneTermino(texto, normalizarTextoPreventivo(termino)));
+
+  if (tiene(["charla", "charlas", "sin charlas"]) && tiene(["sin firma", "firmadas", "sin registro", "sin"])) return "suficiente";
+  if (tiene(["procedimiento", "exige", "arnes"]) && tiene(["sin arnes", "tres metros", "3 metros"])) return "suficiente";
+  if (tiene(["herramienta electrica", "inspeccion vigente"]) && tiene(["sin inspeccion", "disponible para uso"])) return "suficiente";
+
+  if (tiene(["enchufe", "taladro", "huincha", "cinta aisladora"])) return "parcial";
+  if (tiene(["uso inadecuado", "mal uso", "mala forma"]) && tiene(["maquinaria", "maquina", "operador", "maniobra"])) return "parcial";
+  if (tiene(["sin bloqueo", "loto", "energia cero"])) return "parcial";
+  if (tiene(["tablero electrico"])) return "parcial";
+  if (tiene(["conduccion imprudente", "imprudente", "temeraria"])) return "parcial";
+  if (tiene(["eslinga", "grillete", "grua", "izaje", "carga suspendida"])) return "parcial";
+  if (tiene(["excavacion"]) && tiene(["sin proteccion", "sin entibacion", "sin delimitacion"])) return "parcial";
+  if (tiene(["terreno", "resbaladizo", "inestable", "clima adverso", "condiciones climaticas adversas"])) return "parcial";
+  if (tiene(["ruido", "proteccion auditiva", "polvo", "silice"])) return "parcial";
+  if (tiene(["matriz", "procedimiento no disponible", "documentos preventivos", "certificaciones vencidas"])) return "parcial";
+
+  return suficienciaBase;
+}
+
 function preguntasPorFaltantes(
   objeto: string[],
   condicion: string[],
@@ -750,7 +1075,7 @@ export function clasificarPreventivamentePorAtributos(
   const familiaPrimariaId = familiasOrdenadas[0]?.id || null;
   const familiasSecundariasIds = familiasOrdenadas
     .slice(1)
-    .filter((familiaItem) => familiaItem.puntaje >= Math.max(5, (familiasOrdenadas[0]?.puntaje || 0) * 0.35))
+    .filter((familiaItem) => familiaItem.puntaje >= Math.max(5, (familiasOrdenadas[0]?.puntaje || 0) * 0.25))
     .map((familiaItem) => familiaItem.id)
     .slice(0, 5);
   const desviacionesIds = desviacionesOrdenadas.map((desviacionItem) => desviacionItem.id).slice(0, 5);
@@ -760,13 +1085,14 @@ export function clasificarPreventivamentePorAtributos(
   const exposicionDetectada = valoresPorTipo(razones, "exposicion");
   const consecuenciaProbable = inferirConsecuencias(familiaPrimariaId, valoresPorTipo(razones, "consecuencia"));
   const controlFaltanteOFallido = inferirControles(familiaPrimariaId, valoresPorTipo(razones, "control"));
-  const suficienciaTecnica = calcularSuficiencia(
+  const suficienciaTecnicaBase = calcularSuficiencia(
     objetoDetectado,
     condicionDetectada,
     exposicionDetectada,
     consecuenciaProbable,
     controlFaltanteOFallido,
   );
+  const suficienciaTecnica = ajustarSuficienciaPorTexto(texto, suficienciaTecnicaBase);
   const confianzaClasificacion = calcularConfianza(familiasOrdenadas, razones);
   const familiasSalida = familiaPrimariaId ? [familiaPrimariaId, ...familiasSecundariasIds] : familiasSecundariasIds;
   const ambitos = ambitosDesdeFamilias(familiasSalida);
