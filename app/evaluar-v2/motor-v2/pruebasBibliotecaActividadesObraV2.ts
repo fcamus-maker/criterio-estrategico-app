@@ -29,12 +29,35 @@ export type ResultadoEvaluacionBibliotecaActividadesObra = {
   riesgosSinPreguntas: ResultadoRiesgoActividadObra[];
   riesgosConTextoProhibido: ResultadoRiesgoActividadObra[];
   riesgosConTituloDuplicado: string[];
+  riesgosFueraAplicabilidadActividad: ResultadoRiesgoActividadObra[];
+  actividadesConPreguntasEstrategicasGenericas: string[];
   resultadosRiesgos: ResultadoRiesgoActividadObra[];
 };
 
-const TOTAL_ACTIVIDADES_ESPERADAS = 7;
-const MINIMO_RIESGOS_POR_ACTIVIDAD = 30;
+const MINIMO_ACTIVIDADES_ESPERADAS = 14;
+const MINIMO_RIESGOS_TOTALES_ESPERADOS = 448;
+const MINIMO_RIESGOS_POR_ACTIVIDAD = 32;
 const MINIMO_PALABRAS_DESCRIPCION = 45;
+const ACTIVIDADES_BLOQUE_B = new Set([
+  "andamios_plataformas_trabajo",
+  "trabajo_altura_lineas_vida_bordes_aberturas",
+  "techumbres_cubiertas_paneles_tejas",
+  "canaletas_bajadas_agua_remates_exteriores",
+  "montaje_vigas_cerchas_elementos_altura",
+  "instalacion_luminarias_altura",
+  "escaleras_plataformas_elevadoras_accesos_temporales",
+]);
+
+const EXPRESIONES_APLICABILIDAD_BLOQUE_B: Record<string, string[]> = {
+  andamios_plataformas_trabajo: ["andamio", "plataforma", "baranda", "rodapie", "tarjeta", "acceso"],
+  trabajo_altura_lineas_vida_bordes_aberturas: ["altura", "linea de vida", "borde", "abertura", "vano", "arnes"],
+  techumbres_cubiertas_paneles_tejas: ["techumbre", "cubierta", "panel", "teja", "plancha", "tragaluz"],
+  canaletas_bajadas_agua_remates_exteriores: ["canaleta", "bajada", "remate", "sello", "fachada", "borde exterior"],
+  montaje_vigas_cerchas_elementos_altura: ["viga", "cercha", "montaje", "izaje", "rigger", "aparejo"],
+  instalacion_luminarias_altura: ["luminaria", "tablero", "cable", "energia", "taladro"],
+  escaleras_plataformas_elevadoras_accesos_temporales: ["escalera", "plataforma elevadora", "alza hombre", "pasarela", "estabilizador"],
+};
+
 const TEXTOS_PROHIBIDOS = [
   "Motor V2",
   "Motor V3",
@@ -101,6 +124,15 @@ function textosVisiblesActividad(actividad: ActividadObraPreventiva): string[] {
 function validarRiesgo(actividad: ActividadObraPreventiva, riesgo: RiesgoInherenteActividadObra): ResultadoRiesgoActividadObra {
   const erroresCriticos: string[] = [];
   const erroresMenores: string[] = [];
+  const textoAplicabilidad = normalizarTextoPrueba(
+    [
+      riesgo.titulo,
+      riesgo.descripcionTecnica,
+      riesgo.objetoPrincipal,
+      riesgo.condicionObservada,
+      ...riesgo.palabrasClave,
+    ].join(" "),
+  );
 
   if (contarPalabras(riesgo.descripcionTecnica) < MINIMO_PALABRAS_DESCRIPCION) {
     erroresCriticos.push("Descripcion tecnica insuficiente.");
@@ -134,6 +166,14 @@ function validarRiesgo(actividad: ActividadObraPreventiva, riesgo: RiesgoInheren
     erroresCriticos.push("Contiene texto interno prohibido.");
   }
 
+  const expresionesAplicabilidad = EXPRESIONES_APLICABILIDAD_BLOQUE_B[actividad.id];
+  if (
+    expresionesAplicabilidad &&
+    !expresionesAplicabilidad.some((expresion) => textoAplicabilidad.includes(normalizarTextoPrueba(expresion)))
+  ) {
+    erroresCriticos.push("Riesgo fuera de aplicabilidad basica de la actividad.");
+  }
+
   if (!riesgo.objetoPrincipal.trim() || !riesgo.condicionObservada.trim() || !riesgo.exposicion.trim()) {
     erroresMenores.push("Faltan atributos preventivos basicos.");
   }
@@ -160,8 +200,8 @@ export function evaluarBibliotecaActividadesObra(): ResultadoEvaluacionBibliotec
   const erroresCriticos: string[] = [];
   const erroresMenores: string[] = [];
 
-  if (actividades.length !== TOTAL_ACTIVIDADES_ESPERADAS) {
-    erroresCriticos.push(`Total de actividades esperado ${TOTAL_ACTIVIDADES_ESPERADAS}, obtenido ${actividades.length}.`);
+  if (actividades.length < MINIMO_ACTIVIDADES_ESPERADAS) {
+    erroresCriticos.push(`Minimo de actividades esperado ${MINIMO_ACTIVIDADES_ESPERADAS}, obtenido ${actividades.length}.`);
   }
 
   const actividadesConMenosDe30Riesgos = actividades
@@ -169,7 +209,25 @@ export function evaluarBibliotecaActividadesObra(): ResultadoEvaluacionBibliotec
     .map((actividad) => actividad.id);
 
   if (actividadesConMenosDe30Riesgos.length > 0) {
-    erroresCriticos.push("Existen actividades con menos de 30 riesgos inherentes.");
+    erroresCriticos.push("Existen actividades con menos de 32 riesgos inherentes.");
+  }
+
+  if (resultadosRiesgos.length < MINIMO_RIESGOS_TOTALES_ESPERADOS) {
+    erroresCriticos.push(`Minimo de riesgos esperado ${MINIMO_RIESGOS_TOTALES_ESPERADOS}, obtenido ${resultadosRiesgos.length}.`);
+  }
+
+  const preguntasEstrategicasBloqueB = actividades
+    .filter((actividad) => ACTIVIDADES_BLOQUE_B.has(actividad.id))
+    .map((actividad) => ({
+      id: actividad.id,
+      firma: actividad.preguntasEstrategicasSugeridas.join(" | "),
+    }));
+  const actividadesConPreguntasEstrategicasGenericas = preguntasEstrategicasBloqueB
+    .filter((actual, indice, todas) => todas.findIndex((otra) => otra.firma === actual.firma) !== indice)
+    .map((actividad) => actividad.id);
+
+  if (actividadesConPreguntasEstrategicasGenericas.length > 0) {
+    erroresCriticos.push("Existen actividades del Bloque B con preguntas estrategicas identicas.");
   }
 
   const titulos = actividades.flatMap((actividad) => actividad.riesgosInherentes.map((riesgo) => riesgo.titulo));
@@ -223,6 +281,10 @@ export function evaluarBibliotecaActividadesObra(): ResultadoEvaluacionBibliotec
       resultado.erroresCriticos.includes("Contiene texto interno prohibido."),
     ),
     riesgosConTituloDuplicado,
+    riesgosFueraAplicabilidadActividad: resultadosRiesgos.filter((resultado) =>
+      resultado.erroresCriticos.includes("Riesgo fuera de aplicabilidad basica de la actividad."),
+    ),
+    actividadesConPreguntasEstrategicasGenericas,
     resultadosRiesgos,
   };
 }
