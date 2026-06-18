@@ -25,7 +25,14 @@ export type ActividadObraId =
   | "redes_sanitarias_bajadas_agua_drenajes"
   | "climatizacion_ductos_ventilacion"
   | "pruebas_presion_fugas_puesta_servicio"
-  | "canalizaciones_perforaciones_pasadas_muros_losas";
+  | "canalizaciones_perforaciones_pasadas_muros_losas"
+  | "pintura_interior_exterior_esmaltes_barnices"
+  | "empaste_lijado_preparacion_superficies"
+  | "sellos_silicona_impermeabilizacion_juntas"
+  | "pisos_ceramicas_revestimientos_porcelanato"
+  | "puertas_ventanas_marcos_quincalleria"
+  | "vidrios_espejos_paneles_fragiles"
+  | "terminaciones_menores_reparaciones_acabados_finales";
 
 export type TipoRiesgoActividadObra =
   | "seguridad_personas"
@@ -93,6 +100,10 @@ type ActividadBloqueB = ActividadBase & {
 
 type ActividadBloqueC = ActividadBase & {
   definicionesRiesgo: TemaRiesgoBloqueC[];
+};
+
+type ActividadBloqueD = ActividadBase & {
+  definicionesRiesgo: TemaRiesgoBloqueD[];
 };
 
 const documentosGenerales = ["Matriz de riesgos vigente", "AST/ART cuando exista tarea en ejecucion", "Registro de charla o difusion si aplica"];
@@ -590,12 +601,25 @@ type TemaRiesgoBloqueC = {
   criticidadOrientativa?: CriticidadOrientativaTaxonomia;
 };
 
+type TemaRiesgoBloqueD = {
+  idBase: string;
+  tituloBase: string;
+  condicionTecnica: string;
+  palabrasClaveBase: string[];
+  categoria: CategoriaRiesgoBloqueC;
+  objetoPrincipal: string;
+  condicionObservada: string;
+  criticidadOrientativa?: CriticidadOrientativaTaxonomia;
+};
+
 const documentosAltura = ["AST/ART", "PTS o procedimiento de trabajo en altura si aplica", "Matriz de riesgos vigente"];
 const documentosIzaje = ["Plan de izaje si aplica", "AST/ART", "Certificacion de aparejos o equipo de levante"];
 const documentosElectricos = ["Bloqueo/LOTO si aplica", "AST/ART", "Autorizacion de intervencion electrica si corresponde"];
 const documentosNoAlturaSimple = ["HDS/SDS si no hay sustancias", "Permiso especial si no existe trabajo critico", "Certificacion cuando solo corresponde retiro menor"];
 const documentosInstalacionesTecnicas = ["AST/ART si hay energia, presion o perforacion critica", "Matriz de riesgos vigente", "Autorizacion tecnica si corresponde"];
 const documentosNoInstalacionSimple = ["PTS si solo corresponde retiro menor, orden o reparacion simple", "Permiso especial si no existe energia, presion ni trabajo critico"];
+const documentosTerminacionesQuimicos = ["HDS/SDS si hay pintura, solvente, adhesivo o sello", "Matriz de riesgos vigente", "AST/ART si hay altura, herramienta critica o exposicion relevante"];
+const documentosNoTerminacionSimple = ["PTS si solo corresponde limpieza, retiro o reposicion simple", "Permiso especial si no existe trabajo critico ni sustancia peligrosa"];
 
 const PERFILES_RIESGO_B: Record<CategoriaRiesgoBloqueB, PerfilRiesgoBloqueB> = {
   altura: {
@@ -1385,6 +1409,19 @@ function temaC(
   return { idBase, tituloBase, condicionTecnica, palabrasClaveBase, categoria, objetoPrincipal, condicionObservada, criticidadOrientativa };
 }
 
+function temaD(
+  idBase: string,
+  tituloBase: string,
+  condicionTecnica: string,
+  palabrasClaveBase: string[],
+  categoria: CategoriaRiesgoBloqueC,
+  objetoPrincipal: string,
+  condicionObservada: string,
+  criticidadOrientativa?: CriticidadOrientativaTaxonomia,
+): TemaRiesgoBloqueD {
+  return { idBase, tituloBase, condicionTecnica, palabrasClaveBase, categoria, objetoPrincipal, condicionObservada, criticidadOrientativa };
+}
+
 function crearActividadesBloqueC(): ActividadBloqueC[] {
   return [
     {
@@ -1782,6 +1819,403 @@ function crearActividadesBloqueC(): ActividadBloqueC[] {
   ];
 }
 
+function crearActividadesBloqueD(): ActividadBloqueD[] {
+  return [
+    {
+      id: "pintura_interior_exterior_esmaltes_barnices",
+      nombreVisible: "Pintura interior y exterior, esmaltes y barnices",
+      descripcionActividad:
+        "Preparacion, aplicacion, retoque y limpieza asociada a pinturas, esmaltes, barnices, solventes, imprimantes y terminaciones interiores o exteriores.",
+      etapaObra: "Terminaciones y acabados",
+      contextoTecnico: "durante pintura interior o exterior con esmaltes, barnices, solventes, rodillos, brochas, escaleras y proteccion de terminaciones",
+      palabrasClaveActividad: ["pintura", "esmalte", "barniz", "solvente", "rodillo", "brocha"],
+      familiasPreventivasRelacionadas: ["sustancias_hds", "higiene_ocupacional", "orden_aseo_housekeeping", "trabajos_criticos"],
+      desviacionesFrecuentes: ["condicion_insegura", "omision_documental", "falta_conocimiento_capacitacion_difusion"],
+      documentosFrecuentesAplicables: documentosTerminacionesQuimicos,
+      documentosQueNoAplicanPorDefecto: documentosNoTerminacionSimple,
+      preguntasEstrategicasSugeridas: [
+        "La pintura, esmalte, barniz o solvente cuenta con HDS/SDS y rotulacion disponible?",
+        "Existe ventilacion suficiente y control de vapores o inflamabilidad?",
+        "La aplicacion se realiza desde escalera, plataforma, borde o zona compartida?",
+        "Hay derrames, trapos contaminados, envases abiertos o residuos sin segregacion?",
+        "La condicion requiere limpiar, ventilar, retirar producto, segregar o detener la aplicacion?",
+      ],
+      erroresQueDebeEvitarElMotor: ["No tratar pintura con solvente como aseo simple si hay vapores, inflamabilidad, HDS/SDS o ventilacion deficiente."],
+      bibliotecasSecundariasRelacionadas: ["epp", "senalizacion_segregacion", "medio_ambiente"],
+      definicionesRiesgo: [
+        temaD("vapores_pintura_sin_ventilacion", "Vapores de pintura sin ventilacion", "Pintura o esmalte se aplica en recinto con ventilacion insuficiente y olor persistente", ["pintura", "vapores"], "ventilacion_deficiente", "recinto pintado", "ventilacion insuficiente"),
+        temaD("solvente_sin_hds", "Solvente de pintura sin HDS/SDS", "Solvente, diluyente o barniz se mantiene en uso sin ficha, rotulacion o instrucciones disponibles", ["solvente", "hds"], "vapores_quimicos", "solvente de pintura", "sin HDS/SDS"),
+        temaD("envase_sin_rotulo", "Envase de pintura sin rotulacion", "Envase secundario de pintura o diluyente no identifica producto, peligro o responsable", ["envase", "rotulo"], "rotulacion_identificacion", "envase de pintura", "sin rotulo"),
+        temaD("trapos_con_solvente", "Trapos con solvente sin segregacion", "Trapos, guaipes o papeles con solvente quedan acumulados junto a materiales combustibles", ["trapos", "solvente"], "gas_combustible", "trapos contaminados", "sin segregacion", "alto"),
+        temaD("derrame_pintura", "Derrame de pintura sin contencion", "Pintura, esmalte o barniz derramado queda en piso sin contencion ni limpieza inmediata", ["derrame", "pintura"], "vapores_quimicos", "derrame de pintura", "sin contencion"),
+        temaD("piso_resbaladizo_pintura", "Piso resbaladizo por pintura", "Goteo, derrame o pelicula de pintura afecta ruta de paso o zona de trabajo", ["pintura", "piso"], "caida_mismo_nivel", "piso con pintura", "resbaladizo"),
+        temaD("escalera_pintura_inestable", "Escalera inestable durante pintura", "Pintor trabaja desde escalera mal apoyada, sin amarre o con alcance lateral excesivo", ["escalera", "pintura"], "caida_distinto_nivel", "escalera de pintura", "inestable", "alto"),
+        temaD("plataforma_pintura_sin_control", "Plataforma de pintura sin control", "Plataforma, andamio menor o banquillo usado para pintura no evidencia condicion segura", ["plataforma", "pintura"], "caida_distinto_nivel", "plataforma de pintura", "sin verificacion"),
+        temaD("pintura_en_borde_exterior", "Pintura exterior junto a borde", "Aplicacion exterior se realiza cerca de borde, vano o fachada sin control de caida", ["borde", "exterior"], "caida_distinto_nivel", "borde exterior", "sin control", "alto"),
+        temaD("caida_herramientas_pintura", "Caida de herramientas de pintura", "Rodillo, bandeja, brocha o tarro queda sin contencion sobre altura o plataforma", ["rodillo", "bandeja"], "caida_objetos", "herramientas de pintura", "sin contencion"),
+        temaD("contacto_dermico_pintura", "Contacto dermico con pintura o solvente", "Trabajador manipula pintura, esmalte o diluyente sin guantes compatibles ni limpieza", ["contacto dermico", "pintura"], "vapores_quimicos", "producto de pintura", "contacto dermico"),
+        temaD("salpicadura_ocular_pintura", "Salpicadura ocular de pintura", "Aplicacion, mezcla o limpieza genera salpicadura hacia rostro sin proteccion ocular", ["salpicadura", "ocular"], "vapores_quimicos", "pintura o solvente", "riesgo ocular"),
+        temaD("respirador_inadecuado", "Proteccion respiratoria inadecuada", "Actividad con vapores, aerosol o lijado previo se ejecuta sin proteccion respiratoria compatible", ["respirador", "vapores"], "vapores_quimicos", "proteccion respiratoria", "inadecuada"),
+        temaD("pintura_cerca_ignicion", "Pintura o solvente cerca de ignicion", "Producto inflamable se usa cerca de chispa, tablero, llama, soldadura o equipo caliente", ["ignicion", "solvente"], "gas_combustible", "pintura inflamable", "cerca de ignicion", "alto"),
+        temaD("almacenamiento_pintura_inseguro", "Almacenamiento inseguro de pinturas", "Tarros, aerosoles o solventes se acopian sin ventilacion, segregacion o contencion", ["almacenamiento", "pintura"], "vapores_quimicos", "acopio de pintura", "inseguro"),
+        temaD("residuo_pintura_sin_manejo", "Residuo de pintura sin manejo definido", "Tarros, brochas, bandejas o residuos con pintura quedan sin segregacion ni retiro", ["residuo", "pintura"], "vapores_quimicos", "residuo de pintura", "sin manejo"),
+        temaD("pintura_sobre_senalizacion", "Pintura afecta senalizacion existente", "Aplicacion cubre letreros, demarcacion, advertencias o identificacion preventiva", ["senalizacion", "pintura"], "dano_material", "senalizacion existente", "cubierta por pintura"),
+        temaD("area_pintada_sin_senalizar", "Area pintada sin senalizacion", "Sector con pintura fresca permanece habilitado al transito sin aviso ni barrera", ["pintura fresca", "senalizacion"], "segregacion_senalizacion", "area pintada", "sin senalizacion"),
+        temaD("pintura_en_zona_compartida", "Pintura en zona compartida sin segregacion", "Aplicacion con vapores o derrames se ejecuta con otras cuadrillas circulando cerca", ["zona compartida", "pintura"], "segregacion_senalizacion", "zona de pintura", "sin segregacion"),
+        temaD("mezcla_producto_sin_control", "Mezcla de productos sin control", "Pintura, catalizador, diluyente o barniz se mezcla sin recipiente, proporcion o ventilacion", ["mezcla", "barniz"], "vapores_quimicos", "mezcla de pintura", "sin control"),
+        temaD("pulverizado_sin_barrera", "Aplicacion pulverizada sin barrera", "Pistola o aerosol proyecta pintura hacia terceros, equipos o terminaciones sin proteccion", ["pulverizado", "aerosol"], "segregacion_senalizacion", "aplicacion pulverizada", "sin barrera"),
+        temaD("equipo_pintura_defectuoso", "Equipo de pintura defectuoso", "Compresor, manguera, pistola o extension usada en pintura presenta fuga o dano", ["compresor", "pistola"], "herramienta_electrica", "equipo de pintura", "defectuoso"),
+        temaD("manguera_pintura_transito", "Manguera de pintura en transito", "Manguera, cable o extension cruza ruta de paso durante aplicacion", ["manguera", "transito"], "caida_mismo_nivel", "manguera de pintura", "cruza ruta"),
+        temaD("postura_forzada_pintura", "Postura forzada al pintar", "Pintura de cielo, esquina o fachada obliga a extension sostenida de brazos y cuello", ["postura", "cielo"], "postura_forzada", "postura de pintura", "forzada"),
+        temaD("movimiento_repetitivo_pintura", "Movimiento repetitivo en aplicacion", "Uso prolongado de rodillo o brocha genera repeticion sin pausas ni rotacion", ["repetitivo", "rodillo"], "postura_forzada", "aplicacion de pintura", "repetitiva"),
+        temaD("limpieza_herramientas_solvente", "Limpieza de herramientas con solvente", "Brochas o rodillos se limpian con solvente sin ventilacion, guantes ni contencion", ["limpieza", "solvente"], "vapores_quimicos", "limpieza de herramientas", "sin control"),
+        temaD("barniz_en_espacio_cerrado", "Barniz en espacio cerrado", "Barniz o esmalte de alta emision se aplica en recinto cerrado con baja renovacion de aire", ["barniz", "cerrado"], "ventilacion_deficiente", "recinto barnizado", "cerrado"),
+        temaD("proteccion_superficie_insuficiente", "Proteccion de superficie insuficiente", "Pintura puede contaminar piso, vidrio, equipo o terminacion sin proteccion previa", ["proteccion", "superficie"], "dano_material", "superficie cercana", "sin proteccion"),
+        temaD("pintura_exterior_viento", "Pintura exterior con viento", "Viento desplaza aerosol, polvo o gotas hacia trabajadores, terceros o terminaciones", ["viento", "exterior"], "segregacion_senalizacion", "pintura exterior", "afectada por viento"),
+        temaD("pintura_sin_epp_basico", "EPP incompatible para pintura", "Trabajador pinta con producto quimico sin guantes, lentes o proteccion respiratoria compatible", ["epp", "pintura"], "vapores_quimicos", "EPP de pintura", "incompatible"),
+        temaD("tarro_abierto_sin_control", "Tarro abierto sin control", "Tarro de pintura, diluyente o barniz queda abierto en ruta o cerca de fuente de calor", ["tarro", "abierto"], "vapores_quimicos", "tarro de pintura", "abierto sin control"),
+        temaD("retiro_residuo_pintura_tardio", "Retiro tardio de residuos de pintura", "Residuos, protecciones y envases quedan al cierre de jornada sin retiro ni orden final", ["retiro", "residuo"], "caida_mismo_nivel", "residuos de pintura", "retiro tardio"),
+      ],
+    },
+    {
+      id: "empaste_lijado_preparacion_superficies",
+      nombreVisible: "Empaste, lijado y preparacion de superficies",
+      descripcionActividad:
+        "Empaste, masillado, raspado, lijado manual o mecanico, preparacion de muros, cielos y superficies antes de pintura o revestimiento.",
+      etapaObra: "Preparacion de terminaciones",
+      contextoTecnico: "durante empaste, lijado, raspado y preparacion de superficies en muros, cielos, encuentros y terminaciones",
+      palabrasClaveActividad: ["empaste", "lijado", "masilla", "superficie", "polvo", "lija"],
+      familiasPreventivasRelacionadas: ["higiene_ocupacional", "herramientas_equipos", "ergonomia_manejo_manual", "orden_aseo_housekeeping"],
+      desviacionesFrecuentes: ["condicion_insegura", "falta_conocimiento_capacitacion_difusion", "uso_inadecuado_herramienta_equipo_maquinaria"],
+      documentosFrecuentesAplicables: ["Matriz de riesgos vigente", "AST/ART si hay lijado mecanico continuo o trabajo en altura", "HDS/SDS si se usan productos quimicos"],
+      documentosQueNoAplicanPorDefecto: documentosNoTerminacionSimple,
+      preguntasEstrategicasSugeridas: [
+        "La preparacion genera polvo, particulas, ruido o vibracion relevante?",
+        "Existe ventilacion, extraccion, limpieza y proteccion respiratoria compatible?",
+        "La herramienta electrica o lijadora esta en buen estado e inspeccionada?",
+        "La tarea se realiza sobre escalera, plataforma, cielo o postura forzada?",
+        "La condicion requiere limpiar, ventilar, segregar, retirar residuos o detener la tarea?",
+      ],
+      erroresQueDebeEvitarElMotor: ["No reducir empaste o lijado a aseo final si existe polvo respirable, herramienta electrica, altura o exposicion ocular."],
+      bibliotecasSecundariasRelacionadas: ["epp", "senalizacion_segregacion", "capacitacion_evidencias"],
+      definicionesRiesgo: [
+        temaD("polvo_lijado_sin_extraccion", "Polvo de lijado sin extraccion", "Lijado de muro o cielo genera polvo fino sin extraccion, humectacion ni ventilacion", ["lijado", "polvo"], "perforacion_polvo", "superficie lijada", "polvo sin control"),
+        temaD("polvo_silice_empaste", "Polvo mineral en preparacion", "Raspado o lijado de superficie cementicia genera polvo mineral con posible silice", ["silice", "superficie"], "perforacion_polvo", "superficie cementicia", "polvo mineral"),
+        temaD("lijadora_defectuosa", "Lijadora electrica defectuosa", "Lijadora, cable, enchufe o interruptor presenta dano visible antes de uso", ["lijadora", "defectuosa"], "herramienta_electrica", "lijadora electrica", "defectuosa"),
+        temaD("cable_lijadora_transito", "Cable de lijadora cruza ruta", "Cable o extension de lijadora queda en zona de paso o sobre polvo acumulado", ["cable", "lijadora"], "caida_mismo_nivel", "cable de lijadora", "en ruta"),
+        temaD("proyeccion_particulas_lijado", "Proyeccion de particulas al lijar", "Lijado o raspado proyecta particulas hacia ojos, rostro o terceros cercanos", ["particulas", "lijado"], "perforacion_polvo", "particulas de lijado", "proyeccion no controlada"),
+        temaD("proteccion_ocular_ausente", "Proteccion ocular ausente en lijado", "Trabajador lija o raspa superficie sin lentes o pantalla contra particulas", ["ocular", "lija"], "perforacion_polvo", "proteccion ocular", "ausente"),
+        temaD("respirador_no_compatible_polvo", "Respirador no compatible con polvo", "Actividad de lijado con polvo fino se realiza sin proteccion respiratoria adecuada", ["respirador", "polvo"], "perforacion_polvo", "proteccion respiratoria", "incompatible"),
+        temaD("ventilacion_lijado_deficiente", "Ventilacion deficiente durante lijado", "Lijado interior acumula polvo suspendido por falta de ventilacion o renovacion", ["ventilacion", "lijado"], "ventilacion_deficiente", "recinto lijado", "ventilacion insuficiente"),
+        temaD("limpieza_polvo_insuficiente", "Limpieza de polvo insuficiente", "Polvo de empaste o lijado queda acumulado en piso, equipos o rutas de paso", ["limpieza", "polvo"], "caida_mismo_nivel", "polvo acumulado", "sin limpieza"),
+        temaD("residuo_fino_sin_retiro", "Residuo fino sin retiro controlado", "Restos de masilla, lija o polvo fino se mantienen sin bolsa o retiro definido", ["residuo", "masilla"], "caida_mismo_nivel", "residuo fino", "sin retiro"),
+        temaD("postura_sobre_cabeza_lijado", "Lijado sobre cabeza con postura forzada", "Trabajador lija cielo o parte alta con brazos elevados durante tiempo prolongado", ["cielo", "postura"], "postura_forzada", "lijado sobre cabeza", "postura forzada"),
+        temaD("movimiento_repetitivo_lijado", "Movimiento repetitivo en lijado manual", "Lijado manual prolongado exige movimiento repetitivo sin pausas o rotacion", ["repetitivo", "manual"], "postura_forzada", "lijado manual", "repetitivo"),
+        temaD("escalera_lijado_inestable", "Escalera inestable para lijado", "Lijado en altura se realiza desde escalera mal posicionada o con alcance lateral", ["escalera", "lijado"], "caida_distinto_nivel", "escalera de lijado", "inestable", "alto"),
+        temaD("plataforma_lijado_sin_orden", "Plataforma de lijado con desorden", "Plataforma usada para lijado mantiene polvo, herramientas o tarros sueltos", ["plataforma", "lijado"], "caida_distinto_nivel", "plataforma de lijado", "desordenada"),
+        temaD("caida_herramientas_lijado", "Caida de herramientas de lijado", "Lijadora, espatula o bandeja queda sin contencion en altura", ["herramientas", "lijado"], "caida_objetos", "herramientas de lijado", "sin contencion"),
+        temaD("ruido_lijadora", "Ruido por lijadora electrica", "Lijadora o herramienta mecanica genera ruido sin proteccion auditiva ni aviso", ["ruido", "lijadora"], "ruido_vibracion", "lijadora electrica", "ruido no controlado"),
+        temaD("vibracion_lijadora", "Vibracion por herramienta de lijado", "Uso continuo de lijadora transmite vibracion sin pausas ni control de exposicion", ["vibracion", "lijadora"], "ruido_vibracion", "lijadora", "vibracion sostenida"),
+        temaD("masilla_sin_hds", "Masilla o producto sin HDS/SDS", "Masilla, pasta o sellador usado en preparacion no tiene ficha o rotulacion disponible", ["masilla", "hds"], "vapores_quimicos", "producto de empaste", "sin HDS/SDS"),
+        temaD("contacto_dermico_masilla", "Contacto dermico con masilla", "Trabajador manipula pasta, masilla o imprimante sin guantes compatibles", ["dermico", "masilla"], "vapores_quimicos", "masilla o pasta", "contacto dermico"),
+        temaD("salpicadura_imprimante", "Salpicadura de imprimante", "Aplicacion de imprimante o promotor genera salpicadura sin proteccion ocular", ["imprimante", "salpicadura"], "vapores_quimicos", "imprimante", "riesgo ocular"),
+        temaD("envase_masilla_abierto", "Envase de masilla abierto", "Envase de pasta, imprimante o aditivo queda abierto en ruta de paso", ["envase", "masilla"], "caida_mismo_nivel", "envase de masilla", "abierto en ruta"),
+        temaD("superficie_preparada_sin_senalizar", "Superficie preparada sin senalizacion", "Sector recien empastado o imprimado queda habilitado al transito sin aviso", ["superficie", "senalizacion"], "segregacion_senalizacion", "superficie preparada", "sin aviso"),
+        temaD("interferencia_otros_trabajos_lijado", "Lijado con otras cuadrillas expuestas", "Polvo de lijado alcanza a otras cuadrillas que trabajan o transitan en el area", ["cuadrillas", "polvo"], "segregacion_senalizacion", "area de lijado", "terceros expuestos"),
+        temaD("trabajo_cerca_equipo_sensible", "Polvo cerca de equipo o terminacion", "Lijado se ejecuta junto a equipos, vidrios o terminaciones sin proteccion", ["equipo", "terminacion"], "dano_material", "equipo o terminacion", "expuesto a polvo"),
+        temaD("aspiradora_sin_mantencion", "Aspiradora o extractor sin mantencion", "Extractor, aspiradora o filtro usado para polvo no evidencia condicion o mantencion", ["aspiradora", "filtro"], "mantencion_certificacion", "equipo de extraccion", "sin mantencion"),
+        temaD("extension_en_polvo", "Extension electrica cubierta de polvo", "Extension o enchufe de herramienta queda cubierto por polvo fino de lijado", ["extension", "polvo"], "sobrecarga_humedad", "extension electrica", "cubierta de polvo"),
+        temaD("lija_deteriorada", "Lija o accesorio deteriorado", "Disco, banda o hoja de lija se usa roto, saturado o mal fijado", ["lija", "disco"], "herramienta_electrica", "accesorio de lijado", "deteriorado"),
+        temaD("borde_espatula_cortante", "Espatula o raspador cortante", "Raspador, espatula o cuchilla de preparacion queda expuesta o sin proteccion", ["espatula", "raspador"], "corte_borde", "herramienta manual", "borde expuesto"),
+        temaD("mezcla_pasta_sin_control", "Mezcla de pasta sin control", "Preparacion de pasta genera salpicadura, polvo o derrame sin recipiente estable", ["mezcla", "pasta"], "vapores_quimicos", "mezcla de pasta", "sin control"),
+        temaD("iluminacion_deficiente_lijado", "Iluminacion deficiente en preparacion", "Sector de empaste o lijado tiene sombras que dificultan observar desniveles o residuos", ["iluminacion", "empaste"], "segregacion_senalizacion", "area de preparacion", "baja visibilidad"),
+        temaD("cierre_sin_limpieza_final", "Cierre de lijado sin limpieza final", "Area queda habilitada sin retirar polvo, residuos, cables o herramientas de preparacion", ["cierre", "limpieza"], "caida_mismo_nivel", "area de lijado", "sin limpieza final"),
+        temaD("matriz_no_cubre_polvo", "Matriz no cubre exposicion a polvo", "Lijado mecanico o masivo no esta considerado en matriz o analisis preventivo vigente", ["matriz", "polvo"], "matriz_no_cubre", "exposicion a polvo", "no evaluada"),
+      ],
+    },
+    {
+      id: "sellos_silicona_impermeabilizacion_juntas",
+      nombreVisible: "Sellos, silicona, impermeabilizacion y juntas",
+      descripcionActividad:
+        "Aplicacion, retiro, corte, limpieza y terminacion de sellos, siliconas, membranas, impermeabilizantes, juntas y productos asociados.",
+      etapaObra: "Terminaciones, sellos e impermeabilizacion",
+      contextoTecnico: "durante sellos, silicona, impermeabilizacion, juntas, membranas y aplicacion de productos quimicos en terminaciones",
+      palabrasClaveActividad: ["sello", "silicona", "impermeabilizacion", "junta", "membrana", "sellante"],
+      familiasPreventivasRelacionadas: ["sustancias_hds", "medio_ambiente", "trabajos_criticos", "herramientas_equipos"],
+      desviacionesFrecuentes: ["condicion_insegura", "omision_documental", "evento_ambiental"],
+      documentosFrecuentesAplicables: documentosTerminacionesQuimicos,
+      documentosQueNoAplicanPorDefecto: documentosNoTerminacionSimple,
+      preguntasEstrategicasSugeridas: [
+        "El sello, silicona o impermeabilizante cuenta con HDS/SDS y rotulacion?",
+        "La aplicacion genera vapores, contacto dermico, inflamabilidad o derrames?",
+        "La tarea se ejecuta en borde, cubierta, bano, shaft o zona con ventilacion limitada?",
+        "La herramienta de corte, pistola o espatula esta en buen estado?",
+        "La condicion requiere ventilar, contener, retirar residuo, segregar o detener la aplicacion?",
+      ],
+      erroresQueDebeEvitarElMotor: ["No pedir PTS para un sello menor corregible, pero no omitir HDS/SDS, ventilacion o altura cuando aplica."],
+      bibliotecasSecundariasRelacionadas: ["higiene_ocupacional", "senalizacion_segregacion", "dano_material"],
+      definicionesRiesgo: [
+        temaD("silicona_sin_hds", "Silicona o sellante sin HDS/SDS", "Sellante, silicona o impermeabilizante se aplica sin ficha ni rotulacion disponible", ["silicona", "hds"], "vapores_quimicos", "sellante", "sin HDS/SDS"),
+        temaD("vapores_sellante_sin_ventilacion", "Vapores de sellante sin ventilacion", "Aplicacion de sellos o membrana ocurre en recinto con ventilacion insuficiente", ["vapores", "sellante"], "ventilacion_deficiente", "recinto con sellante", "ventilacion deficiente"),
+        temaD("contacto_dermico_silicone", "Contacto dermico con sellante", "Trabajador manipula silicona, primer o impermeabilizante sin guantes compatibles", ["dermico", "sellante"], "vapores_quimicos", "producto sellante", "contacto dermico"),
+        temaD("salpicadura_impermeabilizante", "Salpicadura de impermeabilizante", "Aplicacion con rodillo, brocha o pistola expone ojos a salpicadura", ["salpicadura", "impermeabilizante"], "vapores_quimicos", "impermeabilizante", "riesgo ocular"),
+        temaD("producto_inflamable_sello", "Producto inflamable en sellos", "Primer, solvente o impermeabilizante inflamable se usa cerca de fuente de ignicion", ["inflamable", "primer"], "gas_combustible", "producto inflamable", "cerca de ignicion", "alto"),
+        temaD("envase_sellante_sin_rotulo", "Envase de sellante sin rotulo", "Producto trasvasijado para sello no identifica composicion, peligro o uso", ["envase", "rotulo"], "rotulacion_identificacion", "envase de sellante", "sin rotulo"),
+        temaD("derrame_impermeabilizante", "Derrame de impermeabilizante", "Producto liquido queda en piso o cubierta sin contencion ni limpieza inmediata", ["derrame", "impermeabilizante"], "vapores_quimicos", "derrame de impermeabilizante", "sin contencion"),
+        temaD("residuo_sellante_sin_retiro", "Residuo de sellante sin retiro", "Boquillas, cartuchos, trapos o restos de membrana quedan sin segregacion", ["residuo", "sellante"], "vapores_quimicos", "residuo de sellante", "sin retiro"),
+        temaD("cuchillo_cartonero_sello", "Corte con cuchillo cartonero en sellos", "Corte de boquilla, junta o membrana se realiza con cuchillo sin control de manos", ["cuchillo", "cartonero"], "corte_borde", "cuchillo cartonero", "uso sin control"),
+        temaD("espatula_cortante_sello", "Espatula o raspador expuesto", "Retiro de sello viejo usa espatula, raspador o cuchilla con borde expuesto", ["espatula", "sello"], "corte_borde", "raspador de sello", "borde expuesto"),
+        temaD("trabajo_borde_impermeabilizacion", "Impermeabilizacion junto a borde", "Sellado o membrana se aplica en borde, cubierta o balcon sin control de caida", ["borde", "impermeabilizacion"], "caida_distinto_nivel", "borde impermeabilizado", "sin control", "alto"),
+        temaD("escalera_sello_altura", "Sello desde escalera sin estabilidad", "Junta alta o ventana se sella desde escalera con alcance lateral excesivo", ["escalera", "sello"], "caida_distinto_nivel", "escalera para sello", "inestable"),
+        temaD("caida_cartucho_altura", "Caida de cartuchos o herramientas", "Cartuchos, pistola, espatula o cuchilla quedan sin contencion sobre altura", ["cartucho", "altura"], "caida_objetos", "herramientas de sello", "sin contencion"),
+        temaD("area_sello_sin_senalizar", "Area con sello fresco sin senalizar", "Junta, piso o muro recien sellado queda habilitado al transito sin aviso", ["sello fresco", "senalizacion"], "segregacion_senalizacion", "area sellada", "sin aviso"),
+        temaD("superficie_resbaladiza_membrana", "Superficie resbaladiza por membrana", "Membrana, primer o impermeabilizante deja piso o cubierta resbaladiza", ["membrana", "resbaladiza"], "caida_mismo_nivel", "superficie con membrana", "resbaladiza"),
+        temaD("trapos_contaminados_sello", "Trapos contaminados con sellante", "Trapos con solvente, primer o impermeabilizante quedan acumulados sin segregacion", ["trapos", "primer"], "gas_combustible", "trapos contaminados", "sin segregacion"),
+        temaD("mezcla_impermeabilizante_sin_control", "Mezcla de impermeabilizante sin control", "Producto bicomponente o aditivo se mezcla sin proporcion, ventilacion o recipiente estable", ["mezcla", "bicomponente"], "vapores_quimicos", "mezcla impermeabilizante", "sin control"),
+        temaD("producto_incompatible_junta", "Producto incompatible en junta", "Sellante o membrana se aplica sobre superficie incompatible o contaminada", ["junta", "incompatible"], "dano_material", "junta de terminacion", "producto incompatible"),
+        temaD("sello_sin_curado", "Sello liberado sin curado", "Area se libera a uso, agua o transito antes de completar curado del sellante", ["curado", "sello"], "dano_material", "sello aplicado", "sin curado"),
+        temaD("filtracion_por_sello_deficiente", "Filtracion por sello deficiente", "Junta o impermeabilizacion defectuosa permite ingreso de agua a terminaciones", ["filtracion", "junta"], "fuga_fluidos", "junta sellada", "filtracion"),
+        temaD("membrana_sin_proteccion_mecanica", "Membrana sin proteccion mecanica", "Membrana recien instalada queda expuesta a punzonamiento, transito o herramientas", ["membrana", "proteccion"], "dano_material", "membrana", "sin proteccion"),
+        temaD("trabajos_simultaneos_sello", "Trabajos simultaneos sobre sello", "Otras cuadrillas intervienen el area mientras se aplica o cura el sellante", ["simultaneo", "sello"], "segregacion_senalizacion", "area de sello", "sin coordinacion"),
+        temaD("pistola_silicona_danada", "Pistola de silicona danada", "Pistola, boquilla o aplicador presenta dano, fuga o control deficiente", ["pistola", "silicona"], "herramienta_electrica", "pistola de silicona", "danada"),
+        temaD("herramienta_calor_membrana", "Herramienta de calor sin control", "Aplicacion de membrana usa calor, soplete o equipo caliente sin segregacion", ["calor", "membrana"], "gas_combustible", "herramienta de calor", "sin control", "alto"),
+        temaD("ventilacion_bano_sello", "Sellado en bano sin ventilacion", "Sellos o siliconas se aplican en bano o recinto cerrado sin renovacion", ["bano", "silicona"], "ventilacion_deficiente", "bano sellado", "ventilacion insuficiente"),
+        temaD("orden_cartuchos_sellos", "Cartuchos y residuos obstruyen paso", "Cartuchos, boquillas, cintas o envases quedan en zona de circulacion", ["cartuchos", "paso"], "caida_mismo_nivel", "residuos de sellos", "obstruyen paso"),
+        temaD("matriz_no_cubre_quimico_sello", "Matriz no cubre producto de sellado", "Uso de producto quimico, calor o impermeabilizante no esta en analisis vigente", ["matriz", "quimico"], "matriz_no_cubre", "producto de sellado", "no evaluado"),
+        temaD("autorizacion_cubierta_sello", "Impermeabilizacion sin autorizacion en cubierta", "Trabajo en cubierta o borde se ejecuta sin responsable o autorizacion requerida", ["cubierta", "autorizacion"], "autorizacion_documental", "trabajo en cubierta", "sin autorizacion", "alto"),
+        temaD("epp_incompatible_sello", "EPP incompatible para sellantes", "Trabajador aplica producto quimico sin guantes, lentes o respirador compatible", ["epp", "sellante"], "vapores_quimicos", "EPP de sellos", "incompatible"),
+        temaD("proteccion_terminacion_insuficiente", "Proteccion de terminacion insuficiente", "Sellante o impermeabilizante puede manchar vidrio, piso, marco o revestimiento", ["proteccion", "terminacion"], "dano_material", "terminacion cercana", "sin proteccion"),
+        temaD("limpieza_solvente_junta", "Limpieza de junta con solvente", "Junta se limpia con solvente sin ventilacion, guantes ni control de residuos", ["limpieza", "solvente"], "vapores_quimicos", "limpieza de junta", "sin control"),
+        temaD("residuo_membrana_cortante", "Recortes de membrana con borde expuesto", "Recortes, flejes o laminas de impermeabilizacion quedan con bordes o puntas expuestas", ["recortes", "membrana"], "corte_borde", "residuo de membrana", "borde expuesto"),
+      ],
+    },
+    {
+      id: "pisos_ceramicas_revestimientos_porcelanato",
+      nombreVisible: "Pisos, ceramicas, revestimientos y porcelanato",
+      descripcionActividad:
+        "Instalacion, corte, nivelacion, pegado, frague, limpieza y reparacion de pisos, ceramicas, porcelanatos, revestimientos y piezas asociadas.",
+      etapaObra: "Terminaciones de pisos y revestimientos",
+      contextoTecnico: "durante instalacion de pisos, ceramicas, revestimientos, porcelanato, adhesivos, frague, cortes y limpieza final",
+      palabrasClaveActividad: ["piso", "ceramica", "revestimiento", "porcelanato", "adhesivo", "frague"],
+      familiasPreventivasRelacionadas: ["herramientas_equipos", "higiene_ocupacional", "ergonomia_manejo_manual", "orden_aseo_housekeeping"],
+      desviacionesFrecuentes: ["condicion_insegura", "uso_inadecuado_herramienta_equipo_maquinaria", "dano_material"],
+      documentosFrecuentesAplicables: ["Matriz de riesgos vigente", "AST/ART si hay corte con herramienta critica", "HDS/SDS si hay adhesivos o fragues quimicos"],
+      documentosQueNoAplicanPorDefecto: documentosNoTerminacionSimple,
+      preguntasEstrategicasSugeridas: [
+        "La instalacion requiere corte de ceramica, porcelanato o revestimiento con proyeccion y polvo?",
+        "Se usan adhesivos, fragues o productos con HDS/SDS y ventilacion necesaria?",
+        "El area mantiene orden, segregacion y control de transito sobre superficie fresca?",
+        "Existe manipulacion manual de cajas, piezas grandes o posturas forzadas?",
+        "La condicion requiere limpiar, retirar piezas, segregar, reparar o detener el corte?",
+      ],
+      erroresQueDebeEvitarElMotor: ["No sobredocumentar una pieza menor suelta, pero no omitir polvo, corte, frague, adhesivos o superficie resbaladiza."],
+      bibliotecasSecundariasRelacionadas: ["epp", "senalizacion_segregacion", "dano_material"],
+      definicionesRiesgo: [
+        temaD("corte_ceramica_sin_control", "Corte de ceramica sin control", "Cortadora o esmeril proyecta particulas al cortar ceramica, piso o porcelanato", ["corte", "ceramica"], "perforacion_polvo", "corte de ceramica", "sin control"),
+        temaD("polvo_silice_porcelanato", "Polvo de silice por corte de porcelanato", "Corte seco de porcelanato o revestimiento genera polvo mineral sin humectacion", ["polvo", "porcelanato"], "perforacion_polvo", "corte de porcelanato", "polvo sin control"),
+        temaD("proyeccion_fragmentos_piso", "Proyeccion de fragmentos de revestimiento", "Pieza de ceramica o revestimiento se fractura y proyecta fragmentos", ["fragmentos", "revestimiento"], "perforacion_polvo", "fragmentos de revestimiento", "proyeccion"),
+        temaD("cortadora_defectuosa", "Cortadora de ceramica defectuosa", "Cortadora, disco, guia o cable presenta dano o accesorio incompatible", ["cortadora", "disco"], "herramienta_electrica", "cortadora de ceramica", "defectuosa"),
+        temaD("disco_inadecuado_porcelanato", "Disco inadecuado para porcelanato", "Disco de corte no corresponde al material, velocidad o herramienta utilizada", ["disco", "porcelanato"], "herramienta_electrica", "disco de corte", "inadecuado"),
+        temaD("bordes_ceramica_filoso", "Borde filoso de ceramica cortada", "Pieza cortada mantiene borde filoso o astilla expuesta al manipularla", ["borde", "ceramica"], "corte_borde", "ceramica cortada", "borde filoso"),
+        temaD("cuchillo_frague", "Corte con herramienta manual en frague", "Retiro o apertura de bolsa se realiza con cuchillo o cartonero sin control", ["cuchillo", "frague"], "corte_borde", "herramienta manual", "uso sin control"),
+        temaD("adhesivo_sin_hds", "Adhesivo de revestimiento sin HDS/SDS", "Adhesivo, frague o imprimante se usa sin ficha o rotulacion disponible", ["adhesivo", "hds"], "vapores_quimicos", "adhesivo de piso", "sin HDS/SDS"),
+        temaD("contacto_dermico_adhesivo", "Contacto dermico con adhesivo", "Trabajador manipula adhesivo, frague o lechada sin guantes compatibles", ["dermico", "adhesivo"], "vapores_quimicos", "adhesivo o frague", "contacto dermico"),
+        temaD("salpicadura_frague", "Salpicadura de frague o adhesivo", "Mezcla o aplicacion de frague expone ojos a salpicadura alcalina", ["salpicadura", "frague"], "vapores_quimicos", "frague o adhesivo", "riesgo ocular"),
+        temaD("mezcla_adhesivo_polvo", "Mezcla de adhesivo con polvo", "Preparacion de adhesivo en polvo genera nube sin respirador ni ventilacion", ["mezcla", "polvo"], "perforacion_polvo", "mezcla de adhesivo", "polvo suspendido"),
+        temaD("piso_fresco_sin_senalizar", "Piso fresco sin senalizacion", "Area con adhesivo, frague o revestimiento recien instalado queda abierta al transito", ["piso fresco", "senalizacion"], "segregacion_senalizacion", "piso fresco", "sin senalizacion"),
+        temaD("superficie_resbaladiza_frague", "Superficie resbaladiza por frague", "Lechada, agua o adhesivo deja superficie resbaladiza en ruta de paso", ["resbaladiza", "frague"], "caida_mismo_nivel", "superficie de piso", "resbaladiza"),
+        temaD("cajas_ceramica_en_transito", "Cajas de ceramica obstruyen transito", "Cajas, piezas o separadores quedan en ruta de circulacion o acceso", ["cajas", "transito"], "caida_mismo_nivel", "cajas de ceramica", "obstruyen paso"),
+        temaD("acopio_piezas_inestable", "Acopio de piezas inestable", "Ceramicas, porcelanatos o revestimientos se apilan sin estabilidad ni proteccion", ["acopio", "piezas"], "dano_material", "acopio de ceramicas", "inestable"),
+        temaD("manipulacion_cajas_pesadas", "Manipulacion de cajas pesadas", "Cajas de porcelanato o revestimiento se trasladan manualmente sin apoyo suficiente", ["cajas", "peso"], "manipulacion_manual", "cajas de revestimiento", "manejo manual exigente"),
+        temaD("postura_arrodillada_prolongada", "Postura arrodillada prolongada", "Instalacion de piso exige postura arrodillada sostenida sin pausa o apoyo", ["arrodillada", "piso"], "postura_forzada", "postura de instalacion", "forzada"),
+        temaD("movimiento_repetitivo_revestimiento", "Movimiento repetitivo en revestimiento", "Aplicacion de adhesivo o colocacion de piezas se repite sin rotacion ni pausas", ["repetitivo", "revestimiento"], "postura_forzada", "colocacion de piezas", "repetitiva"),
+        temaD("ruido_corte_ceramica", "Ruido por corte de ceramica", "Corte de revestimiento genera ruido sin proteccion auditiva ni segregacion", ["ruido", "corte"], "ruido_vibracion", "corte de ceramica", "ruido no controlado"),
+        temaD("vibracion_esmeril_piso", "Vibracion por esmeril en piso", "Esmeril o cortadora transmite vibracion sostenida sin pausas o control", ["vibracion", "esmeril"], "ruido_vibracion", "herramienta de corte", "vibracion sostenida"),
+        temaD("herramienta_electrica_agua", "Herramienta electrica cerca de agua", "Cortadora o esmeril se usa con agua o lechada cerca de extension electrica", ["agua", "herramienta"], "sobrecarga_humedad", "herramienta electrica", "cercana a agua", "alto"),
+        temaD("extension_corte_piso", "Extension cruza zona de corte", "Cable de cortadora cruza zona con polvo, agua, piezas o transito", ["extension", "corte"], "caida_mismo_nivel", "extension de cortadora", "cruza area"),
+        temaD("fragmentos_sin_retiro", "Fragmentos de ceramica sin retiro", "Recortes y fragmentos filosos permanecen en el area de instalacion", ["fragmentos", "retiro"], "corte_borde", "fragmentos de ceramica", "sin retiro"),
+        temaD("residuo_adhesivo_sin_manejo", "Residuo de adhesivo sin manejo", "Restos de adhesivo, frague o agua de lavado quedan sin contencion", ["residuo", "adhesivo"], "vapores_quimicos", "residuo de adhesivo", "sin manejo"),
+        temaD("dano_revestimiento_suelto", "Revestimiento suelto con potencial de caida", "Pieza de muro o piso queda suelta, mal adherida o con borde levantado", ["suelto", "revestimiento"], "dano_material", "pieza de revestimiento", "suelta"),
+        temaD("pieza_rota_expuesta", "Pieza rota expuesta", "Ceramica o porcelanato trizado queda instalado o disponible con arista cortante", ["rota", "ceramica"], "corte_borde", "pieza trizada", "arista expuesta"),
+        temaD("zona_corte_sin_barrera", "Zona de corte sin barrera", "Corte de piezas se ejecuta junto a circulacion sin pantalla ni segregacion", ["zona de corte", "barrera"], "segregacion_senalizacion", "area de corte", "sin barrera"),
+        temaD("limpieza_acida_sin_hds", "Limpieza quimica sin HDS/SDS", "Producto de limpieza para revestimiento se usa sin ficha, guantes ni ventilacion", ["limpieza", "hds"], "vapores_quimicos", "limpiador de revestimiento", "sin HDS/SDS"),
+        temaD("matriz_no_cubre_corte", "Matriz no cubre corte de revestimiento", "Corte masivo con polvo, ruido o herramienta electrica no esta en analisis vigente", ["matriz", "corte"], "matriz_no_cubre", "corte de revestimiento", "no evaluado"),
+        temaD("area_lavado_sin_drenaje", "Lavado de herramientas sin drenaje", "Lavado de baldes o herramientas deja agua con adhesivo en piso o drenaje", ["lavado", "drenaje"], "fuga_fluidos", "agua de lavado", "sin drenaje"),
+        temaD("iluminacion_colocacion_deficiente", "Iluminacion deficiente en colocacion", "Zona de piso o muro tiene sombras que ocultan desniveles, cortes o residuos", ["iluminacion", "piso"], "segregacion_senalizacion", "zona de revestimiento", "baja visibilidad"),
+        temaD("entrega_sin_orden_final", "Entrega de revestimiento sin orden final", "Area queda habilitada sin retirar crucetas, recortes, polvo, cajas o herramientas", ["entrega", "orden"], "caida_mismo_nivel", "area de revestimiento", "sin orden final"),
+      ],
+    },
+    {
+      id: "puertas_ventanas_marcos_quincalleria",
+      nombreVisible: "Puertas, ventanas, marcos y quincalleria",
+      descripcionActividad:
+        "Montaje, ajuste, fijacion, perforacion, sellado y regulacion de puertas, ventanas, marcos, bisagras, cerraduras, quincalleria y accesorios.",
+      etapaObra: "Terminaciones de carpinteria, vanos y quincalleria",
+      contextoTecnico: "durante instalacion de puertas, ventanas, marcos, cerraduras, bisagras, quincalleria, fijaciones y sellos de vanos",
+      palabrasClaveActividad: ["puerta", "ventana", "marco", "quincalleria", "bisagra", "cerradura"],
+      familiasPreventivasRelacionadas: ["herramientas_equipos", "ergonomia_manejo_manual", "dano_material", "seguridad_trabajadores"],
+      desviacionesFrecuentes: ["condicion_insegura", "uso_inadecuado_herramienta_equipo_maquinaria", "dano_material"],
+      documentosFrecuentesAplicables: ["Matriz de riesgos vigente", "AST/ART si hay vidrio, altura o elemento pesado", "HDS/SDS si hay sellantes"],
+      documentosQueNoAplicanPorDefecto: documentosNoTerminacionSimple,
+      preguntasEstrategicasSugeridas: [
+        "La puerta, ventana o marco implica vidrio, elemento pesado, borde filoso o atrapamiento?",
+        "La instalacion requiere taladro, fijaciones, sellos o trabajo en altura?",
+        "Existe riesgo de caida de hoja, marco, herramienta o accesorio sobre terceros?",
+        "La quincalleria, bisagra o cerradura quedo verificada antes de liberar el uso?",
+        "La condicion requiere ajustar, segregar, retirar, reparar o detener la instalacion?",
+      ],
+      erroresQueDebeEvitarElMotor: ["No tratar una ventana o puerta como simple dano material si hay vidrio, peso, atrapamiento, altura o herramienta electrica."],
+      bibliotecasSecundariasRelacionadas: ["dano_material", "senalizacion_segregacion", "epp"],
+      definicionesRiesgo: [
+        temaD("atrapamiento_dedos_puerta", "Atrapamiento de dedos en puerta", "Hoja de puerta se ajusta o prueba sin controlar bisagra, cierre o punto de atrapamiento", ["puerta", "atrapamiento"], "dano_material", "hoja de puerta", "punto de atrapamiento"),
+        temaD("hoja_puerta_pesada", "Hoja de puerta pesada manipulada manualmente", "Puerta pesada se traslada o instala sin apoyo, ayuda o ruta despejada", ["puerta", "peso"], "manipulacion_manual", "hoja de puerta", "manejo manual exigente"),
+        temaD("marco_sin_fijacion", "Marco sin fijacion definitiva", "Marco de puerta o ventana queda presentado sin anclaje suficiente antes de liberar", ["marco", "fijacion"], "dano_material", "marco", "sin fijacion"),
+        temaD("ventana_sin_sujecion_temporal", "Ventana sin sujecion temporal", "Ventana o marco queda apoyado sin cunas, puntales o control contra vuelco", ["ventana", "sujecion"], "caida_objetos", "ventana presentada", "sin sujecion", "alto"),
+        temaD("vidrio_en_ventana_expuesto", "Vidrio de ventana expuesto", "Ventana con vidrio queda en montaje sin proteccion de borde ni segregacion", ["vidrio", "ventana"], "corte_borde", "vidrio de ventana", "borde expuesto", "alto"),
+        temaD("perfil_marco_filoso", "Perfil de marco con borde filoso", "Marco, perfil o aluminio presenta rebaba o canto cortante al manipular", ["perfil", "marco"], "corte_borde", "perfil de marco", "borde filoso"),
+        temaD("taladro_marco_sin_control", "Taladro en marco sin control", "Perforacion para marco o cerradura genera particulas sin proteccion ocular", ["taladro", "marco"], "perforacion_polvo", "perforacion de marco", "particulas sin control"),
+        temaD("herramienta_quincalleria_danada", "Herramienta de quincalleria danada", "Taladro, atornillador o broca usada en quincalleria presenta dano o accesorio incorrecto", ["herramienta", "quincalleria"], "herramienta_electrica", "herramienta de quincalleria", "defectuosa"),
+        temaD("broca_cerradura_incompatible", "Broca incompatible para cerradura", "Broca copa, formon o accesorio no corresponde a puerta, marco o cerradura", ["broca", "cerradura"], "herramienta_electrica", "broca de cerradura", "incompatible"),
+        temaD("corte_formon_sin_control", "Corte con formon sin control", "Formon, cuchillo o herramienta manual se usa cerca de manos sin sujecion", ["formon", "corte"], "corte_borde", "formon o cuchillo", "uso sin control"),
+        temaD("caida_cerradura_accesorios", "Caida de cerradura o accesorios", "Cerradura, bisagra, manilla o tornillos quedan sueltos sobre altura o escalera", ["cerradura", "bisagra"], "caida_objetos", "accesorios de quincalleria", "sueltos"),
+        temaD("escalera_instalacion_ventana", "Escalera inestable al instalar ventana", "Instalacion de ventana alta se ejecuta desde escalera sin estabilidad ni apoyo", ["escalera", "ventana"], "caida_distinto_nivel", "escalera para ventana", "inestable", "alto"),
+        temaD("trabajo_borde_ventana", "Trabajo junto a vano de ventana", "Ajuste de ventana se realiza junto a vano o borde abierto sin control", ["vano", "ventana"], "caida_distinto_nivel", "vano de ventana", "sin control", "alto"),
+        temaD("zona_inferior_ventana", "Zona inferior abierta bajo ventana", "Personas circulan bajo el punto donde se instala marco, vidrio o herramienta", ["zona inferior", "ventana"], "segregacion_senalizacion", "area bajo ventana", "sin cierre"),
+        temaD("sellante_marco_sin_hds", "Sellante de marco sin HDS/SDS", "Silicona, espuma o adhesivo de marco se usa sin ficha ni rotulacion", ["sellante", "marco"], "vapores_quimicos", "sellante de marco", "sin HDS/SDS"),
+        temaD("ventilacion_sello_marco", "Ventilacion deficiente al sellar marco", "Sellante o espuma se aplica en recinto cerrado sin renovacion de aire", ["ventilacion", "sello"], "ventilacion_deficiente", "recinto con marco", "ventilacion deficiente"),
+        temaD("residuo_quincalleria_piso", "Residuos de quincalleria en piso", "Tornillos, tarugos, recortes o embalajes quedan en ruta de paso", ["tornillos", "piso"], "caida_mismo_nivel", "residuos de quincalleria", "en ruta"),
+        temaD("marco_obstruye_transito", "Marco o puerta obstruye transito", "Elemento apoyado en pasillo o acceso reduce circulacion segura", ["marco", "transito"], "caida_mismo_nivel", "marco acopiado", "obstruye paso"),
+        temaD("acopio_puertas_inestable", "Acopio de puertas inestable", "Puertas, marcos o ventanas se acopian verticalmente sin amarre o separador", ["acopio", "puertas"], "dano_material", "acopio de puertas", "inestable"),
+        temaD("postura_ajuste_cerradura", "Postura forzada al ajustar cerradura", "Ajuste de cerradura o bisagra exige torsion, rodillas o brazos elevados", ["postura", "cerradura"], "postura_forzada", "ajuste de cerradura", "postura forzada"),
+        temaD("movimiento_repetitivo_tornillos", "Movimiento repetitivo de atornillado", "Fijacion de quincalleria exige atornillado repetitivo sin pausas ni rotacion", ["atornillado", "repetitivo"], "postura_forzada", "atornillado de quincalleria", "repetitivo"),
+        temaD("ruido_taladro_marco", "Ruido por taladro en marco", "Perforacion de marco o muro para quincalleria genera ruido sin proteccion", ["ruido", "taladro"], "ruido_vibracion", "taladro en marco", "ruido no controlado"),
+        temaD("vibracion_taladro_puerta", "Vibracion por taladro en puerta", "Uso prolongado de taladro o atornillador genera vibracion sin control", ["vibracion", "taladro"], "ruido_vibracion", "taladro de puerta", "vibracion sostenida"),
+        temaD("marco_dana_terminacion", "Marco dana terminacion existente", "Instalacion de marco o ventana afecta muro, pintura, piso o revestimiento cercano", ["terminacion", "marco"], "dano_material", "terminacion cercana", "expuesta a dano"),
+        temaD("puerta_sin_tope", "Puerta sin tope o control de cierre", "Hoja instalada queda sin tope, freno o control contra golpe repentino", ["tope", "puerta"], "dano_material", "puerta instalada", "sin control de cierre"),
+        temaD("quincalleria_suelta", "Quincalleria suelta o incompleta", "Bisagra, chapa, manilla o cierre queda suelto, incompleto o sin prueba funcional", ["quincalleria", "suelta"], "mantencion_certificacion", "quincalleria", "suelta"),
+        temaD("ventana_sin_prueba_funcional", "Ventana sin prueba funcional", "Ventana queda instalada sin verificar apertura, cierre, anclaje o sello", ["ventana", "prueba"], "mantencion_certificacion", "ventana instalada", "sin prueba"),
+        temaD("matriz_no_cubre_vidrio_puerta", "Matriz no cubre vidrio o elemento pesado", "Instalacion incluye vidrio, puerta pesada o vano sin analisis preventivo actualizado", ["matriz", "vidrio"], "matriz_no_cubre", "instalacion de ventana", "no evaluada"),
+        temaD("trabajo_sin_autorizacion_vano", "Trabajo en vano sin autorizacion", "Intervencion en vano, fachada o altura se ejecuta sin responsable autorizado", ["autorizacion", "vano"], "autorizacion_documental", "trabajo en vano", "sin autorizacion"),
+        temaD("guantes_anticorte_no_usados", "Guantes anticorte no usados", "Manipulacion de perfil, vidrio o quincalleria cortante se realiza sin guantes compatibles", ["guantes", "anticorte"], "corte_borde", "EPP anticorte", "no usado"),
+        temaD("embalaje_ventanas_sin_retiro", "Embalaje de ventanas sin retiro", "Carton, plastico, esquineros o flejes quedan en ruta de circulacion", ["embalaje", "ventanas"], "caida_mismo_nivel", "embalaje de ventanas", "sin retiro"),
+        temaD("entrega_puerta_sin_revision", "Entrega de puerta sin revision", "Puerta, ventana o quincalleria se entrega sin revisar fijacion, borde, cierre o limpieza", ["entrega", "revision"], "dano_material", "puerta o ventana", "sin revision final"),
+      ],
+    },
+    {
+      id: "vidrios_espejos_paneles_fragiles",
+      nombreVisible: "Vidrios, espejos y paneles fragiles",
+      descripcionActividad:
+        "Transporte interno, acopio, manipulacion, instalacion, retiro, limpieza y proteccion de vidrios, espejos, mamparas, paneles fragiles y piezas quebradizas.",
+      etapaObra: "Terminaciones fragiles y elementos vidriados",
+      contextoTecnico: "durante manipulacion, acopio, transporte e instalacion de vidrios, espejos, mamparas y paneles fragiles",
+      palabrasClaveActividad: ["vidrio", "espejo", "panel", "fragil", "mampara", "borde"],
+      familiasPreventivasRelacionadas: ["seguridad_trabajadores", "ergonomia_manejo_manual", "senalizacion_segregacion", "dano_material"],
+      desviacionesFrecuentes: ["condicion_insegura", "control_critico_ausente_no_verificado", "dano_material"],
+      documentosFrecuentesAplicables: ["AST/ART si hay vidrio pesado o instalacion en altura", "Matriz de riesgos vigente"],
+      documentosQueNoAplicanPorDefecto: ["HDS/SDS si no hay productos quimicos", "PTS si solo corresponde retiro de fragmento menor controlado"],
+      preguntasEstrategicasSugeridas: [
+        "El vidrio, espejo o panel es pesado, fragil, cortante o requiere transporte especial?",
+        "Los bordes estan protegidos y el acopio evita vuelco o rotura?",
+        "Existe segregacion del area para terceros durante traslado o instalacion?",
+        "Se usan guantes anticorte, proteccion ocular y apoyo suficiente?",
+        "La condicion requiere retirar, contener, reemplazar, segregar o detener la manipulacion?",
+      ],
+      erroresQueDebeEvitarElMotor: ["No tratar vidrio roto como dano material simple si existen bordes expuestos, terceros o manipulacion pendiente."],
+      bibliotecasSecundariasRelacionadas: ["epp", "dano_material", "orden_aseo_housekeeping"],
+      definicionesRiesgo: [
+        temaD("vidrio_roto_expuesto", "Vidrio roto con borde expuesto", "Vidrio, espejo o panel trizado mantiene aristas accesibles en zona de transito", ["vidrio", "roto"], "corte_borde", "vidrio roto", "borde expuesto", "alto"),
+        temaD("espejo_trizado_instalado", "Espejo trizado instalado", "Espejo o panel fragil permanece instalado con fisura, tension o riesgo de desprendimiento", ["espejo", "trizado"], "dano_material", "espejo instalado", "trizado", "alto"),
+        temaD("panel_sin_proteccion_borde", "Panel fragil sin proteccion de borde", "Borde de vidrio, espejo o panel no cuenta con proteccion durante traslado", ["panel", "borde"], "corte_borde", "panel fragil", "sin proteccion"),
+        temaD("manipulacion_vidrio_sin_guantes", "Vidrio manipulado sin guantes anticorte", "Trabajador sostiene vidrio o espejo sin guantes compatibles con borde cortante", ["guantes", "vidrio"], "corte_borde", "EPP anticorte", "no usado", "alto"),
+        temaD("transporte_vidrio_sin_apoyo", "Transporte de vidrio sin apoyo suficiente", "Panel fragil se traslada manualmente sin ventosas, carro, apoyo o equipo suficiente", ["transporte", "vidrio"], "manipulacion_manual", "panel de vidrio", "traslado manual exigente"),
+        temaD("acopio_vertical_inestable", "Acopio vertical inestable de vidrios", "Vidrios o espejos se apoyan verticalmente sin amarre, separador o base antideslizante", ["acopio", "vertical"], "dano_material", "acopio de vidrios", "inestable", "alto"),
+        temaD("vidrio_en_ruta_transito", "Vidrio acopiado en ruta de transito", "Panel o espejo queda en pasillo, acceso o ruta de evacuacion", ["ruta", "vidrio"], "caida_mismo_nivel", "vidrio acopiado", "obstruye transito"),
+        temaD("rotura_durante_instalacion", "Rotura durante instalacion de vidrio", "Vidrio se instala con torsion, apoyo irregular o presion que puede romperlo", ["rotura", "instalacion"], "dano_material", "vidrio en instalacion", "tensionado", "alto"),
+        temaD("caida_panel_altura", "Caida de panel desde altura", "Panel, espejo o vidrio se instala en altura sin sujecion temporal ni zona inferior cerrada", ["panel", "altura"], "caida_objetos", "panel fragil", "sin sujecion", "alto"),
+        temaD("zona_inferior_vidrio", "Zona inferior abierta bajo vidrio", "Personas circulan bajo punto de instalacion o retiro de vidrio", ["zona inferior", "vidrio"], "segregacion_senalizacion", "area bajo vidrio", "sin cierre"),
+        temaD("escalera_instalacion_vidrio", "Escalera inestable al instalar vidrio", "Instalacion de espejo o vidrio alto se realiza desde escalera sin apoyo seguro", ["escalera", "vidrio"], "caida_distinto_nivel", "escalera para vidrio", "inestable", "alto"),
+        temaD("plataforma_vidrio_sin_control", "Plataforma sin control para vidrio", "Plataforma usada para vidrio o mampara no esta inspeccionada u ordenada", ["plataforma", "vidrio"], "caida_distinto_nivel", "plataforma para vidrio", "sin verificacion"),
+        temaD("herramienta_sujecion_danada", "Ventosa o herramienta de sujecion danada", "Ventosa, soporte o herramienta para vidrio presenta desgaste, suciedad o falla", ["ventosa", "herramienta"], "mantencion_certificacion", "ventosa para vidrio", "danada"),
+        temaD("adhesivo_vidrio_sin_hds", "Adhesivo de vidrio sin HDS/SDS", "Adhesivo, silicona o primer para vidrio no cuenta con ficha disponible", ["adhesivo", "vidrio"], "vapores_quimicos", "adhesivo de vidrio", "sin HDS/SDS"),
+        temaD("vapores_sello_vidrio", "Vapores de sello en vidrio", "Sellante de espejo o vidrio se aplica en recinto con ventilacion insuficiente", ["vapores", "espejo"], "ventilacion_deficiente", "sellado de vidrio", "ventilacion insuficiente"),
+        temaD("fragmentos_vidrio_sin_retiro", "Fragmentos de vidrio sin retiro", "Restos, astillas o trozos de vidrio permanecen en piso o meson", ["fragmentos", "vidrio"], "corte_borde", "fragmentos de vidrio", "sin retiro", "alto"),
+        temaD("limpieza_vidrio_cortante", "Limpieza de vidrio con borde cortante", "Limpieza de espejo o panel se realiza pese a borde astillado o trizado", ["limpieza", "vidrio"], "corte_borde", "vidrio en limpieza", "borde cortante"),
+        temaD("proteccion_ocular_vidrio", "Proteccion ocular ausente con vidrio", "Manipulacion o corte menor de vidrio se realiza sin lentes de seguridad", ["ocular", "vidrio"], "corte_borde", "proteccion ocular", "ausente"),
+        temaD("panel_sin_rotulo_fragil", "Panel fragil sin rotulacion", "Vidrio, espejo o panel almacenado no indica fragilidad, sentido ni restriccion", ["rotulo", "fragil"], "rotulacion_identificacion", "panel fragil", "sin rotulo"),
+        temaD("paso_bajo_panel", "Paso bajo panel manipulado", "Personas circulan bajo o junto a panel fragil mientras se traslada o eleva", ["paso", "panel"], "segregacion_senalizacion", "radio de panel", "terceros expuestos"),
+        temaD("manipulacion_solitario_vidrio", "Manipulacion solitaria de vidrio", "Trabajador mueve vidrio o espejo de tamano relevante sin apoyo de otra persona", ["solitario", "vidrio"], "manipulacion_manual", "panel fragil", "sin apoyo"),
+        temaD("postura_forzada_vidrio", "Postura forzada al instalar vidrio", "Instalacion de espejo o mampara exige torsion, brazos elevados o alcance lateral", ["postura", "mampara"], "postura_forzada", "instalacion de vidrio", "postura forzada"),
+        temaD("vidrio_sin_calza", "Vidrio sin calza o apoyo compatible", "Panel queda apoyado en piso duro, borde irregular o soporte no compatible", ["calza", "apoyo"], "dano_material", "vidrio apoyado", "sin calza"),
+        temaD("mampara_sin_anclaje", "Mampara sin anclaje definitivo", "Mampara o panel queda presentado sin fijacion, nivelacion o soporte definitivo", ["mampara", "anclaje"], "dano_material", "mampara", "sin anclaje", "alto"),
+        temaD("corte_perfil_vidrio", "Corte de perfil para vidrio sin control", "Perfil, junquillo o marco de vidrio se corta con borde o proyeccion no controlada", ["perfil", "vidrio"], "corte_borde", "perfil de vidrio", "corte sin control"),
+        temaD("herramienta_electrica_vidrio", "Herramienta electrica cerca de vidrio", "Taladro o atornillador se usa cerca de vidrio sin controlar vibracion o golpe", ["taladro", "vidrio"], "herramienta_electrica", "herramienta junto a vidrio", "sin control"),
+        temaD("dano_terminacion_vidrio", "Dano a terminacion por vidrio", "Traslado o montaje de vidrio expone muros, pisos o marcos terminados a golpe", ["terminacion", "vidrio"], "dano_material", "terminacion cercana", "expuesta a dano"),
+        temaD("area_vidrio_sin_senalizar", "Area de vidrio sin senalizacion", "Sector de acopio o instalacion de vidrio permanece abierto a terceros", ["senalizacion", "vidrio"], "segregacion_senalizacion", "area de vidrio", "sin senalizacion"),
+        temaD("embalaje_vidrio_sin_retiro", "Embalaje de vidrio sin retiro", "Cartones, esquineros, flejes o plastico quedan en piso despues del montaje", ["embalaje", "vidrio"], "caida_mismo_nivel", "embalaje de vidrio", "sin retiro"),
+        temaD("matriz_no_cubre_panel_pesado", "Matriz no cubre panel fragil pesado", "Instalacion de vidrio pesado, altura o transporte interno no esta en analisis vigente", ["matriz", "panel"], "matriz_no_cubre", "panel fragil pesado", "no evaluado"),
+        temaD("autorizacion_vidrio_altura", "Instalacion de vidrio en altura sin autorizacion", "Vidrio o mampara en altura se instala sin responsable autorizado o metodo definido", ["autorizacion", "altura"], "autorizacion_documental", "vidrio en altura", "sin autorizacion", "alto"),
+        temaD("entrega_vidrio_sin_revision", "Entrega de vidrio sin revision final", "Vidrio, espejo o panel se entrega sin revisar fijacion, bordes, limpieza o estabilidad", ["entrega", "vidrio"], "dano_material", "vidrio instalado", "sin revision"),
+      ],
+    },
+    {
+      id: "terminaciones_menores_reparaciones_acabados_finales",
+      nombreVisible: "Terminaciones menores, reparaciones y acabados finales",
+      descripcionActividad:
+        "Retoques, reparaciones menores, limpieza fina, ajustes de terminacion, reposicion de piezas, sellos menores, acabados finales y entrega de areas.",
+      etapaObra: "Cierre de terminaciones y entrega",
+      contextoTecnico: "durante terminaciones menores, reparaciones, retoques, ajustes, limpieza fina, acabados finales y entrega de areas",
+      palabrasClaveActividad: ["terminacion", "reparacion", "acabado", "retoque", "limpieza", "entrega"],
+      familiasPreventivasRelacionadas: ["orden_aseo_housekeeping", "seguridad_trabajadores", "dano_material", "herramientas_equipos"],
+      desviacionesFrecuentes: ["condicion_insegura", "dano_material", "falla_supervision_control_operacional"],
+      documentosFrecuentesAplicables: ["Matriz de riesgos vigente", "Registro de cierre si aplica", "HDS/SDS si hay adhesivos o solventes"],
+      documentosQueNoAplicanPorDefecto: documentosNoTerminacionSimple,
+      preguntasEstrategicasSugeridas: [
+        "La terminacion menor corresponde a limpieza/retiro simple o a tarea con herramienta, quimico o altura?",
+        "Existe corte, golpe, polvo, residuo, derrame o superficie resbaladiza?",
+        "La herramienta manual o electrica esta en buen estado e inspeccionada?",
+        "El area de entrega queda ordenada, senalizada y sin bordes o piezas expuestas?",
+        "La condicion requiere reparar, retirar, limpiar, segregar o verificar cierre?",
+      ],
+      erroresQueDebeEvitarElMotor: ["No sobredocumentar reparaciones simples, pero no liberar acabados finales con vidrio, borde, quimico o herramienta sin control."],
+      bibliotecasSecundariasRelacionadas: ["epp", "capacitacion_evidencias", "senalizacion_segregacion"],
+      definicionesRiesgo: [
+        temaD("herramienta_manual_cortante", "Herramienta manual cortante en reparacion", "Cuchillo, cartonero, formon o raspador se usa en retoque sin control de manos", ["herramienta", "cortante"], "corte_borde", "herramienta manual", "uso sin control"),
+        temaD("pieza_pequena_suelta", "Pieza pequena suelta en terminacion", "Tornillo, tapa, moldura o accesorio queda suelto en piso o acceso", ["pieza", "suelta"], "caida_mismo_nivel", "pieza de terminacion", "suelta"),
+        temaD("borde_filoso_acabado", "Borde filoso en acabado final", "Perfil, tapa, moldura o pieza reparada mantiene arista cortante expuesta", ["borde", "acabado"], "corte_borde", "pieza de acabado", "borde filoso"),
+        temaD("vidrio_menor_trizado", "Vidrio menor trizado en entrega", "Elemento vidriado pequeno queda trizado, astillado o con borde accesible", ["vidrio", "trizado"], "corte_borde", "vidrio menor", "trizado", "alto"),
+        temaD("adhesivo_reparacion_sin_hds", "Adhesivo de reparacion sin HDS/SDS", "Adhesivo, sellante o pegamento de retoque se usa sin ficha o rotulo", ["adhesivo", "reparacion"], "vapores_quimicos", "adhesivo de reparacion", "sin HDS/SDS"),
+        temaD("solvente_limpieza_final", "Solvente en limpieza final sin control", "Limpieza fina usa solvente sin ventilacion, guantes o contencion de residuos", ["solvente", "limpieza"], "vapores_quimicos", "solvente de limpieza", "sin control"),
+        temaD("vapores_retoque_sin_ventilacion", "Vapores de retoque sin ventilacion", "Retoque con pintura, sello o adhesivo se realiza en recinto cerrado", ["vapores", "retoque"], "ventilacion_deficiente", "recinto de retoque", "ventilacion insuficiente"),
+        temaD("derrame_producto_acabado", "Derrame de producto de acabado", "Producto de limpieza, sello o retoque queda derramado en piso terminado", ["derrame", "acabado"], "vapores_quimicos", "derrame de producto", "sin contencion"),
+        temaD("piso_resbaladizo_limpieza", "Piso resbaladizo por limpieza final", "Agua, cera, solvente o producto de limpieza deja ruta resbaladiza", ["limpieza", "piso"], "caida_mismo_nivel", "piso en limpieza", "resbaladizo"),
+        temaD("area_limpieza_sin_senalizar", "Area de limpieza sin senalizar", "Zona recien limpiada, encerada o reparada queda abierta al transito", ["senalizacion", "limpieza"], "segregacion_senalizacion", "area en limpieza", "sin senalizacion"),
+        temaD("escalera_retoque", "Escalera inestable en retoque", "Retoque de cielo, muro alto o accesorio se ejecuta desde escalera inestable", ["escalera", "retoque"], "caida_distinto_nivel", "escalera de retoque", "inestable"),
+        temaD("plataforma_reparacion_menor", "Plataforma para reparacion menor sin orden", "Plataforma o banquillo usado en acabado mantiene herramientas o residuos sueltos", ["plataforma", "reparacion"], "caida_distinto_nivel", "plataforma de reparacion", "desordenada"),
+        temaD("caida_herramientas_retoque", "Caida de herramientas de retoque", "Destornillador, espatula, brocha o pieza queda sin contencion sobre altura", ["herramientas", "retoque"], "caida_objetos", "herramientas de retoque", "sin contencion"),
+        temaD("taladro_reparacion_defectuoso", "Taladro de reparacion defectuoso", "Taladro, broca o extension usada en ajuste final presenta dano o accesorio incorrecto", ["taladro", "reparacion"], "herramienta_electrica", "taladro de reparacion", "defectuoso"),
+        temaD("ruido_reparacion_puntual", "Ruido en reparacion puntual", "Taladro, lijadora o esmeril de retoque genera ruido sin aviso ni proteccion", ["ruido", "reparacion"], "ruido_vibracion", "herramienta de reparacion", "ruido no controlado"),
+        temaD("polvo_retoque_sin_limpieza", "Polvo de retoque sin limpieza", "Lijado o perforacion menor deja polvo fino en superficie terminada o ruta", ["polvo", "retoque"], "perforacion_polvo", "polvo de retoque", "sin limpieza"),
+        temaD("postura_forzada_acabado", "Postura forzada en acabado", "Ajuste o retoque exige arrodillarse, torsion o brazos elevados sin apoyo", ["postura", "acabado"], "postura_forzada", "postura de acabado", "forzada"),
+        temaD("movimiento_repetitivo_limpieza", "Movimiento repetitivo en limpieza fina", "Limpieza o pulido manual se repite sin pausas ni rotacion", ["repetitivo", "limpieza"], "postura_forzada", "limpieza fina", "repetitiva"),
+        temaD("residuo_menor_sin_retiro", "Residuo menor sin retiro", "Cintas, plasticos, tornillos, tapas o recortes quedan en area de entrega", ["residuo", "menor"], "caida_mismo_nivel", "residuo menor", "sin retiro"),
+        temaD("embalaje_acabado_transito", "Embalaje de acabados en transito", "Cartones, plasticos o protecciones de terminacion obstruyen pasillos", ["embalaje", "transito"], "caida_mismo_nivel", "embalaje de acabado", "obstruye paso"),
+        temaD("dano_material_no_reparado", "Dano material no reparado en entrega", "Pieza, tapa, borde o terminacion danada queda liberada pese a potencial de lesion", ["dano", "entrega"], "dano_material", "terminacion danada", "sin reparar"),
+        temaD("proteccion_retirada_anticipada", "Proteccion retirada anticipadamente", "Proteccion de piso, vidrio o terminacion se retira antes de finalizar trabajos cercanos", ["proteccion", "retirada"], "dano_material", "proteccion de terminacion", "retirada"),
+        temaD("pieza_mal_fijada", "Pieza de acabado mal fijada", "Tapa, perfil, moldura o accesorio queda suelto, levantado o con juego", ["perfil", "moldura"], "dano_material", "pieza de acabado", "mal fijada"),
+        temaD("superficie_fresca_liberada", "Superficie fresca liberada al transito", "Sello, pintura, adhesivo o reparacion queda abierta antes de secado o curado", ["superficie fresca", "transito"], "segregacion_senalizacion", "superficie reparada", "liberada antes de tiempo"),
+        temaD("producto_sin_rotulo_retoque", "Producto de retoque sin rotulo", "Envase menor de pintura, adhesivo o limpiador no identifica producto", ["rotulo", "retoque"], "rotulacion_identificacion", "producto de retoque", "sin rotulo"),
+        temaD("trapos_contaminados_retoque", "Trapos contaminados en terminacion", "Trapos con solvente, pintura o adhesivo quedan acumulados en area final", ["trapos", "terminacion"], "gas_combustible", "trapos contaminados", "sin segregacion"),
+        temaD("epp_inadecuado_reparacion", "EPP inadecuado en reparacion menor", "Tarea con corte, quimico o polvo se ejecuta sin EPP compatible", ["epp", "reparacion"], "vapores_quimicos", "EPP de reparacion", "inadecuado"),
+        temaD("terceros_en_area_entrega", "Terceros en area de reparacion", "Usuarios, visitas u otras cuadrillas ingresan mientras se repara o limpia", ["terceros", "entrega"], "segregacion_senalizacion", "area de reparacion", "terceros expuestos"),
+        temaD("matriz_no_cubre_retoque_quimico", "Matriz no cubre retoque quimico", "Uso de solvente, adhesivo o herramienta electrica en entrega no esta evaluado", ["matriz", "retoque"], "matriz_no_cubre", "retoque con quimico", "no evaluado"),
+        temaD("registro_cierre_incompleto", "Registro de cierre incompleto", "Correccion final no deja responsable, evidencia o verificacion cuando corresponde", ["registro", "cierre"], "autorizacion_documental", "registro de cierre", "incompleto"),
+        temaD("iluminacion_entrega_deficiente", "Iluminacion deficiente en entrega", "Inspeccion final se realiza con sombras que ocultan bordes, residuos o danos", ["iluminacion", "entrega"], "segregacion_senalizacion", "area de entrega", "baja visibilidad"),
+        temaD("limpieza_final_sin_verificacion", "Limpieza final sin verificacion", "Area se libera sin revisar residuos, herramientas, derrames, piezas sueltas o bordes", ["limpieza final", "verificacion"], "caida_mismo_nivel", "area de entrega", "sin verificacion final"),
+      ],
+    },
+  ];
+}
+
 const ACTIVIDADES_BASE: ActividadBase[] = [
   {
     id: "instalacion_faena_cierres_accesos",
@@ -2075,6 +2509,39 @@ function construirRiesgoBloqueC(actividad: ActividadBloqueC, definicion: TemaRie
   };
 }
 
+function construirRiesgoBloqueD(actividad: ActividadBloqueD, definicion: TemaRiesgoBloqueD): RiesgoInherenteActividadObra {
+  const perfil = PERFILES_RIESGO_C[definicion.categoria];
+
+  return {
+    id: `${actividad.id}_${definicion.idBase}`,
+    titulo: `${definicion.tituloBase} - ${actividad.nombreVisible}`,
+    descripcionTecnica:
+      `${definicion.condicionTecnica} ${actividad.contextoTecnico}. ` +
+      `La exposicion alcanza a ${perfil.exposicion}, con consecuencia probable de ${perfil.consecuenciaProbable}. ` +
+      `El control esperado debe considerar ${perfil.controlesEsperados.slice(0, 3).join(", ")} y ajustar la documentacion solo si la condicion lo requiere. ` +
+      `Si el riesgo permanece, corresponde retirar exposicion, corregir, limpiar o segregar antes de liberar la terminacion.`,
+    palabrasClave: [...actividad.palabrasClaveActividad, ...definicion.palabrasClaveBase],
+    tipoRiesgo: perfil.tipoRiesgo,
+    actoInseguroAsociado: perfil.actoInseguroAsociado,
+    condicionInseguraAsociada: perfil.condicionInseguraAsociada,
+    objetoPrincipal: definicion.objetoPrincipal,
+    condicionObservada: definicion.condicionObservada,
+    exposicion: perfil.exposicion,
+    consecuenciaProbable: perfil.consecuenciaProbable,
+    controlFaltanteOFallido: perfil.controlFaltanteOFallido,
+    controlesEsperados: perfil.controlesEsperados,
+    accionInmediataSugerida: perfil.accionInmediataSugerida,
+    documentosAplicables: perfil.documentosAplicables,
+    documentosNoAplicables: perfil.documentosNoAplicables,
+    familiasPreventivas: perfil.familiasPreventivas,
+    desviacionesPreventivas: perfil.desviacionesPreventivas,
+    criticidadOrientativa: definicion.criticidadOrientativa || perfil.criticidadOrientativa,
+    preguntasSugeridas: perfil.preguntasSugeridas,
+    preguntasProhibidas: perfil.preguntasProhibidas,
+    errorQueDebeEvitar: perfil.errorQueDebeEvitar,
+  };
+}
+
 const ACTIVIDADES_BLOQUE_A: ActividadObraPreventiva[] = ACTIVIDADES_BASE.map((actividad) => ({
   ...actividad,
   riesgosInherentes: PLANTILLAS_RIESGO.map((plantillaRiesgo) => construirRiesgo(actividad, plantillaRiesgo)),
@@ -2096,10 +2563,19 @@ const ACTIVIDADES_BLOQUE_C_PUBLICAS: ActividadObraPreventiva[] = crearActividade
   };
 });
 
+const ACTIVIDADES_BLOQUE_D_PUBLICAS: ActividadObraPreventiva[] = crearActividadesBloqueD().map((actividad) => {
+  const { definicionesRiesgo, ...actividadPublica } = actividad;
+  return {
+    ...actividadPublica,
+    riesgosInherentes: definicionesRiesgo.map((definicion) => construirRiesgoBloqueD(actividad, definicion)),
+  };
+});
+
 export const BIBLIOTECA_ACTIVIDADES_OBRA_V2: ActividadObraPreventiva[] = [
   ...ACTIVIDADES_BLOQUE_A,
   ...ACTIVIDADES_BLOQUE_B_PUBLICAS,
   ...ACTIVIDADES_BLOQUE_C_PUBLICAS,
+  ...ACTIVIDADES_BLOQUE_D_PUBLICAS,
 ];
 
 function normalizarTextoActividad(texto: string): string {

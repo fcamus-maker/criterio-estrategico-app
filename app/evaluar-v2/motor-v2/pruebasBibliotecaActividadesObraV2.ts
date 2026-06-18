@@ -34,8 +34,8 @@ export type ResultadoEvaluacionBibliotecaActividadesObra = {
   resultadosRiesgos: ResultadoRiesgoActividadObra[];
 };
 
-const MINIMO_ACTIVIDADES_ESPERADAS = 21;
-const MINIMO_RIESGOS_TOTALES_ESPERADOS = 672;
+const MINIMO_ACTIVIDADES_ESPERADAS = 28;
+const MINIMO_RIESGOS_TOTALES_ESPERADOS = 896;
 const MINIMO_RIESGOS_POR_ACTIVIDAD = 32;
 const MINIMO_PALABRAS_DESCRIPCION = 45;
 const ACTIVIDADES_BLOQUE_B = new Set([
@@ -58,7 +58,21 @@ const ACTIVIDADES_BLOQUE_C = new Set([
   "canalizaciones_perforaciones_pasadas_muros_losas",
 ]);
 
-const ACTIVIDADES_CON_PREGUNTAS_PROPIAS = new Set([...ACTIVIDADES_BLOQUE_B, ...ACTIVIDADES_BLOQUE_C]);
+const ACTIVIDADES_BLOQUE_D = new Set([
+  "pintura_interior_exterior_esmaltes_barnices",
+  "empaste_lijado_preparacion_superficies",
+  "sellos_silicona_impermeabilizacion_juntas",
+  "pisos_ceramicas_revestimientos_porcelanato",
+  "puertas_ventanas_marcos_quincalleria",
+  "vidrios_espejos_paneles_fragiles",
+  "terminaciones_menores_reparaciones_acabados_finales",
+]);
+
+const ACTIVIDADES_CON_PREGUNTAS_PROPIAS = new Set([
+  ...ACTIVIDADES_BLOQUE_B,
+  ...ACTIVIDADES_BLOQUE_C,
+  ...ACTIVIDADES_BLOQUE_D,
+]);
 
 const EXPRESIONES_APLICABILIDAD_POR_ACTIVIDAD: Record<string, string[]> = {
   andamios_plataformas_trabajo: ["andamio", "plataforma", "baranda", "rodapie", "tarjeta", "acceso"],
@@ -75,6 +89,13 @@ const EXPRESIONES_APLICABILIDAD_POR_ACTIVIDAD: Record<string, string[]> = {
   climatizacion_ductos_ventilacion: ["climatizacion", "ducto", "ventilacion", "rejilla", "cielo falso", "equipo"],
   pruebas_presion_fugas_puesta_servicio: ["prueba", "presion", "fuga", "valvula", "puesta en servicio", "acople"],
   canalizaciones_perforaciones_pasadas_muros_losas: ["canalizacion", "perforacion", "pasada", "muro", "losa", "sello"],
+  pintura_interior_exterior_esmaltes_barnices: ["pintura", "esmalte", "barniz", "solvente", "rodillo", "brocha"],
+  empaste_lijado_preparacion_superficies: ["empaste", "lijado", "masilla", "superficie", "polvo", "lija"],
+  sellos_silicona_impermeabilizacion_juntas: ["sello", "silicona", "impermeabilizacion", "junta", "membrana", "sellante"],
+  pisos_ceramicas_revestimientos_porcelanato: ["piso", "ceramica", "revestimiento", "porcelanato", "adhesivo", "frague"],
+  puertas_ventanas_marcos_quincalleria: ["puerta", "ventana", "marco", "quincalleria", "bisagra", "cerradura"],
+  vidrios_espejos_paneles_fragiles: ["vidrio", "espejo", "panel", "fragil", "mampara", "borde"],
+  terminaciones_menores_reparaciones_acabados_finales: ["terminacion", "reparacion", "acabado", "retoque", "limpieza", "entrega"],
 };
 
 const TEXTOS_PROHIBIDOS = [
