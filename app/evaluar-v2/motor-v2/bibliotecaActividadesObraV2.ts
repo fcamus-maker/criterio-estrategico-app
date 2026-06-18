@@ -32,7 +32,14 @@ export type ActividadObraId =
   | "pisos_ceramicas_revestimientos_porcelanato"
   | "puertas_ventanas_marcos_quincalleria"
   | "vidrios_espejos_paneles_fragiles"
-  | "terminaciones_menores_reparaciones_acabados_finales";
+  | "terminaciones_menores_reparaciones_acabados_finales"
+  | "maquinaria_equipos_moviles_operacion_terreno"
+  | "vehiculos_transporte_interno_trabajadores_materiales"
+  | "carguio_descarga_materiales_camiones_acopios"
+  | "izaje_gruas_elementos_amarre_carga_suspendida"
+  | "bodegas_acopios_almacenamiento_materiales"
+  | "logistica_interna_rutas_circulacion_interaccion_peaton_equipo"
+  | "mantencion_inspeccion_preoperacional_equipos_moviles";
 
 export type TipoRiesgoActividadObra =
   | "seguridad_personas"
@@ -104,6 +111,10 @@ type ActividadBloqueC = ActividadBase & {
 
 type ActividadBloqueD = ActividadBase & {
   definicionesRiesgo: TemaRiesgoBloqueD[];
+};
+
+type ActividadBloqueE = ActividadBase & {
+  definicionesRiesgo: TemaRiesgoBloqueE[];
 };
 
 const documentosGenerales = ["Matriz de riesgos vigente", "AST/ART cuando exista tarea en ejecucion", "Registro de charla o difusion si aplica"];
@@ -612,6 +623,8 @@ type TemaRiesgoBloqueD = {
   criticidadOrientativa?: CriticidadOrientativaTaxonomia;
 };
 
+type TemaRiesgoBloqueE = TemaRiesgoBloqueD;
+
 const documentosAltura = ["AST/ART", "PTS o procedimiento de trabajo en altura si aplica", "Matriz de riesgos vigente"];
 const documentosIzaje = ["Plan de izaje si aplica", "AST/ART", "Certificacion de aparejos o equipo de levante"];
 const documentosElectricos = ["Bloqueo/LOTO si aplica", "AST/ART", "Autorizacion de intervencion electrica si corresponde"];
@@ -620,6 +633,9 @@ const documentosInstalacionesTecnicas = ["AST/ART si hay energia, presion o perf
 const documentosNoInstalacionSimple = ["PTS si solo corresponde retiro menor, orden o reparacion simple", "Permiso especial si no existe energia, presion ni trabajo critico"];
 const documentosTerminacionesQuimicos = ["HDS/SDS si hay pintura, solvente, adhesivo o sello", "Matriz de riesgos vigente", "AST/ART si hay altura, herramienta critica o exposicion relevante"];
 const documentosNoTerminacionSimple = ["PTS si solo corresponde limpieza, retiro o reposicion simple", "Permiso especial si no existe trabajo critico ni sustancia peligrosa"];
+const documentosMaquinariaLogistica = ["AST/ART si hay maniobra con equipo movil o interaccion peaton-equipo", "Matriz de riesgos vigente", "Inspeccion preoperacional o registro de mantencion si aplica"];
+const documentosIzajeLogistica = ["Plan de izaje si aplica", "AST/ART", "Certificacion de grua, aparejos o accesorios de levante"];
+const documentosNoLogisticaSimple = ["PTS si solo corresponde ordenamiento menor", "HDS/SDS si no hay sustancia peligrosa", "Permiso especial si no existe trabajo critico"];
 
 const PERFILES_RIESGO_B: Record<CategoriaRiesgoBloqueB, PerfilRiesgoBloqueB> = {
   altura: {
@@ -1419,6 +1435,19 @@ function temaD(
   condicionObservada: string,
   criticidadOrientativa?: CriticidadOrientativaTaxonomia,
 ): TemaRiesgoBloqueD {
+  return { idBase, tituloBase, condicionTecnica, palabrasClaveBase, categoria, objetoPrincipal, condicionObservada, criticidadOrientativa };
+}
+
+function temaE(
+  idBase: string,
+  tituloBase: string,
+  condicionTecnica: string,
+  palabrasClaveBase: string[],
+  categoria: CategoriaRiesgoBloqueC,
+  objetoPrincipal: string,
+  condicionObservada: string,
+  criticidadOrientativa?: CriticidadOrientativaTaxonomia,
+): TemaRiesgoBloqueE {
   return { idBase, tituloBase, condicionTecnica, palabrasClaveBase, categoria, objetoPrincipal, condicionObservada, criticidadOrientativa };
 }
 
@@ -2331,6 +2360,209 @@ const ACTIVIDADES_BASE: ActividadBase[] = [
   },
 ];
 
+function crearTemasBloqueE(objetoOperacion: string, palabrasOperacion: string[]): TemaRiesgoBloqueE[] {
+  return [
+    temaE("segregacion_insuficiente", `Segregacion insuficiente en ${objetoOperacion}`, `${objetoOperacion} se desarrolla con separacion insuficiente entre personas, equipos, vehiculos, cargas o acopios`, [...palabrasOperacion, "segregacion"], "segregacion_senalizacion", objetoOperacion, "segregacion insuficiente", "alto"),
+    temaE("linea_fuego_no_controlada", `Linea de fuego no controlada en ${objetoOperacion}`, `${objetoOperacion} expone a trabajadores dentro de trayectoria de carga, equipo, vehiculo, giro, liberacion o desplazamiento`, [...palabrasOperacion, "linea de fuego"], "segregacion_senalizacion", objetoOperacion, "linea de fuego no controlada", "alto"),
+    temaE("interaccion_peaton_equipo", `Interaccion insegura peaton-equipo en ${objetoOperacion}`, `${objetoOperacion} permite cercania entre peatones, operadores, conductores o personal de apoyo sin distancia preventiva`, [...palabrasOperacion, "peaton", "equipo"], "segregacion_senalizacion", objetoOperacion, "interaccion insegura", "alto"),
+    temaE("ruta_circulacion_obstruida", `Ruta de circulacion obstruida en ${objetoOperacion}`, `${objetoOperacion} mantiene ruta, pasillo, acceso o area de maniobra ocupada por materiales, residuos, herramientas o equipos`, [...palabrasOperacion, "ruta", "obstruccion"], "caida_mismo_nivel", "ruta asociada", "obstruida"),
+    temaE("radio_giro_sin_control", `Radio de giro sin control en ${objetoOperacion}`, `${objetoOperacion} incluye giro, aproximacion, estacionamiento o posicionamiento sin control del radio operacional`, [...palabrasOperacion, "radio de giro"], "segregacion_senalizacion", "radio operacional", "sin control", "alto"),
+    temaE("punto_ciego_no_controlado", `Punto ciego no controlado en ${objetoOperacion}`, `${objetoOperacion} presenta puntos ciegos generados por equipo, vehiculo, acopio, carga, estructura o baja visibilidad`, [...palabrasOperacion, "punto ciego"], "segregacion_senalizacion", "punto ciego", "no controlado", "alto"),
+    temaE("terreno_superficie_inestable", `Terreno o superficie inestable en ${objetoOperacion}`, `${objetoOperacion} se ejecuta sobre barro, relleno, pendiente, desnivel, piso humedo, base irregular o superficie sin capacidad verificada`, [...palabrasOperacion, "terreno", "superficie"], "caida_mismo_nivel", "superficie de trabajo", "inestable", "alto"),
+    temaE("control_acceso_deficiente", `Control de acceso deficiente en ${objetoOperacion}`, `${objetoOperacion} permite ingreso de personal no autorizado, terceros o vehiculos a zona operacional o restringida`, [...palabrasOperacion, "acceso"], "segregacion_senalizacion", "acceso operacional", "deficiente"),
+    temaE("senalizacion_insuficiente", `Senalizacion insuficiente en ${objetoOperacion}`, `${objetoOperacion} no cuenta con advertencias, sentidos, limites, zonas de exclusion, velocidad o restricciones visibles`, [...palabrasOperacion, "senalizacion"], "segregacion_senalizacion", "senalizacion operacional", "insuficiente"),
+    temaE("comunicacion_operacional_deficiente", `Comunicacion deficiente en ${objetoOperacion}`, `${objetoOperacion} carece de coordinacion clara entre operador, conductor, senalero, rigger, bodeguero, supervisor o peatones`, [...palabrasOperacion, "comunicacion"], "segregacion_senalizacion", "comunicacion operacional", "deficiente"),
+    temaE("operador_responsable_no_identificado", `Responsable no identificado en ${objetoOperacion}`, `${objetoOperacion} no identifica operador, conductor, senalero, responsable de bodega, rigger o encargado de control`, [...palabrasOperacion, "responsable"], "autorizacion_documental", "responsable operacional", "no identificado"),
+    temaE("autorizacion_no_verificada", `Autorizacion no verificada en ${objetoOperacion}`, `${objetoOperacion} se ejecuta sin validar autorizacion, competencia, licencia, permiso operacional o rol requerido`, [...palabrasOperacion, "autorizacion"], "autorizacion_documental", "autorizacion operacional", "no verificada", "alto"),
+    temaE("inspeccion_preoperacional_ausente", `Inspeccion preoperacional ausente en ${objetoOperacion}`, `${objetoOperacion} inicia sin revision previa de condicion, checklist, inspeccion visual, registro o liberacion operacional`, [...palabrasOperacion, "preoperacional"], "mantencion_certificacion", "inspeccion preoperacional", "ausente"),
+    temaE("mantencion_certificacion_no_vigente", `Mantencion o certificacion no vigente en ${objetoOperacion}`, `${objetoOperacion} utiliza equipo, vehiculo, accesorio, estanteria, aparejo o elemento critico sin vigencia verificable`, [...palabrasOperacion, "mantencion", "certificacion"], "mantencion_certificacion", "vigencia tecnica", "no demostrada"),
+    temaE("equipo_elemento_defectuoso", `Elemento defectuoso usado en ${objetoOperacion}`, `${objetoOperacion} mantiene herramienta, equipo, vehiculo, accesorio, pallet, estante o elemento de amarre con dano visible`, [...palabrasOperacion, "defectuoso"], "mantencion_certificacion", "elemento operacional", "defectuoso"),
+    temaE("fuga_derrame_sin_contencion", `Fuga o derrame sin contencion en ${objetoOperacion}`, `${objetoOperacion} genera fuga, goteo, derrame de aceite, combustible, fluido hidraulico, producto o residuo sin control`, [...palabrasOperacion, "derrame", "fuga"], "fuga_fluidos", "fuga o derrame", "sin contencion"),
+    temaE("material_carga_inestable", `Carga o material inestable en ${objetoOperacion}`, `${objetoOperacion} involucra carga, material, pallet, repuesto, bulto o componente sin estabilidad, amarre o contencion suficiente`, [...palabrasOperacion, "carga", "material"], "caida_objetos", "carga o material", "inestable", "alto"),
+    temaE("apilamiento_sobrealtura", `Apilamiento o sobrealtura en ${objetoOperacion}`, `${objetoOperacion} presenta acopio, pila, estiba o almacenamiento con sobrealtura, base irregular o perdida de estabilidad`, [...palabrasOperacion, "apilamiento", "sobrealtura"], "caida_objetos", "apilamiento", "inestable"),
+    temaE("caida_objetos_materiales", `Caida potencial de objetos en ${objetoOperacion}`, `${objetoOperacion} deja objetos, herramientas, accesorios, embalajes, repuestos o materiales expuestos a caida`, [...palabrasOperacion, "caida de objetos"], "caida_objetos", "objetos o materiales", "sin contencion"),
+    temaE("atrapamiento_aplastamiento", `Atrapamiento o aplastamiento en ${objetoOperacion}`, `${objetoOperacion} expone extremidades o cuerpo entre carga, equipo, estructura, compuerta, acopio o punto de apoyo`, [...palabrasOperacion, "atrapamiento"], "segregacion_senalizacion", "punto de atrapamiento", "exposicion directa", "alto"),
+    temaE("energia_bloqueo_no_controlado", `Energia o bloqueo no controlado en ${objetoOperacion}`, `${objetoOperacion} incluye energia mecanica, hidraulica, electrica, gravitacional o presurizada sin bloqueo o descarga segura`, [...palabrasOperacion, "bloqueo", "energia"], "energia_loto", "energia operacional", "sin bloqueo", "critico"),
+    temaE("presion_sobrepresion_no_controlada", `Presion no controlada en ${objetoOperacion}`, `${objetoOperacion} usa neumaticos, cilindros, mangueras, sistemas hidraulicos, recipientes o componentes con presion no verificada`, [...palabrasOperacion, "presion"], "presion_sobrepresion", "sistema presurizado", "no controlado", "alto"),
+    temaE("visibilidad_iluminacion_deficiente", `Visibilidad deficiente en ${objetoOperacion}`, `${objetoOperacion} se realiza con sombra, polvo, lluvia, carga, acopio, curva, estructura o iluminacion insuficiente`, [...palabrasOperacion, "visibilidad", "iluminacion"], "segregacion_senalizacion", "visibilidad operacional", "deficiente"),
+    temaE("condicion_climatica_adversa", `Condicion climatica adversa en ${objetoOperacion}`, `${objetoOperacion} se mantiene con viento, lluvia, polvo, frio, calor o baja visibilidad que modifica el control`, [...palabrasOperacion, "clima"], "segregacion_senalizacion", "condicion climatica", "no reevaluada"),
+    temaE("orden_aseo_deficiente", `Orden y aseo deficiente en ${objetoOperacion}`, `${objetoOperacion} acumula residuos, embalajes, tacos, maderas, zunchos, barro o elementos sueltos en zona operacional`, [...palabrasOperacion, "orden", "aseo"], "caida_mismo_nivel", "zona operacional", "desordenada"),
+    temaE("documentacion_aplicable_no_disponible", `Documentacion aplicable no disponible en ${objetoOperacion}`, `${objetoOperacion} requiere registro, inspeccion, autorizacion, plan, matriz, HDS/SDS o permiso que no se encuentra disponible`, [...palabrasOperacion, "documentacion"], "autorizacion_documental", "documentacion aplicable", "no disponible"),
+    temaE("matriz_riesgos_no_cubre_condicion", `Matriz no cubre condicion de ${objetoOperacion}`, `${objetoOperacion} presenta cambio de ruta, carga, equipo, terreno, energia o simultaneidad no considerada en la matriz vigente`, [...palabrasOperacion, "matriz"], "matriz_no_cubre", "matriz de riesgos", "no cubre condicion"),
+    temaE("trabajos_simultaneos_interferencia", `Interferencia por trabajos simultaneos en ${objetoOperacion}`, `${objetoOperacion} comparte zona con otras tareas, cuadrillas, rutas, equipos o maniobras sin secuencia definida`, [...palabrasOperacion, "interferencia"], "segregacion_senalizacion", "trabajos simultaneos", "sin coordinacion"),
+    temaE("equipo_emergencia_obstruido", `Equipo o ruta de emergencia obstruida en ${objetoOperacion}`, `${objetoOperacion} bloquea extintor, kit de derrame, salida, acceso de emergencia, tablero o ruta de evacuacion`, [...palabrasOperacion, "emergencia"], "segregacion_senalizacion", "control de emergencia", "obstruido", "alto"),
+    temaE("control_ambiental_insuficiente", `Control ambiental insuficiente en ${objetoOperacion}`, `${objetoOperacion} puede afectar suelo, drenaje, agua, aire o residuos por falta de contencion, retiro o segregacion`, [...palabrasOperacion, "ambiental"], "fuga_fluidos", "control ambiental", "insuficiente"),
+    temaE("registro_cierre_no_trazable", `Registro o cierre no trazable en ${objetoOperacion}`, `${objetoOperacion} corrige o libera condicion sin evidencia de responsable, verificacion, fecha, bloqueo retirado o cierre efectivo`, [...palabrasOperacion, "registro", "cierre"], "autorizacion_documental", "trazabilidad de cierre", "insuficiente"),
+    temaE("supervision_control_operacional_debil", `Supervision operacional debil en ${objetoOperacion}`, `${objetoOperacion} no mantiene verificacion en terreno, seguimiento de controles, responsable presente o correccion oportuna`, [...palabrasOperacion, "supervision"], "segregacion_senalizacion", "supervision operacional", "debil"),
+  ];
+}
+
+function crearActividadesBloqueE(): ActividadBloqueE[] {
+  return [
+    {
+      id: "maquinaria_equipos_moviles_operacion_terreno",
+      nombreVisible: "Maquinaria y equipos moviles en operacion de terreno",
+      descripcionActividad:
+        "Operacion de excavadoras, retroexcavadoras, cargadores, minicargadores, rodillos, manipuladores, equipos moviles y maquinaria de apoyo en frentes de obra.",
+      etapaObra: "Maquinaria, movimiento operacional y apoyo logistico",
+      contextoTecnico: "durante operacion de maquinaria y equipos moviles en terreno, con radios de giro, rutas internas, peatones y frentes simultaneos",
+      palabrasClaveActividad: ["maquinaria", "equipo movil", "operador", "radio de giro", "retroexcavadora", "terreno"],
+      familiasPreventivasRelacionadas: ["maquinaria_instalaciones", "vehiculos_transporte", "senalizacion_segregacion", "seguridad_trabajadores"],
+      desviacionesFrecuentes: ["interaccion_insegura_peaton_vehiculo_maquinaria", "control_critico_ausente_no_verificado", "condicion_insegura"],
+      documentosFrecuentesAplicables: documentosMaquinariaLogistica,
+      documentosQueNoAplicanPorDefecto: documentosNoLogisticaSimple,
+      preguntasEstrategicasSugeridas: [
+        "El equipo movil cuenta con inspeccion preoperacional y operador autorizado?",
+        "El radio de giro, punto ciego o zona de trabajo esta segregado respecto de peatones?",
+        "La superficie permite operar sin riesgo de volcamiento, hundimiento o deslizamiento?",
+        "Existe coordinacion con senalero, supervisor o control de transito interno?",
+        "La condicion requiere detener, retirar el equipo de servicio, segregar o reordenar la ruta?",
+      ],
+      erroresQueDebeEvitarElMotor: ["No tratar maquinaria en movimiento como orden menor si existen peatones, punto ciego, terreno inestable o control critico no verificado."],
+      bibliotecasSecundariasRelacionadas: ["clima_entorno", "mantencion_certificacion", "dano_material"],
+      definicionesRiesgo: crearTemasBloqueE("operacion de maquinaria", ["maquinaria", "equipo movil", "operador"]),
+    },
+    {
+      id: "vehiculos_transporte_interno_trabajadores_materiales",
+      nombreVisible: "Vehiculos y transporte interno de trabajadores y materiales",
+      descripcionActividad:
+        "Uso de camionetas, buses, camiones, furgones y vehiculos de apoyo para traslado interno de trabajadores, materiales, herramientas y equipos dentro de obra.",
+      etapaObra: "Transporte interno y circulacion operacional",
+      contextoTecnico: "durante transporte interno de trabajadores, materiales y herramientas con vehiculos en rutas de obra, accesos, cruces y zonas compartidas",
+      palabrasClaveActividad: ["vehiculo", "transporte", "camioneta", "bus", "conductor", "ruta"],
+      familiasPreventivasRelacionadas: ["vehiculos_transporte", "senalizacion_segregacion", "seguridad_trabajadores", "mantencion_certificacion"],
+      desviacionesFrecuentes: ["transito_interno_inseguro", "conduccion_imprudente", "interaccion_insegura_peaton_vehiculo_maquinaria"],
+      documentosFrecuentesAplicables: documentosMaquinariaLogistica,
+      documentosQueNoAplicanPorDefecto: documentosNoLogisticaSimple,
+      preguntasEstrategicasSugeridas: [
+        "El vehiculo, conductor y ruta interna estan autorizados y controlados?",
+        "El transporte de personas o materiales se realiza con carga estibada y pasajeros protegidos?",
+        "La ruta separa peatones, maquinaria y vehiculos en cruces o accesos?",
+        "La condicion del vehiculo permite operar sin frenos, luces, neumaticos o parabrisas defectuosos?",
+        "La desviacion requiere detener el vehiculo, corregir carga, restringir ruta o retirar de servicio?",
+      ],
+      erroresQueDebeEvitarElMotor: ["No evaluar transporte interno solo como traslado simple si hay pasajeros, carga, velocidad, ruta compartida o vehiculo defectuoso."],
+      bibliotecasSecundariasRelacionadas: ["maquinaria_instalaciones", "clima_entorno", "dano_material"],
+      definicionesRiesgo: crearTemasBloqueE("transporte interno", ["vehiculo", "transporte", "ruta"]),
+    },
+    {
+      id: "carguio_descarga_materiales_camiones_acopios",
+      nombreVisible: "Carguio y descarga de materiales, camiones y acopios",
+      descripcionActividad:
+        "Recepcion, carguio, descarga, traslado corto, estiba y acopio de materiales desde camiones, camionetas, gruas horquilla o equipos de apoyo.",
+      etapaObra: "Abastecimiento, acopio y manejo logistico",
+      contextoTecnico: "durante carguio y descarga de materiales desde camiones, equipos de apoyo, pallets, acopios y zonas de recepcion en obra",
+      palabrasClaveActividad: ["carguio", "descarga", "camion", "acopio", "pallet", "materiales"],
+      familiasPreventivasRelacionadas: ["vehiculos_transporte", "maquinaria_instalaciones", "senalizacion_segregacion", "orden_aseo_housekeeping"],
+      desviacionesFrecuentes: ["exposicion_linea_fuego", "condicion_insegura", "falla_supervision_control_operacional"],
+      documentosFrecuentesAplicables: documentosMaquinariaLogistica,
+      documentosQueNoAplicanPorDefecto: documentosNoLogisticaSimple,
+      preguntasEstrategicasSugeridas: [
+        "La zona de carguio o descarga esta segregada respecto de peatones y otras cuadrillas?",
+        "La carga esta estabilizada, amarrada y controlada antes de liberar o mover?",
+        "El camion, pallet, eslinga, equipo o terreno permite descargar sin caida o atrapamiento?",
+        "La maniobra requiere senalero, equipo mecanico, AST/ART o control de linea de fuego?",
+        "La condicion requiere detener la descarga, reestibar, segregar o retirar material inestable?",
+      ],
+      erroresQueDebeEvitarElMotor: ["No tratar carguio y descarga como bodegaje simple si hay carga suspendida, camion, equipo movil, atrapamiento o linea de fuego."],
+      bibliotecasSecundariasRelacionadas: ["izaje_gruas_amarre", "ergonomia_manejo_manual", "dano_material"],
+      definicionesRiesgo: crearTemasBloqueE("carguio y descarga", ["carguio", "descarga", "camion"]),
+    },
+    {
+      id: "izaje_gruas_elementos_amarre_carga_suspendida",
+      nombreVisible: "Izaje, gruas, elementos de amarre y carga suspendida",
+      descripcionActividad:
+        "Planificacion y ejecucion de izajes con gruas, plumas, camiones pluma, tecles, aparejos, eslingas, grilletes, ganchos y elementos de amarre.",
+      etapaObra: "Maniobras criticas de levante",
+      contextoTecnico: "durante izaje de cargas con gruas, aparejos, elementos de amarre, rigger, senalero y zonas bajo carga suspendida",
+      palabrasClaveActividad: ["izaje", "grua", "eslinga", "grillete", "rigger", "carga suspendida"],
+      familiasPreventivasRelacionadas: ["izaje_gruas_amarre", "trabajos_criticos", "seguridad_trabajadores", "mantencion_certificacion"],
+      desviacionesFrecuentes: ["paso_bajo_carga_suspendida", "maniobra_izaje_fuera_control", "incumplimiento_control_critico"],
+      documentosFrecuentesAplicables: documentosIzajeLogistica,
+      documentosQueNoAplicanPorDefecto: ["HDS/SDS si no hay sustancias", "PTS si no corresponde maniobra critica de izaje"],
+      preguntasEstrategicasSugeridas: [
+        "La maniobra cuenta con plan de izaje, equipo, operador, rigger y aparejos verificados?",
+        "La carga suspendida tiene zona de exclusion y nadie permanece bajo la linea de fuego?",
+        "El viento, terreno, radio de grua y centro de gravedad permiten ejecutar la maniobra?",
+        "Los elementos de amarre tienen certificacion, capacidad y condicion compatible con la carga?",
+        "La desviacion requiere detener inmediatamente el izaje y revalidar controles criticos?",
+      ],
+      erroresQueDebeEvitarElMotor: ["No tratar izaje como traslado de material simple si existe carga suspendida, aparejo, grua, rigger o persona bajo linea de fuego."],
+      bibliotecasSecundariasRelacionadas: ["maquinaria_instalaciones", "senalizacion_segregacion", "clima_entorno"],
+      definicionesRiesgo: crearTemasBloqueE("maniobra de izaje", ["izaje", "grua", "carga suspendida"]),
+    },
+    {
+      id: "bodegas_acopios_almacenamiento_materiales",
+      nombreVisible: "Bodegas, acopios y almacenamiento de materiales",
+      descripcionActividad:
+        "Almacenamiento, ordenamiento, retiro, segregacion, control de pasillos, estanterias, bodegas, patios de acopio y materiales en espera de uso.",
+      etapaObra: "Bodegaje, acopios y control de materiales",
+      contextoTecnico: "durante almacenamiento en bodegas, patios de acopio, estanterias, pasillos y zonas de retiro de materiales",
+      palabrasClaveActividad: ["bodega", "acopio", "almacenamiento", "estanteria", "pasillo", "materiales"],
+      familiasPreventivasRelacionadas: ["orden_aseo_housekeeping", "dano_material", "sustancias_hds", "senalizacion_segregacion"],
+      desviacionesFrecuentes: ["condicion_insegura", "dano_material", "falla_supervision_control_operacional"],
+      documentosFrecuentesAplicables: ["Matriz de riesgos vigente", "HDS/SDS si hay sustancias peligrosas", "Registro o criterio de almacenamiento si aplica"],
+      documentosQueNoAplicanPorDefecto: documentosNoLogisticaSimple,
+      preguntasEstrategicasSugeridas: [
+        "El acopio o bodega mantiene estabilidad, pasillos libres y segregacion por compatibilidad?",
+        "Existen materiales con riesgo de caida, corte, inflamabilidad, derrame o bloqueo de emergencia?",
+        "La documentacion requerida corresponde a sustancia, certificacion o almacenamiento critico y no a orden simple?",
+        "La condicion requiere reordenar, retirar, contener, rotular o restringir acceso?",
+        "El almacenamiento afecta rutas de evacuacion, equipos de emergencia o continuidad operacional?",
+      ],
+      erroresQueDebeEvitarElMotor: ["No sobredocumentar acopios simples, pero no omitir HDS/SDS, contencion o segregacion cuando hay sustancias, inflamables o materiales inestables."],
+      bibliotecasSecundariasRelacionadas: ["medio_ambiente", "equipos_emergencia", "ergonomia_manejo_manual"],
+      definicionesRiesgo: crearTemasBloqueE("bodega o acopio", ["bodega", "acopio", "almacenamiento"]),
+    },
+    {
+      id: "logistica_interna_rutas_circulacion_interaccion_peaton_equipo",
+      nombreVisible: "Logistica interna, rutas de circulacion e interaccion peaton-equipo",
+      descripcionActividad:
+        "Planificacion y control de rutas internas, cruces, accesos, circulacion de peatones, equipos, vehiculos, materiales y frentes simultaneos.",
+      etapaObra: "Logistica interna y circulacion de obra",
+      contextoTecnico: "durante logistica interna de obra con rutas de circulacion, peatones, equipos moviles, cruces, accesos y cambios de flujo",
+      palabrasClaveActividad: ["logistica", "ruta", "circulacion", "peaton", "equipo", "maniobra"],
+      familiasPreventivasRelacionadas: ["senalizacion_segregacion", "vehiculos_transporte", "maquinaria_instalaciones", "seguridad_trabajadores"],
+      desviacionesFrecuentes: ["transito_interno_inseguro", "interaccion_insegura_peaton_vehiculo_maquinaria", "evasion_barreras_senalizacion_segregacion"],
+      documentosFrecuentesAplicables: documentosMaquinariaLogistica,
+      documentosQueNoAplicanPorDefecto: documentosNoLogisticaSimple,
+      preguntasEstrategicasSugeridas: [
+        "La ruta interna separa peatones, vehiculos, maquinaria y zonas de acopio?",
+        "La senalizacion, barreras y cambios de ruta son visibles, vigentes y respetados?",
+        "Existe interaccion de linea de fuego, punto ciego, cruce o maniobra simultanea?",
+        "La superficie, iluminacion, polvo o clima permite circular sin perdida de control?",
+        "La condicion requiere redisenar ruta, detener flujo, segregar o comunicar cambio operacional?",
+      ],
+      erroresQueDebeEvitarElMotor: ["No evaluar logistica interna solo como senaletica si hay interaccion peaton-equipo, ruta alterada, punto ciego o cambio de flujo no comunicado."],
+      bibliotecasSecundariasRelacionadas: ["clima_entorno", "orden_aseo_housekeeping", "trabajos_criticos"],
+      definicionesRiesgo: crearTemasBloqueE("logistica interna", ["logistica", "ruta", "circulacion"]),
+    },
+    {
+      id: "mantencion_inspeccion_preoperacional_equipos_moviles",
+      nombreVisible: "Mantencion e inspeccion preoperacional de equipos moviles",
+      descripcionActividad:
+        "Revision diaria, mantencion preventiva o correctiva, retiro de servicio, bloqueo, prueba funcional y liberacion de equipos moviles y vehiculos de obra.",
+      etapaObra: "Mantencion, inspeccion y liberacion operacional",
+      contextoTecnico: "durante mantencion, inspeccion preoperacional, prueba, retiro de servicio y liberacion de equipos moviles de obra",
+      palabrasClaveActividad: ["mantencion", "inspeccion", "preoperacional", "checklist", "equipo movil", "falla"],
+      familiasPreventivasRelacionadas: ["mantencion_certificacion", "maquinaria_instalaciones", "energia_loto_electrico", "vehiculos_transporte"],
+      desviacionesFrecuentes: ["herramienta_equipo_mal_estado_usado_terreno", "control_critico_ausente_no_verificado", "omision_documental"],
+      documentosFrecuentesAplicables: ["Inspeccion preoperacional", "Registro de mantencion", "Bloqueo/LOTO si hay intervencion de energia o partes moviles"],
+      documentosQueNoAplicanPorDefecto: documentosNoLogisticaSimple,
+      preguntasEstrategicasSugeridas: [
+        "El equipo movil tiene inspeccion preoperacional, mantencion y fallas cerradas antes de operar?",
+        "La intervencion requiere bloqueo, retiro de servicio o control de energia residual?",
+        "La prueba posterior a mantencion se realiza en area segregada y con responsable definido?",
+        "La falla afecta frenos, direccion, luces, hidraulica, alarma, neumaticos o control critico?",
+        "La condicion requiere etiquetar, bloquear, reparar o impedir el uso del equipo?",
+      ],
+      erroresQueDebeEvitarElMotor: ["No tratar una falla de equipo movil como documento menor si el equipo sigue disponible para uso o requiere retiro de servicio."],
+      bibliotecasSecundariasRelacionadas: ["seguridad_trabajadores", "senalizacion_segregacion", "dano_material"],
+      definicionesRiesgo: crearTemasBloqueE("mantencion de equipo movil", ["mantencion", "preoperacional", "equipo movil"]),
+    },
+  ];
+}
+
 const PLANTILLAS_RIESGO: PlantillaRiesgo[] = [
   plantilla("caida_mismo_nivel", "Caida al mismo nivel por circulacion deficiente", "Superficie de transito con desniveles menores, materiales, barro o elementos sueltos {contexto}. La exposicion alcanza a trabajadores, visitas o equipos menores que circulan cerca de la actividad. La consecuencia probable es caida, golpe o torcedura, por lo que se espera ordenar, limpiar, segregar y mantener ruta segura antes de continuar.", ["caida", "tropiezo", "transito", "ruta"], "seguridad_personas", "desplazamiento por ruta no controlada", "superficie con obstaculos o desnivel", "ruta de circulacion", "obstaculo o superficie irregular", "trabajadores en desplazamiento", "caida mismo nivel o golpe", "ruta segura no verificada", ["retiro de obstaculos", "limpieza", "segregacion", "senalizacion"], "Retirar obstaculos, limpiar la ruta y delimitar el sector hasta dejar circulacion segura.", [], documentosNoSimples, ["orden_aseo_housekeeping", "seguridad_trabajadores"], ["condicion_insegura"], "medio", ["La ruta es usada por trabajadores o maquinaria?", "Existe alternativa segura de circulacion?"], ["Preguntar por PTS como requisito principal si basta limpieza o retiro."], "No convertir una condicion simple de transito en brecha documental principal."),
   plantilla("caida_distinto_nivel", "Caida a distinto nivel por borde o abertura", "Borde, excavacion, vano, plataforma o desnivel sin control fisico suficiente {contexto}. La exposicion involucra trabajadores proximos al borde o rutas cercanas, con consecuencia probable de caida grave. Se espera detener el acercamiento, instalar barrera, tapa, baranda o linea de vida y verificar autorizacion si corresponde trabajo en altura.", ["borde", "abertura", "altura", "desnivel"], "trabajo_critico", "acercamiento a borde sin control", "borde o abertura sin proteccion", "borde o abertura", "proteccion ausente", "trabajadores expuestos a altura o desnivel", "caida a distinto nivel", "proteccion perimetral ausente", ["barrera rigida", "baranda", "tapa resistente", "linea de vida si aplica"], "Detener exposicion al borde, segregar y colocar proteccion fisica antes de continuar.", ["AST/ART", "PTS si es trabajo en altura", "Matriz de riesgos"], ["HDS/SDS si no hay sustancias"], ["trabajos_criticos", "seguridad_trabajadores", "senalizacion_segregacion"], ["control_critico_ausente_no_verificado", "condicion_insegura"], "alto", ["Existe exposicion directa al borde?", "La actividad requiere permiso o autorizacion de altura?"], ["Tratar borde abierto como simple orden y aseo."], "No omitir control critico cuando existe exposicion a caida grave."),
@@ -2542,6 +2774,39 @@ function construirRiesgoBloqueD(actividad: ActividadBloqueD, definicion: TemaRie
   };
 }
 
+function construirRiesgoBloqueE(actividad: ActividadBloqueE, definicion: TemaRiesgoBloqueE): RiesgoInherenteActividadObra {
+  const perfil = PERFILES_RIESGO_C[definicion.categoria];
+
+  return {
+    id: `${actividad.id}_${definicion.idBase}`,
+    titulo: `${definicion.tituloBase} - ${actividad.nombreVisible}`,
+    descripcionTecnica:
+      `${definicion.condicionTecnica} ${actividad.contextoTecnico}. ` +
+      `La exposicion alcanza a ${perfil.exposicion}, con consecuencia probable de ${perfil.consecuenciaProbable}. ` +
+      `El control esperado debe considerar ${perfil.controlesEsperados.slice(0, 3).join(", ")} y confirmar coordinacion operacional en terreno. ` +
+      `Si el control no esta verificado, corresponde detener la maniobra, segregar, corregir y liberar solo con responsable definido.`,
+    palabrasClave: [...actividad.palabrasClaveActividad, ...definicion.palabrasClaveBase],
+    tipoRiesgo: perfil.tipoRiesgo,
+    actoInseguroAsociado: perfil.actoInseguroAsociado,
+    condicionInseguraAsociada: perfil.condicionInseguraAsociada,
+    objetoPrincipal: definicion.objetoPrincipal,
+    condicionObservada: definicion.condicionObservada,
+    exposicion: perfil.exposicion,
+    consecuenciaProbable: perfil.consecuenciaProbable,
+    controlFaltanteOFallido: perfil.controlFaltanteOFallido,
+    controlesEsperados: perfil.controlesEsperados,
+    accionInmediataSugerida: perfil.accionInmediataSugerida,
+    documentosAplicables: perfil.documentosAplicables,
+    documentosNoAplicables: perfil.documentosNoAplicables,
+    familiasPreventivas: perfil.familiasPreventivas,
+    desviacionesPreventivas: perfil.desviacionesPreventivas,
+    criticidadOrientativa: definicion.criticidadOrientativa || perfil.criticidadOrientativa,
+    preguntasSugeridas: perfil.preguntasSugeridas,
+    preguntasProhibidas: perfil.preguntasProhibidas,
+    errorQueDebeEvitar: perfil.errorQueDebeEvitar,
+  };
+}
+
 const ACTIVIDADES_BLOQUE_A: ActividadObraPreventiva[] = ACTIVIDADES_BASE.map((actividad) => ({
   ...actividad,
   riesgosInherentes: PLANTILLAS_RIESGO.map((plantillaRiesgo) => construirRiesgo(actividad, plantillaRiesgo)),
@@ -2571,11 +2836,20 @@ const ACTIVIDADES_BLOQUE_D_PUBLICAS: ActividadObraPreventiva[] = crearActividade
   };
 });
 
+const ACTIVIDADES_BLOQUE_E_PUBLICAS: ActividadObraPreventiva[] = crearActividadesBloqueE().map((actividad) => {
+  const { definicionesRiesgo, ...actividadPublica } = actividad;
+  return {
+    ...actividadPublica,
+    riesgosInherentes: definicionesRiesgo.map((definicion) => construirRiesgoBloqueE(actividad, definicion)),
+  };
+});
+
 export const BIBLIOTECA_ACTIVIDADES_OBRA_V2: ActividadObraPreventiva[] = [
   ...ACTIVIDADES_BLOQUE_A,
   ...ACTIVIDADES_BLOQUE_B_PUBLICAS,
   ...ACTIVIDADES_BLOQUE_C_PUBLICAS,
   ...ACTIVIDADES_BLOQUE_D_PUBLICAS,
+  ...ACTIVIDADES_BLOQUE_E_PUBLICAS,
 ];
 
 function normalizarTextoActividad(texto: string): string {
