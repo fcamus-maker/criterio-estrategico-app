@@ -39,7 +39,14 @@ export type ActividadObraId =
   | "izaje_gruas_elementos_amarre_carga_suspendida"
   | "bodegas_acopios_almacenamiento_materiales"
   | "logistica_interna_rutas_circulacion_interaccion_peaton_equipo"
-  | "mantencion_inspeccion_preoperacional_equipos_moviles";
+  | "mantencion_inspeccion_preoperacional_equipos_moviles"
+  | "sustancias_peligrosas_hds_rotulacion_almacenamiento"
+  | "combustibles_inflamables_trasvasije_envases"
+  | "residuos_peligrosos_no_peligrosos_segregacion_disposicion"
+  | "derrames_contencion_limpieza_suelo_agua"
+  | "emergencias_equipos_respuesta_extintores_red_humeda_kit_derrame"
+  | "bodegas_quimicos_compatibilidad_control_acceso"
+  | "control_ambiental_obra_polvo_ruido_emisiones_escorrentias";
 
 export type TipoRiesgoActividadObra =
   | "seguridad_personas"
@@ -115,6 +122,10 @@ type ActividadBloqueD = ActividadBase & {
 
 type ActividadBloqueE = ActividadBase & {
   definicionesRiesgo: TemaRiesgoBloqueE[];
+};
+
+type ActividadBloqueF = ActividadBase & {
+  definicionesRiesgo: TemaRiesgoBloqueF[];
 };
 
 const documentosGenerales = ["Matriz de riesgos vigente", "AST/ART cuando exista tarea en ejecucion", "Registro de charla o difusion si aplica"];
@@ -625,6 +636,8 @@ type TemaRiesgoBloqueD = {
 
 type TemaRiesgoBloqueE = TemaRiesgoBloqueD;
 
+type TemaRiesgoBloqueF = TemaRiesgoBloqueD;
+
 const documentosAltura = ["AST/ART", "PTS o procedimiento de trabajo en altura si aplica", "Matriz de riesgos vigente"];
 const documentosIzaje = ["Plan de izaje si aplica", "AST/ART", "Certificacion de aparejos o equipo de levante"];
 const documentosElectricos = ["Bloqueo/LOTO si aplica", "AST/ART", "Autorizacion de intervencion electrica si corresponde"];
@@ -636,6 +649,9 @@ const documentosNoTerminacionSimple = ["PTS si solo corresponde limpieza, retiro
 const documentosMaquinariaLogistica = ["AST/ART si hay maniobra con equipo movil o interaccion peaton-equipo", "Matriz de riesgos vigente", "Inspeccion preoperacional o registro de mantencion si aplica"];
 const documentosIzajeLogistica = ["Plan de izaje si aplica", "AST/ART", "Certificacion de grua, aparejos o accesorios de levante"];
 const documentosNoLogisticaSimple = ["PTS si solo corresponde ordenamiento menor", "HDS/SDS si no hay sustancia peligrosa", "Permiso especial si no existe trabajo critico"];
+const documentosAmbientalesQuimicos = ["HDS/SDS vigente si hay sustancia peligrosa", "Matriz de riesgos vigente", "Registro ambiental o trazabilidad de retiro si aplica"];
+const documentosEmergenciaAmbiental = ["Inspeccion de equipo de emergencia si aplica", "Registro de respuesta o contencion si corresponde", "Matriz de riesgos vigente"];
+const documentosNoAmbientalSimple = ["PTS si solo corresponde limpieza o retiro simple", "Permiso especial si no existe trabajo critico", "AST/ART como requisito principal para correccion menor"];
 
 const PERFILES_RIESGO_B: Record<CategoriaRiesgoBloqueB, PerfilRiesgoBloqueB> = {
   altura: {
@@ -1448,6 +1464,19 @@ function temaE(
   condicionObservada: string,
   criticidadOrientativa?: CriticidadOrientativaTaxonomia,
 ): TemaRiesgoBloqueE {
+  return { idBase, tituloBase, condicionTecnica, palabrasClaveBase, categoria, objetoPrincipal, condicionObservada, criticidadOrientativa };
+}
+
+function temaF(
+  idBase: string,
+  tituloBase: string,
+  condicionTecnica: string,
+  palabrasClaveBase: string[],
+  categoria: CategoriaRiesgoBloqueC,
+  objetoPrincipal: string,
+  condicionObservada: string,
+  criticidadOrientativa?: CriticidadOrientativaTaxonomia,
+): TemaRiesgoBloqueF {
   return { idBase, tituloBase, condicionTecnica, palabrasClaveBase, categoria, objetoPrincipal, condicionObservada, criticidadOrientativa };
 }
 
@@ -2563,6 +2592,209 @@ function crearActividadesBloqueE(): ActividadBloqueE[] {
   ];
 }
 
+function crearTemasBloqueF(objetoAmbiental: string, palabrasOperacion: string[]): TemaRiesgoBloqueF[] {
+  return [
+    temaF("hds_inexistente", `HDS/SDS inexistente en ${objetoAmbiental}`, `${objetoAmbiental} involucra producto, sustancia, residuo o insumo sin HDS/SDS identificable para orientar manipulacion, respuesta y controles`, [...palabrasOperacion, "hds", "sds"], "vapores_quimicos", objetoAmbiental, "HDS/SDS inexistente"),
+    temaF("hds_no_disponible_terreno", `HDS/SDS no disponible en terreno en ${objetoAmbiental}`, `${objetoAmbiental} mantiene sustancia o producto en uso sin ficha disponible para trabajadores, supervisor o respuesta ante emergencia`, [...palabrasOperacion, "hds terreno"], "vapores_quimicos", objetoAmbiental, "HDS/SDS no disponible"),
+    temaF("hds_desactualizada", `HDS/SDS desactualizada en ${objetoAmbiental}`, `${objetoAmbiental} utiliza ficha antigua, incompleta o no correspondiente al producto observado en terreno`, [...palabrasOperacion, "hds desactualizada"], "vapores_quimicos", objetoAmbiental, "HDS/SDS desactualizada"),
+    temaF("sustancia_sin_rotulacion", `Sustancia sin rotulacion en ${objetoAmbiental}`, `${objetoAmbiental} presenta envase, contenedor o producto secundario sin nombre, peligro, responsable, fecha o advertencia visible`, [...palabrasOperacion, "rotulacion"], "rotulacion_identificacion", "envase o contenedor", "sin rotulacion"),
+    temaF("envase_no_certificado", `Envase no certificado en ${objetoAmbiental}`, `${objetoAmbiental} usa recipiente sin aptitud demostrable para contener sustancia, combustible, residuo o producto peligroso`, [...palabrasOperacion, "envase certificado"], "rotulacion_identificacion", "envase", "no certificado"),
+    temaF("envase_inadecuado", `Envase inadecuado en ${objetoAmbiental}`, `${objetoAmbiental} conserva producto en botella, balde, tarro, bidon o recipiente incompatible con el contenido`, [...palabrasOperacion, "envase inadecuado"], "rotulacion_identificacion", "envase", "inadecuado"),
+    temaF("bidon_no_autorizado", `Bidon no autorizado en ${objetoAmbiental}`, `${objetoAmbiental} emplea bidon no autorizado, reutilizado o sin cierre seguro para producto peligroso`, [...palabrasOperacion, "bidon"], "gas_combustible", "bidon", "no autorizado", "alto"),
+    temaF("gasolina_recipiente_improvisado", `Gasolina en recipiente improvisado en ${objetoAmbiental}`, `${objetoAmbiental} mantiene gasolina o combustible en envase sin certificacion, rotulo, cierre o compatibilidad`, [...palabrasOperacion, "gasolina", "recipiente"], "gas_combustible", "combustible", "recipiente improvisado", "alto"),
+    temaF("inflamable_fuente_ignicion", `Inflamable cerca de fuente de ignicion en ${objetoAmbiental}`, `${objetoAmbiental} ubica producto inflamable cerca de chispa, tablero, llama, equipo caliente, soldadura o fumador`, [...palabrasOperacion, "inflamable", "ignicion"], "gas_combustible", "inflamable", "cerca de ignicion", "alto"),
+    temaF("almacenamiento_incompatible", `Almacenamiento incompatible en ${objetoAmbiental}`, `${objetoAmbiental} mezcla sustancias, residuos, combustibles, oxidantes, envases o materiales sin compatibilidad verificada`, [...palabrasOperacion, "compatibilidad"], "vapores_quimicos", "almacenamiento", "incompatible"),
+    temaF("contencion_secundaria_ausente", `Contencion secundaria ausente en ${objetoAmbiental}`, `${objetoAmbiental} mantiene liquidos, combustibles, quimicos o residuos sin bandeja, pretil, cubeto o control de escurrimiento`, [...palabrasOperacion, "contencion secundaria"], "fuga_fluidos", "contencion secundaria", "ausente"),
+    temaF("derrame_suelo", `Derrame al suelo en ${objetoAmbiental}`, `${objetoAmbiental} presenta liquido, lodo, aceite, combustible, pintura o quimico derramado directamente sobre suelo`, [...palabrasOperacion, "derrame suelo"], "fuga_fluidos", "suelo", "derrame activo", "alto"),
+    temaF("derrame_drenaje", `Derrame hacia drenaje en ${objetoAmbiental}`, `${objetoAmbiental} permite que liquido o residuo alcance canaleta, sumidero, drenaje, rejilla o descarga`, [...palabrasOperacion, "drenaje"], "fuga_fluidos", "drenaje", "expuesto a derrame", "alto"),
+    temaF("derrame_curso_agua", `Derrame cercano a curso de agua en ${objetoAmbiental}`, `${objetoAmbiental} se ubica cerca de cauce, acequia, canal, alcantarilla o escorrentia con potencial de arrastre`, [...palabrasOperacion, "curso de agua"], "fuga_fluidos", "curso de agua", "amenazado por derrame", "alto"),
+    temaF("kit_derrame_ausente", `Kit de derrame ausente en ${objetoAmbiental}`, `${objetoAmbiental} opera con liquidos o sustancias sin kit, absorbente, pala, bolsas, barrera o medio de contencion disponible`, [...palabrasOperacion, "kit derrame"], "segregacion_senalizacion", "kit de derrame", "ausente"),
+    temaF("absorbente_insuficiente", `Material absorbente insuficiente en ${objetoAmbiental}`, `${objetoAmbiental} requiere responder a derrame pero dispone de absorbente insuficiente, vencido, contaminado o no compatible`, [...palabrasOperacion, "absorbente"], "segregacion_senalizacion", "material absorbente", "insuficiente"),
+    temaF("residuo_peligroso_mal_segregado", `Residuo peligroso mal segregado en ${objetoAmbiental}`, `${objetoAmbiental} deposita residuo contaminado, inflamable, aceitoso, quimico o cortopunzante junto a residuos comunes`, [...palabrasOperacion, "residuo peligroso"], "fuga_fluidos", "residuo peligroso", "mal segregado"),
+    temaF("residuo_comun_mezclado", `Residuo comun mezclado con peligroso en ${objetoAmbiental}`, `${objetoAmbiental} mezcla residuos comunes con material contaminado, envases, trapos, solventes, pinturas o combustibles`, [...palabrasOperacion, "residuo comun"], "fuga_fluidos", "residuos mezclados", "sin segregacion"),
+    temaF("contenedor_sin_rotulacion", `Contenedor sin rotulacion en ${objetoAmbiental}`, `${objetoAmbiental} usa contenedor, tambor, bolsa, jaula o recipiente sin identificacion de residuo o peligro`, [...palabrasOperacion, "contenedor"], "rotulacion_identificacion", "contenedor", "sin rotulacion"),
+    temaF("contenedor_sobrellenado", `Contenedor sobrellenado en ${objetoAmbiental}`, `${objetoAmbiental} mantiene contenedor de residuos o producto sobre capacidad, con caida, rebalse o perdida de control`, [...palabrasOperacion, "sobrellenado"], "caida_mismo_nivel", "contenedor", "sobrellenado"),
+    temaF("acopio_residuos_sin_control", `Acopio de residuos sin control en ${objetoAmbiental}`, `${objetoAmbiental} acumula residuos sin orden, segregacion, retiro, control de acceso o proteccion ambiental`, [...palabrasOperacion, "acopio residuos"], "caida_mismo_nivel", "acopio de residuos", "sin control"),
+    temaF("retiro_autorizado_no_verificado", `Retiro autorizado no verificado en ${objetoAmbiental}`, `${objetoAmbiental} conserva residuo o material contaminado sin trazabilidad de retiro autorizado cuando corresponde`, [...palabrasOperacion, "retiro autorizado"], "autorizacion_documental", "retiro de residuos", "no verificado"),
+    temaF("material_contaminado_sin_disposicion", `Material contaminado sin disposicion en ${objetoAmbiental}`, `${objetoAmbiental} deja tierra, absorbente, trapo, EPP, envase o residuo contaminado sin manejo definido`, [...palabrasOperacion, "contaminado"], "fuga_fluidos", "material contaminado", "sin disposicion"),
+    temaF("polvo_suspension", `Polvo en suspension en ${objetoAmbiental}`, `${objetoAmbiental} genera polvo visible que afecta respiracion, visibilidad, equipos, terceros o entorno cercano`, [...palabrasOperacion, "polvo"], "perforacion_polvo", "polvo en suspension", "sin control"),
+    temaF("ruido_ambiental", `Ruido ambiental no controlado en ${objetoAmbiental}`, `${objetoAmbiental} genera ruido por equipo, descarga, herramienta, golpe o proceso sin mitigacion ni aviso`, [...palabrasOperacion, "ruido"], "ruido_vibracion", "ruido ambiental", "no controlado"),
+    temaF("vapores_emisiones_humos", `Vapores, humos o emisiones en ${objetoAmbiental}`, `${objetoAmbiental} produce vapores, humo, olor, emision o atmosfera molesta sin ventilacion ni control`, [...palabrasOperacion, "vapores", "emisiones"], "vapores_quimicos", "emisiones o vapores", "sin control"),
+    temaF("escorrentia_sedimentos", `Escorrentia con sedimentos en ${objetoAmbiental}`, `${objetoAmbiental} permite arrastre de barro, sedimento, lechada o material fino hacia rutas, drenajes o exterior`, [...palabrasOperacion, "escorrentia", "sedimentos"], "aguas_residuales", "escorrentia", "con sedimentos"),
+    temaF("agua_acumulada_contaminada", `Agua acumulada contaminada en ${objetoAmbiental}`, `${objetoAmbiental} mantiene agua con aceite, sedimento, residuo, quimico o material sin contencion ni retiro`, [...palabrasOperacion, "agua acumulada"], "aguas_residuales", "agua acumulada", "contaminada"),
+    temaF("exposicion_dermica_quimica", `Exposicion dermica a quimico en ${objetoAmbiental}`, `${objetoAmbiental} expone piel de trabajadores a sustancia, combustible, residuo, solvente o producto sin guantes compatibles`, [...palabrasOperacion, "contacto dermico"], "vapores_quimicos", "piel expuesta", "sin proteccion compatible"),
+    temaF("salpicadura_ocular_quimica", `Salpicadura ocular en ${objetoAmbiental}`, `${objetoAmbiental} puede proyectar liquido, quimico, combustible, residuo o material contaminante hacia rostro u ojos`, [...palabrasOperacion, "salpicadura ocular"], "vapores_quimicos", "ojos o rostro", "expuestos"),
+    temaF("ventilacion_insuficiente", `Ventilacion insuficiente en ${objetoAmbiental}`, `${objetoAmbiental} se realiza en recinto, bodega, contenedor o zona cerrada con vapores o inflamables`, [...palabrasOperacion, "ventilacion"], "ventilacion_deficiente", "ventilacion", "insuficiente"),
+    temaF("equipo_emergencia_deficiente", `Equipo de emergencia deficiente en ${objetoAmbiental}`, `${objetoAmbiental} requiere extintor, red humeda, alarma, ducha, lavaojos o kit y el recurso esta ausente, obstruido o vencido`, [...palabrasOperacion, "emergencia", "extintor"], "mantencion_certificacion", "equipo de emergencia", "deficiente", "alto"),
+  ];
+}
+
+function crearActividadesBloqueF(): ActividadBloqueF[] {
+  return [
+    {
+      id: "sustancias_peligrosas_hds_rotulacion_almacenamiento",
+      nombreVisible: "Sustancias peligrosas, HDS/SDS, rotulacion y almacenamiento",
+      descripcionActividad:
+        "Uso, identificacion, manipulacion, almacenamiento y control de sustancias peligrosas, productos quimicos, HDS/SDS, envases secundarios y compatibilidad.",
+      etapaObra: "Gestion ambiental, quimica y preventiva",
+      contextoTecnico: "durante manejo de sustancias peligrosas, HDS/SDS, rotulacion, envases secundarios, compatibilidad, manipulacion y almacenamiento temporal",
+      palabrasClaveActividad: ["sustancia peligrosa", "hds", "sds", "rotulacion", "quimico", "almacenamiento"],
+      familiasPreventivasRelacionadas: ["sustancias_hds", "medio_ambiente", "higiene_ocupacional", "documental_legal"],
+      desviacionesFrecuentes: ["omision_documental", "condicion_insegura", "incumplimiento_legal_documental_probable"],
+      documentosFrecuentesAplicables: documentosAmbientalesQuimicos,
+      documentosQueNoAplicanPorDefecto: documentosNoAmbientalSimple,
+      preguntasEstrategicasSugeridas: [
+        "Existe HDS/SDS disponible, vigente y correspondiente a la sustancia observada?",
+        "El envase esta rotulado, cerrado y es compatible con el producto?",
+        "Existe riesgo de contacto dermico, ocular, inhalacion, derrame o incompatibilidad?",
+        "La sustancia tiene contencion secundaria, ventilacion y control de acceso cuando corresponde?",
+        "La condicion requiere detener, rotular, retirar, ventilar, contener o regularizar documentacion?",
+      ],
+      erroresQueDebeEvitarElMotor: ["No pedir PTS como control principal si la desviacion se resuelve con HDS/SDS, rotulacion, contencion, ventilacion o segregacion."],
+      bibliotecasSecundariasRelacionadas: ["capacitacion_evidencias", "senalizacion_segregacion", "equipos_emergencia"],
+      definicionesRiesgo: crearTemasBloqueF("manejo de sustancias peligrosas", ["sustancia peligrosa", "hds", "quimico"]),
+    },
+    {
+      id: "combustibles_inflamables_trasvasije_envases",
+      nombreVisible: "Combustibles, inflamables, trasvasije y envases",
+      descripcionActividad:
+        "Manejo de combustibles, inflamables, trasvasije, bidones, recipientes, abastecimiento menor, almacenamiento temporal y control de fuentes de ignicion.",
+      etapaObra: "Combustibles e inflamables",
+      contextoTecnico: "durante manejo de combustibles, inflamables, trasvasije, bidones, recipientes, abastecimiento menor, ventilacion y fuentes de ignicion",
+      palabrasClaveActividad: ["combustible", "inflamable", "trasvasije", "bidon", "gasolina", "ignicion"],
+      familiasPreventivasRelacionadas: ["sustancias_hds", "equipos_emergencia", "medio_ambiente", "seguridad_trabajadores"],
+      desviacionesFrecuentes: ["condicion_insegura", "incumplimiento_control_critico", "evento_ambiental"],
+      documentosFrecuentesAplicables: ["HDS/SDS vigente si hay combustible o inflamable", "Matriz de riesgos vigente", "Registro o autorizacion de almacenamiento si aplica"],
+      documentosQueNoAplicanPorDefecto: documentosNoAmbientalSimple,
+      preguntasEstrategicasSugeridas: [
+        "El combustible esta en envase certificado, rotulado, cerrado y compatible?",
+        "Existe fuente de ignicion, baja ventilacion o acumulacion de vapores cerca del producto?",
+        "La zona cuenta con extintor, contencion secundaria y kit de respuesta cuando corresponde?",
+        "El trasvasije se realiza evitando derrames, salpicaduras, vapores y recipientes improvisados?",
+        "La condicion requiere detener, retirar inflamables, contener, ventilar o controlar ignicion?",
+      ],
+      erroresQueDebeEvitarElMotor: ["No clasificar gasolina en bidon improvisado como simple orden y aseo si existe inflamabilidad, derrame o fuente de ignicion."],
+      bibliotecasSecundariasRelacionadas: ["equipos_emergencia", "senalizacion_segregacion", "mantencion_certificacion"],
+      definicionesRiesgo: crearTemasBloqueF("manejo de combustibles e inflamables", ["combustible", "inflamable", "trasvasije"]),
+    },
+    {
+      id: "residuos_peligrosos_no_peligrosos_segregacion_disposicion",
+      nombreVisible: "Residuos peligrosos y no peligrosos, segregacion y disposicion",
+      descripcionActividad:
+        "Generacion, segregacion, almacenamiento temporal, rotulacion, retiro, disposicion y trazabilidad de residuos comunes, industriales y peligrosos.",
+      etapaObra: "Gestion de residuos",
+      contextoTecnico: "durante segregacion, almacenamiento temporal, rotulacion, retiro y disposicion de residuos peligrosos y no peligrosos en obra",
+      palabrasClaveActividad: ["residuo", "segregacion", "disposicion", "contenedor", "retiro", "peligroso"],
+      familiasPreventivasRelacionadas: ["medio_ambiente", "orden_aseo_housekeeping", "sustancias_hds", "documental_legal"],
+      desviacionesFrecuentes: ["evento_ambiental", "condicion_insegura", "incumplimiento_legal_documental_probable"],
+      documentosFrecuentesAplicables: ["Registro de retiro si corresponde", "HDS/SDS si el residuo proviene de sustancia peligrosa", "Matriz de riesgos vigente"],
+      documentosQueNoAplicanPorDefecto: documentosNoAmbientalSimple,
+      preguntasEstrategicasSugeridas: [
+        "El residuo esta segregado, rotulado y contenido segun su tipo?",
+        "Existe mezcla entre residuo comun, peligroso, contaminado o material reciclable?",
+        "El almacenamiento temporal evita rebalse, derrame, acceso no autorizado o arrastre ambiental?",
+        "Corresponde retiro autorizado, registro o trazabilidad para el residuo observado?",
+        "La condicion requiere retirar, segregar, rotular, contener o limpiar de inmediato?",
+      ],
+      erroresQueDebeEvitarElMotor: ["No exigir documentacion compleja para residuo comun simple, pero no omitir trazabilidad cuando existe residuo peligroso o contaminado."],
+      bibliotecasSecundariasRelacionadas: ["capacitacion_evidencias", "senalizacion_segregacion", "dano_material"],
+      definicionesRiesgo: crearTemasBloqueF("gestion de residuos", ["residuo", "segregacion", "disposicion"]),
+    },
+    {
+      id: "derrames_contencion_limpieza_suelo_agua",
+      nombreVisible: "Derrames, contencion, limpieza, suelo y agua",
+      descripcionActividad:
+        "Respuesta, contencion, limpieza y control de derrames sobre suelo, rutas, drenajes, agua acumulada, cursos de agua o superficies de trabajo.",
+      etapaObra: "Control de derrames y proteccion ambiental",
+      contextoTecnico: "durante control de derrames, contencion, limpieza, proteccion de suelo, drenajes, agua, rutas y material contaminado",
+      palabrasClaveActividad: ["derrame", "contencion", "suelo", "agua", "drenaje", "limpieza"],
+      familiasPreventivasRelacionadas: ["medio_ambiente", "sustancias_hds", "orden_aseo_housekeeping", "equipos_emergencia"],
+      desviacionesFrecuentes: ["evento_ambiental", "condicion_insegura", "control_critico_ausente_no_verificado"],
+      documentosFrecuentesAplicables: documentosAmbientalesQuimicos,
+      documentosQueNoAplicanPorDefecto: documentosNoAmbientalSimple,
+      preguntasEstrategicasSugeridas: [
+        "El derrame alcanzo suelo, drenaje, agua, ruta de transito o material absorbente?",
+        "Existe kit de derrame, contencion secundaria, barrera o absorbente suficiente?",
+        "El material contaminado fue retirado, segregado y dispuesto de manera controlada?",
+        "Se requiere comunicar, registrar o escalar el evento por impacto ambiental?",
+        "La condicion exige detener la actividad hasta contener y limpiar completamente?",
+      ],
+      erroresQueDebeEvitarElMotor: ["No tratar un derrame activo como aseo simple si alcanza suelo, agua, drenaje, inflamables o exposicion de trabajadores."],
+      bibliotecasSecundariasRelacionadas: ["senalizacion_segregacion", "capacitacion_evidencias", "dano_material"],
+      definicionesRiesgo: crearTemasBloqueF("control de derrames", ["derrame", "contencion", "suelo"]),
+    },
+    {
+      id: "emergencias_equipos_respuesta_extintores_red_humeda_kit_derrame",
+      nombreVisible: "Emergencias, equipos de respuesta, extintores, red humeda y kit de derrame",
+      descripcionActividad:
+        "Disponibilidad, acceso, inspeccion y operatividad de equipos de emergencia, extintores, red humeda, gabinetes, alarmas, botiquines y kit de derrame.",
+      etapaObra: "Preparacion y respuesta a emergencia",
+      contextoTecnico: "durante verificacion de equipos de emergencia, extintores, red humeda, gabinetes, alarmas, botiquines, duchas, lavaojos y kit de derrame",
+      palabrasClaveActividad: ["emergencia", "extintor", "red humeda", "kit derrame", "alarma", "botiquin"],
+      familiasPreventivasRelacionadas: ["equipos_emergencia", "emergencias_reales", "senalizacion_segregacion", "mantencion_certificacion"],
+      desviacionesFrecuentes: ["control_critico_ausente_no_verificado", "condicion_insegura", "incumplimiento_legal_documental_probable"],
+      documentosFrecuentesAplicables: documentosEmergenciaAmbiental,
+      documentosQueNoAplicanPorDefecto: ["PTS si solo corresponde despejar acceso o reponer senalizacion", "HDS/SDS si no hay sustancia peligrosa"],
+      preguntasEstrategicasSugeridas: [
+        "El equipo de emergencia esta visible, accesible, senalizado, vigente y operativo?",
+        "El acceso al extintor, gabinete, red humeda, botiquin o kit esta libre de obstaculos?",
+        "La condicion afecta respuesta ante incendio, derrame, lesion, salpicadura o evacuacion?",
+        "Existe inspeccion, mantencion o registro vigente cuando corresponde?",
+        "La desviacion requiere despejar, reemplazar, mantener, senalizar o retirar de servicio?",
+      ],
+      erroresQueDebeEvitarElMotor: ["No tratar extintor vencido u obstruido como incendio activo, pero tampoco como hallazgo menor si compromete respuesta de emergencia."],
+      bibliotecasSecundariasRelacionadas: ["sustancias_hds", "medio_ambiente", "capacitacion_evidencias"],
+      definicionesRiesgo: crearTemasBloqueF("equipos de respuesta a emergencia", ["emergencia", "extintor", "kit derrame"]),
+    },
+    {
+      id: "bodegas_quimicos_compatibilidad_control_acceso",
+      nombreVisible: "Bodegas de quimicos, compatibilidad y control de acceso",
+      descripcionActividad:
+        "Almacenamiento de productos quimicos, sustancias peligrosas, inflamables, residuos, inventario, ventilacion, compatibilidad, contencion y acceso restringido.",
+      etapaObra: "Bodegaje quimico y control de sustancias",
+      contextoTecnico: "durante almacenamiento en bodega de quimicos, compatibilidad, ventilacion, control de acceso, inventario, contencion y envases cerrados",
+      palabrasClaveActividad: ["bodega quimicos", "compatibilidad", "control acceso", "ventilacion", "inventario", "envases"],
+      familiasPreventivasRelacionadas: ["sustancias_hds", "medio_ambiente", "senalizacion_segregacion", "documental_legal"],
+      desviacionesFrecuentes: ["condicion_insegura", "omision_documental", "incumplimiento_legal_documental_probable"],
+      documentosFrecuentesAplicables: documentosAmbientalesQuimicos,
+      documentosQueNoAplicanPorDefecto: documentosNoAmbientalSimple,
+      preguntasEstrategicasSugeridas: [
+        "La bodega mantiene compatibilidad, ventilacion, rotulacion y contencion secundaria?",
+        "Existe control de acceso e inventario de sustancias o residuos peligrosos?",
+        "Los envases permanecen cerrados, en buen estado y sobre estanterias compatibles?",
+        "La bodega cuenta con HDS/SDS, kit, extintor y senalizacion cuando corresponde?",
+        "La condicion requiere restringir acceso, ventilar, contener, reordenar o retirar producto?",
+      ],
+      erroresQueDebeEvitarElMotor: ["No evaluar bodega quimica como acopio comun si hay compatibilidad, ventilacion, HDS/SDS, inflamables o control de acceso comprometido."],
+      bibliotecasSecundariasRelacionadas: ["equipos_emergencia", "orden_aseo_housekeeping", "mantencion_certificacion"],
+      definicionesRiesgo: crearTemasBloqueF("bodega de quimicos", ["bodega quimicos", "compatibilidad", "ventilacion"]),
+    },
+    {
+      id: "control_ambiental_obra_polvo_ruido_emisiones_escorrentias",
+      nombreVisible: "Control ambiental de obra, polvo, ruido, emisiones y escorrentias",
+      descripcionActividad:
+        "Control ambiental de polvo, ruido, emisiones, barro, sedimentos, escorrentias, agua acumulada, limpieza de rutas y proteccion de suelo, aire y agua.",
+      etapaObra: "Control ambiental operacional",
+      contextoTecnico: "durante control ambiental de obra con polvo, ruido, emisiones, escorrentias, barro, sedimentos, agua acumulada y limpieza de rutas",
+      palabrasClaveActividad: ["polvo", "ruido", "emisiones", "escorrentia", "barro", "sedimentos"],
+      familiasPreventivasRelacionadas: ["medio_ambiente", "higiene_ocupacional", "clima_entorno", "orden_aseo_housekeeping"],
+      desviacionesFrecuentes: ["evento_ambiental", "condicion_insegura", "falla_supervision_control_operacional"],
+      documentosFrecuentesAplicables: ["Matriz de riesgos vigente", "Registro ambiental si aplica", "Plan o medida de control ambiental si corresponde"],
+      documentosQueNoAplicanPorDefecto: documentosNoAmbientalSimple,
+      preguntasEstrategicasSugeridas: [
+        "La actividad genera polvo, ruido, emisiones, barro, sedimentos o escorrentia fuera de control?",
+        "El impacto alcanza trabajadores, comunidad, rutas, drenajes, suelo, agua o aire?",
+        "Existen medidas de humectacion, limpieza, contencion, barrera, retiro o mitigacion?",
+        "La condicion requiere registro ambiental, comunicacion o seguimiento por responsable?",
+        "Se debe detener o ajustar la actividad hasta recuperar control ambiental?",
+      ],
+      erroresQueDebeEvitarElMotor: ["No convertir todo control ambiental en papeleo; primero evaluar contencion, limpieza, humectacion, barrera, retiro o mitigacion efectiva."],
+      bibliotecasSecundariasRelacionadas: ["seguridad_trabajadores", "senalizacion_segregacion", "capacitacion_evidencias"],
+      definicionesRiesgo: crearTemasBloqueF("control ambiental de obra", ["control ambiental", "polvo", "escorrentia"]),
+    },
+  ];
+}
+
 const PLANTILLAS_RIESGO: PlantillaRiesgo[] = [
   plantilla("caida_mismo_nivel", "Caida al mismo nivel por circulacion deficiente", "Superficie de transito con desniveles menores, materiales, barro o elementos sueltos {contexto}. La exposicion alcanza a trabajadores, visitas o equipos menores que circulan cerca de la actividad. La consecuencia probable es caida, golpe o torcedura, por lo que se espera ordenar, limpiar, segregar y mantener ruta segura antes de continuar.", ["caida", "tropiezo", "transito", "ruta"], "seguridad_personas", "desplazamiento por ruta no controlada", "superficie con obstaculos o desnivel", "ruta de circulacion", "obstaculo o superficie irregular", "trabajadores en desplazamiento", "caida mismo nivel o golpe", "ruta segura no verificada", ["retiro de obstaculos", "limpieza", "segregacion", "senalizacion"], "Retirar obstaculos, limpiar la ruta y delimitar el sector hasta dejar circulacion segura.", [], documentosNoSimples, ["orden_aseo_housekeeping", "seguridad_trabajadores"], ["condicion_insegura"], "medio", ["La ruta es usada por trabajadores o maquinaria?", "Existe alternativa segura de circulacion?"], ["Preguntar por PTS como requisito principal si basta limpieza o retiro."], "No convertir una condicion simple de transito en brecha documental principal."),
   plantilla("caida_distinto_nivel", "Caida a distinto nivel por borde o abertura", "Borde, excavacion, vano, plataforma o desnivel sin control fisico suficiente {contexto}. La exposicion involucra trabajadores proximos al borde o rutas cercanas, con consecuencia probable de caida grave. Se espera detener el acercamiento, instalar barrera, tapa, baranda o linea de vida y verificar autorizacion si corresponde trabajo en altura.", ["borde", "abertura", "altura", "desnivel"], "trabajo_critico", "acercamiento a borde sin control", "borde o abertura sin proteccion", "borde o abertura", "proteccion ausente", "trabajadores expuestos a altura o desnivel", "caida a distinto nivel", "proteccion perimetral ausente", ["barrera rigida", "baranda", "tapa resistente", "linea de vida si aplica"], "Detener exposicion al borde, segregar y colocar proteccion fisica antes de continuar.", ["AST/ART", "PTS si es trabajo en altura", "Matriz de riesgos"], ["HDS/SDS si no hay sustancias"], ["trabajos_criticos", "seguridad_trabajadores", "senalizacion_segregacion"], ["control_critico_ausente_no_verificado", "condicion_insegura"], "alto", ["Existe exposicion directa al borde?", "La actividad requiere permiso o autorizacion de altura?"], ["Tratar borde abierto como simple orden y aseo."], "No omitir control critico cuando existe exposicion a caida grave."),
@@ -2807,6 +3039,39 @@ function construirRiesgoBloqueE(actividad: ActividadBloqueE, definicion: TemaRie
   };
 }
 
+function construirRiesgoBloqueF(actividad: ActividadBloqueF, definicion: TemaRiesgoBloqueF): RiesgoInherenteActividadObra {
+  const perfil = PERFILES_RIESGO_C[definicion.categoria];
+
+  return {
+    id: `${actividad.id}_${definicion.idBase}`,
+    titulo: `${definicion.tituloBase} - ${actividad.nombreVisible}`,
+    descripcionTecnica:
+      `${definicion.condicionTecnica} ${actividad.contextoTecnico}. ` +
+      `La exposicion alcanza a ${perfil.exposicion}, con consecuencia probable de ${perfil.consecuenciaProbable}. ` +
+      `El control esperado debe considerar ${perfil.controlesEsperados.slice(0, 3).join(", ")} y privilegiar contencion, segregacion, limpieza o respuesta inmediata. ` +
+      `Si existe derrame activo, inflamable sin control, exposicion grave o emergencia real, corresponde detener, aislar y escalar la respuesta.`,
+    palabrasClave: [...actividad.palabrasClaveActividad, ...definicion.palabrasClaveBase],
+    tipoRiesgo: perfil.tipoRiesgo,
+    actoInseguroAsociado: perfil.actoInseguroAsociado,
+    condicionInseguraAsociada: perfil.condicionInseguraAsociada,
+    objetoPrincipal: definicion.objetoPrincipal,
+    condicionObservada: definicion.condicionObservada,
+    exposicion: perfil.exposicion,
+    consecuenciaProbable: perfil.consecuenciaProbable,
+    controlFaltanteOFallido: perfil.controlFaltanteOFallido,
+    controlesEsperados: perfil.controlesEsperados,
+    accionInmediataSugerida: perfil.accionInmediataSugerida,
+    documentosAplicables: perfil.documentosAplicables,
+    documentosNoAplicables: perfil.documentosNoAplicables,
+    familiasPreventivas: perfil.familiasPreventivas,
+    desviacionesPreventivas: perfil.desviacionesPreventivas,
+    criticidadOrientativa: definicion.criticidadOrientativa || perfil.criticidadOrientativa,
+    preguntasSugeridas: perfil.preguntasSugeridas,
+    preguntasProhibidas: perfil.preguntasProhibidas,
+    errorQueDebeEvitar: perfil.errorQueDebeEvitar,
+  };
+}
+
 const ACTIVIDADES_BLOQUE_A: ActividadObraPreventiva[] = ACTIVIDADES_BASE.map((actividad) => ({
   ...actividad,
   riesgosInherentes: PLANTILLAS_RIESGO.map((plantillaRiesgo) => construirRiesgo(actividad, plantillaRiesgo)),
@@ -2844,12 +3109,21 @@ const ACTIVIDADES_BLOQUE_E_PUBLICAS: ActividadObraPreventiva[] = crearActividade
   };
 });
 
+const ACTIVIDADES_BLOQUE_F_PUBLICAS: ActividadObraPreventiva[] = crearActividadesBloqueF().map((actividad) => {
+  const { definicionesRiesgo, ...actividadPublica } = actividad;
+  return {
+    ...actividadPublica,
+    riesgosInherentes: definicionesRiesgo.map((definicion) => construirRiesgoBloqueF(actividad, definicion)),
+  };
+});
+
 export const BIBLIOTECA_ACTIVIDADES_OBRA_V2: ActividadObraPreventiva[] = [
   ...ACTIVIDADES_BLOQUE_A,
   ...ACTIVIDADES_BLOQUE_B_PUBLICAS,
   ...ACTIVIDADES_BLOQUE_C_PUBLICAS,
   ...ACTIVIDADES_BLOQUE_D_PUBLICAS,
   ...ACTIVIDADES_BLOQUE_E_PUBLICAS,
+  ...ACTIVIDADES_BLOQUE_F_PUBLICAS,
 ];
 
 function normalizarTextoActividad(texto: string): string {
