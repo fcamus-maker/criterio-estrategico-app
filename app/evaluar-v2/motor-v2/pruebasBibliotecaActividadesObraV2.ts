@@ -34,8 +34,8 @@ export type ResultadoEvaluacionBibliotecaActividadesObra = {
   resultadosRiesgos: ResultadoRiesgoActividadObra[];
 };
 
-const MINIMO_ACTIVIDADES_ESPERADAS = 42;
-const MINIMO_RIESGOS_TOTALES_ESPERADOS = 1344;
+const MINIMO_ACTIVIDADES_ESPERADAS = 49;
+const MINIMO_RIESGOS_TOTALES_ESPERADOS = 1568;
 const MINIMO_RIESGOS_POR_ACTIVIDAD = 32;
 const MINIMO_PALABRAS_DESCRIPCION = 45;
 const ACTIVIDADES_BLOQUE_B = new Set([
@@ -88,12 +88,23 @@ const ACTIVIDADES_BLOQUE_F = new Set([
   "control_ambiental_obra_polvo_ruido_emisiones_escorrentias",
 ]);
 
+const ACTIVIDADES_BLOQUE_G = new Set([
+  "matriz_riesgos_iper_actualizacion_cobertura",
+  "procedimientos_pts_ast_art_permisos_trabajo",
+  "charlas_capacitaciones_difusion_induccion",
+  "certificaciones_mantenciones_inspecciones_equipos",
+  "registros_evidencias_firmas_trazabilidad_documental",
+  "control_contratistas_subcontratos_documentos_arranque",
+  "cumplimiento_legal_preventivo_auditorias_obligaciones",
+]);
+
 const ACTIVIDADES_CON_PREGUNTAS_PROPIAS = new Set([
   ...ACTIVIDADES_BLOQUE_B,
   ...ACTIVIDADES_BLOQUE_C,
   ...ACTIVIDADES_BLOQUE_D,
   ...ACTIVIDADES_BLOQUE_E,
   ...ACTIVIDADES_BLOQUE_F,
+  ...ACTIVIDADES_BLOQUE_G,
 ]);
 
 const EXPRESIONES_APLICABILIDAD_POR_ACTIVIDAD: Record<string, string[]> = {
@@ -132,6 +143,13 @@ const EXPRESIONES_APLICABILIDAD_POR_ACTIVIDAD: Record<string, string[]> = {
   emergencias_equipos_respuesta_extintores_red_humeda_kit_derrame: ["emergencia", "extintor", "red humeda", "kit derrame", "alarma", "botiquin"],
   bodegas_quimicos_compatibilidad_control_acceso: ["bodega quimicos", "compatibilidad", "control acceso", "ventilacion", "inventario", "envases"],
   control_ambiental_obra_polvo_ruido_emisiones_escorrentias: ["polvo", "ruido", "emisiones", "escorrentia", "barro", "sedimentos"],
+  matriz_riesgos_iper_actualizacion_cobertura: ["matriz", "iper", "riesgos", "actualizacion", "cobertura", "difusion"],
+  procedimientos_pts_ast_art_permisos_trabajo: ["procedimiento", "pts", "ast", "art", "permiso", "autorizacion"],
+  charlas_capacitaciones_difusion_induccion: ["charla", "capacitacion", "difusion", "induccion", "firma", "competencia"],
+  certificaciones_mantenciones_inspecciones_equipos: ["certificacion", "mantencion", "inspeccion", "checklist", "equipo", "revision"],
+  registros_evidencias_firmas_trazabilidad_documental: ["registro", "evidencia", "firma", "trazabilidad", "cierre", "version"],
+  control_contratistas_subcontratos_documentos_arranque: ["contratista", "subcontrato", "carpeta", "arranque", "nomina", "induccion"],
+  cumplimiento_legal_preventivo_auditorias_obligaciones: ["cumplimiento", "legal", "auditoria", "obligacion", "seguimiento", "hallazgo"],
 };
 
 const TEXTOS_PROHIBIDOS = [
