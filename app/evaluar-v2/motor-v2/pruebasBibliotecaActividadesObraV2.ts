@@ -34,8 +34,8 @@ export type ResultadoEvaluacionBibliotecaActividadesObra = {
   resultadosRiesgos: ResultadoRiesgoActividadObra[];
 };
 
-const MINIMO_ACTIVIDADES_ESPERADAS = 35;
-const MINIMO_RIESGOS_TOTALES_ESPERADOS = 1120;
+const MINIMO_ACTIVIDADES_ESPERADAS = 42;
+const MINIMO_RIESGOS_TOTALES_ESPERADOS = 1344;
 const MINIMO_RIESGOS_POR_ACTIVIDAD = 32;
 const MINIMO_PALABRAS_DESCRIPCION = 45;
 const ACTIVIDADES_BLOQUE_B = new Set([
@@ -78,11 +78,22 @@ const ACTIVIDADES_BLOQUE_E = new Set([
   "mantencion_inspeccion_preoperacional_equipos_moviles",
 ]);
 
+const ACTIVIDADES_BLOQUE_F = new Set([
+  "sustancias_peligrosas_hds_rotulacion_almacenamiento",
+  "combustibles_inflamables_trasvasije_envases",
+  "residuos_peligrosos_no_peligrosos_segregacion_disposicion",
+  "derrames_contencion_limpieza_suelo_agua",
+  "emergencias_equipos_respuesta_extintores_red_humeda_kit_derrame",
+  "bodegas_quimicos_compatibilidad_control_acceso",
+  "control_ambiental_obra_polvo_ruido_emisiones_escorrentias",
+]);
+
 const ACTIVIDADES_CON_PREGUNTAS_PROPIAS = new Set([
   ...ACTIVIDADES_BLOQUE_B,
   ...ACTIVIDADES_BLOQUE_C,
   ...ACTIVIDADES_BLOQUE_D,
   ...ACTIVIDADES_BLOQUE_E,
+  ...ACTIVIDADES_BLOQUE_F,
 ]);
 
 const EXPRESIONES_APLICABILIDAD_POR_ACTIVIDAD: Record<string, string[]> = {
@@ -114,6 +125,13 @@ const EXPRESIONES_APLICABILIDAD_POR_ACTIVIDAD: Record<string, string[]> = {
   bodegas_acopios_almacenamiento_materiales: ["bodega", "acopio", "almacenamiento", "estanteria", "pasillo", "materiales"],
   logistica_interna_rutas_circulacion_interaccion_peaton_equipo: ["logistica", "ruta", "circulacion", "peaton", "equipo", "maniobra"],
   mantencion_inspeccion_preoperacional_equipos_moviles: ["mantencion", "inspeccion", "preoperacional", "checklist", "equipo movil", "falla"],
+  sustancias_peligrosas_hds_rotulacion_almacenamiento: ["sustancia peligrosa", "hds", "sds", "rotulacion", "quimico", "almacenamiento"],
+  combustibles_inflamables_trasvasije_envases: ["combustible", "inflamable", "trasvasije", "bidon", "gasolina", "ignicion"],
+  residuos_peligrosos_no_peligrosos_segregacion_disposicion: ["residuo", "segregacion", "disposicion", "contenedor", "retiro", "peligroso"],
+  derrames_contencion_limpieza_suelo_agua: ["derrame", "contencion", "suelo", "agua", "drenaje", "limpieza"],
+  emergencias_equipos_respuesta_extintores_red_humeda_kit_derrame: ["emergencia", "extintor", "red humeda", "kit derrame", "alarma", "botiquin"],
+  bodegas_quimicos_compatibilidad_control_acceso: ["bodega quimicos", "compatibilidad", "control acceso", "ventilacion", "inventario", "envases"],
+  control_ambiental_obra_polvo_ruido_emisiones_escorrentias: ["polvo", "ruido", "emisiones", "escorrentia", "barro", "sedimentos"],
 };
 
 const TEXTOS_PROHIBIDOS = [
