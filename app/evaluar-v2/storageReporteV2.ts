@@ -122,6 +122,18 @@ export type EvaluacionMotorV2Storage = {
   fuente_evaluacion?: "motor_v2" | "fallback";
 };
 
+export type SelectorPreventivoShadowV2Storage = {
+  activo?: boolean;
+  recomendacionModo?: "usar_actual" | "usar_preventivo" | "requiere_revision" | "mantener_fallback_actual";
+  totalPreguntasActuales?: number;
+  totalPreguntasPreventivas?: number;
+  riesgoSobredocumentacion?: boolean;
+  riesgoSubdocumentacion?: boolean;
+  requiereFallbackActual?: boolean;
+  tieneRiesgoEspecifico?: boolean;
+  aliasSemanticosBasicos?: string[];
+};
+
 export type ReporteV2Storage = {
   offlineId?: string;
   scopeLocal?: string;
@@ -168,6 +180,7 @@ export type ReporteV2Storage = {
     prioridad?: string;
     recomendacion?: string;
     accionInmediata?: string;
+    selector_preventivo_shadow?: SelectorPreventivoShadowV2Storage;
   } & EvaluacionMotorV2Storage;
   cierre?: Record<string, unknown>;
   asignacionCierre?: Record<string, unknown>;

@@ -8,6 +8,10 @@ import {
   type PreguntaFormularioAdaptativaV2,
 } from "../../motor-v2/formularioAdaptativoV2";
 import {
+  construirEntradaShadowDesdeReporte,
+  ejecutarSelectorPreventivoShadow,
+} from "../../motor-v2/selectorPreventivoShadowV2";
+import {
   guardarReporteActualV2,
   leerReporteActualV2,
   type ReporteV2Storage,
@@ -48,6 +52,48 @@ type ReporteV2 = ReporteV2Storage & {
 function vibrarOk() {
   if (typeof navigator !== "undefined" && "vibrate" in navigator) {
     navigator.vibrate(20);
+  }
+}
+
+function contextoSelectorPreventivoShadowPaso1() {
+  const entorno = process.env.NODE_ENV === "production" ? "produccion" : "desarrollo";
+
+  if (typeof window === "undefined") return { entorno } as const;
+
+  const parametros = new URLSearchParams(window.location.search);
+
+  return {
+    entorno,
+    hostname: window.location.hostname,
+    forzarActivacion:
+      parametros.get("ce_selector_shadow") === "1" ||
+      parametros.get("selector_shadow") === "1",
+  } as const;
+}
+
+function adjuntarResumenSelectorShadowPaso1(
+  reporte: ReporteV2,
+  formularioActual: ReturnType<typeof obtenerFormularioAdaptativoV2> | null
+): ReporteV2 {
+  try {
+    const resultado = ejecutarSelectorPreventivoShadow({
+      ...construirEntradaShadowDesdeReporte(reporte, formularioActual),
+      contexto: contextoSelectorPreventivoShadowPaso1(),
+    });
+
+    if (!resultado.ok || !resultado.ejecutado || resultado.resumen.activo !== true) {
+      return reporte;
+    }
+
+    return {
+      ...reporte,
+      evaluacion: {
+        ...(reporte.evaluacion || {}),
+        selector_preventivo_shadow: resultado.resumen,
+      },
+    };
+  } catch {
+    return reporte;
   }
 }
 
@@ -138,7 +184,9 @@ export default function EvaluacionPaso1V2Page() {
       },
     };
 
-    guardarReporteActualV2(actualizado);
+    const actualizadoConShadow = adjuntarResumenSelectorShadowPaso1(actualizado, formularioAdaptativo);
+
+    guardarReporteActualV2(actualizadoConShadow);
     setNavegando(true);
     vibrarOk();
     navegarEvaluarV2(router, "/evaluar-v2/evaluacion/paso2");
