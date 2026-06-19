@@ -8,6 +8,10 @@ import {
   type PreguntaFormularioAdaptativaV2,
 } from "../../motor-v2/formularioAdaptativoV2";
 import {
+  obtenerFormularioPreguntasConFallback,
+  type ContextoActivacionSelectorPreventivoV2,
+} from "../../motor-v2/orquestadorPreguntasPreventivasV2";
+import {
   construirEntradaShadowDesdeReporte,
   ejecutarSelectorPreventivoShadow,
 } from "../../motor-v2/selectorPreventivoShadowV2";
@@ -71,6 +75,22 @@ function contextoSelectorPreventivoShadowPaso1() {
   } as const;
 }
 
+function contextoSelectorPreventivoCompletoPaso1(): ContextoActivacionSelectorPreventivoV2 {
+  const entorno = process.env.NODE_ENV === "production" ? "produccion" : "desarrollo";
+
+  if (typeof window === "undefined") return { entorno };
+
+  const parametros = new URLSearchParams(window.location.search);
+
+  return {
+    entorno,
+    hostname: window.location.hostname,
+    forzarActivacion:
+      parametros.get("ce_selector_preventivo") === "1" ||
+      parametros.get("selector_preventivo") === "1",
+  };
+}
+
 function adjuntarResumenSelectorShadowPaso1(
   reporte: ReporteV2,
   formularioActual: ReturnType<typeof obtenerFormularioAdaptativoV2> | null
@@ -118,13 +138,24 @@ export default function EvaluacionPaso1V2Page() {
   }, []);
 
   const formularioAdaptativo = reporte ? obtenerFormularioAdaptativoV2(reporte) : null;
+  const formularioConFallback = reporte
+    ? obtenerFormularioPreguntasConFallback({
+        reporte,
+        formularioActual: formularioAdaptativo,
+        contexto: contextoSelectorPreventivoCompletoPaso1(),
+        respuestas,
+      })
+    : null;
+  const selectorPreventivoActivo = formularioConFallback?.modo === "preventivo";
   const preguntasOriginales = formularioAdaptativo?.preguntas || [];
   const tienePreguntaRiesgoEspecifico = preguntasOriginales.some(
     (pregunta) => pregunta.id === ID_RIESGO_ESPECIFICO
   );
-  const preguntasTotales = tienePreguntaRiesgoEspecifico
-    ? preguntasOriginales
-    : [PREGUNTA_RIESGO_ESPECIFICO, ...preguntasOriginales];
+  const preguntasTotales = selectorPreventivoActivo
+    ? formularioConFallback?.preguntas || []
+    : tienePreguntaRiesgoEspecifico
+      ? preguntasOriginales
+      : [PREGUNTA_RIESGO_ESPECIFICO, ...preguntasOriginales];
   const preguntas = preguntasTotales.filter((pregunta) => pregunta.paso === 1);
   const totalPreguntas = preguntasTotales.length;
   const respondidasTotal = preguntasTotales.filter((pregunta) => respuestas[pregunta.id]).length;
@@ -181,15 +212,25 @@ export default function EvaluacionPaso1V2Page() {
         justificacion_modulo_preguntas: clasificacion?.justificacionModuloPreguntas,
         confianza_clasificacion: clasificacion?.confianza,
         palabras_clave_detectadas: clasificacion?.palabrasClaveDetectadas,
+        selector_preventivo_activo: selectorPreventivoActivo,
+        selector_preventivo_modo: formularioConFallback?.modo,
+        selector_preventivo_resumen: formularioConFallback?.resumen,
       },
     };
 
-    const actualizadoConShadow = adjuntarResumenSelectorShadowPaso1(actualizado, formularioAdaptativo);
+    const actualizadoConShadow = selectorPreventivoActivo
+      ? actualizado
+      : adjuntarResumenSelectorShadowPaso1(actualizado, formularioAdaptativo);
 
     guardarReporteActualV2(actualizadoConShadow);
     setNavegando(true);
     vibrarOk();
-    navegarEvaluarV2(router, "/evaluar-v2/evaluacion/paso2");
+    navegarEvaluarV2(
+      router,
+      selectorPreventivoActivo
+        ? "/evaluar-v2/evaluacion/paso2?ce_selector_preventivo=1"
+        : "/evaluar-v2/evaluacion/paso2"
+    );
   };
 
   const feedbackBoton = (id: string) => ({
@@ -422,7 +463,7 @@ export default function EvaluacionPaso1V2Page() {
               <div style={{ marginTop: "6px", fontSize: "14px", opacity: 0.78 }}>
                 {reporte.area || "Sin área"} · {reporte.empresa || "Sin empresa"}
               </div>
-              {formularioAdaptativo && (
+              {formularioAdaptativo && !selectorPreventivoActivo && (
                 <div
                   style={{
                     marginTop: "12px",

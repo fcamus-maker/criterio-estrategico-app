@@ -134,6 +134,15 @@ export type SelectorPreventivoShadowV2Storage = {
   aliasSemanticosBasicos?: string[];
 };
 
+export type SelectorPreventivoActivacionV2Storage = {
+  totalPreguntasPaso1?: number;
+  totalPreguntasPaso2?: number;
+  requiereFallbackActual?: boolean;
+  confianzaMapeo?: string;
+  riesgoSobredocumentacion?: boolean;
+  riesgoSubdocumentacion?: boolean;
+};
+
 export type ReporteV2Storage = {
   offlineId?: string;
   scopeLocal?: string;
@@ -181,6 +190,9 @@ export type ReporteV2Storage = {
     recomendacion?: string;
     accionInmediata?: string;
     selector_preventivo_shadow?: SelectorPreventivoShadowV2Storage;
+    selector_preventivo_activo?: boolean;
+    selector_preventivo_modo?: "preventivo" | "fallback_actual";
+    selector_preventivo_resumen?: SelectorPreventivoActivacionV2Storage;
   } & EvaluacionMotorV2Storage;
   cierre?: Record<string, unknown>;
   asignacionCierre?: Record<string, unknown>;

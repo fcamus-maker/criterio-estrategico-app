@@ -12,6 +12,11 @@ import {
   puntajeRespuestasAdaptativasV2,
   type PreguntaFormularioAdaptativaV2,
 } from "../../motor-v2/formularioAdaptativoV2";
+import { construirMapeoRespuestasPreventivas } from "../../motor-v2/mapeoRespuestasPreventivasV2";
+import {
+  obtenerFormularioPreguntasConFallback,
+  type ContextoActivacionSelectorPreventivoV2,
+} from "../../motor-v2/orquestadorPreguntasPreventivasV2";
 import {
   guardarReporteActualV2,
   leerReporteActualV2,
@@ -89,6 +94,28 @@ function calcularResultado(puntaje: number) {
   };
 }
 
+function contextoSelectorPreventivoCompletoPaso2(reporte?: ReporteV2 | null): ContextoActivacionSelectorPreventivoV2 {
+  const entorno = process.env.NODE_ENV === "production" ? "produccion" : "desarrollo";
+
+  if (typeof window === "undefined") {
+    return {
+      entorno,
+      forzarActivacion: Boolean(reporte?.evaluacion?.selector_preventivo_activo),
+    };
+  }
+
+  const parametros = new URLSearchParams(window.location.search);
+
+  return {
+    entorno,
+    hostname: window.location.hostname,
+    forzarActivacion:
+      Boolean(reporte?.evaluacion?.selector_preventivo_activo) ||
+      parametros.get("ce_selector_preventivo") === "1" ||
+      parametros.get("selector_preventivo") === "1",
+  };
+}
+
 export default function EvaluacionPaso2V2Page() {
   const router = useRouter();
   const [reporte, setReporte] = useState<ReporteV2 | null>(null);
@@ -110,9 +137,24 @@ export default function EvaluacionPaso2V2Page() {
   }, []);
 
   const formularioAdaptativo = reporte ? obtenerFormularioAdaptativoV2(reporte) : null;
-  const preguntas = formularioAdaptativo?.preguntas.filter((pregunta) => pregunta.paso === 2) || [];
-  const totalPreguntas = formularioAdaptativo?.preguntas.length || 0;
-  const preguntasTotales = formularioAdaptativo?.preguntas || [];
+  const formularioConFallback = reporte
+    ? obtenerFormularioPreguntasConFallback({
+        reporte,
+        formularioActual: formularioAdaptativo,
+        contexto: contextoSelectorPreventivoCompletoPaso2(reporte),
+        respuestas,
+      })
+    : null;
+  const selectorPreventivoActivo = formularioConFallback?.modo === "preventivo";
+  const preguntas = selectorPreventivoActivo
+    ? formularioConFallback?.preguntasPaso2 || []
+    : formularioAdaptativo?.preguntas.filter((pregunta) => pregunta.paso === 2) || [];
+  const totalPreguntas = selectorPreventivoActivo
+    ? formularioConFallback?.preguntas.length || 0
+    : formularioAdaptativo?.preguntas.length || 0;
+  const preguntasTotales = selectorPreventivoActivo
+    ? formularioConFallback?.preguntas || []
+    : formularioAdaptativo?.preguntas || [];
   const respondidasTotal = preguntasTotales.filter((pregunta) => respuestas[pregunta.id]).length;
   const preguntaActual = Math.min(respondidasTotal + 1, Math.max(totalPreguntas, 1));
 
@@ -137,19 +179,45 @@ export default function EvaluacionPaso2V2Page() {
       return;
     }
 
-    const puntajeAdaptativo = formularioAdaptativo
-      ? puntajeRespuestasAdaptativasV2(formularioAdaptativo.preguntas, respuestas)
+    const mapeoPreventivo = selectorPreventivoActivo
+      ? construirMapeoRespuestasPreventivas({
+          descripcionHallazgo: reporte.descripcion,
+          riesgoEspecificoDetectado:
+            reporte.evaluacion?.riesgo_especifico_detectado ||
+            respuestas.transversal_anclaje_riesgo_especifico,
+          respuestasPreventivas: respuestas,
+          formularioPreventivo: formularioConFallback?.formularioPreventivo,
+          formularioActual: formularioAdaptativo || undefined,
+          respuestasActuales: respuestas,
+        })
+      : undefined;
+    const usarMapeoPreventivo =
+      selectorPreventivoActivo &&
+      mapeoPreventivo &&
+      !mapeoPreventivo.requiereFallbackActual &&
+      mapeoPreventivo.confianzaMapeo !== "baja";
+    const respuestasResultado = usarMapeoPreventivo
+      ? {
+          ...respuestas,
+          ...mapeoPreventivo.respuestasCompatiblesLegacy,
+        }
+      : respuestas;
+    const puntajeAdaptativo = preguntasTotales.length > 0
+      ? puntajeRespuestasAdaptativasV2(preguntasTotales, respuestasResultado)
       : 0;
     const resultado = {
       ...calcularResultado(puntajeAdaptativo),
       puntaje: puntajeAdaptativo,
     };
+    const modoSelectorPreventivo: "preventivo" | "fallback_actual" = selectorPreventivoActivo
+      ? "preventivo"
+      : "fallback_actual";
     const clasificacion = formularioAdaptativo?.clasificacion;
     const reporteConResultadoAnterior = {
       ...reporte,
       evaluacion: {
         ...(reporte.evaluacion || {}),
-        respuestas,
+        respuestas: respuestasResultado,
         categoria_detectada: clasificacion?.categoriaDetectada,
         modulo_preguntas_sugerido: clasificacion?.moduloPreguntasSugerido,
         preguntas_sugeridas: formularioAdaptativo?.preguntas,
@@ -157,6 +225,15 @@ export default function EvaluacionPaso2V2Page() {
         justificacion_modulo_preguntas: clasificacion?.justificacionModuloPreguntas,
         confianza_clasificacion: clasificacion?.confianza,
         palabras_clave_detectadas: clasificacion?.palabrasClaveDetectadas,
+        selector_preventivo_activo: selectorPreventivoActivo,
+        selector_preventivo_modo: modoSelectorPreventivo,
+        selector_preventivo_resumen: selectorPreventivoActivo
+          ? {
+              ...(formularioConFallback?.resumen || {}),
+              requiereFallbackActual: Boolean(mapeoPreventivo?.requiereFallbackActual),
+              confianzaMapeo: mapeoPreventivo?.confianzaMapeo,
+            }
+          : formularioConFallback?.resumen,
         ...resultado,
       },
     };
@@ -343,7 +420,7 @@ export default function EvaluacionPaso2V2Page() {
         <EtapasPremium actual={2} />
         <header style={{ marginBottom: "14px" }}>
           <a
-            href="/evaluar-v2/evaluacion/paso1"
+            href={selectorPreventivoActivo ? "/evaluar-v2/evaluacion/paso1?ce_selector_preventivo=1" : "/evaluar-v2/evaluacion/paso1"}
             onClick={vibrarOk}
             {...feedbackBoton("volver-paso1")}
             style={{
@@ -404,7 +481,7 @@ export default function EvaluacionPaso2V2Page() {
               <div style={{ marginTop: "6px", fontSize: "14px", opacity: 0.78 }}>
                 {reporte.area || "Sin área"} · {reporte.empresa || "Sin empresa"}
               </div>
-              {formularioAdaptativo && (
+              {formularioAdaptativo && !selectorPreventivoActivo && (
                 <div
                   style={{
                     marginTop: "12px",
