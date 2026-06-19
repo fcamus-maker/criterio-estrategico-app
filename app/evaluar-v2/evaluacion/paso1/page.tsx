@@ -21,6 +21,18 @@ import {
   ProgresoPreguntasPremium,
 } from "../componentesPremium";
 
+const ID_RIESGO_ESPECIFICO = "transversal_anclaje_riesgo_especifico";
+const PREGUNTA_RIESGO_ESPECIFICO: PreguntaFormularioAdaptativaV2 = {
+  id: ID_RIESGO_ESPECIFICO,
+  modulo: "otro_indeterminado",
+  texto: "¿Cuál es el riesgo específico detectado?",
+  objetivo:
+    "Responda breve, idealmente en 3 a 5 palabras. Ejemplo: vidrio quebrado, trabajador sin arnés, madera con clavos, extintor vencido.",
+  paso: 1,
+  tipoRespuesta: "texto",
+  opciones: [],
+};
+
 type ReporteV2 = ReporteV2Storage & {
   codigo?: string;
   supervisor?: string;
@@ -60,9 +72,15 @@ export default function EvaluacionPaso1V2Page() {
   }, []);
 
   const formularioAdaptativo = reporte ? obtenerFormularioAdaptativoV2(reporte) : null;
-  const preguntas = formularioAdaptativo?.preguntas.filter((pregunta) => pregunta.paso === 1) || [];
-  const totalPreguntas = formularioAdaptativo?.preguntas.length || 0;
-  const preguntasTotales = formularioAdaptativo?.preguntas || [];
+  const preguntasOriginales = formularioAdaptativo?.preguntas || [];
+  const tienePreguntaRiesgoEspecifico = preguntasOriginales.some(
+    (pregunta) => pregunta.id === ID_RIESGO_ESPECIFICO
+  );
+  const preguntasTotales = tienePreguntaRiesgoEspecifico
+    ? preguntasOriginales
+    : [PREGUNTA_RIESGO_ESPECIFICO, ...preguntasOriginales];
+  const preguntas = preguntasTotales.filter((pregunta) => pregunta.paso === 1);
+  const totalPreguntas = preguntasTotales.length;
   const respondidasTotal = preguntasTotales.filter((pregunta) => respuestas[pregunta.id]).length;
   const preguntaActual = Math.min(respondidasTotal + 1, Math.max(totalPreguntas, 1));
 
@@ -71,6 +89,19 @@ export default function EvaluacionPaso1V2Page() {
       ...actuales,
       [id]: value,
     }));
+    if (id === ID_RIESGO_ESPECIFICO) {
+      setReporte((actual) =>
+        actual
+          ? {
+              ...actual,
+              evaluacion: {
+                ...(actual.evaluacion || {}),
+                riesgo_especifico_detectado: value.trim() || undefined,
+              },
+            }
+          : actual
+      );
+    }
     setError("");
   };
 
@@ -86,11 +117,17 @@ export default function EvaluacionPaso1V2Page() {
     }
 
     const clasificacion = formularioAdaptativo?.clasificacion;
+    const riesgoEspecificoDetectado = respuestas[ID_RIESGO_ESPECIFICO]?.trim() || undefined;
+    const respuestasActualizadas = {
+      ...(reporte.evaluacion?.respuestas || {}),
+      ...respuestas,
+    };
     const actualizado = {
       ...reporte,
       evaluacion: {
         ...(reporte.evaluacion || {}),
-        respuestas,
+        respuestas: respuestasActualizadas,
+        riesgo_especifico_detectado: riesgoEspecificoDetectado,
         categoria_detectada: clasificacion?.categoriaDetectada,
         modulo_preguntas_sugerido: clasificacion?.moduloPreguntasSugerido,
         preguntas_sugeridas: formularioAdaptativo?.preguntas,
@@ -135,7 +172,7 @@ export default function EvaluacionPaso1V2Page() {
   const renderPregunta = (pregunta: PreguntaFormularioAdaptativaV2) => (
     <section key={pregunta.id} style={cardStyle}>
       <div style={{ fontSize: "12px", opacity: 0.62, marginBottom: "6px" }}>
-        {etiquetaCategoria(pregunta.modulo)}
+        {pregunta.id === ID_RIESGO_ESPECIFICO ? "Riesgo específico" : etiquetaCategoria(pregunta.modulo)}
       </div>
       <div
         style={{
