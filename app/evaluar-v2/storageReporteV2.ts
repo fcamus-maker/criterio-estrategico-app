@@ -162,6 +162,7 @@ export type ReporteV2Storage = {
   };
   evaluacion?: {
     respuestas?: Record<string, string>;
+    riesgo_especifico_detectado?: string;
     puntaje?: number;
     criticidad?: string;
     prioridad?: string;
