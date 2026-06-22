@@ -39,15 +39,16 @@ export type ConfiguracionFormularioAdaptativoV2 = {
 
 const OPCIONES_SI_NO: OpcionPreguntaAdaptativaV2[] = [
   { label: "Si", value: "si", score: 6 },
-  { label: "Parcial", value: "parcial", score: 3 },
   { label: "No", value: "no", score: 0 },
+  { label: "No verificable", value: "no_verificable", score: 3 },
   { label: "No aplica", value: "no_aplica", score: 0 },
 ];
 
 const OPCIONES_CRITICAS: OpcionPreguntaAdaptativaV2[] = [
-  { label: "Si, activo", value: "si", score: 12 },
-  { label: "Potencial", value: "parcial", score: 6 },
+  { label: "Si, confirmado", value: "si", score: 12 },
+  { label: "Posible o potencial, requiere verificacion", value: "potencial", score: 6 },
   { label: "No", value: "no", score: 0 },
+  { label: "No verificable", value: "no_verificable", score: 4 },
   { label: "No aplica", value: "no_aplica", score: 0 },
 ];
 
@@ -55,6 +56,22 @@ const OPCIONES_CONTROL: OpcionPreguntaAdaptativaV2[] = [
   { label: "Control suficiente", value: "si", score: 0 },
   { label: "Control parcial", value: "parcial", score: 5 },
   { label: "Sin control", value: "no", score: 10 },
+  { label: "No verificable", value: "no_verificable", score: 6 },
+  { label: "No aplica", value: "no_aplica", score: 0 },
+];
+
+const OPCIONES_PROTECCION_CAIDAS: OpcionPreguntaAdaptativaV2[] = [
+  { label: "Si, proteccion completa", value: "proteccion_completa", score: 0 },
+  { label: "Si, proteccion parcial o incompleta", value: "proteccion_parcial", score: 6 },
+  { label: "No existe proteccion", value: "sin_proteccion", score: 12 },
+  { label: "No verificable", value: "no_verificable", score: 6 },
+  { label: "No aplica", value: "no_aplica", score: 0 },
+];
+
+const OPCIONES_DECISION_OPERACIONAL: OpcionPreguntaAdaptativaV2[] = [
+  { label: "Si, detener o aislar inmediatamente", value: "si_detener_aislar", score: 12 },
+  { label: "No, existe control suficiente", value: "no_control_suficiente", score: 0 },
+  { label: "No verificable", value: "no_verificable", score: 6 },
   { label: "No aplica", value: "no_aplica", score: 0 },
 ];
 
@@ -127,6 +144,27 @@ function opcionesParaPregunta(pregunta: PreguntaSugeridaMotorV2) {
     `${pregunta?.id || ""} ${pregunta?.texto || ""} ${pregunta?.objetivo || ""}`
   );
   if (esPreguntaTexto(pregunta)) return OPCIONES_TEXTO;
+  if (
+    texto.includes("proteccion contra caidas") ||
+    texto.includes("sistema anticaidas") ||
+    texto.includes("nivel de control existente frente al riesgo de caida")
+  ) {
+    return OPCIONES_PROTECCION_CAIDAS;
+  }
+  if (
+    texto.includes("debe detener") ||
+    texto.includes("debe bloquear") ||
+    texto.includes("debe suspender") ||
+    texto.includes("debe aislar") ||
+    texto.includes("corresponde detener") ||
+    texto.includes("corresponde aislar") ||
+    texto.includes("requiere aislar") ||
+    texto.includes("requiere detener") ||
+    texto.includes("requiere suspender") ||
+    texto.includes("puede continuar")
+  ) {
+    return OPCIONES_DECISION_OPERACIONAL;
+  }
   if (texto.includes("control") || texto.includes("contenido") || texto.includes("senalizacion")) {
     return OPCIONES_CONTROL;
   }

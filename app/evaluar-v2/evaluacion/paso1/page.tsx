@@ -2,13 +2,22 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { navegarEvaluarV2 } from "../../offlineNavigation";
+import {
+  navegarEvaluarV2,
+  preservarBanderaSelectorPreventivoV2,
+} from "../../offlineNavigation";
 import {
   obtenerFormularioAdaptativoV2,
   type PreguntaFormularioAdaptativaV2,
 } from "../../motor-v2/formularioAdaptativoV2";
 import {
+  construirContextoFingerprintPreventivo,
+  construirFlujoPreventivoTrasRonda1,
+  limpiarRespuestasRonda2SiCambiaContexto,
+  obtenerPreguntasPaso1Preventivo,
   obtenerFormularioPreguntasConFallback,
+  selectorPreventivoEstaHabilitado,
+  validarContratoRonda1,
   type ContextoActivacionSelectorPreventivoV2,
 } from "../../motor-v2/orquestadorPreguntasPreventivasV2";
 import {
@@ -138,27 +147,33 @@ export default function EvaluacionPaso1V2Page() {
   }, []);
 
   const formularioAdaptativo = reporte ? obtenerFormularioAdaptativoV2(reporte) : null;
-  const formularioConFallback = reporte
+  const contextoSelectorPreventivo = contextoSelectorPreventivoCompletoPaso1();
+  const preguntasPreventivasPaso1 = obtenerPreguntasPaso1Preventivo();
+  const contratoRonda1 = validarContratoRonda1(preguntasPreventivasPaso1);
+  const selectorPreventivoActivo =
+    selectorPreventivoEstaHabilitado(contextoSelectorPreventivo) && contratoRonda1.valido;
+  const formularioConFallback = reporte && !selectorPreventivoActivo
     ? obtenerFormularioPreguntasConFallback({
         reporte,
         formularioActual: formularioAdaptativo,
-        contexto: contextoSelectorPreventivoCompletoPaso1(),
+        contexto: contextoSelectorPreventivo,
         respuestas,
       })
     : null;
-  const selectorPreventivoActivo = formularioConFallback?.modo === "preventivo";
   const preguntasOriginales = formularioAdaptativo?.preguntas || [];
   const tienePreguntaRiesgoEspecifico = preguntasOriginales.some(
     (pregunta) => pregunta.id === ID_RIESGO_ESPECIFICO
   );
   const preguntasTotales = selectorPreventivoActivo
-    ? formularioConFallback?.preguntas || []
+    ? preguntasPreventivasPaso1
     : tienePreguntaRiesgoEspecifico
       ? preguntasOriginales
       : [PREGUNTA_RIESGO_ESPECIFICO, ...preguntasOriginales];
   const preguntas = preguntasTotales.filter((pregunta) => pregunta.paso === 1);
-  const totalPreguntas = preguntasTotales.length;
-  const respondidasTotal = preguntasTotales.filter((pregunta) => respuestas[pregunta.id]).length;
+  const totalPreguntas = selectorPreventivoActivo ? preguntas.length : preguntasTotales.length;
+  const respondidasTotal = (selectorPreventivoActivo ? preguntas : preguntasTotales).filter(
+    (pregunta) => respuestas[pregunta.id]
+  ).length;
   const preguntaActual = Math.min(respondidasTotal + 1, Math.max(totalPreguntas, 1));
 
   const seleccionar = (id: string, value: string) => {
@@ -199,11 +214,32 @@ export default function EvaluacionPaso1V2Page() {
       ...(reporte.evaluacion?.respuestas || {}),
       ...respuestas,
     };
+    const fingerprintNuevo = selectorPreventivoActivo
+      ? construirContextoFingerprintPreventivo(reporte, respuestasActualizadas)
+      : "";
+    const respuestasCompatibles = selectorPreventivoActivo
+      ? limpiarRespuestasRonda2SiCambiaContexto(
+          respuestasActualizadas,
+          reporte.evaluacion?.flujo_preventivo,
+          fingerprintNuevo
+        )
+      : respuestasActualizadas;
+    const reporteParaFlujo = {
+      ...reporte,
+      evaluacion: {
+        ...(reporte.evaluacion || {}),
+        respuestas: respuestasCompatibles,
+        riesgo_especifico_detectado: riesgoEspecificoDetectado,
+      },
+    };
+    const preparacionFlujo = selectorPreventivoActivo
+      ? construirFlujoPreventivoTrasRonda1(reporteParaFlujo, respuestasCompatibles)
+      : null;
     const actualizado = {
       ...reporte,
       evaluacion: {
         ...(reporte.evaluacion || {}),
-        respuestas: respuestasActualizadas,
+        respuestas: respuestasCompatibles,
         riesgo_especifico_detectado: riesgoEspecificoDetectado,
         categoria_detectada: clasificacion?.categoriaDetectada,
         modulo_preguntas_sugerido: clasificacion?.moduloPreguntasSugerido,
@@ -213,8 +249,17 @@ export default function EvaluacionPaso1V2Page() {
         confianza_clasificacion: clasificacion?.confianza,
         palabras_clave_detectadas: clasificacion?.palabrasClaveDetectadas,
         selector_preventivo_activo: selectorPreventivoActivo,
-        selector_preventivo_modo: formularioConFallback?.modo,
-        selector_preventivo_resumen: formularioConFallback?.resumen,
+        selector_preventivo_modo: selectorPreventivoActivo
+          ? preparacionFlujo?.flujo.modo || "preventivo"
+          : formularioConFallback?.modo,
+        selector_preventivo_resumen: selectorPreventivoActivo
+          ? {
+              totalPreguntasPaso1: preguntas.length,
+              totalPreguntasPaso2: preparacionFlujo?.preguntasPaso2.length || 0,
+              requiereFallbackActual: false,
+            }
+          : formularioConFallback?.resumen,
+        flujo_preventivo: selectorPreventivoActivo ? preparacionFlujo?.flujo : reporte.evaluacion?.flujo_preventivo,
       },
     };
 
@@ -225,12 +270,7 @@ export default function EvaluacionPaso1V2Page() {
     guardarReporteActualV2(actualizadoConShadow);
     setNavegando(true);
     vibrarOk();
-    navegarEvaluarV2(
-      router,
-      selectorPreventivoActivo
-        ? "/evaluar-v2/evaluacion/paso2?ce_selector_preventivo=1"
-        : "/evaluar-v2/evaluacion/paso2"
-    );
+    navegarEvaluarV2(router, "/evaluar-v2/evaluacion/paso2");
   };
 
   const feedbackBoton = (id: string) => ({
@@ -261,7 +301,13 @@ export default function EvaluacionPaso1V2Page() {
   const renderPregunta = (pregunta: PreguntaFormularioAdaptativaV2) => (
     <section key={pregunta.id} style={cardStyle}>
       <div style={{ fontSize: "12px", opacity: 0.62, marginBottom: "6px" }}>
-        {pregunta.id === ID_RIESGO_ESPECIFICO ? "Riesgo específico" : etiquetaCategoria(pregunta.modulo)}
+        {selectorPreventivoActivo
+          ? pregunta.paso === 1
+            ? "Ronda 1 · Contexto preventivo"
+            : "Ronda 2 · Evaluación preventiva"
+          : pregunta.id === ID_RIESGO_ESPECIFICO
+            ? "Riesgo específico"
+            : etiquetaCategoria(pregunta.modulo)}
       </div>
       <div
         style={{
@@ -402,7 +448,7 @@ export default function EvaluacionPaso1V2Page() {
         <EtapasPremium actual={2} />
         <header style={{ marginBottom: "14px" }}>
           <a
-            href="/evaluar-v2/reportar"
+            href={preservarBanderaSelectorPreventivoV2("/evaluar-v2/reportar")}
             onClick={vibrarOk}
             {...feedbackBoton("volver-reporte")}
             style={{
@@ -428,7 +474,7 @@ export default function EvaluacionPaso1V2Page() {
               No hay reporte disponible
             </div>
             <a
-              href="/evaluar-v2/reportar"
+              href={preservarBanderaSelectorPreventivoV2("/evaluar-v2/reportar")}
               onClick={vibrarOk}
               {...feedbackBoton("sin-reporte")}
               style={{
@@ -519,7 +565,9 @@ export default function EvaluacionPaso1V2Page() {
             >
               {navegando
                 ? "Continuando..."
-                : `Continuar evaluación (${preguntas.length}/${totalPreguntas})`}
+                : selectorPreventivoActivo
+                  ? `Continuar evaluación · Ronda 1 (${preguntas.length}/${totalPreguntas})`
+                  : `Continuar evaluación (${preguntas.length}/${totalPreguntas})`}
             </button>
             <AutoGuardadoPremium />
           </>

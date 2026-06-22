@@ -47,11 +47,11 @@ export const PREGUNTAS_ADAPTATIVAS_V2: Partial<
     pregunta("transito_caida_mismo_nivel", "transito-004", "Puede corregirse de inmediato?", "Definir accion de retiro, limpieza o demarcacion."),
   ],
   caida_altura: [
-    pregunta("caida_altura", "altura-001", "Hay trabajo en altura, borde abierto o plataforma elevada?", "Confirmar exposicion a altura."),
-    pregunta("caida_altura", "altura-002", "Existe arnes, linea de vida, baranda o proteccion colectiva?", "Verificar control critico."),
+    pregunta("caida_altura", "altura-001", "Se confirma exposicion a caida de distinto nivel?", "Considerar trabajo en altura, borde abierto, plataforma elevada, techumbre, vano o superficie sin proteccion."),
+    pregunta("caida_altura", "altura-002", "Existe proteccion contra caidas implementada?", "Verificar arnes, linea de vida, punto de anclaje, baranda o proteccion colectiva."),
     pregunta("caida_altura", "altura-003", "Hay personas expuestas actualmente?", "Determinar suspension inmediata."),
     pregunta("caida_altura", "altura-004", "La actividad esta en ejecucion?", "Separar hallazgo documental de riesgo activo."),
-    pregunta("caida_altura", "altura-005", "Debe detenerse la actividad hasta controlar la condicion?", "Definir decision operacional."),
+    pregunta("caida_altura", "altura-005", "Corresponde detener o aislar la actividad hasta controlar el riesgo?", "Definir decision operacional."),
   ],
   electrico: [
     pregunta("electrico", "electrico-001", "El elemento esta energizado?", "Confirmar energia peligrosa."),

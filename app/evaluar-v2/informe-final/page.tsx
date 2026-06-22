@@ -170,13 +170,110 @@ function etiquetaAmbito(valor?: string) {
 }
 
 function etiquetaCategoria(valor?: string) {
+  const etiquetas: Record<string, string> = {
+    caida_altura: "Caída de altura",
+    transito_caida_mismo_nivel: "Caída al mismo nivel",
+    condicion_subestandar: "Condición subestándar",
+    acto_inseguro: "Conducta observada",
+    incendio_emergencia: "Incendio o emergencia",
+    equipos_emergencia: "Equipo de emergencia",
+    documental_legal: "Documental/legal",
+    legal_documental: "Documental/legal",
+    derrame_fuga: "Derrame o fuga",
+    sustancias_peligrosas: "Sustancias peligrosas",
+    herramientas_equipos: "Herramientas/equipos",
+    maquinaria_equipos: "Maquinaria/equipos",
+    otro_indeterminado: "Requiere revisión técnica",
+  };
+
   return valor
-    ? valor
-        .split("_")
-        .filter(Boolean)
-        .map((parte) => parte.charAt(0).toUpperCase() + parte.slice(1))
-        .join(" ")
+    ? etiquetas[valor] ||
+        valor
+          .split("_")
+          .filter(Boolean)
+          .map((parte) => parte.charAt(0).toUpperCase() + parte.slice(1))
+          .join(" ")
     : "No determinada";
+}
+
+function etiquetaTipoEvento(valor?: string) {
+  const etiquetas: Record<string, string> = {
+    condicion_subestandar: "Condición subestándar",
+    acto_inseguro: "Conducta observada",
+    cuasi_accidente: "Incidente sin lesión",
+    accidente: "Accidente",
+    ambiental: "Evento ambiental",
+    documental: "Brecha documental",
+    otro: "No determinado",
+  };
+
+  return valor ? etiquetas[valor] || etiquetaCategoria(valor) : "No determinado";
+}
+
+function limpiarTextoVisible(valor?: string) {
+  if (!valor) return "";
+  return valor
+    .replace(/Motor V2/gi, "evaluación preventiva")
+    .replace(/motor_v2/gi, "evaluación preventiva")
+    .replace(/router/gi, "clasificación preventiva")
+    .replace(/taxonom[ií]a/gi, "clasificación preventiva")
+    .replace(/fallback/gi, "respaldo operativo")
+    .replace(/shadow/gi, "validación interna")
+    .replace(/preview/gi, "validación interna")
+    .replace(/Base\s+CR[IÍ]TICO;?\s*final\s+CR[IÍ]TICO\.?/gi, "Nivel de criticidad: Crítico.")
+    .replace(/Base\s+ALTO;?\s*final\s+ALTO\.?/gi, "Nivel de criticidad: Alto.")
+    .replace(/Base\s+MEDIO;?\s*final\s+MEDIO\.?/gi, "Nivel de criticidad: Medio.")
+    .replace(/Base\s+BAJO;?\s*final\s+BAJO\.?/gi, "Nivel de criticidad: Bajo.");
+}
+
+function textoSeguro(valor?: string) {
+  const limpio = limpiarTextoVisible(valor);
+  if (!limpio) return "";
+  return limpio
+    .split("\n")
+    .map((linea) => limpiarTextoVisible(linea))
+    .join("\n");
+}
+
+function etiquetaSuficiencia(valor?: string) {
+  if (valor === "alta") return "Alta";
+  if (valor === "media") return "Media";
+  if (valor === "baja") return "Requiere más antecedentes";
+  return "No determinada";
+}
+
+function construirDesarrolloPreventivo(reporte: ReporteV2) {
+  const texto = `${reporte.descripcion || ""} ${reporte.evaluacion?.categoria_detectada || ""}`.toLowerCase();
+  if (
+    texto.includes("arnes") ||
+    texto.includes("arnés") ||
+    texto.includes("altura") ||
+    texto.includes("caida_altura")
+  ) {
+    return "Se clasifica el hallazgo como crítico debido a la exposición directa de una persona a caída de distinto nivel, sin evidencia de control efectivo de protección contra caídas. La condición requiere detener o aislar la actividad hasta implementar controles inmediatos, verificar sistema anticaídas, responsable de supervisión y documentación habilitante aplicable.";
+  }
+  if (texto.includes("derrame") || texto.includes("combustible")) {
+    return "Se identifica una condición con potencial impacto ambiental y exposición operacional. Corresponde controlar la fuente, contener el derrame, evitar propagación a suelo, agua o alcantarillado, gestionar residuos derivados y verificar respaldo técnico asociado a la sustancia involucrada.";
+  }
+  if (texto.includes("permiso") || texto.includes("firma") || texto.includes("document")) {
+    return "Se observa una brecha documental que puede afectar la trazabilidad del control preventivo. Corresponde regularizar el respaldo exigible, verificar responsable, vigencia y autorización, y confirmar que la actividad queda cubierta por el estándar preventivo aplicable.";
+  }
+  return "El hallazgo requiere validación preventiva con foco en condición observada, exposición, control existente, acción inmediata y evidencia de cierre. La recomendación debe ajustarse a la criticidad real y evitar exigir documentación formal cuando se trate de una corrección simple verificable.";
+}
+
+function marcoPreventivoProbable(reporte: ReporteV2) {
+  const texto = `${reporte.descripcion || ""} ${reporte.evaluacion?.categoria_detectada || ""}`.toLowerCase();
+  const base = ["Ley 16.744", "DS 44", "DS 594"];
+  if (texto.includes("arnes") || texto.includes("arnés") || texto.includes("altura")) {
+    return [...base, "Matriz/IPER", "Procedimiento/PTS/AST/ART aplicable", "Sistema de protección contra caídas, EPP, supervisión y autorización"];
+  }
+  if (texto.includes("derrame") || texto.includes("combustible")) {
+    return [...base, "HDS/SDS", "Control ambiental", "Procedimiento de respuesta a derrames y gestión de residuos"];
+  }
+  if (texto.includes("permiso") || texto.includes("firma") || texto.includes("document")) {
+    return [...base, "Permiso/autorización aplicable", "Evidencia o registro de control", "Matriz/IPER si la actividad lo exige"];
+  }
+  return [...base, "Matriz/IPER si corresponde", "Evidencia o registro de cierre preventivo"];
 }
 
 function etiquetaSiNo(valor?: boolean) {
@@ -189,14 +286,14 @@ function resumenPreguntasSugeridas(
   if (!Array.isArray(preguntas) || preguntas.length === 0) return "Sin preguntas sugeridas";
   return preguntas
     .slice(0, 3)
-    .map((pregunta) => pregunta.texto)
+    .map((pregunta) => limpiarTextoVisible(pregunta.texto))
     .filter(Boolean)
     .join(" · ");
 }
 
 function normativaResumen(normativa?: NormativaAplicable[]) {
   if (!Array.isArray(normativa) || normativa.length === 0) {
-    return "Normativa probable asociada. Requiere validación legal específica antes de citar artículo definitivo.";
+    return "Marco legal/preventivo probable asociado. Requiere validación legal específica antes de citar artículo definitivo.";
   }
 
   return normativa
@@ -204,12 +301,12 @@ function normativaResumen(normativa?: NormativaAplicable[]) {
     .map((item) => item.norma)
     .filter(Boolean)
     .join(" · ") ||
-    "Normativa probable asociada. Requiere validación legal específica antes de citar artículo definitivo.";
+    "Marco legal/preventivo probable asociado. Requiere validación legal específica antes de citar artículo definitivo.";
 }
 
 function listaResumen(items?: string[]) {
   if (!Array.isArray(items) || items.length === 0) return "Sin señales declaradas.";
-  return items.slice(0, 4).join(" · ");
+  return items.slice(0, 4).map((item) => limpiarTextoVisible(item)).join(" · ");
 }
 
 function mensajeUsuarioGuardado(detalle: DetalleGuardadoV2) {
@@ -513,7 +610,7 @@ export default function InformeFinalV2Page() {
                   marginBottom: "10px",
                 }}
               >
-                Resultado técnico Motor V2
+                Resultado técnico preventivo
               </div>
               <div style={{ display: "grid", gap: "10px" }}>
                 {[
@@ -522,20 +619,20 @@ export default function InformeFinalV2Page() {
                     etiquetaAmbito(reporte.evaluacion?.ambito_principal),
                   ],
                   [
-                    "Tipo de evento",
-                    reporte.evaluacion?.tipo_evento || "No determinado",
+                    "Tipo de hallazgo",
+                    etiquetaTipoEvento(reporte.evaluacion?.tipo_evento),
                   ],
                   [
-                    "Categoría detectada",
+                    "Categoría preventiva",
                     etiquetaCategoria(reporte.evaluacion?.categoria_detectada),
                   ],
                   [
-                    "Módulo sugerido",
+                    "Clasificación preventiva",
                     etiquetaCategoria(reporte.evaluacion?.modulo_preguntas_sugerido),
                   ],
                   [
-                    "Confianza clasificación",
-                    reporte.evaluacion?.confianza_clasificacion || "No determinada",
+                    "Nivel de suficiencia",
+                    etiquetaSuficiencia(reporte.evaluacion?.confianza_clasificacion),
                   ],
                   [
                     "Preguntas sugeridas",
@@ -543,7 +640,7 @@ export default function InformeFinalV2Page() {
                   ],
                   [
                     "Medida inmediata",
-                    reporte.evaluacion?.medida_inmediata_v2 ||
+                    textoSeguro(reporte.evaluacion?.medida_inmediata_v2) ||
                       reporte.evaluacion?.accionInmediata ||
                       "Sin medida definida",
                   ],
@@ -592,8 +689,41 @@ export default function InformeFinalV2Page() {
                   </div>
                 ))}
                 <div style={{ fontSize: "12px", lineHeight: 1.45, opacity: 0.78 }}>
-                  {reporte.evaluacion?.justificacion_tecnica ||
-                    "Normativa probable asociada. Requiere validación legal específica antes de citar artículo definitivo."}
+                  {textoSeguro(reporte.evaluacion?.justificacion_tecnica) ||
+                    "Marco legal/preventivo probable asociado. Requiere validación legal específica antes de citar artículo definitivo."}
+                </div>
+              </div>
+            </section>
+
+            <section style={cardStyle}>
+              <div
+                style={{
+                  fontSize: "18px",
+                  fontWeight: 900,
+                  marginBottom: "10px",
+                }}
+              >
+                Desarrollo técnico preventivo
+              </div>
+              <div style={{ display: "grid", gap: "10px" }}>
+                <div style={datoStyle}>
+                  <div style={{ fontSize: "11px", opacity: 0.62 }}>
+                    Fundamento técnico
+                  </div>
+                  <div style={{ fontSize: "14px", fontWeight: 800, lineHeight: 1.45 }}>
+                    {construirDesarrolloPreventivo(reporte)}
+                  </div>
+                </div>
+                <div style={datoStyle}>
+                  <div style={{ fontSize: "11px", opacity: 0.62 }}>
+                    Marco legal/preventivo probable asociado
+                  </div>
+                  <div style={{ fontSize: "14px", fontWeight: 800, lineHeight: 1.45 }}>
+                    {marcoPreventivoProbable(reporte).join(" · ")}
+                  </div>
+                </div>
+                <div style={{ fontSize: "12px", lineHeight: 1.45, opacity: 0.78 }}>
+                  Referencia preventiva orientativa. Requiere validación legal específica antes de citar artículos o emitir conclusión jurídica definitiva.
                 </div>
               </div>
             </section>
