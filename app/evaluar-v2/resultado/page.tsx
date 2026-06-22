@@ -77,7 +77,7 @@ function obtenerEvaluacionVisual(reporte: ReporteV2) {
         reporte.evaluacion.recomendacion || "Revisar controles y seguimiento.",
       fundamento:
         reporte.evaluacion.fuente_evaluacion === "motor_v2"
-          ? "Evaluación técnica Motor V2."
+          ? "Resultado técnico preventivo."
           : "Evaluación por preguntas.",
       ambitoPrincipal: reporte.evaluacion.ambito_principal,
       tipoEvento: reporte.evaluacion.tipo_evento,
@@ -189,13 +189,76 @@ function etiquetaAmbito(valor?: string) {
 }
 
 function etiquetaCategoria(valor?: string) {
+  const etiquetas: Record<string, string> = {
+    caida_altura: "Caída de altura",
+    transito_caida_mismo_nivel: "Caída al mismo nivel",
+    condicion_subestandar: "Condición subestándar",
+    acto_inseguro: "Conducta observada",
+    incendio_emergencia: "Incendio o emergencia",
+    equipos_emergencia: "Equipo de emergencia",
+    documental_legal: "Documental/legal",
+    legal_documental: "Documental/legal",
+    derrame_fuga: "Derrame o fuga",
+    sustancias_peligrosas: "Sustancias peligrosas",
+    herramientas_equipos: "Herramientas/equipos",
+    maquinaria_equipos: "Maquinaria/equipos",
+    otro_indeterminado: "Requiere revisión técnica",
+  };
+
   return valor
-    ? valor
-        .split("_")
-        .filter(Boolean)
-        .map((parte) => parte.charAt(0).toUpperCase() + parte.slice(1))
-        .join(" ")
+    ? etiquetas[valor] ||
+        valor
+          .split("_")
+          .filter(Boolean)
+          .map((parte) => parte.charAt(0).toUpperCase() + parte.slice(1))
+          .join(" ")
     : "No determinada";
+}
+
+function etiquetaTipoEvento(valor?: string) {
+  const etiquetas: Record<string, string> = {
+    condicion_subestandar: "Condición subestándar",
+    acto_inseguro: "Conducta observada",
+    cuasi_accidente: "Incidente sin lesión",
+    accidente: "Accidente",
+    ambiental: "Evento ambiental",
+    documental: "Brecha documental",
+    otro: "No determinado",
+  };
+
+  return valor ? etiquetas[valor] || etiquetaCategoria(valor) : "No determinado";
+}
+
+function limpiarTextoVisible(valor?: string) {
+  if (!valor) return "";
+  return valor
+    .replace(/Motor V2/gi, "evaluación preventiva")
+    .replace(/motor_v2/gi, "evaluación preventiva")
+    .replace(/router/gi, "clasificación preventiva")
+    .replace(/taxonom[ií]a/gi, "clasificación preventiva")
+    .replace(/fallback/gi, "respaldo operativo")
+    .replace(/shadow/gi, "validación interna")
+    .replace(/preview/gi, "validación interna")
+    .replace(/Base\s+CR[IÍ]TICO;?\s*final\s+CR[IÍ]TICO\.?/gi, "Nivel de criticidad: Crítico.")
+    .replace(/Base\s+ALTO;?\s*final\s+ALTO\.?/gi, "Nivel de criticidad: Alto.")
+    .replace(/Base\s+MEDIO;?\s*final\s+MEDIO\.?/gi, "Nivel de criticidad: Medio.")
+    .replace(/Base\s+BAJO;?\s*final\s+BAJO\.?/gi, "Nivel de criticidad: Bajo.");
+}
+
+function etiquetaSuficiencia(valor?: string) {
+  if (valor === "alta") return "Alta";
+  if (valor === "media") return "Media";
+  if (valor === "baja") return "Requiere más antecedentes";
+  return "No determinada";
+}
+
+function textoSeguro(valor?: string) {
+  const limpio = limpiarTextoVisible(valor);
+  if (!limpio) return "";
+  return limpio
+    .split("\n")
+    .map((linea) => limpiarTextoVisible(linea))
+    .join("\n");
 }
 
 function etiquetaSiNo(valor?: boolean) {
@@ -208,14 +271,14 @@ function resumenPreguntasSugeridas(
   if (!Array.isArray(preguntas) || preguntas.length === 0) return "Sin preguntas sugeridas";
   return preguntas
     .slice(0, 3)
-    .map((pregunta) => pregunta.texto)
+    .map((pregunta) => limpiarTextoVisible(pregunta.texto))
     .filter(Boolean)
     .join(" · ");
 }
 
 function normativaResumen(normativa: NonNullable<ReporteV2["evaluacion"]>["normativa_probable"]) {
   if (!Array.isArray(normativa) || normativa.length === 0) {
-    return "Normativa probable asociada. Requiere validación legal específica antes de citar artículo definitivo.";
+    return "Marco legal/preventivo probable asociado. Requiere validación legal específica antes de citar artículo definitivo.";
   }
 
   return normativa
@@ -223,12 +286,12 @@ function normativaResumen(normativa: NonNullable<ReporteV2["evaluacion"]>["norma
     .map((item) => item.norma)
     .filter(Boolean)
     .join(" · ") ||
-    "Normativa probable asociada. Requiere validación legal específica antes de citar artículo definitivo.";
+    "Marco legal/preventivo probable asociado. Requiere validación legal específica antes de citar artículo definitivo.";
 }
 
 function listaResumen(items?: string[]) {
   if (!Array.isArray(items) || items.length === 0) return "Sin señales declaradas.";
-  return items.slice(0, 4).join(" · ");
+  return items.slice(0, 4).map((item) => limpiarTextoVisible(item)).join(" · ");
 }
 
 function obtenerEstiloCriticidad(criticidad: string) {
@@ -495,23 +558,23 @@ export default function ResultadoV2Page() {
                   marginBottom: "8px",
                 }}
               >
-                LECTURA TÉCNICA MOTOR V2
+                CLASIFICACIÓN PREVENTIVA
               </div>
               <div style={{ display: "grid", gap: "10px" }}>
                 {[
                   ["Ámbito principal", etiquetaAmbito(evaluacionVisual?.ambitoPrincipal)],
-                  ["Tipo evento", evaluacionVisual?.tipoEvento || "No determinado"],
+                  ["Tipo de hallazgo", etiquetaTipoEvento(evaluacionVisual?.tipoEvento)],
                   [
-                    "Categoría detectada",
+                    "Categoría preventiva",
                     etiquetaCategoria(evaluacionVisual?.categoriaDetectada),
                   ],
                   [
-                    "Módulo sugerido",
+                    "Clasificación preventiva",
                     etiquetaCategoria(evaluacionVisual?.moduloPreguntasSugerido),
                   ],
                   [
-                    "Confianza clasificación",
-                    evaluacionVisual?.confianzaClasificacion || "No determinada",
+                    "Nivel de suficiencia",
+                    etiquetaSuficiencia(evaluacionVisual?.confianzaClasificacion),
                   ],
                   [
                     "Preguntas sugeridas",
@@ -519,7 +582,7 @@ export default function ResultadoV2Page() {
                   ],
                   [
                     "Medida inmediata",
-                    evaluacionVisual?.medidaInmediata ||
+                    textoSeguro(evaluacionVisual?.medidaInmediata) ||
                       evaluacionVisual?.recomendacion ||
                       "Sin medida definida",
                   ],
@@ -562,8 +625,8 @@ export default function ResultadoV2Page() {
                   </div>
                 ))}
                 <div style={{ fontSize: "12px", lineHeight: 1.45, opacity: 0.78 }}>
-                  {evaluacionVisual?.justificacionTecnica ||
-                    "Normativa probable asociada. Requiere validación legal específica antes de citar artículo definitivo."}
+                  {textoSeguro(evaluacionVisual?.justificacionTecnica) ||
+                    "Marco legal/preventivo probable asociado. Requiere validación legal específica antes de citar artículo definitivo."}
                 </div>
               </div>
             </section>

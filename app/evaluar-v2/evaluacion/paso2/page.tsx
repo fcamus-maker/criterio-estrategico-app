@@ -2,7 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { navegarEvaluarV2 } from "../../offlineNavigation";
+import {
+  navegarEvaluarV2,
+  preservarBanderaSelectorPreventivoV2,
+} from "../../offlineNavigation";
 import {
   aplicarResultadoMotorV2AReporte,
   evaluarReporteConMotorV2Seguro,
@@ -14,8 +17,12 @@ import {
 } from "../../motor-v2/formularioAdaptativoV2";
 import { construirMapeoRespuestasPreventivas } from "../../motor-v2/mapeoRespuestasPreventivasV2";
 import {
+  construirContextoFingerprintPreventivo,
+  obtenerPreguntasPaso2Preventivo,
   obtenerFormularioPreguntasConFallback,
+  ronda2PreventivaCompleta,
   type ContextoActivacionSelectorPreventivoV2,
+  VERSION_FLUJO_PREVENTIVO,
 } from "../../motor-v2/orquestadorPreguntasPreventivasV2";
 import {
   guardarReporteActualV2,
@@ -100,19 +107,14 @@ function contextoSelectorPreventivoCompletoPaso2(reporte?: ReporteV2 | null): Co
   if (typeof window === "undefined") {
     return {
       entorno,
-      forzarActivacion: Boolean(reporte?.evaluacion?.selector_preventivo_activo),
+      forzarActivacion: reporte?.evaluacion?.flujo_preventivo?.modo === "preventivo",
     };
   }
-
-  const parametros = new URLSearchParams(window.location.search);
 
   return {
     entorno,
     hostname: window.location.hostname,
-    forzarActivacion:
-      Boolean(reporte?.evaluacion?.selector_preventivo_activo) ||
-      parametros.get("ce_selector_preventivo") === "1" ||
-      parametros.get("selector_preventivo") === "1",
+    forzarActivacion: reporte?.evaluacion?.flujo_preventivo?.modo === "preventivo",
   };
 }
 
@@ -145,17 +147,25 @@ export default function EvaluacionPaso2V2Page() {
         respuestas,
       })
     : null;
-  const selectorPreventivoActivo = formularioConFallback?.modo === "preventivo";
+  const fingerprintActual = reporte
+    ? construirContextoFingerprintPreventivo(reporte, respuestas)
+    : "";
+  const flujoPreventivo = reporte?.evaluacion?.flujo_preventivo;
+  const selectorPreventivoActivo =
+    formularioConFallback?.modo === "preventivo" &&
+    flujoPreventivo?.version === VERSION_FLUJO_PREVENTIVO &&
+    flujoPreventivo?.modo === "preventivo" &&
+    flujoPreventivo?.contextoFingerprint === fingerprintActual;
   const preguntas = selectorPreventivoActivo
-    ? formularioConFallback?.preguntasPaso2 || []
+    ? obtenerPreguntasPaso2Preventivo(reporte as ReporteV2, respuestas)
     : formularioAdaptativo?.preguntas.filter((pregunta) => pregunta.paso === 2) || [];
   const totalPreguntas = selectorPreventivoActivo
-    ? formularioConFallback?.preguntas.length || 0
+    ? preguntas.length
     : formularioAdaptativo?.preguntas.length || 0;
   const preguntasTotales = selectorPreventivoActivo
     ? formularioConFallback?.preguntas || []
     : formularioAdaptativo?.preguntas || [];
-  const respondidasTotal = preguntasTotales.filter((pregunta) => respuestas[pregunta.id]).length;
+  const respondidasTotal = (selectorPreventivoActivo ? preguntas : preguntasTotales).filter((pregunta) => respuestas[pregunta.id]).length;
   const preguntaActual = Math.min(respondidasTotal + 1, Math.max(totalPreguntas, 1));
 
   const seleccionar = (id: string, value: string) => {
@@ -170,9 +180,10 @@ export default function EvaluacionPaso2V2Page() {
     if (navegando) return;
     if (!reporte) return;
 
-    const faltanRespuestas = (formularioAdaptativo?.preguntas || []).some(
-      (pregunta) => !respuestas[pregunta.id]
-    );
+    const preguntasRequeridas = selectorPreventivoActivo ? preguntas : formularioAdaptativo?.preguntas || [];
+    const faltanRespuestas = selectorPreventivoActivo
+      ? !ronda2PreventivaCompleta(preguntas, respuestas)
+      : preguntasRequeridas.some((pregunta) => !respuestas[pregunta.id]);
 
     if (faltanRespuestas) {
       setError("Debes responder todas las preguntas antes de ver el resultado.");
@@ -234,6 +245,13 @@ export default function EvaluacionPaso2V2Page() {
               confianzaMapeo: mapeoPreventivo?.confianzaMapeo,
             }
           : formularioConFallback?.resumen,
+        flujo_preventivo: selectorPreventivoActivo && flujoPreventivo
+          ? {
+              ...flujoPreventivo,
+              estado: "RESULTADO_LISTO" as const,
+              ronda2Completa: true,
+            }
+          : flujoPreventivo,
         ...resultado,
       },
     };
@@ -279,7 +297,7 @@ export default function EvaluacionPaso2V2Page() {
   const renderPregunta = (pregunta: PreguntaFormularioAdaptativaV2) => (
     <section key={pregunta.id} style={cardStyle}>
       <div style={{ fontSize: "12px", opacity: 0.62, marginBottom: "6px" }}>
-        {etiquetaCategoria(pregunta.modulo)}
+        {selectorPreventivoActivo ? "Ronda 2 · Evaluación preventiva" : etiquetaCategoria(pregunta.modulo)}
       </div>
       <div
         style={{
@@ -420,7 +438,7 @@ export default function EvaluacionPaso2V2Page() {
         <EtapasPremium actual={2} />
         <header style={{ marginBottom: "14px" }}>
           <a
-            href={selectorPreventivoActivo ? "/evaluar-v2/evaluacion/paso1?ce_selector_preventivo=1" : "/evaluar-v2/evaluacion/paso1"}
+            href={preservarBanderaSelectorPreventivoV2("/evaluar-v2/evaluacion/paso1")}
             onClick={vibrarOk}
             {...feedbackBoton("volver-paso1")}
             style={{
@@ -446,7 +464,7 @@ export default function EvaluacionPaso2V2Page() {
               No hay reporte disponible
             </div>
             <a
-              href="/evaluar-v2/reportar"
+              href={preservarBanderaSelectorPreventivoV2("/evaluar-v2/reportar")}
               onClick={vibrarOk}
               {...feedbackBoton("sin-reporte")}
               style={{
@@ -537,7 +555,9 @@ export default function EvaluacionPaso2V2Page() {
             >
               {navegando
                 ? "Calculando..."
-                : `Ver resultado (${preguntas.length}/${totalPreguntas})`}
+                : selectorPreventivoActivo
+                  ? `Ver resultado · Ronda 2 (${preguntas.length}/${totalPreguntas})`
+                  : `Ver resultado (${preguntas.length}/${totalPreguntas})`}
             </button>
             <AutoGuardadoPremium />
           </>

@@ -29,6 +29,7 @@ export type TipoRespuestaPreventivaId =
   | "exposicion"
   | "consecuencia_probable"
   | "control_existente"
+  | "decision_operacional"
   | "aplicabilidad_documental"
   | "accion_inmediata"
   | "evidencia"
@@ -120,7 +121,7 @@ export const TIPOS_RESPUESTA_PREVENTIVA: TipoRespuestaPreventiva[] = [
   { id: "texto_breve", nombre: "Texto breve", requiereOpciones: false, opciones: [] },
   { id: "seleccion_unica", nombre: "Seleccion unica", requiereOpciones: true, opciones: opciones(["Opcion principal", "Otra opcion", "No verificable"]) },
   { id: "seleccion_multiple", nombre: "Seleccion multiple", requiereOpciones: true, opciones: opciones(["Una condicion", "Mas de una condicion", "No verificable"]) },
-  { id: "si_no_no_verificable", nombre: "Si, no o no verificable", requiereOpciones: true, opciones: opciones(["Si", "No", "No verificable"]) },
+  { id: "si_no_no_verificable", nombre: "Si, no o no verificable", requiereOpciones: true, opciones: opciones(["Si", "No", "No verificable", "No aplica"]) },
   { id: "cumplimiento", nombre: "Cumplimiento", requiereOpciones: true, opciones: opciones(["Cumple", "Cumple parcialmente", "No cumple", "No aplica", "No verificable"]) },
   { id: "estado_equipo", nombre: "Estado de equipo", requiereOpciones: true, opciones: opciones(["Operativo y vigente", "Operativo con observacion", "Deteriorado", "Vencido o sin mantencion", "No verificable"]) },
   { id: "ambito_general", nombre: "Ambito general", requiereOpciones: true, opciones: opciones(["Seguridad de trabajadores", "Medio ambiente", "Dano material/equipo/infraestructura", "Documental/legal", "Operacional", "Mas de uno", "No verificable"]) },
@@ -128,6 +129,7 @@ export const TIPOS_RESPUESTA_PREVENTIVA: TipoRespuestaPreventiva[] = [
   { id: "exposicion", nombre: "Exposicion", requiereOpciones: true, opciones: opciones(["Trabajadores", "Terceros", "Maquinaria/equipos", "Infraestructura", "Medio ambiente", "Mas de uno", "No verificable"]) },
   { id: "consecuencia_probable", nombre: "Consecuencia probable", requiereOpciones: true, opciones: opciones(["Lesion a personas", "Dano material", "Impacto ambiental", "Interrupcion operacional", "Incumplimiento documental", "Mas de una consecuencia", "No verificable"]) },
   { id: "control_existente", nombre: "Control existente", requiereOpciones: true, opciones: opciones(["Si, control suficiente", "Si, control parcial", "No existe control visible", "No verificable", "No aplica"]) },
+  { id: "decision_operacional", nombre: "Decision operacional", requiereOpciones: true, opciones: opciones(["Si, detener o aislar inmediatamente", "No, existe control suficiente", "No verificable", "No aplica"]) },
   { id: "aplicabilidad_documental", nombre: "Aplicabilidad documental", requiereOpciones: true, opciones: opciones(["Documento habilitante requerido", "Respaldo administrativo requerido", "No corresponde documentacion formal", "No verificable"]) },
   { id: "accion_inmediata", nombre: "Accion inmediata", requiereOpciones: true, opciones: opciones(["Retirar", "Reparar", "Segregar", "Senalizar", "Bloquear", "Detener actividad", "Contener derrame", "Regularizar documentacion", "No verificable"]) },
   { id: "evidencia", nombre: "Evidencia", requiereOpciones: true, opciones: opciones(["Evidencia suficiente", "Evidencia parcial", "Sin evidencia", "No verificable"]) },
@@ -411,7 +413,7 @@ const DOCUMENTOS_PREGUNTA: Array<{ documento: DocumentoPreventivoAplicable; text
   { documento: "senalizacion_segregacion", texto: "¿La senalizacion o segregacion impide exposicion no autorizada?" },
   { documento: "retiro_inmediato", texto: "¿La condicion puede controlarse mediante retiro inmediato?" },
   { documento: "bloqueo_loto", texto: "¿Se requiere bloqueo o energia cero antes de intervenir?" },
-  { documento: "detencion_actividad", texto: "¿La condicion exige detener la actividad hasta controlar el riesgo?" },
+  { documento: "detencion_actividad", texto: "¿Corresponde detener o aislar la actividad hasta controlar el riesgo?" },
   { documento: "control_ambiental", texto: "¿Existe control ambiental suficiente para contener el impacto?" },
 ];
 
@@ -422,25 +424,78 @@ const PREGUNTAS_DOCUMENTALES: PreguntaPreventivaTipada[] = [
   { documento: "permiso_autorizacion" as DocumentoPreventivoAplicable, texto: "¿La autorizacion define responsable y vigencia del control?" },
   { documento: "matriz_riesgos" as DocumentoPreventivoAplicable, texto: "¿La condicion requiere actualizar la matriz antes del cierre?" },
   { documento: "evidencia_registro" as DocumentoPreventivoAplicable, texto: "¿El respaldo disponible permite verificar cierre preventivo?" },
-].map((item, index) =>
-  pregunta({
+].map((item, index) => {
+  const esDecisionOperacional = item.documento === "detencion_actividad";
+  const esControlOperacional =
+    item.documento === "senalizacion_segregacion" ||
+    item.documento === "control_ambiental";
+  const esAccionOperacional = item.documento === "retiro_inmediato";
+  const esDecisionBinaria = item.documento === "bloqueo_loto";
+  const esEvidenciaOperacional = item.documento === "evidencia_registro";
+  const tipoRespuesta = esDecisionOperacional
+    ? "decision_operacional"
+    : esControlOperacional
+      ? "control_existente"
+      : esAccionOperacional
+        ? "accion_inmediata"
+        : esDecisionBinaria
+          ? "si_no_no_verificable"
+          : esEvidenciaOperacional
+            ? "evidencia"
+          : "aplicabilidad_documental";
+  const fasePregunta = esDecisionOperacional || esAccionOperacional || esDecisionBinaria
+    ? "accion_inmediata"
+    : esControlOperacional
+      ? "control_faltante"
+      : esEvidenciaOperacional
+        ? "evidencia_cierre"
+      : "aplicabilidad_documental";
+
+  return pregunta({
     id: `documental_${item.documento}_${index + 1}`,
     texto: item.texto,
-    objetivoTecnico: "Verificar aplicabilidad documental sin elevar respaldos administrativos simples.",
-    fasePregunta: "aplicabilidad_documental",
-    tipoRespuesta: "aplicabilidad_documental",
-    datoCapturado: `documento_${item.documento}`,
-    familiasPreventivas: ["documental_legal"],
+    objetivoTecnico: esDecisionOperacional
+      ? "Definir si corresponde detener, aislar o continuar solo con control suficiente."
+      : esControlOperacional
+        ? "Verificar si el control operacional observado reduce la exposición."
+        : esAccionOperacional || esDecisionBinaria
+          ? "Definir acción inmediata o condición operativa antes de continuar."
+          : esEvidenciaOperacional
+            ? "Verificar si existe evidencia suficiente para respaldar el hallazgo o su cierre."
+      : "Verificar aplicabilidad documental sin elevar respaldos administrativos simples.",
+    fasePregunta,
+    tipoRespuesta,
+    datoCapturado: esDecisionOperacional
+      ? "decision_detencion_actividad"
+      : esControlOperacional
+        ? `control_${item.documento}`
+        : esAccionOperacional
+          ? "accion_retiro_inmediato"
+          : esDecisionBinaria
+            ? "decision_bloqueo_loto"
+            : esEvidenciaOperacional
+              ? "evidencia_registro"
+      : `documento_${item.documento}`,
+    familiasPreventivas:
+      esDecisionOperacional || esControlOperacional || esAccionOperacional || esDecisionBinaria || esEvidenciaOperacional
+        ? ["seguridad_trabajadores"]
+        : ["documental_legal"],
     actividadesObra: [],
-    desviacionesPreventivas: ["omision_documental"],
+    desviacionesPreventivas: esDecisionOperacional || esDecisionBinaria
+      ? ["incumplimiento_control_critico"]
+      : ["omision_documental"],
     documentosRelacionados: [item.documento],
     prioridad: 500 - index,
     obligatoria: false,
     aclaratoria: false,
-    documental: true,
-    erroresEvitados: ["Evitar preguntar por documentacion no aplicable."],
-  }),
-);
+    documental: !(esDecisionOperacional || esControlOperacional || esAccionOperacional || esDecisionBinaria || esEvidenciaOperacional),
+    erroresEvitados: esDecisionOperacional || esControlOperacional || esAccionOperacional || esDecisionBinaria
+      ? ["Evitar mezclar decisiones o controles operacionales con opciones documentales."]
+      : esEvidenciaOperacional
+        ? ["Evitar mezclar evidencia de cierre con opciones documentales."]
+      : ["Evitar preguntar por documentacion no aplicable."],
+  });
+});
 
 const PREGUNTAS_DESVIACION: PreguntaPreventivaTipada[] = DESVIACIONES_BASE.map((desviacion, index) =>
   pregunta({

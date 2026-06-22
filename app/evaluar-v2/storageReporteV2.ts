@@ -143,6 +143,39 @@ export type SelectorPreventivoActivacionV2Storage = {
   riesgoSubdocumentacion?: boolean;
 };
 
+export type EstadoFlujoPreventivoStorage =
+  | "INICIO"
+  | "RONDA_1_PENDIENTE"
+  | "RONDA_1_COMPLETA"
+  | "CLASIFICANDO"
+  | "RONDA_2_LISTA"
+  | "RONDA_2_PENDIENTE"
+  | "RONDA_2_COMPLETA"
+  | "RESULTADO_LISTO"
+  | "FALLBACK_COMPLETO";
+
+export type FlujoPreventivoV2Storage = {
+  version: "preventivo_rondas_v1";
+  modo: "preventivo" | "fallback_actual";
+  estado: EstadoFlujoPreventivoStorage;
+  contextoFingerprint: string;
+  familiaPrincipal?: string;
+  familiaSecundariaCritica?: string;
+  confianzaFamilia?: "alta" | "media" | "baja";
+  claseCaso?:
+    | "simple"
+    | "critico"
+    | "ambiental"
+    | "documental"
+    | "salud"
+    | "general"
+    | "critico_multiple";
+  ronda1Completa: boolean;
+  ronda2Completa: boolean;
+  requiereHallazgoSeparado?: boolean;
+  idsPlantilla?: string[];
+};
+
 export type ReporteV2Storage = {
   offlineId?: string;
   scopeLocal?: string;
@@ -193,6 +226,7 @@ export type ReporteV2Storage = {
     selector_preventivo_activo?: boolean;
     selector_preventivo_modo?: "preventivo" | "fallback_actual";
     selector_preventivo_resumen?: SelectorPreventivoActivacionV2Storage;
+    flujo_preventivo?: FlujoPreventivoV2Storage;
   } & EvaluacionMotorV2Storage;
   cierre?: Record<string, unknown>;
   asignacionCierre?: Record<string, unknown>;
