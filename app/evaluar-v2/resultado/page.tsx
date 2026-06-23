@@ -8,6 +8,13 @@ import {
   evaluarReporteConMotorV2Seguro,
 } from "../motor-v2/adaptadorMotorV2";
 import {
+  construirContextoFingerprintPreventivo,
+  obtenerPreguntasPaso1Preventivo,
+  obtenerPreguntasPaso2Preventivo,
+  ronda2PreventivaCompleta,
+  VERSION_FLUJO_PREVENTIVO,
+} from "../motor-v2/orquestadorPreguntasPreventivasV2";
+import {
   guardarReporteActualV2,
   hidratarReporteConEvidenciasLocalesV2,
   leerReporteActualV2,
@@ -179,17 +186,18 @@ function obtenerEvaluacionVisual(reporte: ReporteV2) {
 }
 
 function etiquetaAmbito(valor?: string) {
-  if (valor === "seguridad_laboral") return "Seguridad laboral";
-  if (valor === "salud_ocupacional") return "Salud ocupacional";
-  if (valor === "medio_ambiente") return "Medio ambiente";
-  if (valor === "legal_documental") return "Legal/documental";
-  if (valor === "emergencia") return "Emergencia";
-  if (valor === "mixto") return "Mixto";
-  return "No determinado";
+  return valor ? normalizarEtiquetaPreventivaVisible(valor) : "No determinado";
 }
 
-function etiquetaCategoria(valor?: string) {
+function normalizarEtiquetaPreventivaVisible(valor: string) {
   const etiquetas: Record<string, string> = {
+    seguridad_laboral: "Seguridad laboral",
+    salud_ocupacional: "Salud ocupacional",
+    medio_ambiente: "Medio ambiente",
+    legal_documental: "Legal/documental",
+    emergencia: "Emergencia",
+    mixto: "Mixto",
+    aspecto_ambiental: "Aspecto ambiental",
     caida_altura: "Caída de altura",
     transito_caida_mismo_nivel: "Caída al mismo nivel",
     condicion_subestandar: "Condición subestándar",
@@ -197,7 +205,6 @@ function etiquetaCategoria(valor?: string) {
     incendio_emergencia: "Incendio o emergencia",
     equipos_emergencia: "Equipo de emergencia",
     documental_legal: "Documental/legal",
-    legal_documental: "Documental/legal",
     derrame_fuga: "Derrame o fuga",
     sustancias_peligrosas: "Sustancias peligrosas",
     herramientas_equipos: "Herramientas/equipos",
@@ -205,13 +212,19 @@ function etiquetaCategoria(valor?: string) {
     otro_indeterminado: "Requiere revisión técnica",
   };
 
+  return (
+    etiquetas[valor] ||
+    valor
+      .split("_")
+      .filter(Boolean)
+      .map((parte) => parte.charAt(0).toUpperCase() + parte.slice(1))
+      .join(" ")
+  );
+}
+
+function etiquetaCategoria(valor?: string) {
   return valor
-    ? etiquetas[valor] ||
-        valor
-          .split("_")
-          .filter(Boolean)
-          .map((parte) => parte.charAt(0).toUpperCase() + parte.slice(1))
-          .join(" ")
+    ? normalizarEtiquetaPreventivaVisible(valor)
     : "No determinada";
 }
 
@@ -222,6 +235,7 @@ function etiquetaTipoEvento(valor?: string) {
     cuasi_accidente: "Incidente sin lesión",
     accidente: "Accidente",
     ambiental: "Evento ambiental",
+    aspecto_ambiental: "Aspecto ambiental",
     documental: "Brecha documental",
     otro: "No determinado",
   };
@@ -239,10 +253,17 @@ function limpiarTextoVisible(valor?: string) {
     .replace(/fallback/gi, "respaldo operativo")
     .replace(/shadow/gi, "validación interna")
     .replace(/preview/gi, "validación interna")
+    .replace(/\baspecto_ambiental\b/g, "Aspecto ambiental")
+    .replace(/\bmedio_ambiente\b/g, "Medio ambiente")
+    .replace(/\bcondicion_subestandar\b/g, "Condición subestándar")
+    .replace(/\bderrame_fuga\b/g, "Derrame o fuga")
     .replace(/Base\s+CR[IÍ]TICO;?\s*final\s+CR[IÍ]TICO\.?/gi, "Nivel de criticidad: Crítico.")
     .replace(/Base\s+ALTO;?\s*final\s+ALTO\.?/gi, "Nivel de criticidad: Alto.")
     .replace(/Base\s+MEDIO;?\s*final\s+MEDIO\.?/gi, "Nivel de criticidad: Medio.")
-    .replace(/Base\s+BAJO;?\s*final\s+BAJO\.?/gi, "Nivel de criticidad: Bajo.");
+    .replace(/Base\s+BAJO;?\s*final\s+BAJO\.?/gi, "Nivel de criticidad: Bajo.")
+    .replace(/\b[a-z]+(?:_[a-z0-9]+)+\b/g, (coincidencia) =>
+      normalizarEtiquetaPreventivaVisible(coincidencia)
+    );
 }
 
 function etiquetaSuficiencia(valor?: string) {
@@ -292,6 +313,40 @@ function normativaResumen(normativa: NonNullable<ReporteV2["evaluacion"]>["norma
 function listaResumen(items?: string[]) {
   if (!Array.isArray(items) || items.length === 0) return "Sin señales declaradas.";
   return items.slice(0, 4).map((item) => limpiarTextoVisible(item)).join(" · ");
+}
+
+function valorRespuestaPreventiva(
+  reporte: ReporteV2,
+  respuestas: Record<string, string>,
+  id: string
+) {
+  if (id === "transversal_anclaje_riesgo_especifico") {
+    return respuestas[id] || reporte.evaluacion?.riesgo_especifico_detectado || "";
+  }
+
+  return respuestas[id] || "";
+}
+
+function flujoPreventivoListoParaResultado(reporte: ReporteV2) {
+  const flujo = reporte.evaluacion?.flujo_preventivo;
+  if (flujo?.modo !== "preventivo") return true;
+  if (flujo.version !== VERSION_FLUJO_PREVENTIVO) return false;
+  if (flujo.ronda1Completa !== true || flujo.ronda2Completa !== true) return false;
+  if (!flujo.familiaPrincipal) return false;
+
+  const respuestas = reporte.evaluacion?.respuestas || {};
+  const fingerprintActual = construirContextoFingerprintPreventivo(reporte, respuestas);
+  if (flujo.contextoFingerprint !== fingerprintActual) return false;
+
+  const preguntasPaso1 = obtenerPreguntasPaso1Preventivo();
+  const preguntasPaso2 = obtenerPreguntasPaso2Preventivo(reporte, respuestas);
+  const ronda1Completa =
+    preguntasPaso1.length === 5 &&
+    preguntasPaso1.every((pregunta) =>
+      Boolean(valorRespuestaPreventiva(reporte, respuestas, pregunta.id).trim())
+    );
+
+  return ronda1Completa && ronda2PreventivaCompleta(preguntasPaso2, respuestas);
 }
 
 function obtenerEstiloCriticidad(criticidad: string) {
@@ -349,6 +404,11 @@ export default function ResultadoV2Page() {
 
       if (!activo) return;
       const reporteHidratado = hidratado as ReporteV2 | null;
+      if (reporteHidratado && !flujoPreventivoListoParaResultado(reporteHidratado)) {
+        navegarEvaluarV2(router, "/evaluar-v2/evaluacion/paso2?ce_selector_preventivo=1");
+        return;
+      }
+
       const reporteEvaluado = reporteHidratado
         ? aplicarResultadoMotorV2AReporte(
             reporteHidratado,
@@ -368,7 +428,7 @@ export default function ResultadoV2Page() {
       activo = false;
       window.cancelAnimationFrame(frameId);
     };
-  }, []);
+  }, [router]);
 
   const feedbackBoton = (id: string) => ({
     onPointerDown: () => setBotonActivo(id),

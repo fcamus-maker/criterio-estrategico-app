@@ -175,6 +175,9 @@ export default function EvaluacionPaso1V2Page() {
     (pregunta) => respuestas[pregunta.id]
   ).length;
   const preguntaActual = Math.min(respondidasTotal + 1, Math.max(totalPreguntas, 1));
+  const ronda1Completa = selectorPreventivoActivo
+    ? preguntas.length === 5 && respondidasTotal === 5
+    : false;
 
   const seleccionar = (id: string, value: string) => {
     setRespuestas((actuales) => ({
@@ -549,24 +552,24 @@ export default function EvaluacionPaso1V2Page() {
             <button
               type="button"
               onClick={continuar}
-              disabled={navegando}
+              disabled={navegando || (selectorPreventivoActivo && !ronda1Completa)}
               {...feedbackBoton("continuar")}
               style={{
                 ...buttonStyle,
                 color: "white",
-                background: navegando
+                background: navegando || (selectorPreventivoActivo && !ronda1Completa)
                   ? "rgba(255,255,255,0.18)"
                   : "linear-gradient(180deg, #2593ff 0%, #145ee9 48%, #07339b 100%)",
                 boxShadow:
                   "0 20px 36px rgba(15,94,255,0.42), inset 0 1px 0 rgba(255,255,255,0.30), inset 0 -10px 24px rgba(0,18,94,0.30)",
-                opacity: navegando ? 0.72 : 1,
+                opacity: navegando || (selectorPreventivoActivo && !ronda1Completa) ? 0.72 : 1,
                 ...estiloFeedback("continuar"),
               }}
             >
               {navegando
                 ? "Continuando..."
                 : selectorPreventivoActivo
-                  ? `Continuar evaluación · Ronda 1 (${preguntas.length}/${totalPreguntas})`
+                  ? `Continuar evaluación (${respondidasTotal}/${totalPreguntas})`
                   : `Continuar evaluación (${preguntas.length}/${totalPreguntas})`}
             </button>
             <AutoGuardadoPremium />
