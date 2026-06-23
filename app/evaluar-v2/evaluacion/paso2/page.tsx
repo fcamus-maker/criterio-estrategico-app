@@ -18,9 +18,11 @@ import {
 import { construirMapeoRespuestasPreventivas } from "../../motor-v2/mapeoRespuestasPreventivasV2";
 import {
   construirContextoFingerprintPreventivo,
+  construirFlujoPreventivoTrasRonda1,
   obtenerPreguntasPaso2Preventivo,
   obtenerFormularioPreguntasConFallback,
   ronda2PreventivaCompleta,
+  selectorPreventivoEstaHabilitado,
   type ContextoActivacionSelectorPreventivoV2,
   VERSION_FLUJO_PREVENTIVO,
 } from "../../motor-v2/orquestadorPreguntasPreventivasV2";
@@ -111,10 +113,15 @@ function contextoSelectorPreventivoCompletoPaso2(reporte?: ReporteV2 | null): Co
     };
   }
 
+  const parametros = new URLSearchParams(window.location.search);
+
   return {
     entorno,
     hostname: window.location.hostname,
-    forzarActivacion: reporte?.evaluacion?.flujo_preventivo?.modo === "preventivo",
+    forzarActivacion:
+      reporte?.evaluacion?.flujo_preventivo?.modo === "preventivo" ||
+      parametros.get("ce_selector_preventivo") === "1" ||
+      parametros.get("selector_preventivo") === "1",
   };
 }
 
@@ -139,11 +146,12 @@ export default function EvaluacionPaso2V2Page() {
   }, []);
 
   const formularioAdaptativo = reporte ? obtenerFormularioAdaptativoV2(reporte) : null;
+  const contextoSelectorPreventivo = contextoSelectorPreventivoCompletoPaso2(reporte);
   const formularioConFallback = reporte
     ? obtenerFormularioPreguntasConFallback({
         reporte,
         formularioActual: formularioAdaptativo,
-        contexto: contextoSelectorPreventivoCompletoPaso2(reporte),
+        contexto: contextoSelectorPreventivo,
         respuestas,
       })
     : null;
@@ -151,22 +159,50 @@ export default function EvaluacionPaso2V2Page() {
     ? construirContextoFingerprintPreventivo(reporte, respuestas)
     : "";
   const flujoPreventivo = reporte?.evaluacion?.flujo_preventivo;
-  const selectorPreventivoActivo =
-    formularioConFallback?.modo === "preventivo" &&
+  const selectorPreventivoSolicitado =
+    selectorPreventivoEstaHabilitado(contextoSelectorPreventivo) ||
+    flujoPreventivo?.modo === "preventivo";
+  const preparacionFlujoPreventivo =
+    reporte && selectorPreventivoSolicitado
+      ? construirFlujoPreventivoTrasRonda1(reporte, respuestas)
+      : null;
+  const flujoPreventivoVigente =
     flujoPreventivo?.version === VERSION_FLUJO_PREVENTIVO &&
     flujoPreventivo?.modo === "preventivo" &&
-    flujoPreventivo?.contextoFingerprint === fingerprintActual;
-  const preguntas = selectorPreventivoActivo
+    flujoPreventivo?.contextoFingerprint === fingerprintActual
+      ? flujoPreventivo
+      : preparacionFlujoPreventivo?.flujo;
+  const preguntasPreventivasPaso2 = reporte
     ? obtenerPreguntasPaso2Preventivo(reporte as ReporteV2, respuestas)
+    : [];
+  const selectorPreventivoActivo =
+    selectorPreventivoSolicitado &&
+    formularioConFallback?.modo === "preventivo" &&
+    flujoPreventivoVigente?.version === VERSION_FLUJO_PREVENTIVO &&
+    flujoPreventivoVigente?.modo === "preventivo" &&
+    flujoPreventivoVigente?.ronda1Completa === true &&
+    flujoPreventivoVigente?.contextoFingerprint === fingerprintActual &&
+    preguntasPreventivasPaso2.length === 5;
+  const preguntas = selectorPreventivoActivo
+    ? preguntasPreventivasPaso2
+    : selectorPreventivoSolicitado
+      ? []
     : formularioAdaptativo?.preguntas.filter((pregunta) => pregunta.paso === 2) || [];
   const totalPreguntas = selectorPreventivoActivo
     ? preguntas.length
+    : selectorPreventivoSolicitado
+      ? 5
     : formularioAdaptativo?.preguntas.length || 0;
   const preguntasTotales = selectorPreventivoActivo
     ? formularioConFallback?.preguntas || []
+    : selectorPreventivoSolicitado
+      ? preguntas
     : formularioAdaptativo?.preguntas || [];
   const respondidasTotal = (selectorPreventivoActivo ? preguntas : preguntasTotales).filter((pregunta) => respuestas[pregunta.id]).length;
   const preguntaActual = Math.min(respondidasTotal + 1, Math.max(totalPreguntas, 1));
+  const ronda2Completa = selectorPreventivoActivo
+    ? ronda2PreventivaCompleta(preguntas, respuestas)
+    : false;
 
   const seleccionar = (id: string, value: string) => {
     setRespuestas((actuales) => ({
@@ -180,9 +216,14 @@ export default function EvaluacionPaso2V2Page() {
     if (navegando) return;
     if (!reporte) return;
 
+    if (selectorPreventivoSolicitado && !selectorPreventivoActivo) {
+      setError("No fue posible preparar la Ronda 2 preventiva. Vuelve a Ronda 1 y confirma las respuestas de contexto.");
+      return;
+    }
+
     const preguntasRequeridas = selectorPreventivoActivo ? preguntas : formularioAdaptativo?.preguntas || [];
     const faltanRespuestas = selectorPreventivoActivo
-      ? !ronda2PreventivaCompleta(preguntas, respuestas)
+      ? !ronda2Completa
       : preguntasRequeridas.some((pregunta) => !respuestas[pregunta.id]);
 
     if (faltanRespuestas) {
@@ -247,7 +288,7 @@ export default function EvaluacionPaso2V2Page() {
           : formularioConFallback?.resumen,
         flujo_preventivo: selectorPreventivoActivo && flujoPreventivo
           ? {
-              ...flujoPreventivo,
+              ...flujoPreventivoVigente,
               estado: "RESULTADO_LISTO" as const,
               ronda2Completa: true,
             }
@@ -433,7 +474,7 @@ export default function EvaluacionPaso2V2Page() {
       <div style={containerStyle}>
         <HeaderReportePremium
           subtitulo="Evaluación preventiva"
-          detalle="Ronda enfocada según señales y respuestas registradas."
+          detalle={selectorPreventivoSolicitado ? "Ronda 2 · Evaluación preventiva" : "Ronda enfocada según señales y respuestas registradas."}
         />
         <EtapasPremium actual={2} />
         <header style={{ marginBottom: "14px" }}>
@@ -490,7 +531,7 @@ export default function EvaluacionPaso2V2Page() {
                 actual={preguntaActual}
                 total={totalPreguntas || preguntas.length}
                 respondidas={respondidasTotal}
-                detalle="Ronda enfocada"
+                detalle={selectorPreventivoSolicitado ? "Ronda 2" : "Ronda enfocada"}
               />
               <div style={{ fontSize: "12px", opacity: 0.65 }}>Reporte</div>
               <div style={{ fontSize: "18px", fontWeight: 900 }}>
@@ -499,7 +540,7 @@ export default function EvaluacionPaso2V2Page() {
               <div style={{ marginTop: "6px", fontSize: "14px", opacity: 0.78 }}>
                 {reporte.area || "Sin área"} · {reporte.empresa || "Sin empresa"}
               </div>
-              {formularioAdaptativo && !selectorPreventivoActivo && (
+              {formularioAdaptativo && !selectorPreventivoActivo && !selectorPreventivoSolicitado && (
                 <div
                   style={{
                     marginTop: "12px",
@@ -521,6 +562,19 @@ export default function EvaluacionPaso2V2Page() {
               )}
             </section>
 
+            {selectorPreventivoSolicitado && !selectorPreventivoActivo && (
+              <section
+                style={{
+                  ...cardStyle,
+                  background: "rgba(239,68,68,0.16)",
+                  border: "1px solid rgba(239,68,68,0.35)",
+                  fontWeight: 900,
+                }}
+              >
+                No fue posible preparar la Ronda 2 preventiva con cinco preguntas válidas. Vuelve a Ronda 1 y confirma el contexto antes de ver el resultado.
+              </section>
+            )}
+
             {preguntas.map(renderPregunta)}
 
             {error && (
@@ -539,24 +593,24 @@ export default function EvaluacionPaso2V2Page() {
             <button
               type="button"
               onClick={finalizar}
-              disabled={navegando}
+              disabled={navegando || (selectorPreventivoActivo && !ronda2Completa) || (selectorPreventivoSolicitado && !selectorPreventivoActivo)}
               {...feedbackBoton("ver-resultado")}
               style={{
                 ...buttonStyle,
                 color: "white",
-                background: navegando
+                background: navegando || (selectorPreventivoActivo && !ronda2Completa) || (selectorPreventivoSolicitado && !selectorPreventivoActivo)
                   ? "rgba(255,255,255,0.18)"
                   : "linear-gradient(180deg, #2593ff 0%, #145ee9 48%, #07339b 100%)",
                 boxShadow:
                   "0 20px 36px rgba(15,94,255,0.42), inset 0 1px 0 rgba(255,255,255,0.30), inset 0 -10px 24px rgba(0,18,94,0.30)",
-                opacity: navegando ? 0.72 : 1,
+                opacity: navegando || (selectorPreventivoActivo && !ronda2Completa) || (selectorPreventivoSolicitado && !selectorPreventivoActivo) ? 0.72 : 1,
                 ...estiloFeedback("ver-resultado"),
               }}
             >
               {navegando
                 ? "Calculando..."
                 : selectorPreventivoActivo
-                  ? `Ver resultado · Ronda 2 (${preguntas.length}/${totalPreguntas})`
+                  ? `Ver resultado (${respondidasTotal}/${totalPreguntas})`
                   : `Ver resultado (${preguntas.length}/${totalPreguntas})`}
             </button>
             <AutoGuardadoPremium />
