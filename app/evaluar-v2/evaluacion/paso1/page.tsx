@@ -679,8 +679,6 @@ export default function EvaluacionPaso1V2Page() {
     respuestaPregunta?: RespuestaUniversalV1
   ) => {
     const seleccionada = Boolean(respuestaPregunta?.opcionIds?.includes(opcion.id));
-    const esMultiple = pregunta.tipo === "seleccion_multiple";
-
     return (
       <div key={opcion.id}>
         <button
@@ -706,7 +704,7 @@ export default function EvaluacionPaso1V2Page() {
             style={{
               width: "22px",
               height: "22px",
-              borderRadius: esMultiple ? "7px" : "999px",
+              borderRadius: "8px",
               border: seleccionada
                 ? "2px solid rgba(57,255,20,0.95)"
                 : "2px solid rgba(183,196,216,0.74)",
@@ -777,7 +775,7 @@ export default function EvaluacionPaso1V2Page() {
                 paddingBottom: "12px",
               }}
             >
-              <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                 <button
                   type="button"
                   onClick={() => navegarEvaluarV2(router, "/evaluar-v2/reportar")}
@@ -797,11 +795,11 @@ export default function EvaluacionPaso1V2Page() {
                   ‹
                 </button>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: "24px", fontWeight: 900, lineHeight: 1.05 }}>
-                    Matriz universal
+                  <div style={{ fontSize: "24px", fontWeight: 900, lineHeight: 1.08 }}>
+                    Evaluación preventiva
                   </div>
                   <div style={{ fontSize: "14px", color: "rgba(255,255,255,0.74)", marginTop: "5px", lineHeight: 1.35 }}>
-                    Completa las 12 preguntas para generar el análisis preventivo.
+                    Completa las 12 preguntas para generar el análisis del hallazgo.
                   </div>
                 </div>
                 <div
@@ -842,7 +840,7 @@ export default function EvaluacionPaso1V2Page() {
               </div>
             </header>
 
-            {!cargado && <section style={matrizCardStyle}>Cargando matriz universal...</section>}
+            {!cargado && <section style={matrizCardStyle}>Cargando evaluación preventiva...</section>}
 
             {cargado && !reporte && (
               <section style={matrizCardStyle}>

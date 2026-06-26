@@ -693,7 +693,7 @@ export default function InformeFinalV2Page() {
                   marginBottom: "12px",
                 }}
               >
-                Informe final · Matriz universal
+                Informe final preventivo
               </div>
               <h1 style={{ margin: 0, fontSize: "25px", lineHeight: 1.08, fontWeight: 900 }}>
                 Informe preventivo

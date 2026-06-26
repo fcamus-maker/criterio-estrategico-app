@@ -599,7 +599,7 @@ export default function ResultadoV2Page() {
                 ...estiloFeedback("volver-matriz"),
               }}
             >
-              Volver a matriz universal
+              Volver a evaluación
             </a>
             <section style={cardStyle}>
               <div
@@ -621,7 +621,7 @@ export default function ResultadoV2Page() {
                 Resultado del hallazgo
               </h1>
               <p style={{ margin: "10px 0 0", color: "rgba(221,240,255,0.76)", fontSize: "14px", lineHeight: 1.45, fontWeight: 700 }}>
-                Análisis generado desde la Matriz Universal de 12 preguntas.
+                Análisis generado desde 12 respuestas preventivas.
               </p>
             </section>
           </header>
@@ -864,7 +864,7 @@ export default function ResultadoV2Page() {
                   ...estiloFeedback("volver-evaluacion"),
                 }}
               >
-                {matrizUniversalVisualActiva ? "Volver a matriz universal" : "Volver a evaluación"}
+                Volver a evaluación
               </a>
               <button
                 type="button"

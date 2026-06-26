@@ -670,7 +670,7 @@ export default function ReportarV2Page() {
                   marginBottom: "12px",
                 }}
               >
-                Matriz universal · 12 preguntas fijas
+                Evaluación preventiva · 12 preguntas
               </div>
               <h1
                 style={{
@@ -692,7 +692,7 @@ export default function ReportarV2Page() {
                   fontWeight: 700,
                 }}
               >
-                Registra el contexto inicial. Luego completarás una matriz fija para generar un diagnóstico preventivo claro.
+                Registra el contexto inicial. Luego responderás una evaluación guiada para generar un diagnóstico preventivo claro.
               </p>
             </section>
           </header>
