@@ -15,6 +15,15 @@ import {
   VERSION_FLUJO_PREVENTIVO,
 } from "../motor-v2/orquestadorPreguntasPreventivasV2";
 import {
+  aplicarResultadoMatrizUniversalACompatibilidadV2,
+  clasificarMatrizUniversalV1,
+} from "../motor-v2/clasificadorMatrizUniversalV1";
+import {
+  construirVectorUniversalV1,
+  detectarContradiccionesMatrizUniversalV1,
+  matrizUniversalCompletaV1,
+} from "../motor-v2/validacionMatrizUniversalV1";
+import {
   guardarReporteActualV2,
   hidratarReporteConEvidenciasLocalesV2,
   leerReporteActualV2,
@@ -349,6 +358,41 @@ function flujoPreventivoListoParaResultado(reporte: ReporteV2) {
   return ronda1Completa && ronda2PreventivaCompleta(preguntasPaso2, respuestas);
 }
 
+function matrizUniversalSolicitadaResultado(reporte?: ReporteV2 | null) {
+  if (reporte?.evaluacion?.matriz_universal?.activa) return true;
+  if (typeof window === "undefined") return false;
+  return new URLSearchParams(window.location.search).get("ce_matriz_universal") === "1";
+}
+
+function prepararResultadoMatrizUniversal(reporte: ReporteV2) {
+  const matriz = reporte.evaluacion?.matriz_universal;
+  const respuestas = matriz?.respuestas || {};
+  if (!matriz || matriz.activa !== true || !matrizUniversalCompletaV1(respuestas)) {
+    return null;
+  }
+
+  const resultado =
+    matriz.resultadoClasificacion ||
+    clasificarMatrizUniversalV1(
+      construirVectorUniversalV1(respuestas),
+      detectarContradiccionesMatrizUniversalV1(respuestas)
+    );
+
+  return {
+    ...reporte,
+    descripcion: respuestas.universal_hallazgo?.texto?.trim() || reporte.descripcion,
+    evaluacion: {
+      ...(reporte.evaluacion || {}),
+      ...aplicarResultadoMatrizUniversalACompatibilidadV2(resultado),
+      matriz_universal: {
+        ...matriz,
+        completa: true,
+        resultadoClasificacion: resultado,
+      },
+    },
+  };
+}
+
 function obtenerEstiloCriticidad(criticidad: string) {
   if (criticidad === "CRÍTICO") {
     return {
@@ -393,6 +437,7 @@ export default function ResultadoV2Page() {
   const estiloCriticidad = evaluacionVisual
     ? obtenerEstiloCriticidad(evaluacionVisual.criticidad)
     : null;
+  const matrizUniversalVisualActiva = matrizUniversalSolicitadaResultado(reporte);
 
   useEffect(() => {
     let activo = true;
@@ -404,6 +449,18 @@ export default function ResultadoV2Page() {
 
       if (!activo) return;
       const reporteHidratado = hidratado as ReporteV2 | null;
+      if (reporteHidratado && matrizUniversalSolicitadaResultado(reporteHidratado)) {
+        const reporteMatriz = prepararResultadoMatrizUniversal(reporteHidratado);
+        if (!reporteMatriz) {
+          navegarEvaluarV2(router, "/evaluar-v2/evaluacion/paso1?ce_matriz_universal=1");
+          return;
+        }
+        guardarReporteActualV2(reporteMatriz);
+        setReporte(reporteMatriz);
+        setCargado(true);
+        return;
+      }
+
       if (reporteHidratado && !flujoPreventivoListoParaResultado(reporteHidratado)) {
         navegarEvaluarV2(router, "/evaluar-v2/evaluacion/paso2?ce_selector_preventivo=1");
         return;
@@ -473,11 +530,17 @@ export default function ResultadoV2Page() {
 
   const cardStyle = {
     borderRadius: "18px",
-    background:
-      "linear-gradient(180deg, rgba(22,72,124,0.66), rgba(4,26,60,0.78))",
-    border: "1px solid rgba(151,197,255,0.30)",
+    background: matrizUniversalVisualActiva
+      ? "linear-gradient(180deg, rgba(22,72,124,0.66), rgba(4,26,60,0.78))"
+      : "linear-gradient(180deg, rgba(22,72,124,0.66), rgba(4,26,60,0.78))",
+    color: "white",
+    border: matrizUniversalVisualActiva
+      ? "1px solid rgba(151,197,255,0.30)"
+      : "1px solid rgba(151,197,255,0.30)",
     boxShadow:
-      "0 18px 42px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.11), inset 0 -1px 0 rgba(33,150,243,0.10)",
+      matrizUniversalVisualActiva
+        ? "0 18px 42px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.11), inset 0 -1px 0 rgba(33,150,243,0.10)"
+        : "0 18px 42px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.11), inset 0 -1px 0 rgba(33,150,243,0.10)",
     padding: "14px",
     boxSizing: "border-box" as const,
     maxWidth: "100%",
@@ -504,7 +567,7 @@ export default function ResultadoV2Page() {
 
   const datoStyle = {
     borderRadius: "14px",
-    background: "rgba(255,255,255,0.08)",
+    background: matrizUniversalVisualActiva ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.08)",
     padding: "11px 12px",
     boxSizing: "border-box" as const,
   };
@@ -519,29 +582,78 @@ export default function ResultadoV2Page() {
         }}
       >
       <div style={containerStyle}>
-        <HeaderReportePremium
-          subtitulo="Hallazgo técnico"
-          detalle="Resultado preventivo generado desde respuestas y señales críticas."
-        />
-        <EtapasPremium actual={3} />
+        {matrizUniversalVisualActiva ? (
+          <header style={{ color: "#FFFFFF", marginBottom: "14px", display: "grid", gap: "12px" }}>
+            <a
+              href="/evaluar-v2/evaluacion/paso1?ce_matriz_universal=1"
+              onClick={vibrarOk}
+              {...feedbackBoton("volver-matriz")}
+              style={{
+                color: "white",
+                textDecoration: "none",
+                fontSize: "15px",
+                fontWeight: 800,
+                opacity: 0.9,
+                display: "inline-block",
+                transition: "transform 120ms ease, filter 120ms ease",
+                ...estiloFeedback("volver-matriz"),
+              }}
+            >
+              Volver a matriz universal
+            </a>
+            <section style={cardStyle}>
+              <div
+                style={{
+                  display: "inline-flex",
+                  borderRadius: "999px",
+                  background: "rgba(32,123,255,0.16)",
+                  border: "1px solid rgba(112,182,255,0.34)",
+                  color: "rgba(221,240,255,0.92)",
+                  padding: "6px 10px",
+                  fontSize: "12px",
+                  fontWeight: 900,
+                  marginBottom: "12px",
+                }}
+              >
+                Diagnóstico preventivo
+              </div>
+              <h1 style={{ margin: 0, fontSize: "25px", lineHeight: 1.08, fontWeight: 900 }}>
+                Resultado del hallazgo
+              </h1>
+              <p style={{ margin: "10px 0 0", color: "rgba(221,240,255,0.76)", fontSize: "14px", lineHeight: 1.45, fontWeight: 700 }}>
+                Análisis generado desde la Matriz Universal de 12 preguntas.
+              </p>
+            </section>
+          </header>
+        ) : (
+          <>
+            <HeaderReportePremium
+              subtitulo="Hallazgo técnico"
+              detalle="Resultado preventivo generado desde respuestas y señales críticas."
+            />
+            <EtapasPremium actual={3} />
+          </>
+        )}
         <header style={{ marginBottom: "14px" }}>
-          <a
-            href="/evaluar-v2"
-            onClick={vibrarOk}
-            {...feedbackBoton("inicio")}
-            style={{
-              color: "white",
-              textDecoration: "none",
-              fontSize: "15px",
-              fontWeight: 800,
-              opacity: 0.9,
-              display: "inline-block",
-              transition: "transform 120ms ease, filter 120ms ease",
-              ...estiloFeedback("inicio"),
-            }}
-          >
-            Volver a inicio
-          </a>
+          {!matrizUniversalVisualActiva && (
+            <a
+              href="/evaluar-v2"
+              onClick={vibrarOk}
+              {...feedbackBoton("inicio")}
+              style={{
+                color: "white",
+                textDecoration: "none",
+                fontSize: "15px",
+                fontWeight: 800,
+                opacity: 0.9,
+                display: "inline-block",
+                transition: "transform 120ms ease, filter 120ms ease",
+                ...estiloFeedback("inicio"),
+              }}
+            >
+              Volver a inicio
+            </a>
+          )}
         </header>
 
         {!cargado && (
@@ -737,7 +849,11 @@ export default function ResultadoV2Page() {
 
             <div style={{ display: "grid", gap: "10px" }}>
               <a
-                href="/evaluar-v2/evaluacion/paso2"
+                href={
+                  matrizUniversalVisualActiva
+                    ? "/evaluar-v2/evaluacion/paso1?ce_matriz_universal=1"
+                    : "/evaluar-v2/evaluacion/paso2"
+                }
                 onClick={vibrarOk}
                 {...feedbackBoton("volver-evaluacion")}
                 style={{
@@ -748,13 +864,18 @@ export default function ResultadoV2Page() {
                   ...estiloFeedback("volver-evaluacion"),
                 }}
               >
-                Volver a evaluación
+                {matrizUniversalVisualActiva ? "Volver a matriz universal" : "Volver a evaluación"}
               </a>
               <button
                 type="button"
                 onClick={() => {
                   vibrarOk();
-                  navegarEvaluarV2(router, "/evaluar-v2/informe-final");
+                  navegarEvaluarV2(
+                    router,
+                    matrizUniversalVisualActiva
+                      ? "/evaluar-v2/informe-final?ce_matriz_universal=1"
+                      : "/evaluar-v2/informe-final"
+                  );
                 }}
                 {...feedbackBoton("generar-informe")}
                 style={{
