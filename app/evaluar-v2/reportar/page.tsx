@@ -2,7 +2,11 @@
 
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
-import { navegarEvaluarV2 } from "../offlineNavigation";
+import {
+  matrizUniversalSolicitadaEnUrlV2,
+  navegarEvaluarV2,
+} from "../offlineNavigation";
+import { ESTADO_MATRIZ_UNIVERSAL_INICIAL_V1 } from "../motor-v2/esquemasRespuestasUniversalesV1";
 import {
   cargarHistorialLivianoV2,
   crearScopeLocalReporteV2,
@@ -458,6 +462,7 @@ export default function ReportarV2Page() {
       obtenerTotalHistorial(supervisor) + 1
     );
     const scopeLocal = scopeDesdeSupervisor(supervisor);
+    const matrizUniversalActiva = matrizUniversalSolicitadaEnUrlV2();
 
     const reporteV2 = {
       scopeLocal,
@@ -491,6 +496,14 @@ export default function ReportarV2Page() {
       gps: gpsReporte,
       estadoValidacion: "validado",
       mensajeValidacion: "Reporte válido para continuar.",
+      evaluacion: matrizUniversalActiva
+        ? {
+            matriz_universal: {
+              ...ESTADO_MATRIZ_UNIVERSAL_INICIAL_V1,
+              respuestas: {},
+            },
+          }
+        : undefined,
     };
 
     const reportePreparado = await prepararReporteConEvidenciasLocalesV2(reporteV2);
@@ -600,6 +613,7 @@ export default function ReportarV2Page() {
     opacity: 0.72,
     marginBottom: "6px",
   };
+  const matrizUniversalVisualActiva = matrizUniversalSolicitadaEnUrlV2();
 
   return (
     <>
@@ -612,66 +626,142 @@ export default function ReportarV2Page() {
         }}
       >
       <div style={containerStyle}>
-        <HeaderReportePremium
-          subtitulo="Reporte preventivo"
-          detalle="Evidencia, ubicación, responsable y trazabilidad de terreno."
-        />
-        <EtapasPremium actual={1} />
-        <header style={{ marginBottom: "14px" }}>
-          <a
-            href="/evaluar-v2"
+        {matrizUniversalVisualActiva ? (
+          <header
             style={{
-              color: "white",
-              textDecoration: "none",
-              fontSize: "15px",
-              fontWeight: 800,
-              opacity: 0.9,
+              marginBottom: "14px",
+              display: "grid",
+              gap: "12px",
             }}
           >
-            Volver a inicio
-          </a>
-          <h1
-            style={{
-              margin: "14px 0 0",
-              fontSize: "25px",
-              lineHeight: 1.08,
-              fontWeight: 900,
-              letterSpacing: "0",
-            }}
-          >
-            REPORTAR HALLAZGO
-          </h1>
-          <div
-            style={{
-              display: "inline-flex",
-              marginTop: "10px",
-              padding: "6px 10px",
-              borderRadius: "999px",
-              background: "rgba(32,123,255,0.16)",
-              border: "1px solid rgba(112,182,255,0.34)",
-              color: "rgba(221,240,255,0.92)",
-              fontSize: "11px",
-              lineHeight: 1,
-              fontWeight: 900,
-              letterSpacing: "0",
-            }}
-          >
-            Marco preventivo DS 44 · ITO de terreno
-          </div>
-          <p
-            style={{
-              margin: "10px 0 0",
-              maxWidth: "360px",
-              fontSize: "13px",
-              lineHeight: 1.42,
-              fontWeight: 750,
-              opacity: 0.76,
-            }}
-          >
-            El reporte queda asociado a usuario, fecha, evidencia, ubicación GPS,
-            criticidad y trazabilidad para seguimiento preventivo.
-            </p>
-        </header>
+            <a
+              href="/evaluar-v2?ce_matriz_universal=1"
+              style={{
+                color: "white",
+                textDecoration: "none",
+                fontSize: "15px",
+                fontWeight: 800,
+                opacity: 0.9,
+              }}
+            >
+              Volver a inicio
+            </a>
+            <section
+              style={{
+                ...cardStyle,
+                background:
+                  "linear-gradient(180deg, rgba(22,72,124,0.66), rgba(4,26,60,0.78))",
+                color: "#FFFFFF",
+                border: "1px solid rgba(151,197,255,0.30)",
+                boxShadow:
+                  "0 18px 42px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.11), inset 0 -1px 0 rgba(33,150,243,0.10)",
+              }}
+            >
+              <div
+                style={{
+                  display: "inline-flex",
+                  borderRadius: "999px",
+                  background: "rgba(32,123,255,0.16)",
+                  border: "1px solid rgba(112,182,255,0.34)",
+                  color: "rgba(221,240,255,0.92)",
+                  padding: "6px 10px",
+                  fontSize: "12px",
+                  fontWeight: 900,
+                  marginBottom: "12px",
+                }}
+              >
+                Matriz universal · 12 preguntas fijas
+              </div>
+              <h1
+                style={{
+                  margin: 0,
+                  fontSize: "25px",
+                  lineHeight: 1.08,
+                  fontWeight: 900,
+                  letterSpacing: "0",
+                }}
+              >
+                Nuevo hallazgo
+              </h1>
+              <p
+                style={{
+                  margin: "10px 0 0",
+                  fontSize: "14px",
+                  lineHeight: 1.45,
+                  color: "rgba(221,240,255,0.76)",
+                  fontWeight: 700,
+                }}
+              >
+                Registra el contexto inicial. Luego completarás una matriz fija para generar un diagnóstico preventivo claro.
+              </p>
+            </section>
+          </header>
+        ) : (
+          <>
+            <HeaderReportePremium
+              subtitulo="Reporte preventivo"
+              detalle="Evidencia, ubicación, responsable y trazabilidad de terreno."
+            />
+            <EtapasPremium actual={1} />
+          </>
+        )}
+        {!matrizUniversalVisualActiva && (
+          <header style={{ marginBottom: "14px" }}>
+              <a
+                href="/evaluar-v2"
+                style={{
+                  color: "white",
+                  textDecoration: "none",
+                  fontSize: "15px",
+                  fontWeight: 800,
+                  opacity: 0.9,
+                }}
+              >
+                Volver a inicio
+              </a>
+              <h1
+                style={{
+                  margin: "14px 0 0",
+                  fontSize: "25px",
+                  lineHeight: 1.08,
+                  fontWeight: 900,
+                  letterSpacing: "0",
+                }}
+              >
+                REPORTAR HALLAZGO
+              </h1>
+              <div
+                style={{
+                  display: "inline-flex",
+                  marginTop: "10px",
+                  padding: "6px 10px",
+                  borderRadius: "999px",
+                  background: "rgba(32,123,255,0.16)",
+                  border: "1px solid rgba(112,182,255,0.34)",
+                  color: "rgba(221,240,255,0.92)",
+                  fontSize: "11px",
+                  lineHeight: 1,
+                  fontWeight: 900,
+                  letterSpacing: "0",
+                }}
+              >
+                Marco preventivo DS 44 · ITO de terreno
+              </div>
+              <p
+                style={{
+                  margin: "10px 0 0",
+                  maxWidth: "360px",
+                  fontSize: "13px",
+                  lineHeight: 1.42,
+                  fontWeight: 750,
+                  opacity: 0.76,
+                }}
+              >
+                El reporte queda asociado a usuario, fecha, evidencia, ubicación GPS,
+                criticidad y trazabilidad para seguimiento preventivo.
+              </p>
+          </header>
+        )}
 
         <section
           style={{

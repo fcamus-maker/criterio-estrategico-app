@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  matrizUniversalSolicitadaEnUrlV2,
   navegarEvaluarV2,
   preservarBanderaSelectorPreventivoV2,
 } from "../../offlineNavigation";
@@ -24,6 +25,30 @@ import {
   construirEntradaShadowDesdeReporte,
   ejecutarSelectorPreventivoShadow,
 } from "../../motor-v2/selectorPreventivoShadowV2";
+import {
+  aplicarResultadoMatrizUniversalACompatibilidadV2,
+  clasificarMatrizUniversalV1,
+} from "../../motor-v2/clasificadorMatrizUniversalV1";
+import type {
+  ContradiccionMatrizUniversalV1,
+  RespuestaUniversalV1,
+  ResultadoMatrizUniversalV1,
+} from "../../motor-v2/esquemasRespuestasUniversalesV1";
+import {
+  PREGUNTAS_UNIVERSALES_HALLAZGOS_V1,
+  VERSION_MATRIZ_UNIVERSAL_V1,
+  type PreguntaUniversalHallazgoV1,
+} from "../../motor-v2/preguntasUniversalesHallazgosV1";
+import {
+  actualizarTextoRespuestaUniversalV1,
+  construirVectorUniversalV1,
+  detectarContradiccionesMatrizUniversalV1,
+  matrizUniversalCompletaV1,
+  obtenerPreguntasContradictoriasV1,
+  respuestaUniversalValidaV1,
+  seleccionarOpcionUniversalV1,
+  contarPalabrasMatrizUniversalV1,
+} from "../../motor-v2/validacionMatrizUniversalV1";
 import {
   guardarReporteActualV2,
   leerReporteActualV2,
@@ -100,6 +125,11 @@ function contextoSelectorPreventivoCompletoPaso1(): ContextoActivacionSelectorPr
   };
 }
 
+function matrizUniversalEstaActivaPaso1(reporte?: ReporteV2 | null) {
+  if (reporte?.evaluacion?.matriz_universal?.activa) return true;
+  return matrizUniversalSolicitadaEnUrlV2();
+}
+
 function adjuntarResumenSelectorShadowPaso1(
   reporte: ReporteV2,
   formularioActual: ReturnType<typeof obtenerFormularioAdaptativoV2> | null
@@ -134,25 +164,37 @@ export default function EvaluacionPaso1V2Page() {
   const [error, setError] = useState("");
   const [navegando, setNavegando] = useState(false);
   const [botonActivo, setBotonActivo] = useState("");
+  const [respuestasMatrizUniversal, setRespuestasMatrizUniversal] = useState<
+    Record<string, RespuestaUniversalV1>
+  >({});
+  const [contradiccionesMatrizUniversal, setContradiccionesMatrizUniversal] =
+    useState<ContradiccionMatrizUniversalV1[]>([]);
 
   useEffect(() => {
     const frameId = window.requestAnimationFrame(() => {
       const reporteActual = leerReporteActualV2() as ReporteV2 | null;
       setReporte(reporteActual);
       setRespuestas(reporteActual?.evaluacion?.respuestas || {});
+      setRespuestasMatrizUniversal(
+        reporteActual?.evaluacion?.matriz_universal?.respuestas || {}
+      );
       setCargado(true);
     });
 
     return () => window.cancelAnimationFrame(frameId);
   }, []);
 
-  const formularioAdaptativo = reporte ? obtenerFormularioAdaptativoV2(reporte) : null;
+  const matrizUniversalActiva = matrizUniversalEstaActivaPaso1(reporte);
+  const formularioAdaptativo =
+    reporte && !matrizUniversalActiva ? obtenerFormularioAdaptativoV2(reporte) : null;
   const contextoSelectorPreventivo = contextoSelectorPreventivoCompletoPaso1();
   const preguntasPreventivasPaso1 = obtenerPreguntasPaso1Preventivo();
   const contratoRonda1 = validarContratoRonda1(preguntasPreventivasPaso1);
   const selectorPreventivoActivo =
-    selectorPreventivoEstaHabilitado(contextoSelectorPreventivo) && contratoRonda1.valido;
-  const formularioConFallback = reporte && !selectorPreventivoActivo
+    !matrizUniversalActiva &&
+    selectorPreventivoEstaHabilitado(contextoSelectorPreventivo) &&
+    contratoRonda1.valido;
+  const formularioConFallback = reporte && !selectorPreventivoActivo && !matrizUniversalActiva
     ? obtenerFormularioPreguntasConFallback({
         reporte,
         formularioActual: formularioAdaptativo,
@@ -198,6 +240,116 @@ export default function EvaluacionPaso1V2Page() {
       );
     }
     setError("");
+  };
+
+  const persistirMatrizUniversal = (
+    respuestasSiguientes: Record<string, RespuestaUniversalV1>,
+    preguntaActual: number,
+    resultadoClasificacion?: ResultadoMatrizUniversalV1
+  ) => {
+    if (!reporte) return;
+
+    const completa = matrizUniversalCompletaV1(respuestasSiguientes);
+    const actualizado = {
+      ...reporte,
+      descripcion:
+        respuestasSiguientes.universal_hallazgo?.texto?.trim() ||
+        reporte.descripcion,
+      evaluacion: {
+        ...(reporte.evaluacion || {}),
+        matriz_universal: {
+          version: VERSION_MATRIZ_UNIVERSAL_V1,
+          activa: true as const,
+          preguntaActual,
+          totalPreguntas: 12 as const,
+          completa,
+          respuestas: respuestasSiguientes,
+          resultadoClasificacion:
+            resultadoClasificacion ||
+            reporte.evaluacion?.matriz_universal?.resultadoClasificacion,
+        },
+        ...(resultadoClasificacion
+          ? aplicarResultadoMatrizUniversalACompatibilidadV2(resultadoClasificacion)
+          : {}),
+      },
+    };
+
+    setReporte(actualizado);
+    guardarReporteActualV2(actualizado);
+  };
+
+  const actualizarRespuestaTextoMatrizUniversal = (
+    pregunta: PreguntaUniversalHallazgoV1,
+    texto: string
+  ) => {
+    setRespuestasMatrizUniversal((actuales) => {
+      const siguientes = {
+        ...actuales,
+        [pregunta.id]: actualizarTextoRespuestaUniversalV1(
+          pregunta,
+          actuales[pregunta.id],
+          texto
+        ),
+      };
+      persistirMatrizUniversal(
+        siguientes,
+        PREGUNTAS_UNIVERSALES_HALLAZGOS_V1.findIndex((item) => item.id === pregunta.id)
+      );
+      return siguientes;
+    });
+    setContradiccionesMatrizUniversal([]);
+    setError("");
+  };
+
+  const seleccionarOpcionMatrizUniversal = (
+    pregunta: PreguntaUniversalHallazgoV1,
+    opcionId: string
+  ) => {
+    setRespuestasMatrizUniversal((actuales) => {
+      const siguientes = {
+        ...actuales,
+        [pregunta.id]: seleccionarOpcionUniversalV1(
+          pregunta,
+          actuales[pregunta.id],
+          opcionId
+        ),
+      };
+      persistirMatrizUniversal(
+        siguientes,
+        PREGUNTAS_UNIVERSALES_HALLAZGOS_V1.findIndex((item) => item.id === pregunta.id)
+      );
+      return siguientes;
+    });
+    setContradiccionesMatrizUniversal([]);
+    setError("");
+  };
+
+  const completarMatrizUniversal = () => {
+    const contradicciones =
+      detectarContradiccionesMatrizUniversalV1(respuestasMatrizUniversal);
+    setContradiccionesMatrizUniversal(contradicciones);
+
+    if (contradicciones.length > 0) {
+      setError("Revisa las respuestas marcadas antes de generar el análisis.");
+      return null;
+    }
+
+    const vector = construirVectorUniversalV1(respuestasMatrizUniversal);
+    const resultado = clasificarMatrizUniversalV1(vector, contradicciones);
+    persistirMatrizUniversal(respuestasMatrizUniversal, 11, resultado);
+    return resultado;
+  };
+
+  const verAnalisisMatrizUniversal = () => {
+    if (navegando) return;
+    const resultadoExistente =
+      reporte?.evaluacion?.matriz_universal?.resultadoClasificacion;
+    const resultado = resultadoExistente || completarMatrizUniversal();
+    if (!resultado) return;
+
+    setNavegando(true);
+    vibrarOk();
+    navegarEvaluarV2(router, "/evaluar-v2/resultado");
   };
 
   const continuar = () => {
@@ -433,6 +585,576 @@ export default function EvaluacionPaso1V2Page() {
     boxSizing: "border-box" as const,
     transition: "transform 120ms ease, filter 120ms ease, box-shadow 120ms ease",
   };
+
+  const preguntasUniversalesRespondidas = PREGUNTAS_UNIVERSALES_HALLAZGOS_V1.filter(
+    (pregunta) => respuestaUniversalValidaV1(pregunta, respuestasMatrizUniversal[pregunta.id])
+  );
+  const matrizUniversalCompleta = matrizUniversalCompletaV1(respuestasMatrizUniversal);
+  const preguntasContradictorias = obtenerPreguntasContradictoriasV1(
+    contradiccionesMatrizUniversal
+  );
+  const idsPreguntasContradictorias = new Set(
+    preguntasContradictorias.map((pregunta) => pregunta.id)
+  );
+  const faltantesMatrizUniversal =
+    PREGUNTAS_UNIVERSALES_HALLAZGOS_V1.length - preguntasUniversalesRespondidas.length;
+  const bloquesMatrizUniversal = [
+    {
+      titulo: "Identificación",
+      rango: "Preguntas 1 a 4",
+      preguntas: PREGUNTAS_UNIVERSALES_HALLAZGOS_V1.slice(0, 4),
+    },
+    {
+      titulo: "Exposición y efecto",
+      rango: "Preguntas 5 a 8",
+      preguntas: PREGUNTAS_UNIVERSALES_HALLAZGOS_V1.slice(4, 8),
+    },
+    {
+      titulo: "Evaluación del riesgo",
+      rango: "Preguntas 9 y 10",
+      preguntas: PREGUNTAS_UNIVERSALES_HALLAZGOS_V1.slice(8, 10),
+    },
+    {
+      titulo: "Control y estado actual",
+      rango: "Preguntas 11 y 12",
+      preguntas: PREGUNTAS_UNIVERSALES_HALLAZGOS_V1.slice(10, 12),
+    },
+  ];
+
+  const matrizPageStyle = {
+    minHeight: "100dvh",
+    backgroundColor: "#020b1f",
+    background:
+      "radial-gradient(circle at 22% 12%, rgba(60,130,220,0.46) 0%, rgba(7,32,68,0.92) 31%, rgba(2,12,32,1) 72%), linear-gradient(180deg, #05244a 0%, #020b1f 100%)",
+    color: "#FFFFFF",
+    fontFamily: "Arial, sans-serif",
+    overflowX: "hidden" as const,
+    touchAction: "pan-y" as const,
+  };
+
+  const matrizContainerStyle = {
+    width: "100%",
+    maxWidth: "430px",
+    margin: "0 auto",
+    minHeight: "100dvh",
+    padding:
+      "calc(14px + env(safe-area-inset-top)) 16px calc(28px + env(safe-area-inset-bottom))",
+    boxSizing: "border-box" as const,
+    display: "flex",
+    flexDirection: "column" as const,
+    gap: "14px",
+  };
+
+  const matrizCardStyle = {
+    background:
+      "linear-gradient(180deg, rgba(22,72,124,0.66), rgba(4,26,60,0.78))",
+    borderRadius: "18px",
+    border: "1px solid rgba(151,197,255,0.30)",
+    boxShadow:
+      "0 18px 42px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.11), inset 0 -1px 0 rgba(33,150,243,0.10)",
+    padding: "18px",
+    boxSizing: "border-box" as const,
+  };
+
+  const matrizButtonBase = {
+    minHeight: "56px",
+    borderRadius: "14px",
+    border: "1px solid rgba(151,197,255,0.22)",
+    background: "rgba(3,20,48,0.24)",
+    color: "#FFFFFF",
+    padding: "12px 14px",
+    fontSize: "15px",
+    fontWeight: 800,
+    textAlign: "left" as const,
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    cursor: "pointer",
+    touchAction: "manipulation" as const,
+  };
+
+  const renderOpcionUniversal = (
+    pregunta: PreguntaUniversalHallazgoV1,
+    opcion: NonNullable<PreguntaUniversalHallazgoV1["opciones"]>[number],
+    respuestaPregunta?: RespuestaUniversalV1
+  ) => {
+    const seleccionada = Boolean(respuestaPregunta?.opcionIds?.includes(opcion.id));
+    const esMultiple = pregunta.tipo === "seleccion_multiple";
+
+    return (
+      <div key={opcion.id}>
+        <button
+          type="button"
+          onClick={() => seleccionarOpcionMatrizUniversal(pregunta, opcion.id)}
+          style={{
+            ...matrizButtonBase,
+            width: "100%",
+            border: seleccionada
+              ? "1.5px solid rgba(57,255,20,0.82)"
+              : "1px solid rgba(151,197,255,0.22)",
+            background: seleccionada
+              ? "linear-gradient(180deg, rgba(57,255,20,0.20), rgba(31,212,12,0.13))"
+              : "rgba(3,20,48,0.24)",
+            color: "#FFFFFF",
+            boxShadow: seleccionada ? "0 0 0 1px rgba(57,255,20,0.28)" : "none",
+            overflow: "hidden",
+            transform: seleccionada && botonActivo === `${pregunta.id}-${opcion.id}` ? "translateY(2px) scale(0.99)" : undefined,
+          }}
+        >
+          <span
+            aria-hidden="true"
+            style={{
+              width: "22px",
+              height: "22px",
+              borderRadius: esMultiple ? "7px" : "999px",
+              border: seleccionada
+                ? "2px solid rgba(57,255,20,0.95)"
+                : "2px solid rgba(183,196,216,0.74)",
+              background: seleccionada ? "#39FF14" : "rgba(255,255,255,0.08)",
+              color: "#061936",
+              display: "grid",
+              placeItems: "center",
+              flexShrink: 0,
+              fontSize: "14px",
+              fontWeight: 900,
+            }}
+          >
+            {seleccionada ? "✓" : ""}
+          </span>
+          <span style={{ display: "grid", gap: "3px" }}>
+            <span>{opcion.titulo || opcion.label}</span>
+            {opcion.descripcion && (
+              <span style={{ color: "rgba(221,240,255,0.72)", fontSize: "13px", fontWeight: 600, lineHeight: 1.35 }}>
+                {opcion.descripcion}
+              </span>
+            )}
+          </span>
+        </button>
+        {seleccionada && opcion.habilitaTexto && (
+          <input
+            value={respuestaPregunta?.texto || ""}
+            onChange={(event) =>
+              actualizarRespuestaTextoMatrizUniversal(pregunta, event.target.value)
+            }
+            placeholder="Describe brevemente"
+            style={{
+              width: "100%",
+              marginTop: "8px",
+              border: "1px solid #D8E2F0",
+              borderRadius: "12px",
+              padding: "12px",
+              boxSizing: "border-box",
+              color: "#0B1D3A",
+              fontSize: "15px",
+              outline: "none",
+            }}
+          />
+        )}
+      </div>
+    );
+  };
+
+  if (matrizUniversalActiva) {
+    return (
+      <>
+        <PremiumMobileViewport />
+        <main style={matrizPageStyle}>
+          <div
+            style={{
+              ...matrizContainerStyle,
+              paddingBottom: "calc(118px + env(safe-area-inset-bottom))",
+            }}
+          >
+            <header
+              style={{
+                color: "#FFFFFF",
+                display: "grid",
+                gap: "12px",
+                position: "sticky",
+                top: 0,
+                zIndex: 2,
+                background: "rgba(2,11,31,0.88)",
+                paddingBottom: "12px",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
+                <button
+                  type="button"
+                  onClick={() => navegarEvaluarV2(router, "/evaluar-v2/reportar")}
+                  style={{
+                    border: "1px solid rgba(255,255,255,0.18)",
+                    background: "rgba(255,255,255,0.08)",
+                    color: "#FFFFFF",
+                    borderRadius: "14px",
+                    fontSize: "24px",
+                    cursor: "pointer",
+                    width: "42px",
+                    height: "42px",
+                    flexShrink: 0,
+                  }}
+                  aria-label="Volver a reporte"
+                >
+                  ‹
+                </button>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: "24px", fontWeight: 900, lineHeight: 1.05 }}>
+                    Matriz universal
+                  </div>
+                  <div style={{ fontSize: "14px", color: "rgba(255,255,255,0.74)", marginTop: "5px", lineHeight: 1.35 }}>
+                    Completa las 12 preguntas para generar el análisis preventivo.
+                  </div>
+                </div>
+                <div
+                  style={{
+                    borderRadius: "999px",
+                    background: "rgba(255,255,255,0.14)",
+                    padding: "8px 11px",
+                    fontSize: "13px",
+                    fontWeight: 900,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {preguntasUniversalesRespondidas.length}/12
+                </div>
+              </div>
+              <div
+                aria-label={`${preguntasUniversalesRespondidas.length} de 12 respondidas`}
+                style={{
+                  height: "10px",
+                  borderRadius: "999px",
+                  background: "rgba(255,255,255,0.16)",
+                  overflow: "hidden",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                }}
+              >
+                <div
+                  style={{
+                    width: `${(preguntasUniversalesRespondidas.length / 12) * 100}%`,
+                    height: "100%",
+                    background: "linear-gradient(90deg, #1FD40C 0%, #39FF14 100%)",
+                    boxShadow: "none",
+                    transition: "width 180ms ease",
+                  }}
+                />
+              </div>
+              <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.72)" }}>
+                Autoguardado
+              </div>
+            </header>
+
+            {!cargado && <section style={matrizCardStyle}>Cargando matriz universal...</section>}
+
+            {cargado && !reporte && (
+              <section style={matrizCardStyle}>
+                <div style={{ fontSize: "20px", fontWeight: 900, marginBottom: "10px" }}>
+                  No hay reporte disponible
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navegarEvaluarV2(router, "/evaluar-v2/reportar")}
+                  style={{
+                    width: "100%",
+                    border: "0",
+                    borderRadius: "16px",
+                    padding: "15px",
+                    background: "#1F6FEF",
+                    color: "#FFFFFF",
+                    fontWeight: 900,
+                    fontSize: "16px",
+                  }}
+                >
+                  Volver a reportar
+                </button>
+              </section>
+            )}
+
+            {reporte && (
+              <>
+                {bloquesMatrizUniversal.map((bloque) => (
+                  <section key={bloque.titulo} style={{ display: "grid", gap: "12px" }}>
+                    <div
+                      style={{
+                        color: "#FFFFFF",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "end",
+                        gap: "12px",
+                        padding: "0 2px",
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: "18px", fontWeight: 900 }}>{bloque.titulo}</div>
+                        <div style={{ fontSize: "12px", opacity: 0.68 }}>{bloque.rango}</div>
+                      </div>
+                      <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.72)", fontWeight: 800 }}>
+                        {
+                          bloque.preguntas.filter((pregunta) =>
+                            respuestaUniversalValidaV1(
+                              pregunta,
+                              respuestasMatrizUniversal[pregunta.id]
+                            )
+                          ).length
+                        }
+                        /{bloque.preguntas.length}
+                      </div>
+                    </div>
+
+                    {bloque.preguntas.map((pregunta) => {
+                      const indice = PREGUNTAS_UNIVERSALES_HALLAZGOS_V1.findIndex(
+                        (item) => item.id === pregunta.id
+                      );
+                      const respuestaPregunta = respuestasMatrizUniversal[pregunta.id];
+                      const respondida = respuestaUniversalValidaV1(
+                        pregunta,
+                        respuestaPregunta
+                      );
+                      const requiereRevision = idsPreguntasContradictorias.has(pregunta.id);
+                      const palabraActual = contarPalabrasMatrizUniversalV1(
+                        respuestaPregunta?.texto
+                      );
+
+                      return (
+                        <article
+                          key={pregunta.id}
+                          style={{
+                            ...matrizCardStyle,
+                            borderColor: requiereRevision
+                              ? "rgba(248,113,113,0.62)"
+                              : "rgba(151,197,255,0.30)",
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "flex-start",
+                              gap: "12px",
+                              marginBottom: "12px",
+                            }}
+                          >
+                            <span
+                              aria-hidden="true"
+                              style={{
+                                width: "34px",
+                                height: "34px",
+                                borderRadius: "12px",
+                                background: respondida
+                                  ? "rgba(57,255,20,0.13)"
+                                  : "rgba(255,255,255,0.08)",
+                                color: respondida ? "#39FF14" : "rgba(221,240,255,0.72)",
+                                border: respondida
+                                  ? "1px solid rgba(57,255,20,0.54)"
+                                  : "1px solid rgba(151,197,255,0.22)",
+                                display: "grid",
+                                placeItems: "center",
+                                fontWeight: 900,
+                                flexShrink: 0,
+                              }}
+                            >
+                              {indice + 1}
+                            </span>
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                                <div style={{ fontSize: "13px", color: "#8FE8FF", fontWeight: 900 }}>
+                                  {pregunta.etiqueta}
+                                </div>
+                                <span
+                                  style={{
+                                    borderRadius: "999px",
+                                    padding: "4px 8px",
+                                    fontSize: "11px",
+                                    fontWeight: 900,
+                                    background: requiereRevision
+                                      ? "rgba(248,113,113,0.16)"
+                                      : respondida
+                                        ? "rgba(57,255,20,0.12)"
+                                        : "rgba(255,255,255,0.08)",
+                                    color: requiereRevision
+                                      ? "#FCA5A5"
+                                      : respondida
+                                        ? "#C8FFBF"
+                                        : "rgba(221,240,255,0.72)",
+                                  }}
+                                >
+                                  {requiereRevision
+                                    ? "Requiere revisión"
+                                    : respondida
+                                      ? "Respondida"
+                                      : "Pendiente"}
+                                </span>
+                              </div>
+                              <div style={{ fontSize: "20px", lineHeight: 1.25, fontWeight: 900, marginTop: "5px" }}>
+                                {pregunta.texto}
+                              </div>
+                            </div>
+                          </div>
+
+                          {pregunta.ayuda && (
+                            <div
+                              style={{
+                                color: "rgba(221,240,255,0.72)",
+                                fontSize: "15px",
+                                lineHeight: 1.4,
+                                marginBottom: "14px",
+                              }}
+                            >
+                              {pregunta.ayuda}
+                            </div>
+                          )}
+
+                          {pregunta.tipo === "texto_breve" ? (
+                            <>
+                              <textarea
+                                value={respuestaPregunta?.texto || ""}
+                                onChange={(event) =>
+                                  actualizarRespuestaTextoMatrizUniversal(
+                                    pregunta,
+                                    event.target.value
+                                  )
+                                }
+                                placeholder="Ej: Trabajador sin arnés en altura de aprox. 3 metros"
+                                rows={4}
+                                style={{
+                                  width: "100%",
+                                  minHeight: "116px",
+                                  resize: "vertical",
+                                  border: "1px solid rgba(151,197,255,0.22)",
+                                  borderRadius: "16px",
+                                  padding: "14px",
+                                  boxSizing: "border-box",
+                                  color: "#FFFFFF",
+                                  background: "rgba(3,20,48,0.24)",
+                                  fontSize: "16px",
+                                  outline: "none",
+                                }}
+                              />
+                              <div
+                                style={{
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  color: palabraActual > 15 ? "#FCA5A5" : "rgba(221,240,255,0.72)",
+                                  fontSize: "13px",
+                                  marginTop: "8px",
+                                }}
+                              >
+                                <span>Máx. 15 palabras</span>
+                                <span>{palabraActual}/15</span>
+                              </div>
+                            </>
+                          ) : (
+                            <div style={{ display: "grid", gap: "8px" }}>
+                              {(pregunta.opciones || []).map((opcion) =>
+                                renderOpcionUniversal(pregunta, opcion, respuestaPregunta)
+                              )}
+                            </div>
+                          )}
+                        </article>
+                      );
+                    })}
+                  </section>
+                ))}
+
+                {contradiccionesMatrizUniversal.length > 0 && (
+                  <section
+                    style={{
+                      ...matrizCardStyle,
+                      borderColor: "rgba(248,113,113,0.62)",
+                      background: "rgba(127,29,29,0.22)",
+                    }}
+                  >
+                    <div style={{ fontSize: "18px", fontWeight: 900, marginBottom: "8px" }}>
+                      Revisar respuestas
+                    </div>
+                    <div style={{ color: "rgba(255,255,255,0.74)", fontSize: "14px", lineHeight: 1.45 }}>
+                      Hay respuestas que requieren revisión antes de generar el análisis.
+                    </div>
+                    <div style={{ display: "grid", gap: "8px", marginTop: "12px" }}>
+                      {contradiccionesMatrizUniversal.map((item) => (
+                        <div key={item.id} style={{ color: "#FCA5A5", fontWeight: 800 }}>
+                          {item.mensaje}
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {matrizUniversalCompleta && contradiccionesMatrizUniversal.length === 0 && (
+                  <section
+                    style={{
+                      ...matrizCardStyle,
+                      background:
+                        "linear-gradient(180deg, rgba(22,72,124,0.66), rgba(4,26,60,0.78))",
+                      borderColor: "rgba(57,255,20,0.42)",
+                    }}
+                  >
+                    <div style={{ fontSize: "19px", fontWeight: 900, color: "#C8FFBF" }}>
+                      ¡Excelente! Completaste las 12 preguntas.
+                    </div>
+                    <div style={{ color: "rgba(221,240,255,0.78)", fontSize: "14px", lineHeight: 1.45, marginTop: "8px" }}>
+                      Ahora procesaremos la información para entregarte el análisis y las recomendaciones.
+                    </div>
+                  </section>
+                )}
+
+                {error && (
+                  <section
+                    style={{
+                      ...matrizCardStyle,
+                      borderColor: "rgba(248,113,113,0.62)",
+                      color: "#FCA5A5",
+                      fontWeight: 900,
+                    }}
+                  >
+                    {error}
+                  </section>
+                )}
+              </>
+            )}
+          </div>
+
+          {reporte && (
+            <div
+              style={{
+                position: "sticky",
+                bottom: 0,
+                zIndex: 3,
+                background: "linear-gradient(180deg, rgba(6,25,54,0.72), #061936 42%)",
+                padding: "12px 16px calc(14px + env(safe-area-inset-bottom))",
+                borderTop: "1px solid rgba(255,255,255,0.10)",
+              }}
+            >
+              <div style={{ width: "100%", maxWidth: "430px", margin: "0 auto" }}>
+                <button
+                  type="button"
+                  onClick={verAnalisisMatrizUniversal}
+                  disabled={!matrizUniversalCompleta || navegando}
+                  style={{
+                    width: "100%",
+                    border: "0",
+                    borderRadius: "16px",
+                    padding: "16px",
+                background: matrizUniversalCompleta
+                  ? "linear-gradient(180deg, #2593ff 0%, #145ee9 48%, #07339b 100%)"
+                  : "rgba(255,255,255,0.18)",
+                    color: "#FFFFFF",
+                    fontWeight: 900,
+                    fontSize: "16px",
+                    boxShadow: matrizUniversalCompleta
+                      ? "0 18px 32px rgba(31,111,239,0.34)"
+                      : "none",
+                    opacity: !matrizUniversalCompleta || navegando ? 0.76 : 1,
+                  }}
+                >
+                  {matrizUniversalCompleta
+                    ? "Ver análisis del hallazgo"
+                    : `Faltan ${faltantesMatrizUniversal} preguntas`}
+                </button>
+              </div>
+            </div>
+          )}
+        </main>
+      </>
+    );
+  }
 
   return (
     <>

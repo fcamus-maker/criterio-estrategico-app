@@ -8,6 +8,7 @@ import type {
   PreguntaSugeridaMotorV2,
   TipoEvento,
 } from "./motor-v2/types";
+import type { EstadoMatrizUniversalV1 } from "./motor-v2/esquemasRespuestasUniversalesV1";
 
 export const STORAGE_REPORTE_ACTUAL = "ce_mobile_v2_reporte_actual";
 export const STORAGE_HISTORIAL = "ce_mobile_v2_historial_reportes";
@@ -227,6 +228,7 @@ export type ReporteV2Storage = {
     selector_preventivo_modo?: "preventivo" | "fallback_actual";
     selector_preventivo_resumen?: SelectorPreventivoActivacionV2Storage;
     flujo_preventivo?: FlujoPreventivoV2Storage;
+    matriz_universal?: EstadoMatrizUniversalV1;
   } & EvaluacionMotorV2Storage;
   cierre?: Record<string, unknown>;
   asignacionCierre?: Record<string, unknown>;

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  matrizUniversalSolicitadaEnUrlV2,
   navegarEvaluarV2,
   preservarBanderaSelectorPreventivoV2,
 } from "../../offlineNavigation";
@@ -32,6 +33,7 @@ import {
   leerReporteActualV2,
   type ReporteV2Storage,
 } from "../../storageReporteV2";
+import { matrizUniversalCompletaV1 } from "../../motor-v2/validacionMatrizUniversalV1";
 import {
   AutoGuardadoPremium,
   EtapasPremium,
@@ -126,6 +128,11 @@ function contextoSelectorPreventivoCompletoPaso2(reporte?: ReporteV2 | null): Co
   };
 }
 
+function matrizUniversalEstaActivaPaso2(reporte?: ReporteV2 | null) {
+  if (reporte?.evaluacion?.matriz_universal?.activa) return true;
+  return matrizUniversalSolicitadaEnUrlV2();
+}
+
 export default function EvaluacionPaso2V2Page() {
   const router = useRouter();
   const [reporte, setReporte] = useState<ReporteV2 | null>(null);
@@ -139,6 +146,19 @@ export default function EvaluacionPaso2V2Page() {
   useEffect(() => {
     const frameId = window.requestAnimationFrame(() => {
       const reporteActual = leerReporteActualV2() as ReporteV2 | null;
+      if (matrizUniversalEstaActivaPaso2(reporteActual)) {
+        const respuestasMatriz = reporteActual?.evaluacion?.matriz_universal?.respuestas || {};
+        const completa =
+          reporteActual?.evaluacion?.matriz_universal?.completa === true &&
+          matrizUniversalCompletaV1(respuestasMatriz);
+        navegarEvaluarV2(
+          router,
+          completa
+            ? "/evaluar-v2/resultado"
+            : "/evaluar-v2/evaluacion/paso1"
+        );
+        return;
+      }
       const respuestasActuales = reporteActual?.evaluacion?.respuestas || {};
       setReporte(reporteActual);
       respuestasRef.current = respuestasActuales;
@@ -147,7 +167,7 @@ export default function EvaluacionPaso2V2Page() {
     });
 
     return () => window.cancelAnimationFrame(frameId);
-  }, []);
+  }, [router]);
 
   const formularioAdaptativo = reporte ? obtenerFormularioAdaptativoV2(reporte) : null;
   const contextoSelectorPreventivo = contextoSelectorPreventivoCompletoPaso2(reporte);
