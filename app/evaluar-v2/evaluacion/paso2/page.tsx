@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   navegarEvaluarV2,
@@ -21,6 +21,7 @@ import {
   construirFlujoPreventivoTrasRonda1,
   obtenerPreguntasPaso2Preventivo,
   obtenerFormularioPreguntasConFallback,
+  respuestaValidaRondaPreventiva,
   ronda2PreventivaCompleta,
   selectorPreventivoEstaHabilitado,
   type ContextoActivacionSelectorPreventivoV2,
@@ -130,6 +131,7 @@ export default function EvaluacionPaso2V2Page() {
   const [reporte, setReporte] = useState<ReporteV2 | null>(null);
   const [cargado, setCargado] = useState(false);
   const [respuestas, setRespuestas] = useState<Record<string, string>>({});
+  const respuestasRef = useRef<Record<string, string>>({});
   const [error, setError] = useState("");
   const [navegando, setNavegando] = useState(false);
   const [botonActivo, setBotonActivo] = useState("");
@@ -137,8 +139,10 @@ export default function EvaluacionPaso2V2Page() {
   useEffect(() => {
     const frameId = window.requestAnimationFrame(() => {
       const reporteActual = leerReporteActualV2() as ReporteV2 | null;
+      const respuestasActuales = reporteActual?.evaluacion?.respuestas || {};
       setReporte(reporteActual);
-      setRespuestas(reporteActual?.evaluacion?.respuestas || {});
+      respuestasRef.current = respuestasActuales;
+      setRespuestas(respuestasActuales);
       setCargado(true);
     });
 
@@ -198,17 +202,37 @@ export default function EvaluacionPaso2V2Page() {
     : selectorPreventivoSolicitado
       ? preguntas
     : formularioAdaptativo?.preguntas || [];
-  const respondidasTotal = (selectorPreventivoActivo ? preguntas : preguntasTotales).filter((pregunta) => respuestas[pregunta.id]).length;
+  const preguntasParaConteo = selectorPreventivoActivo ? preguntas : preguntasTotales;
+  const respondidasTotal = preguntasParaConteo.filter((pregunta) =>
+    respuestaValidaRondaPreventiva(respuestas[pregunta.id])
+  ).length;
   const preguntaActual = Math.min(respondidasTotal + 1, Math.max(totalPreguntas, 1));
   const ronda2Completa = selectorPreventivoActivo
     ? ronda2PreventivaCompleta(preguntas, respuestas)
     : false;
 
   const seleccionar = (id: string, value: string) => {
-    setRespuestas((actuales) => ({
-      ...actuales,
+    const siguientes = {
+      ...respuestasRef.current,
       [id]: value,
-    }));
+    };
+    respuestasRef.current = siguientes;
+    setRespuestas(siguientes);
+    setReporte((actual) => {
+      if (!actual) return actual;
+      const actualizado = {
+        ...actual,
+        evaluacion: {
+          ...(actual.evaluacion || {}),
+          respuestas: {
+            ...(actual.evaluacion?.respuestas || {}),
+            ...siguientes,
+          },
+        },
+      };
+      guardarReporteActualV2(actualizado);
+      return actualizado;
+    });
     setError("");
   };
 
@@ -224,7 +248,7 @@ export default function EvaluacionPaso2V2Page() {
     const preguntasRequeridas = selectorPreventivoActivo ? preguntas : formularioAdaptativo?.preguntas || [];
     const faltanRespuestas = selectorPreventivoActivo
       ? !ronda2Completa
-      : preguntasRequeridas.some((pregunta) => !respuestas[pregunta.id]);
+      : preguntasRequeridas.some((pregunta) => !respuestaValidaRondaPreventiva(respuestas[pregunta.id]));
 
     if (faltanRespuestas) {
       setError("Debes responder todas las preguntas antes de ver el resultado.");

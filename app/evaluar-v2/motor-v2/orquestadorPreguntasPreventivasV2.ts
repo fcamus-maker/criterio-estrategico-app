@@ -590,7 +590,13 @@ export const limpiarRespuestasRonda2SiCambiaContexto = (
 export const ronda2PreventivaCompleta = (
   preguntas: PreguntaFormularioAdaptativaV2[],
   respuestas: Record<string, string> = {},
-) => preguntas.length === 5 && preguntas.every((pregunta) => Boolean(respuestas[pregunta.id]));
+) => preguntas.length === 5 && preguntas.every((pregunta) => respuestaValidaRondaPreventiva(respuestas[pregunta.id]));
+
+export const respuestaValidaRondaPreventiva = (valor: unknown) => {
+  if (valor === null || valor === undefined) return false;
+  if (typeof valor === "string") return valor.trim().length > 0;
+  return true;
+};
 
 const construirEntradaPreview = (
   reporte: ReporteOrquestadorPreguntasPreventivasV2,
