@@ -775,193 +775,289 @@ export default function InformeFinalV2Page() {
               </div>
             </section>
 
-            <section style={cardStyle}>
-              <div
-                style={{
-                  fontSize: "18px",
-                  fontWeight: 900,
-                  marginBottom: "10px",
-                }}
-              >
-                Resultado técnico preventivo
-              </div>
-              <div style={{ display: "grid", gap: "10px" }}>
-                {[
-                  [
-                    "Ámbito principal",
-                    etiquetaAmbito(reporte.evaluacion?.ambito_principal),
-                  ],
-                  [
-                    "Tipo de hallazgo",
-                    etiquetaTipoEvento(reporte.evaluacion?.tipo_evento),
-                  ],
-                  [
-                    "Categoría preventiva",
-                    etiquetaCategoria(reporte.evaluacion?.categoria_detectada),
-                  ],
-                  [
-                    "Clasificación preventiva",
-                    etiquetaCategoria(reporte.evaluacion?.modulo_preguntas_sugerido),
-                  ],
-                  [
-                    "Nivel de suficiencia",
-                    etiquetaSuficiencia(reporte.evaluacion?.confianza_clasificacion),
-                  ],
-                  [
-                    "Preguntas sugeridas",
-                    resumenPreguntasSugeridas(reporte.evaluacion?.preguntas_sugeridas),
-                  ],
-                  [
-                    "Medida inmediata",
-                    textoSeguro(reporte.evaluacion?.medida_inmediata_v2) ||
-                      reporte.evaluacion?.accionInmediata ||
-                      "Sin medida definida",
-                  ],
-                  [
-                    "Plazo sugerido",
-                    reporte.evaluacion?.plazo_sugerido_v2 || "Sin plazo definido",
-                  ],
-                  [
-                    "Requiere suspensión",
-                    etiquetaSiNo(reporte.evaluacion?.requiere_suspension),
-                  ],
-                  [
-                    "Requiere contención ambiental",
-                    etiquetaSiNo(
-                      reporte.evaluacion?.requiere_contencion_ambiental
-                    ),
-                  ],
-                  [
-                    "Revisión manual requerida",
-                    etiquetaSiNo(reporte.evaluacion?.requiere_revision_manual),
-                  ],
-                  [
-                    "Señales críticas reales",
-                    listaResumen(reporte.evaluacion?.senales_criticas),
-                  ],
-                  [
-                    "Factores elevadores",
-                    listaResumen(reporte.evaluacion?.factores_elevadores),
-                  ],
-                  [
-                    "Factores limitantes",
-                    listaResumen(reporte.evaluacion?.factores_limitantes),
-                  ],
-                  [
-                    "Normativa probable",
-                    normativaResumen(reporte.evaluacion?.normativa_probable),
-                  ],
-                ].map(([label, valor]) => (
-                  <div key={label} style={datoStyle}>
-                    <div style={{ fontSize: "11px", opacity: 0.62 }}>
-                      {label}
-                    </div>
-                    <div style={{ fontSize: "15px", fontWeight: 800, lineHeight: 1.35 }}>
-                      {valor}
-                    </div>
+            {matrizUniversalVisualActiva ? (
+              <>
+                <section style={cardStyle}>
+                  <div style={{ fontSize: "18px", fontWeight: 900, marginBottom: "12px" }}>
+                    Resumen del reporte
                   </div>
-                ))}
-                <div style={{ fontSize: "12px", lineHeight: 1.45, opacity: 0.78 }}>
-                  {textoSeguro(reporte.evaluacion?.justificacion_tecnica) ||
-                    "Marco legal/preventivo probable asociado. Requiere validación legal específica antes de citar artículo definitivo."}
-                </div>
-              </div>
-            </section>
+                  <div style={{ display: "grid", gap: "9px", fontSize: "14px", lineHeight: 1.5 }}>
+                    <p style={{ margin: 0 }}>
+                      <strong>Código:</strong> {reporte.codigo || "Sin código"} ·{" "}
+                      <strong>Fecha:</strong> {reporte.fecha || "No informado"} ·{" "}
+                      <strong>Hora:</strong> {reporte.hora || "No informado"}
+                    </p>
+                    <p style={{ margin: 0 }}>
+                      <strong>Supervisor:</strong> {reporte.supervisor || "Sin supervisor"} ·{" "}
+                      <strong>Cargo:</strong> {reporte.cargo || "Sin cargo"}
+                    </p>
+                    <p style={{ margin: 0 }}>
+                      <strong>Empresa / obra:</strong> {reporte.empresa || "No informado"} / {reporte.obra || "No informado"} ·{" "}
+                      <strong>Área:</strong> {reporte.area || "Sin área"}
+                    </p>
+                    <p style={{ margin: 0 }}>
+                      <strong>Descripción:</strong> {reporte.descripcion || "Sin descripción"}
+                    </p>
+                    <p style={{ margin: 0 }}>
+                      <strong>Empresa involucrada / responsable:</strong>{" "}
+                      {reporte.empresaInvolucradaResponsable || "Sin informar"} ·{" "}
+                      <strong>Responsable:</strong> {reporte.responsableEmpresa || "Sin informar"} ·{" "}
+                      <strong>Cargo:</strong> {reporte.cargoResponsableEmpresa || "Sin informar"}
+                    </p>
+                  </div>
+                </section>
 
-            <section style={cardStyle}>
-              <div
-                style={{
-                  fontSize: "18px",
-                  fontWeight: 900,
-                  marginBottom: "10px",
-                }}
-              >
-                Desarrollo técnico preventivo
-              </div>
-              <div style={{ display: "grid", gap: "10px" }}>
-                <div style={datoStyle}>
-                  <div style={{ fontSize: "11px", opacity: 0.62 }}>
-                    Fundamento técnico
+                <section style={cardStyle}>
+                  <div style={{ fontSize: "18px", fontWeight: 900, marginBottom: "12px" }}>
+                    Análisis preventivo
                   </div>
-                  <div style={{ fontSize: "14px", fontWeight: 800, lineHeight: 1.45 }}>
-                    {construirDesarrolloPreventivo(reporte)}
+                  <div style={{ display: "grid", gap: "10px", fontSize: "14px", lineHeight: 1.5 }}>
+                    <p style={{ margin: 0 }}>
+                      La clasificación preventiva corresponde a{" "}
+                      <strong>{etiquetaCategoria(reporte.evaluacion?.modulo_preguntas_sugerido)}</strong>, con ámbito principal{" "}
+                      <strong>{etiquetaAmbito(reporte.evaluacion?.ambito_principal)}</strong> y tipo de hallazgo{" "}
+                      <strong>{etiquetaTipoEvento(reporte.evaluacion?.tipo_evento)}</strong>.
+                    </p>
+                    <p style={{ margin: 0 }}>
+                      El nivel de suficiencia registrado es{" "}
+                      <strong>{etiquetaSuficiencia(reporte.evaluacion?.confianza_clasificacion)}</strong>. Las señales relevantes son{" "}
+                      <strong>{listaResumen(reporte.evaluacion?.senales_criticas)}</strong>; los factores elevadores son{" "}
+                      <strong>{listaResumen(reporte.evaluacion?.factores_elevadores)}</strong> y los factores limitantes son{" "}
+                      <strong>{listaResumen(reporte.evaluacion?.factores_limitantes)}</strong>.
+                    </p>
+                    <p style={{ margin: 0 }}>
+                      {construirDesarrolloPreventivo(reporte)}
+                    </p>
+                    <p style={{ margin: 0, opacity: 0.78 }}>
+                      Marco preventivo probable: {marcoPreventivoProbable(reporte).join(" · ")}.
+                    </p>
                   </div>
-                </div>
-                <div style={datoStyle}>
-                  <div style={{ fontSize: "11px", opacity: 0.62 }}>
-                    Marco legal/preventivo probable asociado
-                  </div>
-                  <div style={{ fontSize: "14px", fontWeight: 800, lineHeight: 1.45 }}>
-                    {marcoPreventivoProbable(reporte).join(" · ")}
-                  </div>
-                </div>
-                <div style={{ fontSize: "12px", lineHeight: 1.45, opacity: 0.78 }}>
-                  Referencia preventiva orientativa. Requiere validación legal específica antes de citar artículos o emitir conclusión jurídica definitiva.
-                </div>
-              </div>
-            </section>
+                </section>
 
-            <section style={cardStyle}>
-              {reporte.supervisorFoto && (
-                <div
-                  style={{
-                    width: "76px",
-                    height: "76px",
-                    borderRadius: "18px",
-                    marginBottom: "12px",
-                    background: `url(${reporte.supervisorFoto}) center / cover no-repeat`,
-                    border: "1px solid rgba(255,255,255,0.20)",
-                    boxShadow: "0 12px 24px rgba(0,0,0,0.25)",
-                  }}
-                />
-              )}
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr",
-                  gap: "10px",
-                }}
-              >
-                {[
-                  ["Código", reporte.codigo || "Sin código"],
-                  ["Supervisor", reporte.supervisor || "Sin supervisor"],
-                  ["Cargo", reporte.cargo || "Sin cargo"],
-                  ["Empresa / Obra", `${reporte.empresa || "—"} / ${reporte.obra || "—"}`],
-                  ["Área", reporte.area || "Sin área"],
-                  ["Descripción", reporte.descripcion || "Sin descripción"],
-                  [
-                    "Empresa involucrada / responsable",
-                    reporte.empresaInvolucradaResponsable || "Sin informar",
-                  ],
-                  [
-                    "Responsable de la empresa",
-                    reporte.responsableEmpresa || "Sin informar",
-                  ],
-                  [
-                    "Cargo del responsable",
-                    reporte.cargoResponsableEmpresa || "Sin informar",
-                  ],
-                  [
-                    "Acción inmediata",
-                    reporte.evaluacion?.accionInmediata || "Sin acción definida",
-                  ],
-                  [
-                    "Recomendación",
-                    reporte.evaluacion?.recomendacion || "Sin recomendación",
-                  ],
-                  ["Fecha / Hora", `${reporte.fecha || "—"} / ${reporte.hora || "—"}`],
-                ].map(([label, valor]) => (
-                  <div key={label} style={datoStyle}>
-                    <div style={{ fontSize: "11px", opacity: 0.62 }}>
-                      {label}
-                    </div>
-                    <div style={{ fontSize: "15px", fontWeight: 800 }}>
-                      {valor}
+                <section style={cardStyle}>
+                  <div style={{ fontSize: "18px", fontWeight: 900, marginBottom: "12px" }}>
+                    Acción recomendada y cierre
+                  </div>
+                  <div style={{ display: "grid", gap: "10px", fontSize: "14px", lineHeight: 1.5 }}>
+                    <p style={{ margin: 0 }}>
+                      <strong>Acción inmediata:</strong>{" "}
+                      {textoSeguro(reporte.evaluacion?.medida_inmediata_v2) ||
+                        reporte.evaluacion?.accionInmediata ||
+                        "Sin acción definida"}.
+                    </p>
+                    <p style={{ margin: 0 }}>
+                      <strong>Control requerido:</strong>{" "}
+                      {reporte.evaluacion?.recomendacion || "Sin recomendación definida"}.
+                    </p>
+                    <p style={{ margin: 0 }}>
+                      <strong>Evidencia recomendada:</strong>{" "}
+                      {fotos.length > 0
+                        ? `${fotos.length} fotografía(s) adjunta(s) para respaldo del hallazgo.`
+                        : "Registrar evidencia de corrección o cierre cuando corresponda."}
+                    </p>
+                    <p style={{ margin: 0 }}>
+                      <strong>Seguimiento sugerido:</strong>{" "}
+                      {reporte.estadoCierre || reporte.estado || "No informado"} ·{" "}
+                      <strong>Plazo:</strong> {reporte.evaluacion?.plazo_sugerido_v2 || "Sin plazo definido"} ·{" "}
+                      <strong>Suspensión:</strong> {etiquetaSiNo(reporte.evaluacion?.requiere_suspension)}.
+                    </p>
+                    <p style={{ margin: 0, opacity: 0.78 }}>
+                      Observación final: referencia preventiva orientativa. Requiere validación legal específica antes de citar artículos o emitir conclusión jurídica definitiva.
+                    </p>
+                  </div>
+                </section>
+              </>
+            ) : (
+              <>
+                <section style={cardStyle}>
+                  <div
+                    style={{
+                      fontSize: "18px",
+                      fontWeight: 900,
+                      marginBottom: "10px",
+                    }}
+                  >
+                    Resultado técnico preventivo
+                  </div>
+                  <div style={{ display: "grid", gap: "10px" }}>
+                    {[
+                      [
+                        "Ámbito principal",
+                        etiquetaAmbito(reporte.evaluacion?.ambito_principal),
+                      ],
+                      [
+                        "Tipo de hallazgo",
+                        etiquetaTipoEvento(reporte.evaluacion?.tipo_evento),
+                      ],
+                      [
+                        "Categoría preventiva",
+                        etiquetaCategoria(reporte.evaluacion?.categoria_detectada),
+                      ],
+                      [
+                        "Clasificación preventiva",
+                        etiquetaCategoria(reporte.evaluacion?.modulo_preguntas_sugerido),
+                      ],
+                      [
+                        "Nivel de suficiencia",
+                        etiquetaSuficiencia(reporte.evaluacion?.confianza_clasificacion),
+                      ],
+                      [
+                        "Preguntas sugeridas",
+                        resumenPreguntasSugeridas(reporte.evaluacion?.preguntas_sugeridas),
+                      ],
+                      [
+                        "Medida inmediata",
+                        textoSeguro(reporte.evaluacion?.medida_inmediata_v2) ||
+                          reporte.evaluacion?.accionInmediata ||
+                          "Sin medida definida",
+                      ],
+                      [
+                        "Plazo sugerido",
+                        reporte.evaluacion?.plazo_sugerido_v2 || "Sin plazo definido",
+                      ],
+                      [
+                        "Requiere suspensión",
+                        etiquetaSiNo(reporte.evaluacion?.requiere_suspension),
+                      ],
+                      [
+                        "Requiere contención ambiental",
+                        etiquetaSiNo(
+                          reporte.evaluacion?.requiere_contencion_ambiental
+                        ),
+                      ],
+                      [
+                        "Revisión manual requerida",
+                        etiquetaSiNo(reporte.evaluacion?.requiere_revision_manual),
+                      ],
+                      [
+                        "Señales críticas reales",
+                        listaResumen(reporte.evaluacion?.senales_criticas),
+                      ],
+                      [
+                        "Factores elevadores",
+                        listaResumen(reporte.evaluacion?.factores_elevadores),
+                      ],
+                      [
+                        "Factores limitantes",
+                        listaResumen(reporte.evaluacion?.factores_limitantes),
+                      ],
+                      [
+                        "Normativa probable",
+                        normativaResumen(reporte.evaluacion?.normativa_probable),
+                      ],
+                    ].map(([label, valor]) => (
+                      <div key={label} style={datoStyle}>
+                        <div style={{ fontSize: "11px", opacity: 0.62 }}>
+                          {label}
+                        </div>
+                        <div style={{ fontSize: "15px", fontWeight: 800, lineHeight: 1.35 }}>
+                          {valor}
+                        </div>
+                      </div>
+                    ))}
+                    <div style={{ fontSize: "12px", lineHeight: 1.45, opacity: 0.78 }}>
+                      {textoSeguro(reporte.evaluacion?.justificacion_tecnica) ||
+                        "Marco legal/preventivo probable asociado. Requiere validación legal específica antes de citar artículo definitivo."}
                     </div>
                   </div>
-                ))}
-              </div>
-            </section>
+                </section>
+
+                <section style={cardStyle}>
+                  <div
+                    style={{
+                      fontSize: "18px",
+                      fontWeight: 900,
+                      marginBottom: "10px",
+                    }}
+                  >
+                    Desarrollo técnico preventivo
+                  </div>
+                  <div style={{ display: "grid", gap: "10px" }}>
+                    <div style={datoStyle}>
+                      <div style={{ fontSize: "11px", opacity: 0.62 }}>
+                        Fundamento técnico
+                      </div>
+                      <div style={{ fontSize: "14px", fontWeight: 800, lineHeight: 1.45 }}>
+                        {construirDesarrolloPreventivo(reporte)}
+                      </div>
+                    </div>
+                    <div style={datoStyle}>
+                      <div style={{ fontSize: "11px", opacity: 0.62 }}>
+                        Marco legal/preventivo probable asociado
+                      </div>
+                      <div style={{ fontSize: "14px", fontWeight: 800, lineHeight: 1.45 }}>
+                        {marcoPreventivoProbable(reporte).join(" · ")}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: "12px", lineHeight: 1.45, opacity: 0.78 }}>
+                      Referencia preventiva orientativa. Requiere validación legal específica antes de citar artículos o emitir conclusión jurídica definitiva.
+                    </div>
+                  </div>
+                </section>
+
+                <section style={cardStyle}>
+                  {reporte.supervisorFoto && (
+                    <div
+                      style={{
+                        width: "76px",
+                        height: "76px",
+                        borderRadius: "18px",
+                        marginBottom: "12px",
+                        background: `url(${reporte.supervisorFoto}) center / cover no-repeat`,
+                        border: "1px solid rgba(255,255,255,0.20)",
+                        boxShadow: "0 12px 24px rgba(0,0,0,0.25)",
+                      }}
+                    />
+                  )}
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr",
+                      gap: "10px",
+                    }}
+                  >
+                    {[
+                      ["Código", reporte.codigo || "Sin código"],
+                      ["Supervisor", reporte.supervisor || "Sin supervisor"],
+                      ["Cargo", reporte.cargo || "Sin cargo"],
+                      ["Empresa / Obra", `${reporte.empresa || "—"} / ${reporte.obra || "—"}`],
+                      ["Área", reporte.area || "Sin área"],
+                      ["Descripción", reporte.descripcion || "Sin descripción"],
+                      [
+                        "Empresa involucrada / responsable",
+                        reporte.empresaInvolucradaResponsable || "Sin informar",
+                      ],
+                      [
+                        "Responsable de la empresa",
+                        reporte.responsableEmpresa || "Sin informar",
+                      ],
+                      [
+                        "Cargo del responsable",
+                        reporte.cargoResponsableEmpresa || "Sin informar",
+                      ],
+                      [
+                        "Acción inmediata",
+                        reporte.evaluacion?.accionInmediata || "Sin acción definida",
+                      ],
+                      [
+                        "Recomendación",
+                        reporte.evaluacion?.recomendacion || "Sin recomendación",
+                      ],
+                      ["Fecha / Hora", `${reporte.fecha || "—"} / ${reporte.hora || "—"}`],
+                    ].map(([label, valor]) => (
+                      <div key={label} style={datoStyle}>
+                        <div style={{ fontSize: "11px", opacity: 0.62 }}>
+                          {label}
+                        </div>
+                        <div style={{ fontSize: "15px", fontWeight: 800 }}>
+                          {valor}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              </>
+            )}
 
             <section style={cardStyle}>
               <div

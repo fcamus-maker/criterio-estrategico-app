@@ -601,22 +601,22 @@ export default function EvaluacionPaso1V2Page() {
   const bloquesMatrizUniversal = [
     {
       titulo: "Identificación",
-      rango: "Preguntas 1 a 4",
+      subtitulo: "Datos base del hallazgo",
       preguntas: PREGUNTAS_UNIVERSALES_HALLAZGOS_V1.slice(0, 4),
     },
     {
       titulo: "Exposición y efecto",
-      rango: "Preguntas 5 a 8",
+      subtitulo: "Personas, elementos o consecuencias asociadas",
       preguntas: PREGUNTAS_UNIVERSALES_HALLAZGOS_V1.slice(4, 8),
     },
     {
       titulo: "Evaluación del riesgo",
-      rango: "Preguntas 9 y 10",
+      subtitulo: "Consecuencia y probabilidad estimada",
       preguntas: PREGUNTAS_UNIVERSALES_HALLAZGOS_V1.slice(8, 10),
     },
     {
       titulo: "Control y estado actual",
-      rango: "Preguntas 11 y 12",
+      subtitulo: "Controles existentes y situación actual",
       preguntas: PREGUNTAS_UNIVERSALES_HALLAZGOS_V1.slice(10, 12),
     },
   ];
@@ -771,8 +771,8 @@ export default function EvaluacionPaso1V2Page() {
                 position: "sticky",
                 top: 0,
                 zIndex: 2,
-                background: "rgba(2,11,31,0.88)",
-                paddingBottom: "12px",
+                background: "transparent",
+                padding: "2px 0 12px",
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -882,7 +882,7 @@ export default function EvaluacionPaso1V2Page() {
                     >
                       <div>
                         <div style={{ fontSize: "18px", fontWeight: 900 }}>{bloque.titulo}</div>
-                        <div style={{ fontSize: "12px", opacity: 0.68 }}>{bloque.rango}</div>
+                        <div style={{ fontSize: "12px", opacity: 0.68 }}>{bloque.subtitulo}</div>
                       </div>
                       <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.72)", fontWeight: 800 }}>
                         {
