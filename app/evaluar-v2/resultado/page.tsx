@@ -2,7 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { navegarEvaluarV2 } from "../offlineNavigation";
+import {
+  matrizUniversalSolicitadaEnUrlV2,
+  navegarEvaluarV2,
+} from "../offlineNavigation";
 import {
   aplicarResultadoMotorV2AReporte,
   evaluarReporteConMotorV2Seguro,
@@ -360,8 +363,7 @@ function flujoPreventivoListoParaResultado(reporte: ReporteV2) {
 
 function matrizUniversalSolicitadaResultado(reporte?: ReporteV2 | null) {
   if (reporte?.evaluacion?.matriz_universal?.activa) return true;
-  if (typeof window === "undefined") return false;
-  return new URLSearchParams(window.location.search).get("ce_matriz_universal") === "1";
+  return matrizUniversalSolicitadaEnUrlV2();
 }
 
 function prepararResultadoMatrizUniversal(reporte: ReporteV2) {

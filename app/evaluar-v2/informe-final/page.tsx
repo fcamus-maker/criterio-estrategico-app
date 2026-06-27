@@ -43,7 +43,10 @@ import {
   HeaderReportePremium,
   PremiumMobileViewport,
 } from "../evaluacion/componentesPremium";
-import { navegarEvaluarV2 } from "../offlineNavigation";
+import {
+  matrizUniversalSolicitadaEnUrlV2,
+  navegarEvaluarV2,
+} from "../offlineNavigation";
 
 type FotoV2 = {
   id: string;
@@ -377,8 +380,7 @@ function flujoPreventivoListoParaInforme(reporte: ReporteV2) {
 
 function matrizUniversalSolicitadaInforme(reporte?: ReporteV2 | null) {
   if (reporte?.evaluacion?.matriz_universal?.activa) return true;
-  if (typeof window === "undefined") return false;
-  return new URLSearchParams(window.location.search).get("ce_matriz_universal") === "1";
+  return matrizUniversalSolicitadaEnUrlV2();
 }
 
 function prepararInformeMatrizUniversal(reporte: ReporteV2) {
