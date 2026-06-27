@@ -635,7 +635,7 @@ export default function ReportarV2Page() {
             }}
           >
             <a
-              href="/evaluar-v2?ce_matriz_universal=1"
+              href="/evaluar-v2"
               style={{
                 color: "white",
                 textDecoration: "none",
