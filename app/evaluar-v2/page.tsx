@@ -117,7 +117,9 @@ const textosMobileEn: Record<string, string> = {
   "Sin fotografía seleccionada": "No photo selected",
   "Fotografía seleccionada correctamente": "Photo selected successfully",
   "No se seleccionó ninguna fotografía.": "No photo was selected.",
+  "No se pudo cargar la fotografía. Intenta nuevamente.": "The photo could not be loaded. Try again.",
   "No se pudo preparar la vista previa de la fotografía.": "The photo preview could not be prepared.",
+  "Imagen lista para enviar": "Image ready to send",
   "Vista previa de la fotografía seleccionada": "Preview of the selected photo",
   "Tocar imagen para ampliar": "Tap image to enlarge",
   "Cerrar vista ampliada": "Close enlarged view",
@@ -499,6 +501,7 @@ export default function EvaluarV2HomePage() {
   const [previewEvidenciaCierre, setPreviewEvidenciaCierre] = useState("");
   const [previewEvidenciaCierreAmpliada, setPreviewEvidenciaCierreAmpliada] =
     useState(false);
+  const [inputEvidenciaCierreKey, setInputEvidenciaCierreKey] = useState(0);
   const [comentarioEvidenciaCierre, setComentarioEvidenciaCierre] = useState("");
   const [errorEvidenciaCierre, setErrorEvidenciaCierre] = useState("");
   const [enviandoEvidenciaCierre, setEnviandoEvidenciaCierre] = useState(false);
@@ -1010,6 +1013,7 @@ export default function EvaluarV2HomePage() {
     setArchivoEvidenciaCierre(null);
     setPreviewEvidenciaCierre("");
     setPreviewEvidenciaCierreAmpliada(false);
+    setInputEvidenciaCierreKey((actual) => actual + 1);
     setComentarioEvidenciaCierre("");
     setErrorEvidenciaCierre("");
   };
@@ -1019,37 +1023,52 @@ export default function EvaluarV2HomePage() {
     setArchivoEvidenciaCierre(null);
     setPreviewEvidenciaCierre("");
     setPreviewEvidenciaCierreAmpliada(false);
+    setInputEvidenciaCierreKey((actual) => actual + 1);
     setComentarioEvidenciaCierre("");
     setErrorEvidenciaCierre("");
     vibrarOk();
   };
 
   const cargarArchivoEvidenciaCierre = (event: ChangeEvent<HTMLInputElement>) => {
-    const input = event.currentTarget;
-    const archivo = input.files?.[0] || null;
+    const archivo = event.currentTarget.files?.[0] || null;
 
     if (!archivo) {
-      setErrorEvidenciaCierre(t("No se seleccionó ninguna fotografía."));
+      setErrorEvidenciaCierre(
+        t("No se pudo cargar la fotografía. Intenta nuevamente.")
+      );
       return;
     }
 
-    try {
+    const lector = new FileReader();
+
+    lector.onload = () => {
+      const previewUrl =
+        typeof lector.result === "string" ? lector.result : "";
+
+      if (!previewUrl) {
+        setErrorEvidenciaCierre(
+          t("No se pudo preparar la vista previa de la fotografía.")
+        );
+        return;
+      }
+
       if (previewEvidenciaCierre.startsWith("blob:")) {
         URL.revokeObjectURL(previewEvidenciaCierre);
       }
 
-      const previewUrl = URL.createObjectURL(archivo);
       setArchivoEvidenciaCierre(archivo);
       setPreviewEvidenciaCierre(previewUrl);
       setPreviewEvidenciaCierreAmpliada(false);
       setErrorEvidenciaCierre("");
-    } catch {
+    };
+
+    lector.onerror = () => {
       setErrorEvidenciaCierre(
         t("No se pudo preparar la vista previa de la fotografía.")
       );
-    } finally {
-      input.value = "";
-    }
+    };
+
+    lector.readAsDataURL(archivo);
   };
 
   const enviarEvidenciaCierreRevision = async (hallazgo: HallazgoCentral) => {
@@ -2689,53 +2708,59 @@ export default function EvaluarV2HomePage() {
                                       }}
                                     >
                                       {t("Fotografía obligatoria")}
-                                      <input
-                                        id={inputEvidenciaId}
-                                        type="file"
-                                        accept="image/*"
-                                        capture="environment"
-                                        onChange={cargarArchivoEvidenciaCierre}
-                                        disabled={enviandoEvidenciaCierre}
-                                        aria-label={t("Fotografía obligatoria")}
+                                      <div
                                         style={{
-                                          position: "absolute",
-                                          width: "1px",
-                                          height: "1px",
-                                          opacity: 0,
-                                          overflow: "hidden",
-                                          clip: "rect(0 0 0 0)",
-                                          clipPath: "inset(50%)",
-                                          whiteSpace: "nowrap",
-                                          border: 0,
-                                          padding: 0,
-                                          margin: 0,
-                                        }}
-                                      />
-                                      <label
-                                        htmlFor={inputEvidenciaId}
-                                        style={{
-                                          display: "block",
-                                          border: "0",
+                                          position: "relative",
+                                          width: "100%",
                                           borderRadius: "12px",
-                                          padding: "11px 12px",
-                                          background:
-                                            "linear-gradient(180deg, #2563eb, #1d4ed8)",
-                                          color: "white",
-                                          fontSize: "12px",
-                                          fontWeight: 950,
-                                          textAlign: "center",
+                                          overflow: "hidden",
+                                          opacity: enviandoEvidenciaCierre ? 0.76 : 1,
                                           cursor: enviandoEvidenciaCierre
                                             ? "not-allowed"
                                             : "pointer",
-                                          opacity: enviandoEvidenciaCierre ? 0.76 : 1,
-                                          pointerEvents: enviandoEvidenciaCierre
-                                            ? "none"
-                                            : "auto",
                                           touchAction: "manipulation",
                                         }}
                                       >
-                                        {t("Tomar fotografía de cierre")}
-                                      </label>
+                                        <input
+                                          key={`${inputEvidenciaId}-${inputEvidenciaCierreKey}`}
+                                          id={inputEvidenciaId}
+                                          type="file"
+                                          accept="image/*"
+                                          capture="environment"
+                                          onChange={cargarArchivoEvidenciaCierre}
+                                          disabled={enviandoEvidenciaCierre}
+                                          aria-label={t("Fotografía obligatoria")}
+                                          style={{
+                                            position: "absolute",
+                                            inset: 0,
+                                            width: "100%",
+                                            height: "100%",
+                                            opacity: 0,
+                                            zIndex: 2,
+                                            cursor: enviandoEvidenciaCierre
+                                              ? "not-allowed"
+                                              : "pointer",
+                                          }}
+                                        />
+                                        <div
+                                          aria-hidden="true"
+                                          style={{
+                                            position: "relative",
+                                            zIndex: 1,
+                                            border: "0",
+                                            borderRadius: "12px",
+                                            padding: "11px 12px",
+                                            background:
+                                              "linear-gradient(180deg, #2563eb, #1d4ed8)",
+                                            color: "white",
+                                            fontSize: "12px",
+                                            fontWeight: 950,
+                                            textAlign: "center",
+                                          }}
+                                        >
+                                          {t("Tomar fotografía de cierre")}
+                                        </div>
+                                      </div>
                                       <span
                                         style={{
                                           color: archivoEvidenciaCierre
@@ -2753,6 +2778,19 @@ export default function EvaluarV2HomePage() {
                                           ? t("Fotografía seleccionada correctamente")
                                           : t("Sin fotografía seleccionada")}
                                       </span>
+                                      {archivoEvidenciaCierre && (
+                                        <span
+                                          style={{
+                                            color: temaClaro
+                                              ? "#166534"
+                                              : "#bbf7d0",
+                                            fontSize: "10px",
+                                            fontWeight: 850,
+                                          }}
+                                        >
+                                          {t("Imagen lista para enviar")}
+                                        </span>
+                                      )}
                                     </div>
                                     {previewEvidenciaCierre && (
                                       <div
