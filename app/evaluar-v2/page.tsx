@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
   resolvePlatformLanguage,
@@ -8,8 +8,10 @@ import {
   usePlatformPreferences,
 } from "../services/platformPreferences";
 import {
+  actualizarHallazgoCentral,
   listarHallazgosSupervisorCentral,
   obtenerResumenHistorialSupervisorCentral,
+  subirEvidenciaHallazgo,
 } from "../repositories/hallazgosCentralRepository";
 import { cerrarSesionCE } from "../services/authProfileService";
 import {
@@ -41,7 +43,12 @@ import {
   FirmaPremium,
   PremiumMobileViewport,
 } from "./evaluacion/componentesPremium";
-import type { HallazgoCentral } from "../types/hallazgoCentral";
+import type {
+  BitacoraHallazgoCentral,
+  EvidenciaHallazgoCentral,
+  HallazgoCentral,
+  SeguimientoCierreCentral,
+} from "../types/hallazgoCentral";
 
 const textosMobileEn: Record<string, string> = {
   "Supervisor activo": "Active supervisor",
@@ -102,6 +109,29 @@ const textosMobileEn: Record<string, string> = {
   "Corresponde a hallazgos finalizados con evidencia o justificación registrada.":
     "Findings finalized with registered evidence or justification.",
   Cerrar: "Close",
+  "Evidencia de cierre": "Closure evidence",
+  "Agregar evidencia de cierre": "Add closure evidence",
+  "Tomar foto de evidencia": "Take evidence photo",
+  "Tomar fotografía de cierre": "Take closure photo",
+  "Fotografía obligatoria": "Photo required",
+  "Sin fotografía seleccionada": "No photo selected",
+  "Fotografía seleccionada correctamente": "Photo selected successfully",
+  "Vista previa de la fotografía seleccionada": "Preview of the selected photo",
+  "Tocar imagen para ampliar": "Tap image to enlarge",
+  "Cerrar vista ampliada": "Close enlarged view",
+  "Comentario obligatorio": "Comment required",
+  "Describe brevemente la corrección realizada": "Briefly describe the correction performed",
+  "Enviar a revisión": "Send for review",
+  "Enviando evidencia...": "Sending evidence...",
+  Cancelar: "Cancel",
+  "La fotografía de cierre es obligatoria.": "Closure photo is required.",
+  "Agrega un comentario de al menos 5 caracteres.": "Add a comment of at least 5 characters.",
+  "No se pudo identificar el hallazgo para actualizarlo.": "The finding could not be identified for update.",
+  "No se pudo enviar la evidencia. Intenta nuevamente con conexión.": "The evidence could not be sent. Try again with a connection.",
+  "Evidencia enviada a revisión.": "Evidence sent for review.",
+  "Evidencia enviada": "Evidence sent",
+  "Fecha de envío": "Sent date",
+  "Comentario de cierre": "Closure comment",
   "Fecha compromiso": "Due date",
   Responsable: "Owner",
   "Sin responsable": "No owner",
@@ -382,6 +412,45 @@ function hallazgoCumpleFiltroFechaCierreMovil(
   return fechaComparableCierreMovil(valor) === fechaSeleccionada;
 }
 
+function extensionArchivoCierreMovil(archivo: File) {
+  const nombre = archivo.name || "";
+  const extensionNombre = nombre.split(".").pop()?.toLowerCase() || "";
+  if (extensionNombre && extensionNombre.length <= 5) return extensionNombre;
+  if (archivo.type === "image/png") return "png";
+  if (archivo.type === "image/webp") return "webp";
+  if (archivo.type === "image/heic") return "heic";
+  return "jpg";
+}
+
+function crearIdEvidenciaCierreMovil() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `cierre-${crypto.randomUUID()}`;
+  }
+
+  return `cierre-${Date.now()}`;
+}
+
+function usuarioBitacoraCierreMovil(supervisor: SupervisorV2) {
+  return (
+    supervisor.email ||
+    supervisor.nombre ||
+    supervisor.reportanteUserId ||
+    supervisor.supervisorUserId ||
+    supervisor.userId ||
+    "supervisor-movil"
+  );
+}
+
+function resumenEvidenciaRecibidaCierreMovil(evidencia: EvidenciaHallazgoCentral) {
+  return (
+    evidencia.descripcion ||
+    evidencia.nombre ||
+    evidencia.storagePath ||
+    evidencia.url ||
+    "Evidencia de cierre registrada"
+  );
+}
+
 export default function EvaluarV2HomePage() {
   const router = useRouter();
   const preferencias = usePlatformPreferences();
@@ -422,6 +491,16 @@ export default function EvaluarV2HomePage() {
   );
   const [ayudaCierreActiva, setAyudaCierreActiva] =
     useState<CategoriaCierreMovil | null>(null);
+  const [formularioEvidenciaCierre, setFormularioEvidenciaCierre] = useState("");
+  const [archivoEvidenciaCierre, setArchivoEvidenciaCierre] =
+    useState<File | null>(null);
+  const [previewEvidenciaCierre, setPreviewEvidenciaCierre] = useState("");
+  const [previewEvidenciaCierreAmpliada, setPreviewEvidenciaCierreAmpliada] =
+    useState(false);
+  const [comentarioEvidenciaCierre, setComentarioEvidenciaCierre] = useState("");
+  const [errorEvidenciaCierre, setErrorEvidenciaCierre] = useState("");
+  const [enviandoEvidenciaCierre, setEnviandoEvidenciaCierre] = useState(false);
+  const inputEvidenciaCierreRef = useRef<HTMLInputElement | null>(null);
   const [mensaje, setMensaje] = useState("");
   const [botonActivo, setBotonActivo] = useState("");
   const [editorPerfilAbierto, setEditorPerfilAbierto] = useState(false);
@@ -577,6 +656,14 @@ export default function EvaluarV2HomePage() {
       }
     };
   }, [fotoPerfilPreview]);
+
+  useEffect(() => {
+    return () => {
+      if (previewEvidenciaCierre.startsWith("blob:")) {
+        URL.revokeObjectURL(previewEvidenciaCierre);
+      }
+    };
+  }, [previewEvidenciaCierre]);
 
   const actualizarPendientesLocales = async (scope = scopeLocalReporte) => {
     if (!scope) {
@@ -915,6 +1002,211 @@ export default function EvaluarV2HomePage() {
     setMensaje("");
     vibrarOk();
     navegarEvaluarV2(router, "/evaluar-v2/reportar");
+  };
+
+  const limpiarFormularioEvidenciaCierre = () => {
+    setFormularioEvidenciaCierre("");
+    setArchivoEvidenciaCierre(null);
+    setPreviewEvidenciaCierre("");
+    setPreviewEvidenciaCierreAmpliada(false);
+    setComentarioEvidenciaCierre("");
+    setErrorEvidenciaCierre("");
+  };
+
+  const abrirFormularioEvidenciaCierre = (hallazgo: HallazgoCentral) => {
+    setFormularioEvidenciaCierre(claveHallazgoCierreMovil(hallazgo));
+    setArchivoEvidenciaCierre(null);
+    setPreviewEvidenciaCierre("");
+    setPreviewEvidenciaCierreAmpliada(false);
+    setComentarioEvidenciaCierre("");
+    setErrorEvidenciaCierre("");
+    vibrarOk();
+  };
+
+  const cargarArchivoEvidenciaCierre = (event: ChangeEvent<HTMLInputElement>) => {
+    const archivo = event.currentTarget.files?.[0] || null;
+    event.currentTarget.value = "";
+
+    if (!archivo) return;
+
+    if (previewEvidenciaCierre.startsWith("blob:")) {
+      URL.revokeObjectURL(previewEvidenciaCierre);
+    }
+
+    setArchivoEvidenciaCierre(archivo);
+    setPreviewEvidenciaCierre(URL.createObjectURL(archivo));
+    setPreviewEvidenciaCierreAmpliada(false);
+    setErrorEvidenciaCierre("");
+  };
+
+  const enviarEvidenciaCierreRevision = async (hallazgo: HallazgoCentral) => {
+    if (enviandoEvidenciaCierre) return;
+
+    if (!hallazgo.id) {
+      setErrorEvidenciaCierre(t("No se pudo identificar el hallazgo para actualizarlo."));
+      return;
+    }
+
+    if (!archivoEvidenciaCierre) {
+      setErrorEvidenciaCierre(t("La fotografía de cierre es obligatoria."));
+      return;
+    }
+
+    const comentario = comentarioEvidenciaCierre.trim();
+    if (comentario.length < 5) {
+      setErrorEvidenciaCierre(t("Agrega un comentario de al menos 5 caracteres."));
+      return;
+    }
+
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      setErrorEvidenciaCierre(
+        t("No se pudo enviar la evidencia. Intenta nuevamente con conexión.")
+      );
+      return;
+    }
+
+    setEnviandoEvidenciaCierre(true);
+    setErrorEvidenciaCierre("");
+
+    const fechaHoraIso = new Date().toISOString();
+    const evidenciaId = crearIdEvidenciaCierreMovil();
+    const usuarioAuditoria = usuarioBitacoraCierreMovil(supervisor);
+
+    const subida = await subirEvidenciaHallazgo({
+      codigo: hallazgo.codigo,
+      evidenciaId,
+      archivo: archivoEvidenciaCierre,
+      contentType: archivoEvidenciaCierre.type || "image/jpeg",
+      empresa: hallazgo.empresa,
+      obra: hallazgo.obra,
+      extension: extensionArchivoCierreMovil(archivoEvidenciaCierre),
+      carpeta: "cierre",
+    });
+
+    if (!subida.ok) {
+      setErrorEvidenciaCierre(
+        subida.error || t("No se pudo enviar la evidencia. Intenta nuevamente con conexión.")
+      );
+      setEnviandoEvidenciaCierre(false);
+      return;
+    }
+
+    const evidenciaCierre: EvidenciaHallazgoCentral = {
+      id: evidenciaId,
+      evidenceId: evidenciaId,
+      nombre: archivoEvidenciaCierre.name || `${evidenciaId}.jpg`,
+      tipo: "cierre",
+      mimeType: archivoEvidenciaCierre.type || "image/jpeg",
+      bucket: subida.data.bucket,
+      storagePath: subida.data.storagePath,
+      tamanoBytes: archivoEvidenciaCierre.size,
+      pesoBytes: archivoEvidenciaCierre.size,
+      sizeOriginal: archivoEvidenciaCierre.size,
+      estadoSubida: "subida",
+      descripcion: comentario,
+      fechaCarga: fechaHoraIso,
+      fechaCaptura: fechaHoraIso,
+      capturedAt: fechaHoraIso,
+      fechaSubida: fechaHoraIso,
+      deviceOnline: typeof navigator === "undefined" ? true : navigator.onLine,
+      userAgent:
+        typeof navigator === "undefined" ? "" : navigator.userAgent,
+      origen: "mobile-v2",
+      origenDeclarado: "cierre_movil",
+      intentos: 1,
+    };
+
+    const seguimientoPrevio = hallazgo.seguimientoCierre;
+    const seguimientoCierre: SeguimientoCierreCentral = {
+      ...(seguimientoPrevio || {}),
+      responsable: seguimientoPrevio?.responsable || {
+        tipoResponsable: "contratista",
+        nombre: responsableVisibleCierreMovil(hallazgo) || "Sin asignar",
+        empresa: hallazgo.empresa,
+      },
+      estadoCierre: "EN_GESTION",
+      estadoSeguimiento: "En revisión",
+      evidenciaRecibida: [
+        ...(seguimientoPrevio?.evidenciaRecibida || []),
+        evidenciaCierre,
+      ],
+      validadorEstado:
+        seguimientoPrevio?.validadorEstado || "Pendiente de revision",
+      actualizadoEn: fechaHoraIso,
+      actualizadoPor: usuarioAuditoria,
+    };
+
+    const eventoBitacora: BitacoraHallazgoCentral = {
+      id: evidenciaId,
+      fechaHora: fechaHoraIso,
+      usuario: usuarioAuditoria,
+      accion: "evidencia_cierre_enviada_movil",
+      resumen: `Evidencia de cierre enviada desde móvil. Comentario: ${comentario}`,
+      estadoAnterior: estadoVisibleCierreMovil(hallazgo),
+      estadoNuevo: "En revisión",
+      camposModificados: [
+        "estado",
+        "estado_cierre",
+        "seguimiento_cierre",
+        "evidencia_recibida",
+        "bitacora",
+      ],
+      metadata: {
+        origen: "mobile-v2",
+        codigo: hallazgo.codigo,
+        evidenciaId,
+        storagePath: subida.data.storagePath,
+        comentario,
+      },
+    };
+
+    const rawMobileV2 =
+      hallazgo.rawMobileV2 && typeof hallazgo.rawMobileV2 === "object"
+        ? hallazgo.rawMobileV2
+        : {};
+
+    const actualizado = await actualizarHallazgoCentral(hallazgo.id, {
+      estado: "EN_SEGUIMIENTO",
+      estadoCierre: "EN_GESTION",
+      seguimientoCierre,
+      bitacora: [...(hallazgo.bitacora || []), eventoBitacora],
+      rawMobileV2: {
+        ...rawMobileV2,
+        cierreMovil: {
+          fechaHora: fechaHoraIso,
+          accion: "evidencia_cierre_enviada_movil",
+          estado: "En revisión",
+          evidenciaId,
+          comentario,
+          usuario: usuarioAuditoria,
+        },
+      },
+    });
+
+    if (!actualizado.ok) {
+      setErrorEvidenciaCierre(
+        actualizado.error ||
+          t("No se pudo enviar la evidencia. Intenta nuevamente con conexión.")
+      );
+      setEnviandoEvidenciaCierre(false);
+      return;
+    }
+
+    setHallazgosCierreMovil((actual) =>
+      actual.map((item) =>
+        (item.id || item.codigo) === (hallazgo.id || hallazgo.codigo)
+          ? actualizado.data
+          : item
+      )
+    );
+    limpiarFormularioEvidenciaCierre();
+    setCategoriaCierreActiva("en_revision");
+    setHallazgoCierreExpandido(claveHallazgoCierreMovil(actualizado.data));
+    setFiltroFechaCierre("semana");
+    setLimiteVisibleCierre(LIMITE_INICIAL_LISTADO_CIERRE_MOVIL);
+    setMensaje(t("Evidencia enviada a revisión."));
+    setEnviandoEvidenciaCierre(false);
+    vibrarOk();
   };
 
   const cerrarSesionSupervisor = async () => {
@@ -2136,6 +2428,10 @@ export default function EvaluarV2HomePage() {
                     const hallazgoExpandido =
                       hallazgoCierreExpandido === claveHallazgo;
                     const responsable = responsableVisibleCierreMovil(hallazgo);
+                    const evidenciasRecibidas =
+                      hallazgo.seguimientoCierre?.evidenciaRecibida || [];
+                    const formularioActivo =
+                      formularioEvidenciaCierre === claveHallazgo;
                     return (
                       <div
                         key={claveHallazgo}
@@ -2264,6 +2560,435 @@ export default function EvaluarV2HomePage() {
                               {hallazgo.seguimientoCierre?.fechaCompromiso ||
                                 t("Sin fecha compromiso")}
                             </div>
+                            {evidenciasRecibidas.length > 0 && (
+                              <div
+                                style={{
+                                  borderRadius: "12px",
+                                  padding: "9px 10px",
+                                  background: temaClaro
+                                    ? "rgba(34,197,94,0.08)"
+                                    : "rgba(34,197,94,0.13)",
+                                  border: temaClaro
+                                    ? "1px solid rgba(34,197,94,0.18)"
+                                    : "1px solid rgba(134,239,172,0.18)",
+                                  display: "grid",
+                                  gap: "5px",
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    color: temaClaro ? "#166534" : "#bbf7d0",
+                                    fontWeight: 950,
+                                  }}
+                                >
+                                  {t("Evidencia enviada")}
+                                </div>
+                                {evidenciasRecibidas.slice(-2).map((evidencia) => (
+                                  <div
+                                    key={
+                                      evidencia.id ||
+                                      evidencia.evidenceId ||
+                                      evidencia.storagePath ||
+                                      evidencia.fechaCarga
+                                    }
+                                  >
+                                    {resumenEvidenciaRecibidaCierreMovil(evidencia)}
+                                    {evidencia.fechaCarga ? (
+                                      <>
+                                        <br />
+                                        {t("Fecha de envío")}:{" "}
+                                        {fechaLegibleCierreMovil(evidencia.fechaCarga)}
+                                      </>
+                                    ) : null}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            {categoriaCierreActiva === "por_cerrar" && (
+                              <div
+                                style={{
+                                  display: "grid",
+                                  gap: "8px",
+                                }}
+                              >
+                                {!formularioActivo && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      abrirFormularioEvidenciaCierre(hallazgo)
+                                    }
+                                    {...feedbackBoton(
+                                      `evidencia-cierre-${claveHallazgo}`
+                                    )}
+                                    style={{
+                                      border: "0",
+                                      borderRadius: "12px",
+                                      padding: "10px 12px",
+                                      background:
+                                        "linear-gradient(180deg, #2563eb, #1d4ed8)",
+                                      color: "white",
+                                      fontSize: "12px",
+                                      fontWeight: 950,
+                                      cursor: "pointer",
+                                      touchAction: "manipulation",
+                                      ...estiloFeedback(
+                                        `evidencia-cierre-${claveHallazgo}`
+                                      ),
+                                    }}
+                                  >
+                                    {t("Agregar evidencia de cierre")}
+                                  </button>
+                                )}
+                                {formularioActivo && (
+                                  <div
+                                    style={{
+                                      borderRadius: "14px",
+                                      padding: "11px",
+                                      background: temaClaro
+                                        ? "rgba(37,99,235,0.06)"
+                                        : "rgba(37,99,235,0.14)",
+                                      border: temaClaro
+                                        ? "1px solid rgba(37,99,235,0.16)"
+                                        : "1px solid rgba(147,197,253,0.18)",
+                                      display: "grid",
+                                      gap: "9px",
+                                    }}
+                                  >
+                                    <div
+                                      style={{
+                                        fontSize: "13px",
+                                        fontWeight: 950,
+                                        color: temaClaro ? "#0f172a" : "white",
+                                      }}
+                                    >
+                                      {t("Evidencia de cierre")}
+                                    </div>
+                                    <label
+                                      style={{
+                                        display: "grid",
+                                        gap: "8px",
+                                        fontSize: "11px",
+                                        fontWeight: 900,
+                                      }}
+                                    >
+                                      {t("Fotografía obligatoria")}
+                                      <input
+                                        ref={inputEvidenciaCierreRef}
+                                        type="file"
+                                        accept="image/*"
+                                        capture="environment"
+                                        onChange={cargarArchivoEvidenciaCierre}
+                                        disabled={enviandoEvidenciaCierre}
+                                        style={{
+                                          display: "none",
+                                        }}
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          inputEvidenciaCierreRef.current?.click()
+                                        }
+                                        disabled={enviandoEvidenciaCierre}
+                                        style={{
+                                          border: "0",
+                                          borderRadius: "12px",
+                                          padding: "11px 12px",
+                                          background:
+                                            "linear-gradient(180deg, #2563eb, #1d4ed8)",
+                                          color: "white",
+                                          fontSize: "12px",
+                                          fontWeight: 950,
+                                          cursor: enviandoEvidenciaCierre
+                                            ? "not-allowed"
+                                            : "pointer",
+                                          opacity: enviandoEvidenciaCierre ? 0.76 : 1,
+                                          touchAction: "manipulation",
+                                        }}
+                                      >
+                                        {t("Tomar fotografía de cierre")}
+                                      </button>
+                                      <span
+                                        style={{
+                                          color: archivoEvidenciaCierre
+                                            ? temaClaro
+                                              ? "#166534"
+                                              : "#bbf7d0"
+                                            : temaClaro
+                                              ? "#64748b"
+                                              : "rgba(226,232,240,0.78)",
+                                          fontSize: "11px",
+                                          fontWeight: 900,
+                                        }}
+                                      >
+                                        {archivoEvidenciaCierre
+                                          ? t("Fotografía seleccionada correctamente")
+                                          : t("Sin fotografía seleccionada")}
+                                      </span>
+                                    </label>
+                                    {previewEvidenciaCierre && (
+                                      <div
+                                        style={{
+                                          display: "grid",
+                                          gap: "6px",
+                                        }}
+                                      >
+                                        <span
+                                          style={{
+                                            color: temaClaro
+                                              ? "#64748b"
+                                              : "rgba(226,232,240,0.78)",
+                                            fontSize: "11px",
+                                            fontWeight: 900,
+                                          }}
+                                        >
+                                          {t(
+                                            "Vista previa de la fotografía seleccionada"
+                                          )}
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            setPreviewEvidenciaCierreAmpliada(true)
+                                          }
+                                          style={{
+                                            width: "100%",
+                                            borderRadius: "12px",
+                                            background: temaClaro
+                                              ? "rgba(248,250,252,0.96)"
+                                              : "rgba(15,23,42,0.36)",
+                                            border: temaClaro
+                                              ? "1px solid rgba(100,116,139,0.16)"
+                                              : "1px solid rgba(255,255,255,0.12)",
+                                            padding: "8px",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            cursor: "zoom-in",
+                                            touchAction: "manipulation",
+                                          }}
+                                        >
+                                          {/* Blob local de preview; se envia el archivo original sin modificar. */}
+                                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                                          <img
+                                            src={previewEvidenciaCierre}
+                                            alt={t(
+                                              "Vista previa de la fotografía seleccionada"
+                                            )}
+                                            style={{
+                                              width: "auto",
+                                              height: "auto",
+                                              maxWidth: "100%",
+                                              maxHeight: "360px",
+                                              objectFit: "contain",
+                                              display: "block",
+                                              borderRadius: "10px",
+                                            }}
+                                          />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            setPreviewEvidenciaCierreAmpliada(true)
+                                          }
+                                          style={{
+                                            border: "0",
+                                            background: "transparent",
+                                            color: temaClaro ? "#2563eb" : "#93c5fd",
+                                            fontSize: "11px",
+                                            fontWeight: 900,
+                                            padding: "0",
+                                            textAlign: "left",
+                                            cursor: "zoom-in",
+                                          }}
+                                        >
+                                          {t("Tocar imagen para ampliar")}
+                                        </button>
+                                      </div>
+                                    )}
+                                    {previewEvidenciaCierre &&
+                                      previewEvidenciaCierreAmpliada && (
+                                        <div
+                                          role="dialog"
+                                          aria-modal="true"
+                                          aria-label={t(
+                                            "Vista previa de la fotografía seleccionada"
+                                          )}
+                                          style={{
+                                            position: "fixed",
+                                            inset: 0,
+                                            zIndex: 80,
+                                            background: "rgba(2,6,23,0.86)",
+                                            padding: "18px",
+                                            display: "grid",
+                                            gridTemplateRows: "auto 1fr",
+                                            gap: "12px",
+                                          }}
+                                        >
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              setPreviewEvidenciaCierreAmpliada(
+                                                false
+                                              )
+                                            }
+                                            style={{
+                                              justifySelf: "end",
+                                              border: "1px solid rgba(255,255,255,0.18)",
+                                              borderRadius: "999px",
+                                              background: "rgba(255,255,255,0.12)",
+                                              color: "white",
+                                              padding: "8px 12px",
+                                              fontSize: "12px",
+                                              fontWeight: 950,
+                                              cursor: "pointer",
+                                            }}
+                                          >
+                                            {t("Cerrar vista ampliada")}
+                                          </button>
+                                          <div
+                                            style={{
+                                              minHeight: 0,
+                                              display: "flex",
+                                              alignItems: "center",
+                                              justifyContent: "center",
+                                            }}
+                                          >
+                                            {/* Blob local de preview; se envia el archivo original sin modificar. */}
+                                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                                            <img
+                                              src={previewEvidenciaCierre}
+                                              alt={t(
+                                                "Vista previa de la fotografía seleccionada"
+                                              )}
+                                              style={{
+                                                width: "auto",
+                                                height: "auto",
+                                                maxWidth: "100%",
+                                                maxHeight: "82vh",
+                                                objectFit: "contain",
+                                                display: "block",
+                                                borderRadius: "14px",
+                                              }}
+                                            />
+                                          </div>
+                                        </div>
+                                      )}
+                                    <label
+                                      style={{
+                                        display: "grid",
+                                        gap: "6px",
+                                        fontSize: "11px",
+                                        fontWeight: 900,
+                                      }}
+                                    >
+                                      {t("Comentario obligatorio")}
+                                      <textarea
+                                        value={comentarioEvidenciaCierre}
+                                        onChange={(event) => {
+                                          setComentarioEvidenciaCierre(
+                                            event.currentTarget.value
+                                          );
+                                          setErrorEvidenciaCierre("");
+                                        }}
+                                        disabled={enviandoEvidenciaCierre}
+                                        placeholder={t(
+                                          "Describe brevemente la corrección realizada"
+                                        )}
+                                        rows={3}
+                                        style={{
+                                          width: "100%",
+                                          boxSizing: "border-box",
+                                          borderRadius: "12px",
+                                          border: temaClaro
+                                            ? "1px solid rgba(100,116,139,0.20)"
+                                            : "1px solid rgba(255,255,255,0.14)",
+                                          background: temaClaro
+                                            ? "rgba(255,255,255,0.96)"
+                                            : "rgba(15,23,42,0.36)",
+                                          color: temaClaro ? "#0f172a" : "white",
+                                          padding: "10px",
+                                          fontSize: "13px",
+                                          fontWeight: 800,
+                                          resize: "vertical",
+                                        }}
+                                      />
+                                    </label>
+                                    {errorEvidenciaCierre && (
+                                      <div
+                                        style={{
+                                          borderRadius: "10px",
+                                          padding: "8px 9px",
+                                          background: temaClaro
+                                            ? "rgba(220,38,38,0.08)"
+                                            : "rgba(239,68,68,0.14)",
+                                          color: temaClaro ? "#991b1b" : "#fecaca",
+                                          fontSize: "12px",
+                                          fontWeight: 900,
+                                        }}
+                                      >
+                                        {errorEvidenciaCierre}
+                                      </div>
+                                    )}
+                                    <div
+                                      style={{
+                                        display: "grid",
+                                        gridTemplateColumns: "1fr 1.2fr",
+                                        gap: "8px",
+                                      }}
+                                    >
+                                      <button
+                                        type="button"
+                                        onClick={limpiarFormularioEvidenciaCierre}
+                                        disabled={enviandoEvidenciaCierre}
+                                        style={{
+                                          border: temaClaro
+                                            ? "1px solid rgba(100,116,139,0.20)"
+                                            : "1px solid rgba(255,255,255,0.12)",
+                                          borderRadius: "12px",
+                                          background: temaClaro
+                                            ? "rgba(255,255,255,0.86)"
+                                            : "rgba(255,255,255,0.08)",
+                                          color: temaClaro ? "#334155" : "white",
+                                          padding: "10px 8px",
+                                          fontSize: "12px",
+                                          fontWeight: 950,
+                                          cursor: enviandoEvidenciaCierre
+                                            ? "not-allowed"
+                                            : "pointer",
+                                        }}
+                                      >
+                                        {t("Cancelar")}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          enviarEvidenciaCierreRevision(hallazgo)
+                                        }
+                                        disabled={enviandoEvidenciaCierre}
+                                        style={{
+                                          border: "0",
+                                          borderRadius: "12px",
+                                          background:
+                                            "linear-gradient(180deg, #16a34a, #15803d)",
+                                          color: "white",
+                                          padding: "10px 8px",
+                                          fontSize: "12px",
+                                          fontWeight: 950,
+                                          cursor: enviandoEvidenciaCierre
+                                            ? "not-allowed"
+                                            : "pointer",
+                                          opacity: enviandoEvidenciaCierre ? 0.76 : 1,
+                                        }}
+                                      >
+                                        {enviandoEvidenciaCierre
+                                          ? t("Enviando evidencia...")
+                                          : t("Enviar a revisión")}
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                             <div
                               style={{
                                 marginTop: "2px",
