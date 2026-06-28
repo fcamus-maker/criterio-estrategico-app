@@ -109,6 +109,7 @@ export type SubirEvidenciaHallazgoInput = {
   empresa?: string;
   obra?: string;
   extension?: string;
+  carpeta?: string;
 };
 
 export type ResultadoSubidaEvidencia = {
@@ -782,7 +783,11 @@ function mapearHallazgoAFilaSupabase(hallazgo: HallazgoCentral) {
     recomendacion: hallazgo.recomendacion,
     estado: hallazgo.estado,
     estado_cierre: hallazgo.estadoCierre || seguimiento?.estadoCierre || "PENDIENTE",
-    estado_seguimiento: seguimiento?.estadoCierre || hallazgo.estadoCierre || "PENDIENTE",
+    estado_seguimiento:
+      seguimiento?.estadoSeguimiento ||
+      seguimiento?.estadoCierre ||
+      hallazgo.estadoCierre ||
+      "PENDIENTE",
     evidencias: evidenciasSinBase64(hallazgo.evidencias),
     fotos: evidenciasSinBase64(hallazgo.evidencias),
     gps_latitud: geo?.latitud,
@@ -912,7 +917,11 @@ function mapearCambiosAFilaSupabase(cambios: Partial<HallazgoCentral>) {
   asignarSiDefinido(fila, "recomendacion", cambios.recomendacion);
   asignarSiDefinido(fila, "estado", cambios.estado);
   asignarSiDefinido(fila, "estado_cierre", cambios.estadoCierre);
-  asignarSiDefinido(fila, "estado_seguimiento", cambios.estadoCierre);
+  asignarSiDefinido(
+    fila,
+    "estado_seguimiento",
+    seguimiento?.estadoSeguimiento || cambios.estadoCierre
+  );
 
   if (cambios.evidencias) {
     fila.evidencias = evidenciasSinBase64(cambios.evidencias);
@@ -941,7 +950,8 @@ function mapearCambiosAFilaSupabase(cambios: Partial<HallazgoCentral>) {
     fila.responsable_cierre_email = responsable?.email;
     fila.responsable_cierre_tipo = responsable?.tipoResponsable;
     fila.estado_cierre = seguimiento.estadoCierre;
-    fila.estado_seguimiento = seguimiento.estadoCierre;
+    fila.estado_seguimiento =
+      seguimiento.estadoSeguimiento || seguimiento.estadoCierre;
     fila.fecha_compromiso = fechaSoloSupabase(seguimiento.fechaCompromiso);
     fila.fecha_compromiso_cierre = fechaSoloSupabase(seguimiento.fechaCompromiso);
     fila.fecha_maxima_permitida_cierre = fechaSoloSupabase(
@@ -1798,11 +1808,12 @@ export async function subirEvidenciaHallazgo(
   const obra = segmentoStorage(input.obra, "sin-obra");
   const codigo = segmentoStorage(input.codigo, "sin-codigo");
   const evidenciaId = segmentoStorage(input.evidenciaId, "evidencia");
+  const carpeta = segmentoStorage(input.carpeta, "");
   const extension = segmentoStorage(
     texto(input.extension, "jpg").replace(/^\./, ""),
     "jpg"
   );
-  const storagePath = `empresa/${empresa}/obra/${obra}/hallazgo/${codigo}/${evidenciaId}.${extension}`;
+  const storagePath = `empresa/${empresa}/obra/${obra}/hallazgo/${codigo}/${carpeta ? `${carpeta}/` : ""}${evidenciaId}.${extension}`;
   const tamanoBytes = tamanoArchivoStorage(input.archivo);
 
   if (process.env.NODE_ENV !== "production") {
