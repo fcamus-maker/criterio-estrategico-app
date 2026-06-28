@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
   resolvePlatformLanguage,
@@ -113,13 +113,16 @@ const textosMobileEn: Record<string, string> = {
   "Agregar evidencia de cierre": "Add closure evidence",
   "Tomar foto de evidencia": "Take evidence photo",
   "Tomar fotografía de cierre": "Take closure photo",
+  "Seleccionar imagen desde galería": "Select image from gallery",
   "Fotografía obligatoria": "Photo required",
   "Sin fotografía seleccionada": "No photo selected",
   "Fotografía seleccionada correctamente": "Photo selected successfully",
   "No se seleccionó ninguna fotografía.": "No photo was selected.",
   "No se pudo cargar la fotografía. Intenta nuevamente.": "The photo could not be loaded. Try again.",
   "No se pudo preparar la vista previa de la fotografía.": "The photo preview could not be prepared.",
+  "No se pudo procesar la fotografía capturada.": "The captured photo could not be processed.",
   "Imagen lista para enviar": "Image ready to send",
+  "Procesando fotografía de cierre...": "Processing closure photo...",
   "Vista previa de la fotografía seleccionada": "Preview of the selected photo",
   "Tocar imagen para ampliar": "Tap image to enlarge",
   "Cerrar vista ampliada": "Close enlarged view",
@@ -173,6 +176,10 @@ type FiltroFechaCierreMovil = "hoy" | "semana" | "mes" | "fecha";
 
 const LIMITE_INICIAL_LISTADO_CIERRE_MOVIL = 30;
 const INCREMENTO_LISTADO_CIERRE_MOVIL = 30;
+const FOTO_CIERRE_MAX_LADO_PX = 1280;
+const FOTO_CIERRE_CALIDAD_JPEG = 0.72;
+const FOTO_CIERRE_OBJETIVO_BYTES = 1024 * 1024;
+const FOTO_CIERRE_MIN_LADO_REAJUSTE_PX = 960;
 
 const CONTADORES_SUPERVISOR_CERO: ContadoresSupervisor = {
   reportados: 0,
@@ -434,6 +441,126 @@ function crearIdEvidenciaCierreMovil() {
   return `cierre-${Date.now()}`;
 }
 
+function estimarBytesDataUrlCierreMovil(dataUrl: string) {
+  return Math.max(
+    0,
+    Math.round((((dataUrl.split(",")[1] || "").length * 3) / 4))
+  );
+}
+
+function nombreJpegCierreMovil(nombreOriginal: string | undefined) {
+  const base = String(nombreOriginal || "fotografia-cierre")
+    .replace(/\.[^.]+$/, "")
+    .replace(/[^a-zA-Z0-9._-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^[-.]+|[-.]+$/g, "");
+
+  return `${base || "fotografia-cierre"}.jpg`;
+}
+
+function prepararArchivoEvidenciaCierreMovil(
+  archivoOriginal: File
+): Promise<{ archivo: File; preview: string }> {
+  return new Promise((resolve, reject) => {
+    const lector = new FileReader();
+
+    lector.onerror = () =>
+      reject(new Error("No se pudo leer la fotografía de cierre."));
+    lector.onload = () => {
+      const previewOriginal =
+        typeof lector.result === "string" ? lector.result : "";
+
+      if (!previewOriginal) {
+        reject(new Error("No se pudo preparar la vista previa."));
+        return;
+      }
+
+      const imagen = new Image();
+
+      imagen.onerror = () => {
+        resolve({
+          archivo: archivoOriginal,
+          preview: previewOriginal,
+        });
+      };
+
+      imagen.onload = () => {
+        const ratio = Math.min(
+          FOTO_CIERRE_MAX_LADO_PX / imagen.width,
+          FOTO_CIERRE_MAX_LADO_PX / imagen.height,
+          1
+        );
+        let width = Math.round(imagen.width * ratio);
+        let height = Math.round(imagen.height * ratio);
+        const canvas = document.createElement("canvas");
+        const context = canvas.getContext("2d");
+
+        if (!context) {
+          resolve({
+            archivo: archivoOriginal,
+            preview: previewOriginal,
+          });
+          return;
+        }
+
+        const exportarJPEG = () => {
+          canvas.width = width;
+          canvas.height = height;
+          context.drawImage(imagen, 0, 0, width, height);
+          return canvas.toDataURL("image/jpeg", FOTO_CIERRE_CALIDAD_JPEG);
+        };
+
+        let previewComprimida = exportarJPEG();
+        while (
+          estimarBytesDataUrlCierreMovil(previewComprimida) >
+            FOTO_CIERRE_OBJETIVO_BYTES &&
+          Math.max(width, height) > FOTO_CIERRE_MIN_LADO_REAJUSTE_PX
+        ) {
+          const factor = Math.max(
+            FOTO_CIERRE_MIN_LADO_REAJUSTE_PX / Math.max(width, height),
+            0.88
+          );
+          width = Math.max(1, Math.round(width * factor));
+          height = Math.max(1, Math.round(height * factor));
+          previewComprimida = exportarJPEG();
+        }
+
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              resolve({
+                archivo: archivoOriginal,
+                preview: previewComprimida,
+              });
+              return;
+            }
+
+            const archivo = new File(
+              [blob],
+              nombreJpegCierreMovil(archivoOriginal.name),
+              {
+                type: "image/jpeg",
+                lastModified: archivoOriginal.lastModified || Date.now(),
+              }
+            );
+
+            resolve({
+              archivo,
+              preview: previewComprimida,
+            });
+          },
+          "image/jpeg",
+          FOTO_CIERRE_CALIDAD_JPEG
+        );
+      };
+
+      imagen.src = previewOriginal;
+    };
+
+    lector.readAsDataURL(archivoOriginal);
+  });
+}
+
 function usuarioBitacoraCierreMovil(supervisor: SupervisorV2) {
   return (
     supervisor.email ||
@@ -505,6 +632,7 @@ export default function EvaluarV2HomePage() {
   const [comentarioEvidenciaCierre, setComentarioEvidenciaCierre] = useState("");
   const [errorEvidenciaCierre, setErrorEvidenciaCierre] = useState("");
   const [enviandoEvidenciaCierre, setEnviandoEvidenciaCierre] = useState(false);
+  const [procesandoEvidenciaCierre, setProcesandoEvidenciaCierre] = useState(false);
   const [mensaje, setMensaje] = useState("");
   const [botonActivo, setBotonActivo] = useState("");
   const [editorPerfilAbierto, setEditorPerfilAbierto] = useState(false);
@@ -526,6 +654,8 @@ export default function EvaluarV2HomePage() {
     offsetY: 0,
   });
   const [fotoPerfilQuitada, setFotoPerfilQuitada] = useState(false);
+  const inputCamaraEvidenciaCierreRef = useRef<HTMLInputElement | null>(null);
+  const inputGaleriaEvidenciaCierreRef = useRef<HTMLInputElement | null>(null);
 
   const scopeDesdeSupervisor = (item: SupervisorV2) =>
     crearScopeLocalReporteV2({
@@ -1016,6 +1146,7 @@ export default function EvaluarV2HomePage() {
     setInputEvidenciaCierreKey((actual) => actual + 1);
     setComentarioEvidenciaCierre("");
     setErrorEvidenciaCierre("");
+    setProcesandoEvidenciaCierre(false);
   };
 
   const abrirFormularioEvidenciaCierre = (hallazgo: HallazgoCentral) => {
@@ -1026,53 +1157,60 @@ export default function EvaluarV2HomePage() {
     setInputEvidenciaCierreKey((actual) => actual + 1);
     setComentarioEvidenciaCierre("");
     setErrorEvidenciaCierre("");
+    setProcesandoEvidenciaCierre(false);
     vibrarOk();
   };
 
-  const cargarArchivoEvidenciaCierre = (event: ChangeEvent<HTMLInputElement>) => {
-    const archivo = event.currentTarget.files?.[0] || null;
+  const abrirCamaraEvidenciaCierre = () => {
+    if (enviandoEvidenciaCierre || procesandoEvidenciaCierre) return;
+    inputCamaraEvidenciaCierreRef.current?.click();
+  };
+
+  const abrirGaleriaEvidenciaCierre = () => {
+    if (enviandoEvidenciaCierre || procesandoEvidenciaCierre) return;
+    inputGaleriaEvidenciaCierreRef.current?.click();
+  };
+
+  const cargarArchivoEvidenciaCierre = async (
+    event: ChangeEvent<HTMLInputElement>
+  ) => {
+    const input = event.currentTarget;
+    const archivo = input.files?.[0] || null;
 
     if (!archivo) {
-      setErrorEvidenciaCierre(
-        t("No se pudo cargar la fotografía. Intenta nuevamente.")
-      );
+      if (!archivoEvidenciaCierre) {
+        setErrorEvidenciaCierre(t("No se seleccionó ninguna fotografía."));
+      }
       return;
     }
 
-    const lector = new FileReader();
+    setProcesandoEvidenciaCierre(true);
+    setErrorEvidenciaCierre("");
 
-    lector.onload = () => {
-      const previewUrl =
-        typeof lector.result === "string" ? lector.result : "";
-
-      if (!previewUrl) {
-        setErrorEvidenciaCierre(
-          t("No se pudo preparar la vista previa de la fotografía.")
-        );
-        return;
-      }
-
-      if (previewEvidenciaCierre.startsWith("blob:")) {
-        URL.revokeObjectURL(previewEvidenciaCierre);
-      }
-
-      setArchivoEvidenciaCierre(archivo);
-      setPreviewEvidenciaCierre(previewUrl);
+    try {
+      const preparada = await prepararArchivoEvidenciaCierreMovil(archivo);
+      setArchivoEvidenciaCierre(preparada.archivo);
+      setPreviewEvidenciaCierre(preparada.preview);
       setPreviewEvidenciaCierreAmpliada(false);
       setErrorEvidenciaCierre("");
-    };
-
-    lector.onerror = () => {
+      vibrarOk();
+    } catch {
       setErrorEvidenciaCierre(
-        t("No se pudo preparar la vista previa de la fotografía.")
+        t("No se pudo procesar la fotografía capturada.")
       );
-    };
-
-    lector.readAsDataURL(archivo);
+    } finally {
+      setProcesandoEvidenciaCierre(false);
+      input.value = "";
+    }
   };
 
   const enviarEvidenciaCierreRevision = async (hallazgo: HallazgoCentral) => {
     if (enviandoEvidenciaCierre) return;
+
+    if (procesandoEvidenciaCierre) {
+      setErrorEvidenciaCierre(t("Procesando fotografía de cierre..."));
+      return;
+    }
 
     if (!hallazgo.id) {
       setErrorEvidenciaCierre(t("No se pudo identificar el hallazgo para actualizarlo."));
@@ -2708,59 +2846,121 @@ export default function EvaluarV2HomePage() {
                                       }}
                                     >
                                       {t("Fotografía obligatoria")}
-                                      <div
+                                      <input
+                                        key={`camara-${inputEvidenciaId}-${inputEvidenciaCierreKey}`}
+                                        ref={inputCamaraEvidenciaCierreRef}
+                                        type="file"
+                                        accept="image/*"
+                                        capture="environment"
+                                        onChange={cargarArchivoEvidenciaCierre}
+                                        disabled={
+                                          enviandoEvidenciaCierre ||
+                                          procesandoEvidenciaCierre
+                                        }
+                                        aria-label={t("Fotografía obligatoria")}
+                                        style={{ display: "none" }}
+                                      />
+                                      <input
+                                        key={`galeria-${inputEvidenciaId}-${inputEvidenciaCierreKey}`}
+                                        ref={inputGaleriaEvidenciaCierreRef}
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={cargarArchivoEvidenciaCierre}
+                                        disabled={
+                                          enviandoEvidenciaCierre ||
+                                          procesandoEvidenciaCierre
+                                        }
+                                        aria-label={t(
+                                          "Seleccionar imagen desde galería"
+                                        )}
+                                        style={{ display: "none" }}
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={abrirCamaraEvidenciaCierre}
+                                        disabled={
+                                          enviandoEvidenciaCierre ||
+                                          procesandoEvidenciaCierre
+                                        }
+                                        {...feedbackBoton(
+                                          `tomar-foto-cierre-${claveHallazgo}`
+                                        )}
                                         style={{
-                                          position: "relative",
-                                          width: "100%",
+                                          border: "0",
                                           borderRadius: "12px",
-                                          overflow: "hidden",
-                                          opacity: enviandoEvidenciaCierre ? 0.76 : 1,
-                                          cursor: enviandoEvidenciaCierre
-                                            ? "not-allowed"
-                                            : "pointer",
+                                          padding: "11px 12px",
+                                          background:
+                                            "linear-gradient(180deg, #2563eb, #1d4ed8)",
+                                          color: "white",
+                                          fontSize: "12px",
+                                          fontWeight: 950,
+                                          textAlign: "center",
+                                          cursor:
+                                            enviandoEvidenciaCierre ||
+                                            procesandoEvidenciaCierre
+                                              ? "not-allowed"
+                                              : "pointer",
+                                          opacity:
+                                            enviandoEvidenciaCierre ||
+                                            procesandoEvidenciaCierre
+                                              ? 0.76
+                                              : 1,
+                                          touchAction: "manipulation",
+                                          ...estiloFeedback(
+                                            `tomar-foto-cierre-${claveHallazgo}`
+                                          ),
+                                        }}
+                                      >
+                                        {t("Tomar fotografía de cierre")}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={abrirGaleriaEvidenciaCierre}
+                                        disabled={
+                                          enviandoEvidenciaCierre ||
+                                          procesandoEvidenciaCierre
+                                        }
+                                        style={{
+                                          border: temaClaro
+                                            ? "1px solid rgba(37,99,235,0.20)"
+                                            : "1px solid rgba(147,197,253,0.22)",
+                                          borderRadius: "12px",
+                                          padding: "9px 12px",
+                                          background: temaClaro
+                                            ? "rgba(37,99,235,0.06)"
+                                            : "rgba(37,99,235,0.12)",
+                                          color: temaClaro ? "#1d4ed8" : "#bfdbfe",
+                                          fontSize: "11px",
+                                          fontWeight: 900,
+                                          textAlign: "center",
+                                          cursor:
+                                            enviandoEvidenciaCierre ||
+                                            procesandoEvidenciaCierre
+                                              ? "not-allowed"
+                                              : "pointer",
+                                          opacity:
+                                            enviandoEvidenciaCierre ||
+                                            procesandoEvidenciaCierre
+                                              ? 0.72
+                                              : 1,
                                           touchAction: "manipulation",
                                         }}
                                       >
-                                        <input
-                                          key={`${inputEvidenciaId}-${inputEvidenciaCierreKey}`}
-                                          id={inputEvidenciaId}
-                                          type="file"
-                                          accept="image/*"
-                                          capture="environment"
-                                          onChange={cargarArchivoEvidenciaCierre}
-                                          disabled={enviandoEvidenciaCierre}
-                                          aria-label={t("Fotografía obligatoria")}
+                                        {t("Seleccionar imagen desde galería")}
+                                      </button>
+                                      {procesandoEvidenciaCierre && (
+                                        <span
                                           style={{
-                                            position: "absolute",
-                                            inset: 0,
-                                            width: "100%",
-                                            height: "100%",
-                                            opacity: 0,
-                                            zIndex: 2,
-                                            cursor: enviandoEvidenciaCierre
-                                              ? "not-allowed"
-                                              : "pointer",
-                                          }}
-                                        />
-                                        <div
-                                          aria-hidden="true"
-                                          style={{
-                                            position: "relative",
-                                            zIndex: 1,
-                                            border: "0",
-                                            borderRadius: "12px",
-                                            padding: "11px 12px",
-                                            background:
-                                              "linear-gradient(180deg, #2563eb, #1d4ed8)",
-                                            color: "white",
-                                            fontSize: "12px",
-                                            fontWeight: 950,
-                                            textAlign: "center",
+                                            color: temaClaro
+                                              ? "#1d4ed8"
+                                              : "#bfdbfe",
+                                            fontSize: "10px",
+                                            fontWeight: 850,
                                           }}
                                         >
-                                          {t("Tomar fotografía de cierre")}
-                                        </div>
-                                      </div>
+                                          {t("Procesando fotografía de cierre...")}
+                                        </span>
+                                      )}
                                       <span
                                         style={{
                                           color: archivoEvidenciaCierre
@@ -2834,7 +3034,7 @@ export default function EvaluarV2HomePage() {
                                             touchAction: "manipulation",
                                           }}
                                         >
-                                          {/* Blob local de preview; se envia el archivo original sin modificar. */}
+                                          {/* Preview local; la evidencia se envia con el archivo preparado. */}
                                           {/* eslint-disable-next-line @next/next/no-img-element */}
                                           <img
                                             src={previewEvidenciaCierre}
@@ -2920,7 +3120,7 @@ export default function EvaluarV2HomePage() {
                                               justifyContent: "center",
                                             }}
                                           >
-                                            {/* Blob local de preview; se envia el archivo original sin modificar. */}
+                                            {/* Preview local; la evidencia se envia con el archivo preparado. */}
                                             {/* eslint-disable-next-line @next/next/no-img-element */}
                                             <img
                                               src={previewEvidenciaCierre}
