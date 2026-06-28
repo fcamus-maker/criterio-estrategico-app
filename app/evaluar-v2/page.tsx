@@ -7,7 +7,10 @@ import {
   resolvePlatformTheme,
   usePlatformPreferences,
 } from "../services/platformPreferences";
-import { obtenerResumenHistorialSupervisorCentral } from "../repositories/hallazgosCentralRepository";
+import {
+  listarHallazgosSupervisorCentral,
+  obtenerResumenHistorialSupervisorCentral,
+} from "../repositories/hallazgosCentralRepository";
 import { cerrarSesionCE } from "../services/authProfileService";
 import {
   comprimirFotoPerfilUsuario,
@@ -38,6 +41,7 @@ import {
   FirmaPremium,
   PremiumMobileViewport,
 } from "./evaluacion/componentesPremium";
+import type { HallazgoCentral } from "../types/hallazgoCentral";
 
 const textosMobileEn: Record<string, string> = {
   "Supervisor activo": "Active supervisor",
@@ -78,6 +82,34 @@ const textosMobileEn: Record<string, string> = {
   Reportados: "Reported",
   Abiertos: "Open",
   Cerrados: "Closed",
+  "Por cerrar": "To close",
+  "En revisión": "Under review",
+  "No hay hallazgos en esta categoría.": "There are no findings in this category.",
+  "Solo lectura en esta versión": "Read-only in this version",
+  "Gestión de cierre próxima fase": "Closure management in the next phase",
+  "Volver al resumen": "Back to summary",
+  "Mostrar más": "Show more",
+  Hoy: "Today",
+  Semana: "Week",
+  Mes: "Month",
+  Fecha: "Date",
+  Mostrando: "Showing",
+  "Seleccionar fecha": "Select date",
+  "Corresponde a hallazgos abiertos o pendientes de gestión.":
+    "Findings that are open or pending management.",
+  "Corresponde a hallazgos donde ya se cargó evidencia de cierre y están esperando validación.":
+    "Findings with closure evidence already uploaded and awaiting validation.",
+  "Corresponde a hallazgos finalizados con evidencia o justificación registrada.":
+    "Findings finalized with registered evidence or justification.",
+  Cerrar: "Close",
+  "Fecha compromiso": "Due date",
+  Responsable: "Owner",
+  "Sin responsable": "No owner",
+  "Sin fecha compromiso": "No due date",
+  "Sin área": "No area",
+  "Sin descripción disponible": "No description available",
+  "Listado de hallazgos": "Findings list",
+  "Consulta central no disponible temporalmente.": "Central query is temporarily unavailable.",
   "Supervisor guardado.": "Supervisor saved.",
   "Procesando fotografía del supervisor...": "Processing supervisor photo...",
   "Fotografía del supervisor cargada. Presiona guardar.": "Supervisor photo loaded. Press save.",
@@ -99,11 +131,256 @@ type ContadoresSupervisor = {
   cerrados: number;
 };
 
+type CategoriaCierreMovil = "por_cerrar" | "en_revision" | "cerrados";
+
+type ResumenCierreMovil = Record<CategoriaCierreMovil, HallazgoCentral[]>;
+
+type FiltroFechaCierreMovil = "hoy" | "semana" | "mes" | "fecha";
+
+const LIMITE_INICIAL_LISTADO_CIERRE_MOVIL = 30;
+const INCREMENTO_LISTADO_CIERRE_MOVIL = 30;
+
 const CONTADORES_SUPERVISOR_CERO: ContadoresSupervisor = {
   reportados: 0,
   abiertos: 0,
   cerrados: 0,
 };
+
+function normalizarTextoCierreMovil(valor: unknown) {
+  return String(valor ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toUpperCase();
+}
+
+function hallazgoCerradoMovil(hallazgo: HallazgoCentral) {
+  const estado = normalizarTextoCierreMovil(hallazgo.estado);
+  const estadoCierre = normalizarTextoCierreMovil(hallazgo.estadoCierre);
+  const seguimiento = hallazgo.seguimientoCierre;
+  const estadoSeguimiento = normalizarTextoCierreMovil(
+    seguimiento?.estadoSeguimiento || seguimiento?.estadoCierre
+  );
+
+  return (
+    estado === "CERRADO" ||
+    estadoCierre === "CERRADO" ||
+    estadoSeguimiento.includes("CERRADO")
+  );
+}
+
+function hallazgoEnRevisionMovil(hallazgo: HallazgoCentral) {
+  if (hallazgoCerradoMovil(hallazgo)) return false;
+
+  const seguimiento = hallazgo.seguimientoCierre;
+  const estadoCierre = normalizarTextoCierreMovil(hallazgo.estadoCierre);
+  const estadoSeguimiento = normalizarTextoCierreMovil(
+    seguimiento?.estadoSeguimiento || seguimiento?.estadoCierre
+  );
+  const validadorEstado = normalizarTextoCierreMovil(seguimiento?.validadorEstado);
+  const evidenciaRecibida = seguimiento?.evidenciaRecibida || [];
+
+  return (
+    estadoSeguimiento.includes("REVISION") ||
+    estadoSeguimiento.includes("VALIDACION") ||
+    estadoSeguimiento.includes("EVIDENCIA CARGADA") ||
+    estadoSeguimiento.includes("CORRECCION INFORMADA") ||
+    validadorEstado.includes("REVISION") ||
+    validadorEstado.includes("PENDIENTE") ||
+    estadoCierre.includes("REVISION") ||
+    evidenciaRecibida.length > 0
+  );
+}
+
+function agruparHallazgosCierreMovil(
+  hallazgos: HallazgoCentral[]
+): ResumenCierreMovil {
+  return hallazgos.reduce<ResumenCierreMovil>(
+    (acumulado, hallazgo) => {
+      if (hallazgoCerradoMovil(hallazgo)) {
+        acumulado.cerrados.push(hallazgo);
+      } else if (hallazgoEnRevisionMovil(hallazgo)) {
+        acumulado.en_revision.push(hallazgo);
+      } else {
+        acumulado.por_cerrar.push(hallazgo);
+      }
+
+      return acumulado;
+    },
+    {
+      por_cerrar: [],
+      en_revision: [],
+      cerrados: [],
+    }
+  );
+}
+
+function estadoVisibleCierreMovil(hallazgo: HallazgoCentral) {
+  return (
+    hallazgo.seguimientoCierre?.estadoSeguimiento ||
+    hallazgo.seguimientoCierre?.estadoCierre ||
+    hallazgo.estadoCierre ||
+    hallazgo.estado ||
+    "Sin estado"
+  );
+}
+
+function responsableVisibleCierreMovil(hallazgo: HallazgoCentral) {
+  return (
+    hallazgo.seguimientoCierre?.responsable?.nombre ||
+    hallazgo.seguimientoCierre?.responsable?.empresa ||
+    ""
+  );
+}
+
+function descripcionBreveCierreMovil(hallazgo: HallazgoCentral) {
+  const descripcion = hallazgo.descripcion.trim();
+  if (descripcion.length <= 92) return descripcion;
+  return `${descripcion.slice(0, 89).trim()}...`;
+}
+
+function claveHallazgoCierreMovil(hallazgo: HallazgoCentral) {
+  return hallazgo.id || hallazgo.codigo;
+}
+
+function fechaLocalInputCierreMovil(fecha = new Date()) {
+  const anio = fecha.getFullYear();
+  const mes = String(fecha.getMonth() + 1).padStart(2, "0");
+  const dia = String(fecha.getDate()).padStart(2, "0");
+
+  return `${anio}-${mes}-${dia}`;
+}
+
+function fechaLegibleCierreMovil(valor: string) {
+  const fecha = new Date(valor);
+
+  if (Number.isNaN(fecha.getTime())) {
+    return String(valor || "").slice(0, 10) || "--";
+  }
+
+  const dia = String(fecha.getDate()).padStart(2, "0");
+  const mes = String(fecha.getMonth() + 1).padStart(2, "0");
+  const anio = String(fecha.getFullYear());
+
+  return `${dia}-${mes}-${anio}`;
+}
+
+function fechaBaseHallazgoCierreMovil(hallazgo: HallazgoCentral) {
+  return (
+    hallazgo.fechaHoraReporteISO ||
+    hallazgo.fechaReporte ||
+    hallazgo.fechaCreacion ||
+    hallazgo.createdAt ||
+    ""
+  );
+}
+
+function fechaEvidenciaRevisionCierreMovil(hallazgo: HallazgoCentral) {
+  const evidencias = hallazgo.seguimientoCierre?.evidenciaRecibida || [];
+  return (
+    evidencias
+      .map(
+        (evidencia) =>
+          evidencia.fechaSubida ||
+          evidencia.fechaCarga ||
+          evidencia.capturedAt ||
+          evidencia.fechaCaptura ||
+          evidencia.gpsAt ||
+          ""
+      )
+      .filter(Boolean)
+      .sort()
+      .at(-1) || ""
+  );
+}
+
+function fechaAplicableCierreMovil(
+  hallazgo: HallazgoCentral,
+  categoria: CategoriaCierreMovil | null
+) {
+  if (categoria === "por_cerrar") {
+    return hallazgo.seguimientoCierre?.fechaCompromiso || fechaBaseHallazgoCierreMovil(hallazgo);
+  }
+
+  if (categoria === "en_revision") {
+    return (
+      fechaEvidenciaRevisionCierreMovil(hallazgo) ||
+      hallazgo.seguimientoCierre?.actualizadoEn ||
+      hallazgo.updatedAt ||
+      hallazgo.fechaActualizacion ||
+      fechaBaseHallazgoCierreMovil(hallazgo)
+    );
+  }
+
+  if (categoria === "cerrados") {
+    return (
+      hallazgo.seguimientoCierre?.fechaCierre ||
+      hallazgo.updatedAt ||
+      hallazgo.fechaActualizacion ||
+      fechaBaseHallazgoCierreMovil(hallazgo)
+    );
+  }
+
+  return fechaBaseHallazgoCierreMovil(hallazgo);
+}
+
+function fechaFiltroCierreMovil(
+  hallazgo: HallazgoCentral,
+  categoria: CategoriaCierreMovil | null
+) {
+  return fechaLegibleCierreMovil(fechaAplicableCierreMovil(hallazgo, categoria));
+}
+
+function fechaComparableCierreMovil(valor: string) {
+  const fecha = new Date(valor);
+  if (Number.isNaN(fecha.getTime())) return "";
+  return fechaLocalInputCierreMovil(fecha);
+}
+
+function inicioSemanaCierreMovil(fecha: Date) {
+  const inicio = new Date(fecha);
+  inicio.setHours(0, 0, 0, 0);
+  const diaSemana = inicio.getDay();
+  const diferencia = diaSemana === 0 ? -6 : 1 - diaSemana;
+  inicio.setDate(inicio.getDate() + diferencia);
+  return inicio;
+}
+
+function hallazgoCumpleFiltroFechaCierreMovil(
+  hallazgo: HallazgoCentral,
+  categoria: CategoriaCierreMovil | null,
+  filtro: FiltroFechaCierreMovil,
+  fechaSeleccionada: string
+) {
+  const valor = fechaAplicableCierreMovil(hallazgo, categoria);
+  const fecha = new Date(valor);
+  if (Number.isNaN(fecha.getTime())) return false;
+
+  const hoy = new Date();
+  const fechaHallazgo = new Date(fecha);
+  fechaHallazgo.setHours(0, 0, 0, 0);
+
+  if (filtro === "hoy") {
+    return fechaComparableCierreMovil(valor) === fechaLocalInputCierreMovil(hoy);
+  }
+
+  if (filtro === "semana") {
+    const inicio = inicioSemanaCierreMovil(hoy);
+    const fin = new Date(inicio);
+    fin.setDate(inicio.getDate() + 6);
+    fin.setHours(23, 59, 59, 999);
+    return fechaHallazgo >= inicio && fechaHallazgo <= fin;
+  }
+
+  if (filtro === "mes") {
+    return (
+      fecha.getFullYear() === hoy.getFullYear() &&
+      fecha.getMonth() === hoy.getMonth()
+    );
+  }
+
+  return fechaComparableCierreMovil(valor) === fechaSeleccionada;
+}
 
 export default function EvaluarV2HomePage() {
   const router = useRouter();
@@ -126,6 +403,25 @@ export default function EvaluarV2HomePage() {
   const [cargandoHistorialCentral, setCargandoHistorialCentral] =
     useState(false);
   const [mensajeHistorialCentral, setMensajeHistorialCentral] = useState("");
+  const [hallazgosCierreMovil, setHallazgosCierreMovil] = useState<
+    HallazgoCentral[]
+  >([]);
+  const [cargandoHallazgosCierre, setCargandoHallazgosCierre] =
+    useState(false);
+  const [mensajeHallazgosCierre, setMensajeHallazgosCierre] = useState("");
+  const [categoriaCierreActiva, setCategoriaCierreActiva] =
+    useState<CategoriaCierreMovil | null>(null);
+  const [hallazgoCierreExpandido, setHallazgoCierreExpandido] = useState("");
+  const [limiteVisibleCierre, setLimiteVisibleCierre] = useState(
+    LIMITE_INICIAL_LISTADO_CIERRE_MOVIL
+  );
+  const [filtroFechaCierre, setFiltroFechaCierre] =
+    useState<FiltroFechaCierreMovil>("semana");
+  const [fechaFiltroCierre, setFechaFiltroCierre] = useState(
+    fechaLocalInputCierreMovil()
+  );
+  const [ayudaCierreActiva, setAyudaCierreActiva] =
+    useState<CategoriaCierreMovil | null>(null);
   const [mensaje, setMensaje] = useState("");
   const [botonActivo, setBotonActivo] = useState("");
   const [editorPerfilAbierto, setEditorPerfilAbierto] = useState(false);
@@ -161,24 +457,38 @@ export default function EvaluarV2HomePage() {
 
     if (!userId) {
       setContadores(CONTADORES_SUPERVISOR_CERO);
+      setHallazgosCierreMovil([]);
+      setCategoriaCierreActiva(null);
+      setHallazgoCierreExpandido("");
+      setLimiteVisibleCierre(LIMITE_INICIAL_LISTADO_CIERRE_MOVIL);
       setHistorialCentralDisponible(false);
       setMensajeHistorialCentral("");
+      setMensajeHallazgosCierre("");
       setCargandoHistorialCentral(false);
+      setCargandoHallazgosCierre(false);
       return;
     }
 
     if (typeof navigator !== "undefined" && navigator.onLine === false) {
       setContadores(CONTADORES_SUPERVISOR_CERO);
+      setHallazgosCierreMovil([]);
+      setCategoriaCierreActiva(null);
+      setHallazgoCierreExpandido("");
+      setLimiteVisibleCierre(LIMITE_INICIAL_LISTADO_CIERRE_MOVIL);
       setHistorialCentralDisponible(false);
       setMensajeHistorialCentral(
         "Historial central no disponible temporalmente."
       );
+      setMensajeHallazgosCierre("Consulta central no disponible temporalmente.");
       setCargandoHistorialCentral(false);
+      setCargandoHallazgosCierre(false);
       return;
     }
 
     setCargandoHistorialCentral(true);
+    setCargandoHallazgosCierre(true);
     setMensajeHistorialCentral("");
+    setMensajeHallazgosCierre("");
 
     try {
       const resultado = await obtenerResumenHistorialSupervisorCentral({
@@ -191,21 +501,47 @@ export default function EvaluarV2HomePage() {
         setContadores(resultado.data);
         setHistorialCentralDisponible(true);
         setMensajeHistorialCentral("");
+
+        const listado = await listarHallazgosSupervisorCentral({
+          userId,
+          empresaId: item.empresaId,
+          obraId: item.obraId,
+          limit: 120,
+        });
+
+        if (listado.ok) {
+          setHallazgosCierreMovil(listado.data);
+          setMensajeHallazgosCierre("");
+        } else {
+          setHallazgosCierreMovil([]);
+          setMensajeHallazgosCierre("Consulta central no disponible temporalmente.");
+        }
       } else {
         setContadores(CONTADORES_SUPERVISOR_CERO);
+        setHallazgosCierreMovil([]);
+        setCategoriaCierreActiva(null);
+        setHallazgoCierreExpandido("");
+        setLimiteVisibleCierre(LIMITE_INICIAL_LISTADO_CIERRE_MOVIL);
         setHistorialCentralDisponible(false);
         setMensajeHistorialCentral(
           "Historial central no disponible temporalmente."
         );
+        setMensajeHallazgosCierre("Consulta central no disponible temporalmente.");
       }
     } catch {
       setContadores(CONTADORES_SUPERVISOR_CERO);
+      setHallazgosCierreMovil([]);
+      setCategoriaCierreActiva(null);
+      setHallazgoCierreExpandido("");
+      setLimiteVisibleCierre(LIMITE_INICIAL_LISTADO_CIERRE_MOVIL);
       setHistorialCentralDisponible(false);
       setMensajeHistorialCentral(
         "Historial central no disponible temporalmente."
       );
+      setMensajeHallazgosCierre("Consulta central no disponible temporalmente.");
     } finally {
       setCargandoHistorialCentral(false);
+      setCargandoHallazgosCierre(false);
     }
   };
 
@@ -304,6 +640,91 @@ export default function EvaluarV2HomePage() {
     perfilSupervisorGuardado,
     supervisor,
   ]);
+  const resumenCierreMovil = useMemo(
+    () => agruparHallazgosCierreMovil(hallazgosCierreMovil),
+    [hallazgosCierreMovil]
+  );
+  const hallazgosCategoriaActiva = categoriaCierreActiva
+    ? resumenCierreMovil[categoriaCierreActiva]
+    : [];
+  const hallazgosCierreFiltrados = hallazgosCategoriaActiva.filter((hallazgo) =>
+    hallazgoCumpleFiltroFechaCierreMovil(
+      hallazgo,
+      categoriaCierreActiva,
+      filtroFechaCierre,
+      fechaFiltroCierre
+    )
+  );
+  const hallazgosCierreVisibles = hallazgosCierreFiltrados.slice(
+    0,
+    limiteVisibleCierre
+  );
+  const hayMasHallazgosCierre =
+    hallazgosCierreFiltrados.length > hallazgosCierreVisibles.length;
+  const etiquetaFiltroFechaCierre =
+    filtroFechaCierre === "hoy"
+      ? t("Hoy")
+      : filtroFechaCierre === "mes"
+        ? t("Mes")
+        : filtroFechaCierre === "fecha"
+          ? t("Fecha")
+          : t("Semana");
+  const filtrosFechaCierre: Array<{
+    id: FiltroFechaCierreMovil;
+    label: string;
+  }> = [
+    { id: "hoy", label: t("Hoy") },
+    { id: "semana", label: t("Semana") },
+    { id: "mes", label: t("Mes") },
+    { id: "fecha", label: t("Fecha") },
+  ];
+  const cuadrosCierreMovil: Array<{
+    id: CategoriaCierreMovil;
+    label: string;
+    ayuda: string;
+    valor: number;
+    background: string;
+    border: string;
+    boxShadow: string;
+  }> = [
+    {
+      id: "por_cerrar",
+      label: t("Por cerrar"),
+      ayuda: t("Corresponde a hallazgos abiertos o pendientes de gestión."),
+      valor: resumenCierreMovil.por_cerrar.length,
+      background:
+        "linear-gradient(180deg, rgba(248,113,113,0.98), rgba(220,38,38,0.90))",
+      border: "1px solid rgba(252,165,165,0.65)",
+      boxShadow: "0 16px 30px rgba(220,38,38,0.34)",
+    },
+    {
+      id: "en_revision",
+      label: t("En revisión"),
+      ayuda: t(
+        "Corresponde a hallazgos donde ya se cargó evidencia de cierre y están esperando validación."
+      ),
+      valor: resumenCierreMovil.en_revision.length,
+      background:
+        "linear-gradient(180deg, rgba(59,130,246,0.98), rgba(29,78,216,0.90))",
+      border: "1px solid rgba(147,197,253,0.65)",
+      boxShadow: "0 16px 30px rgba(37,99,235,0.34)",
+    },
+    {
+      id: "cerrados",
+      label: t("Cerrados"),
+      ayuda: t(
+        "Corresponde a hallazgos finalizados con evidencia o justificación registrada."
+      ),
+      valor: resumenCierreMovil.cerrados.length,
+      background:
+        "linear-gradient(180deg, rgba(34,197,94,0.98), rgba(21,128,61,0.90))",
+      border: "1px solid rgba(134,239,172,0.65)",
+      boxShadow: "0 16px 30px rgba(21,128,61,0.34)",
+    },
+  ];
+  const tituloCategoriaActiva =
+    cuadrosCierreMovil.find((cuadro) => cuadro.id === categoriaCierreActiva)
+      ?.label || "";
   const inicialSupervisor =
     supervisor.nombre
       .trim()
@@ -1301,58 +1722,189 @@ export default function EvaluarV2HomePage() {
               gap: "8px",
             }}
           >
-            {[
-              [
-                t("Reportados"),
-                `${contadores.reportados}`,
-                "linear-gradient(180deg, rgba(59,130,246,0.98), rgba(29,78,216,0.90))",
-                "1px solid rgba(147,197,253,0.65)",
-                "0 16px 30px rgba(37,99,235,0.34)",
-              ],
-              [
-                t("Abiertos"),
-                `${contadores.abiertos}`,
-                "linear-gradient(180deg, rgba(248,113,113,0.98), rgba(220,38,38,0.90))",
-                "1px solid rgba(252,165,165,0.65)",
-                "0 16px 30px rgba(220,38,38,0.34)",
-              ],
-              [
-                t("Cerrados"),
-                `${contadores.cerrados}`,
-                "linear-gradient(180deg, rgba(34,197,94,0.98), rgba(21,128,61,0.90))",
-                "1px solid rgba(134,239,172,0.65)",
-                "0 16px 30px rgba(21,128,61,0.34)",
-              ],
-            ].map(([label, valor, background, border, boxShadow]) => (
-              <div
-                key={label}
-                style={{
-                  borderRadius: "16px",
-                  padding: "13px 8px",
-                  background,
-                  border,
-                  boxShadow,
-                  textAlign: "center",
-                  minHeight: "78px",
-                  boxSizing: "border-box",
-                }}
-              >
+            {cuadrosCierreMovil.map((cuadro) => {
+              const activo = categoriaCierreActiva === cuadro.id;
+              return (
                 <div
+                  key={cuadro.id}
                   style={{
-                    fontSize: "12px",
-                    opacity: 0.9,
-                    marginBottom: "8px",
-                    fontWeight: 900,
+                    position: "relative",
+                    minHeight: "78px",
                   }}
                 >
-                  {label}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCategoriaCierreActiva((actual) => {
+                        const siguiente = actual === cuadro.id ? null : cuadro.id;
+                        setHallazgoCierreExpandido("");
+                        setLimiteVisibleCierre(
+                          LIMITE_INICIAL_LISTADO_CIERRE_MOVIL
+                        );
+                        setFiltroFechaCierre("semana");
+                        setFechaFiltroCierre(fechaLocalInputCierreMovil());
+                        setAyudaCierreActiva(null);
+                        return siguiente;
+                      });
+                      vibrarOk();
+                    }}
+                    {...feedbackBoton(`cierre-${cuadro.id}`)}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        borderRadius: "16px",
+                      padding: "13px 8px 17px",
+                      background: cuadro.background,
+                      border: activo
+                        ? "2px solid rgba(255,255,255,0.92)"
+                        : cuadro.border,
+                      boxShadow: activo
+                        ? `${cuadro.boxShadow}, 0 0 0 3px rgba(255,255,255,0.20)`
+                        : cuadro.boxShadow,
+                      textAlign: "center",
+                      minHeight: "78px",
+                      boxSizing: "border-box",
+                      color: "white",
+                      cursor: "pointer",
+                      touchAction: "manipulation",
+                      transition:
+                        "transform 120ms ease, filter 120ms ease, box-shadow 120ms ease",
+                      ...estiloFeedback(`cierre-${cuadro.id}`),
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        opacity: 0.9,
+                        marginBottom: "8px",
+                        fontWeight: 900,
+                        textAlign: "center",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      {cuadro.label}
+                    </div>
+                    <div style={{ fontSize: "28px", fontWeight: 900 }}>
+                      {cargandoHallazgosCierre ? "..." : cuadro.valor}
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Ayuda ${cuadro.label}`}
+                    onClick={() => {
+                      setAyudaCierreActiva((actual) =>
+                        actual === cuadro.id ? null : cuadro.id
+                      );
+                      vibrarOk();
+                    }}
+                    {...feedbackBoton(`ayuda-cierre-${cuadro.id}`)}
+                    style={{
+                      position: "absolute",
+                      right: "10px",
+                      bottom: "6px",
+                      width: "auto",
+                      height: "auto",
+                      borderRadius: "999px",
+                      border: "0",
+                      background: "transparent",
+                      color: "rgba(255,255,255,0.94)",
+                      fontSize: "17px",
+                      fontWeight: 950,
+                      lineHeight: 1,
+                      display: "grid",
+                      placeItems: "center",
+                      cursor: "pointer",
+                      touchAction: "manipulation",
+                      opacity: 0.72,
+                      padding: "0",
+                      ...estiloFeedback(`ayuda-cierre-${cuadro.id}`),
+                    }}
+                  >
+                    …
+                  </button>
                 </div>
-                <div style={{ fontSize: "28px", fontWeight: 900 }}>
-                  {valor}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
+          {ayudaCierreActiva && (
+            <div
+              style={{
+                marginTop: "10px",
+                borderRadius: "15px",
+                padding: "11px 12px",
+                background: temaClaro
+                  ? "rgba(255,255,255,0.92)"
+                  : "rgba(15,23,42,0.62)",
+                border: temaClaro
+                  ? "1px solid rgba(37,99,235,0.16)"
+                  : "1px solid rgba(147,197,253,0.18)",
+                boxShadow: temaClaro
+                  ? "0 14px 28px rgba(15,23,42,0.08)"
+                  : "0 18px 32px rgba(0,0,0,0.18)",
+                display: "grid",
+                gap: "7px",
+              }}
+            >
+              {(() => {
+                const cuadroAyuda = cuadrosCierreMovil.find(
+                  (cuadro) => cuadro.id === ayudaCierreActiva
+                );
+
+                if (!cuadroAyuda) return null;
+
+                return (
+                  <>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: "10px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          fontWeight: 950,
+                          color: temaClaro ? "#0f172a" : "white",
+                        }}
+                      >
+                        {cuadroAyuda.label}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setAyudaCierreActiva(null)}
+                        style={{
+                          border: "0",
+                          borderRadius: "999px",
+                          background: temaClaro
+                            ? "rgba(15,23,42,0.06)"
+                            : "rgba(255,255,255,0.10)",
+                          color: temaClaro ? "#334155" : "rgba(241,245,249,0.86)",
+                          padding: "5px 8px",
+                          fontSize: "11px",
+                          fontWeight: 900,
+                          cursor: "pointer",
+                        }}
+                      >
+                        {t("Cerrar")}
+                      </button>
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        lineHeight: 1.35,
+                        fontWeight: 800,
+                        color: temaClaro ? "#475569" : "rgba(226,232,240,0.78)",
+                      }}
+                    >
+                      {cuadroAyuda.ayuda}
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          )}
           <div
             style={{
               marginTop: "10px",
@@ -1364,12 +1916,412 @@ export default function EvaluarV2HomePage() {
           >
             {cargandoHistorialCentral
               ? t("Consultando historial central...")
+              : mensajeHallazgosCierre
+                ? t(mensajeHallazgosCierre)
               : mensajeHistorialCentral
                 ? t(mensajeHistorialCentral)
                 : historialCentralDisponible
                   ? t("Historial sincronizado desde plataforma central.")
                   : ""}
           </div>
+          {categoriaCierreActiva && (
+            <div
+              style={{
+                marginTop: "12px",
+                display: "grid",
+                gap: "10px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: "10px",
+                }}
+              >
+                <div>
+                  <div
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: 900,
+                      color: temaClaro ? "#475569" : "rgba(226,232,240,0.72)",
+                    }}
+                  >
+                    {t("Listado de hallazgos")}
+                  </div>
+                  <div style={{ marginTop: "3px", fontSize: "17px", fontWeight: 950 }}>
+                    {tituloCategoriaActiva}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCategoriaCierreActiva(null);
+                    setHallazgoCierreExpandido("");
+                    setLimiteVisibleCierre(LIMITE_INICIAL_LISTADO_CIERRE_MOVIL);
+                    setFiltroFechaCierre("semana");
+                    setFechaFiltroCierre(fechaLocalInputCierreMovil());
+                    vibrarOk();
+                  }}
+                  {...feedbackBoton("volver-resumen-cierre")}
+                  style={{
+                    border: temaClaro
+                      ? "1px solid rgba(100,116,139,0.26)"
+                      : "1px solid rgba(255,255,255,0.16)",
+                    borderRadius: "13px",
+                    background: temaClaro
+                      ? "rgba(255,255,255,0.82)"
+                      : "rgba(255,255,255,0.10)",
+                    color: temaClaro ? "#0f172a" : "white",
+                    padding: "9px 10px",
+                    fontSize: "12px",
+                    fontWeight: 900,
+                    cursor: "pointer",
+                    touchAction: "manipulation",
+                    ...estiloFeedback("volver-resumen-cierre"),
+                  }}
+                >
+                  {t("Volver al resumen")}
+                </button>
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gap: "8px",
+                  padding: "10px",
+                  borderRadius: "15px",
+                  background: temaClaro
+                    ? "rgba(248,250,252,0.82)"
+                    : "rgba(255,255,255,0.07)",
+                  border: temaClaro
+                    ? "1px solid rgba(100,116,139,0.14)"
+                    : "1px solid rgba(255,255,255,0.10)",
+                }}
+              >
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+                    gap: "6px",
+                  }}
+                >
+                  {filtrosFechaCierre.map((filtro) => {
+                    const activo = filtroFechaCierre === filtro.id;
+                    return (
+                      <button
+                        key={filtro.id}
+                        type="button"
+                        onClick={() => {
+                          setFiltroFechaCierre(filtro.id);
+                          setHallazgoCierreExpandido("");
+                          setLimiteVisibleCierre(
+                            LIMITE_INICIAL_LISTADO_CIERRE_MOVIL
+                          );
+                          vibrarOk();
+                        }}
+                        {...feedbackBoton(`filtro-cierre-${filtro.id}`)}
+                        style={{
+                          border: activo
+                            ? "1px solid rgba(37,99,235,0.78)"
+                            : temaClaro
+                              ? "1px solid rgba(100,116,139,0.18)"
+                              : "1px solid rgba(255,255,255,0.12)",
+                          borderRadius: "12px",
+                          background: activo
+                            ? "linear-gradient(180deg, rgba(37,99,235,0.96), rgba(29,78,216,0.92))"
+                            : temaClaro
+                              ? "rgba(255,255,255,0.88)"
+                              : "rgba(255,255,255,0.08)",
+                          color: activo
+                            ? "white"
+                            : temaClaro
+                              ? "#334155"
+                              : "rgba(241,245,249,0.84)",
+                          padding: "8px 5px",
+                          fontSize: "11px",
+                          fontWeight: 950,
+                          cursor: "pointer",
+                          touchAction: "manipulation",
+                          ...estiloFeedback(`filtro-cierre-${filtro.id}`),
+                        }}
+                      >
+                        {filtro.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {filtroFechaCierre === "fecha" && (
+                  <input
+                    type="date"
+                    value={fechaFiltroCierre}
+                    aria-label={t("Seleccionar fecha")}
+                    onChange={(event) => {
+                      setFechaFiltroCierre(event.currentTarget.value);
+                      setHallazgoCierreExpandido("");
+                      setLimiteVisibleCierre(LIMITE_INICIAL_LISTADO_CIERRE_MOVIL);
+                    }}
+                    style={{
+                      width: "100%",
+                      boxSizing: "border-box",
+                      borderRadius: "12px",
+                      border: temaClaro
+                        ? "1px solid rgba(100,116,139,0.20)"
+                        : "1px solid rgba(255,255,255,0.14)",
+                      background: temaClaro
+                        ? "rgba(255,255,255,0.92)"
+                        : "rgba(15,23,42,0.34)",
+                      color: temaClaro ? "#0f172a" : "white",
+                      padding: "9px 10px",
+                      fontSize: "13px",
+                      fontWeight: 850,
+                    }}
+                  />
+                )}
+                <div
+                  style={{
+                    fontSize: "12px",
+                    lineHeight: 1.35,
+                    fontWeight: 850,
+                    color: temaClaro ? "#475569" : "rgba(226,232,240,0.76)",
+                  }}
+                >
+                  {t("Mostrando")}: {etiquetaFiltroFechaCierre}
+                  <br />
+                  {hallazgosCierreFiltrados.length} de{" "}
+                  {hallazgosCategoriaActiva.length} hallazgos
+                </div>
+              </div>
+
+              {cargandoHallazgosCierre ? (
+                <div
+                  style={{
+                    padding: "12px",
+                    borderRadius: "14px",
+                    background: temaClaro
+                      ? "rgba(248,250,252,0.82)"
+                      : "rgba(255,255,255,0.07)",
+                    border: temaClaro
+                      ? "1px solid rgba(100,116,139,0.16)"
+                      : "1px solid rgba(255,255,255,0.10)",
+                    fontSize: "13px",
+                    fontWeight: 850,
+                  }}
+                >
+                  {t("Consultando historial central...")}
+                </div>
+              ) : hallazgosCierreFiltrados.length === 0 ? (
+                <div
+                  style={{
+                    padding: "12px",
+                    borderRadius: "14px",
+                    background: temaClaro
+                      ? "rgba(248,250,252,0.82)"
+                      : "rgba(255,255,255,0.07)",
+                    border: temaClaro
+                      ? "1px solid rgba(100,116,139,0.16)"
+                      : "1px solid rgba(255,255,255,0.10)",
+                    fontSize: "13px",
+                    fontWeight: 850,
+                    lineHeight: 1.35,
+                  }}
+                >
+                  {t("No hay hallazgos en esta categoría.")}
+                </div>
+              ) : (
+                <div style={{ display: "grid", gap: "7px" }}>
+                  {hallazgosCierreVisibles.map((hallazgo) => {
+                    const claveHallazgo = claveHallazgoCierreMovil(hallazgo);
+                    const hallazgoExpandido =
+                      hallazgoCierreExpandido === claveHallazgo;
+                    const responsable = responsableVisibleCierreMovil(hallazgo);
+                    return (
+                      <div
+                        key={claveHallazgo}
+                        style={{
+                          borderRadius: "14px",
+                          background: temaClaro
+                            ? "rgba(255,255,255,0.84)"
+                            : "rgba(255,255,255,0.075)",
+                          border: temaClaro
+                            ? "1px solid rgba(100,116,139,0.18)"
+                            : "1px solid rgba(255,255,255,0.12)",
+                          boxSizing: "border-box",
+                          overflow: "hidden",
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setHallazgoCierreExpandido((actual) =>
+                              actual === claveHallazgo ? "" : claveHallazgo
+                            );
+                            vibrarOk();
+                          }}
+                          aria-expanded={hallazgoExpandido}
+                          style={{
+                            width: "100%",
+                            border: "0",
+                            background: "transparent",
+                            display: "grid",
+                            gridTemplateColumns: "minmax(0, 1.25fr) 86px auto",
+                            alignItems: "center",
+                            gap: "8px",
+                            padding: "10px",
+                            color: "inherit",
+                            textAlign: "left",
+                            cursor: "pointer",
+                            touchAction: "manipulation",
+                          }}
+                        >
+                          <span
+                            style={{
+                              minWidth: 0,
+                              fontSize: "12px",
+                              fontWeight: 950,
+                              color: temaClaro ? "#0f172a" : "white",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {hallazgo.codigo}
+                          </span>
+                          <span
+                            style={{
+                              justifySelf: "center",
+                              fontSize: "11px",
+                              fontWeight: 900,
+                              color: temaClaro ? "#475569" : "rgba(226,232,240,0.78)",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {fechaFiltroCierreMovil(hallazgo, categoriaCierreActiva)}
+                          </span>
+                          <span
+                            style={{
+                              flex: "0 0 auto",
+                              justifySelf: "end",
+                              borderRadius: "999px",
+                              padding: "5px 7px",
+                              background:
+                                hallazgo.criticidad === "CRITICO"
+                                  ? "rgba(127,29,29,0.92)"
+                                  : hallazgo.criticidad === "ALTO"
+                                    ? "rgba(220,38,38,0.88)"
+                                    : hallazgo.criticidad === "MEDIO"
+                                      ? "rgba(245,158,11,0.90)"
+                                      : "rgba(34,197,94,0.88)",
+                              color: "white",
+                              fontSize: "10px",
+                              fontWeight: 950,
+                              lineHeight: 1,
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {hallazgo.criticidad === "CRITICO"
+                              ? "CRÍTICO"
+                              : hallazgo.criticidad}
+                          </span>
+                        </button>
+                        {hallazgoExpandido && (
+                          <div
+                            style={{
+                              borderTop: temaClaro
+                                ? "1px solid rgba(100,116,139,0.14)"
+                                : "1px solid rgba(255,255,255,0.10)",
+                              padding: "10px 12px 12px",
+                              display: "grid",
+                              gap: "7px",
+                              fontSize: "11px",
+                              lineHeight: 1.35,
+                              color: temaClaro ? "#475569" : "rgba(226,232,240,0.78)",
+                              fontWeight: 800,
+                            }}
+                          >
+                            <div>
+                              Área: {hallazgo.area || t("Sin área")}
+                            </div>
+                            <div
+                              style={{
+                                fontSize: "12px",
+                                color: temaClaro
+                                  ? "#334155"
+                                  : "rgba(241,245,249,0.88)",
+                              }}
+                            >
+                              {descripcionBreveCierreMovil(hallazgo) ||
+                                t("Sin descripción disponible")}
+                            </div>
+                            <div>
+                              {t("Responsable")}:{" "}
+                              {responsable || t("Sin responsable")}
+                            </div>
+                            <div>Estado: {estadoVisibleCierreMovil(hallazgo)}</div>
+                            <div>
+                              {t("Fecha compromiso")}:{" "}
+                              {hallazgo.seguimientoCierre?.fechaCompromiso ||
+                                t("Sin fecha compromiso")}
+                            </div>
+                            <div
+                              style={{
+                                marginTop: "2px",
+                                borderRadius: "10px",
+                                padding: "7px 8px",
+                                background: temaClaro
+                                  ? "rgba(15,23,42,0.05)"
+                                  : "rgba(255,255,255,0.08)",
+                                color: temaClaro
+                                  ? "#334155"
+                                  : "rgba(241,245,249,0.82)",
+                                textAlign: "center",
+                                fontSize: "11px",
+                                fontWeight: 900,
+                              }}
+                            >
+                              {t("Gestión de cierre próxima fase")}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {hayMasHallazgosCierre && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLimiteVisibleCierre(
+                          (actual) => actual + INCREMENTO_LISTADO_CIERRE_MOVIL
+                        );
+                        vibrarOk();
+                      }}
+                      {...feedbackBoton("mostrar-mas-cierre")}
+                      style={{
+                        border: temaClaro
+                          ? "1px solid rgba(37,99,235,0.24)"
+                          : "1px solid rgba(147,197,253,0.24)",
+                        borderRadius: "14px",
+                        background: temaClaro
+                          ? "rgba(37,99,235,0.08)"
+                          : "rgba(59,130,246,0.14)",
+                        color: temaClaro ? "#1d4ed8" : "#bfdbfe",
+                        padding: "10px 12px",
+                        fontSize: "12px",
+                        fontWeight: 950,
+                        cursor: "pointer",
+                        touchAction: "manipulation",
+                        ...estiloFeedback("mostrar-mas-cierre"),
+                      }}
+                    >
+                      {t("Mostrar más")} · {hallazgosCierreVisibles.length}/
+                      {hallazgosCierreFiltrados.length}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </section>
 
         <section
