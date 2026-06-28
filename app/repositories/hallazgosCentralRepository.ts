@@ -74,6 +74,7 @@ export type FiltrosHistorialSupervisorCentral = {
   userId?: string | null;
   empresaId?: string | null;
   obraId?: string | null;
+  limit?: number;
 };
 
 export type PuntoMapaHallazgoCentral = {
@@ -1375,6 +1376,67 @@ export async function obtenerResumenHistorialSupervisorCentral(
   }
 }
 
+export async function listarHallazgosSupervisorCentral(
+  filtros: FiltrosHistorialSupervisorCentral
+): Promise<ResultadoRepositorioCentral<HallazgoCentral[]>> {
+  const userId = uuidSupabase(filtros.userId);
+  const empresaId = uuidSupabase(filtros.empresaId);
+  const obraId = uuidSupabase(filtros.obraId);
+
+  if (!userId) {
+    return {
+      ok: false,
+      error: "No se pudo resolver el perfil del supervisor para consultar hallazgos.",
+      origen: "central-disabled",
+    };
+  }
+
+  const { cliente, habilitado } = await obtenerSupabaseDisponible();
+  if (!habilitado || !cliente) return lecturaVacia([]);
+
+  try {
+    const limit = Math.min(Math.max(filtros.limit || 120, 1), 300);
+    let query = cliente
+      .from(TABLA_HALLAZGOS_CENTRAL)
+      .select("*")
+      .or(`supervisor_user_id.eq.${userId},reportante_user_id.eq.${userId}`)
+      .neq("estado", "ANULADO")
+      .order("fecha_iso", { ascending: false, nullsFirst: false })
+      .limit(limit);
+
+    if (empresaId) query = query.eq("empresa_id", empresaId);
+    if (obraId) query = query.eq("obra_id", obraId);
+
+    const { data, error } = await query;
+    if (error) {
+      return falloSupabase(
+        error,
+        "No se pudo leer hallazgos del supervisor desde Supabase."
+      );
+    }
+
+    const hallazgos = await Promise.all(
+      (data || []).map((fila) =>
+        resolverUrlsFirmadasEvidencias(
+          mapearFilaSupabaseAHallazgo(fila as Record<string, unknown>),
+          cliente
+        )
+      )
+    );
+
+    return {
+      ok: true,
+      data: hallazgos,
+      origen: "supabase",
+    };
+  } catch (error) {
+    return falloSupabase(
+      error,
+      "Fallo inesperado leyendo hallazgos del supervisor."
+    );
+  }
+}
+
 export async function cargarHallazgosGestionVigente(
   filtros: HallazgosReadFilters
 ): Promise<ResultadoRepositorioCentral<HallazgoGestionVigente[]>> {
@@ -1878,6 +1940,7 @@ export function prepararPuntosMapaGps(
 export type RepositorioCentralHallazgos = {
   listarHallazgosCentrales: typeof listarHallazgosCentrales;
   cargarHallazgosGestionVigente: typeof cargarHallazgosGestionVigente;
+  listarHallazgosSupervisorCentral: typeof listarHallazgosSupervisorCentral;
   obtenerHallazgoCentralPorId: typeof obtenerHallazgoCentralPorId;
   obtenerHallazgoCentralPorCodigo: typeof obtenerHallazgoCentralPorCodigo;
   crearHallazgoCentral: typeof crearHallazgoCentral;
@@ -1894,6 +1957,7 @@ export type RepositorioCentralHallazgos = {
 export const repositorioCentralHallazgos: RepositorioCentralHallazgos = {
   listarHallazgosCentrales,
   cargarHallazgosGestionVigente,
+  listarHallazgosSupervisorCentral,
   obtenerHallazgoCentralPorId,
   obtenerHallazgoCentralPorCodigo,
   crearHallazgoCentral,
