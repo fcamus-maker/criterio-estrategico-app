@@ -115,6 +115,7 @@ const textosMobileEn: Record<string, string> = {
   "Tomar fotografía de cierre": "Take closure photo",
   "Cámara de cierre": "Closure camera",
   "Capturar fotografía": "Capture photo",
+  "Reintentar cámara": "Retry camera",
   "Fotografía obligatoria": "Photo required",
   "Sin fotografía seleccionada": "No photo selected",
   "Fotografía seleccionada correctamente": "Photo selected successfully",
@@ -549,6 +550,10 @@ export default function EvaluarV2HomePage() {
     useState(false);
   const [iniciandoCamaraEvidenciaCierre, setIniciandoCamaraEvidenciaCierre] =
     useState(false);
+  const [camaraEvidenciaCierreLista, setCamaraEvidenciaCierreLista] =
+    useState(false);
+  const [versionCamaraEvidenciaCierre, setVersionCamaraEvidenciaCierre] =
+    useState(0);
   const [errorCamaraEvidenciaCierre, setErrorCamaraEvidenciaCierre] =
     useState("");
   const [mensaje, setMensaje] = useState("");
@@ -574,6 +579,9 @@ export default function EvaluarV2HomePage() {
   const [fotoPerfilQuitada, setFotoPerfilQuitada] = useState(false);
   const streamCamaraEvidenciaCierreRef = useRef<MediaStream | null>(null);
   const videoCamaraEvidenciaCierreRef = useRef<HTMLVideoElement | null>(null);
+  const intentoCamaraEvidenciaCierreRef = useRef(0);
+  const temporizadorCamaraEvidenciaCierreRef =
+    useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const scopeDesdeSupervisor = (item: SupervisorV2) =>
     crearScopeLocalReporteV2({
@@ -733,24 +741,27 @@ export default function EvaluarV2HomePage() {
 
   useEffect(() => {
     if (!camaraEvidenciaCierreAbierta) return;
+    if (iniciandoCamaraEvidenciaCierre || errorCamaraEvidenciaCierre) return;
 
-    const video = videoCamaraEvidenciaCierreRef.current;
     const stream = streamCamaraEvidenciaCierreRef.current;
-    if (!video || !stream) return;
+    if (!stream) return;
 
-    video.srcObject = stream;
-    void video.play().catch(() => {
-      setErrorCamaraEvidenciaCierre(
-        "No se pudo iniciar la cámara. Revisa los permisos de cámara del navegador e intenta nuevamente."
-      );
-    });
-
+    void conectarStreamCamaraEvidenciaCierre(
+      stream,
+      intentoCamaraEvidenciaCierreRef.current
+    );
     return () => {
-      if (video.srcObject === stream) {
-        video.srcObject = null;
-      }
+      limpiarTemporizadorCamaraEvidenciaCierre();
     };
-  }, [camaraEvidenciaCierreAbierta, iniciandoCamaraEvidenciaCierre]);
+    // La conexión usa refs e intento vigente; agregar la función como dependencia
+    // puede reiniciar el video durante renders intermedios en Safari iOS.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    camaraEvidenciaCierreAbierta,
+    errorCamaraEvidenciaCierre,
+    iniciandoCamaraEvidenciaCierre,
+    versionCamaraEvidenciaCierre,
+  ]);
 
   const actualizarPendientesLocales = async (scope = scopeLocalReporte) => {
     if (!scope) {
@@ -1095,6 +1106,7 @@ export default function EvaluarV2HomePage() {
     detenerStreamCamaraEvidenciaCierre();
     setCamaraEvidenciaCierreAbierta(false);
     setIniciandoCamaraEvidenciaCierre(false);
+    setCamaraEvidenciaCierreLista(false);
     setErrorCamaraEvidenciaCierre("");
     setFormularioEvidenciaCierre("");
     setArchivoEvidenciaCierre(null);
@@ -1108,6 +1120,7 @@ export default function EvaluarV2HomePage() {
   const abrirFormularioEvidenciaCierre = (hallazgo: HallazgoCentral) => {
     detenerStreamCamaraEvidenciaCierre();
     setCamaraEvidenciaCierreAbierta(false);
+    setCamaraEvidenciaCierreLista(false);
     setErrorCamaraEvidenciaCierre("");
     setFormularioEvidenciaCierre(claveHallazgoCierreMovil(hallazgo));
     setArchivoEvidenciaCierre(null);
@@ -1119,7 +1132,129 @@ export default function EvaluarV2HomePage() {
     vibrarOk();
   };
 
+  function limpiarTemporizadorCamaraEvidenciaCierre() {
+    if (temporizadorCamaraEvidenciaCierreRef.current) {
+      clearTimeout(temporizadorCamaraEvidenciaCierreRef.current);
+      temporizadorCamaraEvidenciaCierreRef.current = null;
+    }
+  }
+
+  function esperarVideoCamaraEvidenciaCierreListo(
+    video: HTMLVideoElement
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (video.videoWidth > 0 && video.videoHeight > 0) {
+        resolve();
+        return;
+      }
+
+      const completar = () => {
+        if (video.videoWidth > 0 && video.videoHeight > 0) {
+          limpiar();
+          resolve();
+        }
+      };
+      const fallar = () => {
+        limpiar();
+        reject(new Error("video-sin-metadata"));
+      };
+      const limpiar = () => {
+        clearTimeout(timeoutId);
+        video.removeEventListener("loadedmetadata", completar);
+        video.removeEventListener("canplay", completar);
+        video.removeEventListener("playing", completar);
+      };
+      const timeoutId = setTimeout(fallar, 3200);
+
+      video.addEventListener("loadedmetadata", completar);
+      video.addEventListener("canplay", completar);
+      video.addEventListener("playing", completar);
+    });
+  }
+
+  async function conectarStreamCamaraEvidenciaCierre(
+    stream: MediaStream,
+    intento: number,
+    reintentos = 0
+  ) {
+    limpiarTemporizadorCamaraEvidenciaCierre();
+
+    if (
+      intento !== intentoCamaraEvidenciaCierreRef.current ||
+      streamCamaraEvidenciaCierreRef.current !== stream
+    ) {
+      return;
+    }
+
+    const video = videoCamaraEvidenciaCierreRef.current;
+
+    if (!video) {
+      if (reintentos < 10) {
+        temporizadorCamaraEvidenciaCierreRef.current = setTimeout(() => {
+          void conectarStreamCamaraEvidenciaCierre(stream, intento, reintentos + 1);
+        }, 90);
+        return;
+      }
+
+      setErrorCamaraEvidenciaCierre(
+        t(
+          "No se pudo iniciar la cámara. Revisa los permisos de cámara del navegador e intenta nuevamente."
+        )
+      );
+      setCamaraEvidenciaCierreLista(false);
+      return;
+    }
+
+    try {
+      if (video.srcObject !== stream) {
+        video.srcObject = stream;
+      }
+
+      video.muted = true;
+      video.playsInline = true;
+
+      await new Promise<void>((resolve) => {
+        window.requestAnimationFrame(() => resolve());
+      });
+
+      try {
+        await video.play();
+      } catch {
+        // En Safari iOS a veces play resuelve solo despues de metadata.
+      }
+
+      await esperarVideoCamaraEvidenciaCierreListo(video);
+      await video.play();
+
+      if (
+        intento !== intentoCamaraEvidenciaCierreRef.current ||
+        streamCamaraEvidenciaCierreRef.current !== stream
+      ) {
+        return;
+      }
+
+      setCamaraEvidenciaCierreLista(true);
+      setErrorCamaraEvidenciaCierre("");
+    } catch {
+      if (reintentos < 2) {
+        temporizadorCamaraEvidenciaCierreRef.current = setTimeout(() => {
+          void conectarStreamCamaraEvidenciaCierre(stream, intento, reintentos + 1);
+        }, 180);
+        return;
+      }
+
+      setCamaraEvidenciaCierreLista(false);
+      setErrorCamaraEvidenciaCierre(
+        t(
+          "No se pudo iniciar la cámara. Revisa los permisos de cámara del navegador e intenta nuevamente."
+        )
+      );
+    }
+  }
+
   function detenerStreamCamaraEvidenciaCierre() {
+    intentoCamaraEvidenciaCierreRef.current += 1;
+    limpiarTemporizadorCamaraEvidenciaCierre();
     streamCamaraEvidenciaCierreRef.current
       ?.getTracks()
       .forEach((track) => track.stop());
@@ -1134,6 +1269,7 @@ export default function EvaluarV2HomePage() {
     detenerStreamCamaraEvidenciaCierre();
     setCamaraEvidenciaCierreAbierta(false);
     setIniciandoCamaraEvidenciaCierre(false);
+    setCamaraEvidenciaCierreLista(false);
     setErrorCamaraEvidenciaCierre("");
   };
 
@@ -1143,6 +1279,9 @@ export default function EvaluarV2HomePage() {
     setErrorEvidenciaCierre("");
     setErrorCamaraEvidenciaCierre("");
     detenerStreamCamaraEvidenciaCierre();
+    intentoCamaraEvidenciaCierreRef.current += 1;
+    setCamaraEvidenciaCierreLista(false);
+    setVersionCamaraEvidenciaCierre((actual) => actual + 1);
     setCamaraEvidenciaCierreAbierta(true);
     setIniciandoCamaraEvidenciaCierre(true);
 
@@ -1160,8 +1299,10 @@ export default function EvaluarV2HomePage() {
 
       streamCamaraEvidenciaCierreRef.current = stream;
       setErrorCamaraEvidenciaCierre("");
+      setVersionCamaraEvidenciaCierre((actual) => actual + 1);
     } catch {
       detenerStreamCamaraEvidenciaCierre();
+      setCamaraEvidenciaCierreLista(false);
       setErrorCamaraEvidenciaCierre(
         t(
           "No se pudo iniciar la cámara. Revisa los permisos de cámara del navegador e intenta nuevamente."
@@ -1226,6 +1367,7 @@ export default function EvaluarV2HomePage() {
       setPreviewEvidenciaCierreAmpliada(false);
       setErrorEvidenciaCierre("");
       setCamaraEvidenciaCierreAbierta(false);
+      setCamaraEvidenciaCierreLista(false);
       setErrorCamaraEvidenciaCierre("");
       vibrarOk();
     } catch {
@@ -1233,6 +1375,7 @@ export default function EvaluarV2HomePage() {
         t("No se pudo procesar la fotografía capturada.")
       );
       setCamaraEvidenciaCierreAbierta(false);
+      setCamaraEvidenciaCierreLista(false);
     } finally {
       detenerStreamCamaraEvidenciaCierre();
       setProcesandoEvidenciaCierre(false);
@@ -3029,25 +3172,76 @@ export default function EvaluarV2HomePage() {
                                                     lineHeight: 1.45,
                                                     padding: "18px",
                                                     textAlign: "center",
+                                                    display: "grid",
+                                                    gap: "12px",
+                                                    justifyItems: "center",
                                                   }}
                                                 >
-                                                  {errorCamaraEvidenciaCierre}
+                                                  <span>{errorCamaraEvidenciaCierre}</span>
+                                                  <button
+                                                    type="button"
+                                                    onClick={abrirCamaraEvidenciaCierre}
+                                                    style={{
+                                                      border: "0",
+                                                      borderRadius: "12px",
+                                                      padding: "10px 12px",
+                                                      background:
+                                                        "linear-gradient(180deg, #2563eb, #1d4ed8)",
+                                                      color: "white",
+                                                      fontSize: "12px",
+                                                      fontWeight: 950,
+                                                      cursor: "pointer",
+                                                    }}
+                                                  >
+                                                    {t("Reintentar cámara")}
+                                                  </button>
                                                 </div>
                                               ) : (
-                                                <video
-                                                  ref={videoCamaraEvidenciaCierreRef}
-                                                  autoPlay
-                                                  playsInline
-                                                  muted
+                                                <div
                                                   style={{
+                                                    position: "relative",
                                                     width: "100%",
-                                                    height: "auto",
-                                                    maxHeight: "64vh",
-                                                    objectFit: "contain",
-                                                    display: "block",
-                                                    background: "#020617",
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    justifyContent: "center",
                                                   }}
-                                                />
+                                                >
+                                                  <video
+                                                    key={versionCamaraEvidenciaCierre}
+                                                    ref={videoCamaraEvidenciaCierreRef}
+                                                    autoPlay
+                                                    playsInline
+                                                    muted
+                                                    style={{
+                                                      width: "100%",
+                                                      height: "auto",
+                                                      maxHeight: "64vh",
+                                                      objectFit: "contain",
+                                                      display: "block",
+                                                      background: "#020617",
+                                                    }}
+                                                  />
+                                                  {!camaraEvidenciaCierreLista && (
+                                                    <div
+                                                      style={{
+                                                        position: "absolute",
+                                                        inset: 0,
+                                                        display: "flex",
+                                                        alignItems: "center",
+                                                        justifyContent: "center",
+                                                        background:
+                                                          "rgba(2,6,23,0.42)",
+                                                        color: "white",
+                                                        fontSize: "13px",
+                                                        fontWeight: 900,
+                                                        textAlign: "center",
+                                                        padding: "18px",
+                                                      }}
+                                                    >
+                                                      {t("Iniciando cámara de cierre...")}
+                                                    </div>
+                                                  )}
+                                                </div>
                                               )}
                                             </div>
                                             <div
@@ -3085,6 +3279,7 @@ export default function EvaluarV2HomePage() {
                                                 disabled={
                                                   iniciandoCamaraEvidenciaCierre ||
                                                   procesandoEvidenciaCierre ||
+                                                  !camaraEvidenciaCierreLista ||
                                                   Boolean(errorCamaraEvidenciaCierre)
                                                 }
                                                 style={{
@@ -3099,12 +3294,14 @@ export default function EvaluarV2HomePage() {
                                                   cursor:
                                                     iniciandoCamaraEvidenciaCierre ||
                                                     procesandoEvidenciaCierre ||
+                                                    !camaraEvidenciaCierreLista ||
                                                     errorCamaraEvidenciaCierre
                                                       ? "not-allowed"
                                                       : "pointer",
                                                   opacity:
                                                     iniciandoCamaraEvidenciaCierre ||
                                                     procesandoEvidenciaCierre ||
+                                                    !camaraEvidenciaCierreLista ||
                                                     errorCamaraEvidenciaCierre
                                                       ? 0.66
                                                       : 1,
