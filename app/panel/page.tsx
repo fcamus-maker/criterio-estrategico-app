@@ -67,6 +67,7 @@ type HallazgoPanelExtendido = HallazgoPanel & {
   justificacionExtensionPlazo?: string;
   justificacionCierreSinEvidencia?: string;
   evidenciasPanel?: EvidenciaPanel[];
+  evidenciasCierrePanel?: EvidenciaPanel[];
   totalEvidencias?: number;
   evidenciasPendientesVisualizacion?: number;
   evaluacionPreventiva?: EvaluacionPreventivaPanel;
@@ -692,6 +693,7 @@ type GestionCierreLocal = Partial<GestionCierreDraft> & {
 };
 
 type AccionSeguimientoActiva = "" | "imprimir" | "correo" | "resumen";
+type AccionRevisionCierrePc = "aprobar" | "rechazar";
 
 const formatosExportacionPorDefecto: FormatosExportacionConfig = {
   pdf: true,
@@ -3666,6 +3668,12 @@ const [destinatarioCorreoSeguimiento, setDestinatarioCorreoSeguimiento] = useSta
 const [mensajeAccionSeguimiento, setMensajeAccionSeguimiento] = useState("");
 const [mostrarGestionCierre, setMostrarGestionCierre] = useState(false);
 const [gestionCierreLocal, setGestionCierreLocal] = useState<Record<string, GestionCierreLocal>>({});
+const [revisionCierrePc, setRevisionCierrePc] = useState<{
+  accion: AccionRevisionCierrePc;
+  comentario: string;
+} | null>(null);
+const [errorRevisionCierrePc, setErrorRevisionCierrePc] = useState("");
+const [guardandoRevisionCierrePc, setGuardandoRevisionCierrePc] = useState(false);
 const [evidenciaEnVisor, setEvidenciaEnVisor] = useState<EvidenciaPanel | null>(null);
 const [evidenciasNoDisponibles, setEvidenciasNoDisponibles] = useState<Record<string, boolean>>({});
 const [hallazgoBorradoActivo, setHallazgoBorradoActivo] = useState<HallazgoPanelExtendido | null>(null);
@@ -4688,6 +4696,7 @@ type HallazgoSeguimiento = (typeof filas)[number] & {
   accionCorrectivaRequerida: string;
   evidenciaRequerida: string;
   evidenciaRecibida: string;
+  evidenciasCierrePanel?: EvidenciaPanel[];
   justificacionExtensionPlazo: string;
   justificacionCierreSinEvidencia: string;
 };
@@ -4767,6 +4776,7 @@ const hallazgosSeguimiento: HallazgoSeguimiento[] = filas.map((item) => {
       "Registro fotográfico y documentación de corrección"
     ),
     evidenciaRecibida: evidenciaReal || "Pendiente de evidencia",
+    evidenciasCierrePanel: item.evidenciasCierrePanel || [],
     justificacionExtensionPlazo: obtenerCampoSeguimiento(item, "justificacionExtensionPlazo", ""),
     justificacionCierreSinEvidencia: obtenerCampoSeguimiento(item, "justificacionCierreSinEvidencia", ""),
   };
@@ -4793,7 +4803,12 @@ const hallazgosSeguimiento: HallazgoSeguimiento[] = filas.map((item) => {
   };
 });
 
+const evidenciasCierreSeguimiento = (item: HallazgoSeguimiento) =>
+  item.evidenciasCierrePanel || [];
+
 const tieneEvidenciaCierre = (item: HallazgoSeguimiento) => {
+  if (evidenciasCierreSeguimiento(item).length > 0) return true;
+
   const textoEvidencia = [
     item.evidenciaRecibida,
     item.responsableCierreEvidencia,
@@ -4814,6 +4829,27 @@ const tieneEvidenciaCierre = (item: HallazgoSeguimiento) => {
   ].some((placeholder) => valor === placeholder || valor.includes(placeholder));
 };
 
+const fechaUltimaEvidenciaCierre = (item: HallazgoSeguimiento) =>
+  evidenciasCierreSeguimiento(item)
+    .map(
+      (evidencia) =>
+        evidencia.fechaSubida ||
+        evidencia.fechaCaptura ||
+        ""
+    )
+    .filter(Boolean)
+    .sort()
+    .at(-1) || "";
+
+const comentarioUltimaEvidenciaCierre = (item: HallazgoSeguimiento) =>
+  [...evidenciasCierreSeguimiento(item)]
+    .reverse()
+    .map((evidencia) => evidencia.descripcion || "")
+    .find(Boolean) || "";
+
+const hallazgoEnRevisionPc = (item: HallazgoSeguimiento) =>
+  estadoSeguimientoVisual(item) === "En revisión" && tieneEvidenciaCierre(item);
+
 const hallazgoTieneCierreSinEvidenciaJustificada = (item: HallazgoSeguimiento) =>
   item.responsableCierreEstadoSeguimiento === "Cerrado sin evidencia justificada" ||
   Boolean(item.justificacionCierreSinEvidencia?.trim());
@@ -4829,6 +4865,12 @@ const estadoSeguimientoVisual = (item: HallazgoSeguimiento) => {
     return tieneEvidenciaCierre(item) ? "Cerrado con evidencia" : "Pendiente de evidencia";
   }
   if (item.responsableCierreEstadoSeguimiento === "Rechazado") return "Rechazado";
+  if (
+    item.responsableCierreEstadoSeguimiento === "Requiere nueva evidencia" ||
+    item.responsableCierreEstadoSeguimiento === "Evidencia rechazada"
+  ) {
+    return "Rechazado";
+  }
   if (item.responsableCierreEstadoSeguimiento === "En revisión") return "En revisión";
   if (
     item.responsableCierreEstadoSeguimiento === "Pendiente de evidencia" ||
@@ -4865,7 +4907,9 @@ const opcionesSeguimientoEstado = [
   "Sin asignar",
   "Asignado",
   "En seguimiento",
+  "En revisión",
   "Pendiente de evidencia",
+  "Rechazado",
   "Vencido",
   "Plazo extendido",
   "Cerrado con evidencia",
@@ -5286,7 +5330,10 @@ const opcionesEstadoValidacion = [
 const opcionesEstadoSeguimientoGestion = [
   "Asignado",
   "En seguimiento",
+  "En revisión",
   "Pendiente de evidencia",
+  "Requiere nueva evidencia",
+  "Rechazado",
   "Cerrado con evidencia",
   "Cerrado sin evidencia justificada",
 ];
@@ -5368,6 +5415,7 @@ const estadoCierreCentralDesdeSeguimiento = (estado: string): EstadoCierreCentra
     estado === "Cerrado sin evidencia justificada"
   ) return "CERRADO";
   if (estado === "Rechazado") return "RECHAZADO";
+  if (estado === "Requiere nueva evidencia") return "RECHAZADO";
   if (estado === "Vencido") return "VENCIDO";
   if (estado === "Asignado") return "ASIGNADO";
   if (
@@ -6002,6 +6050,253 @@ const guardarGestionCierre = async () => {
   setMostrarGestionCierre(false);
 };
 
+const abrirRevisionCierrePc = (accion: AccionRevisionCierrePc) => {
+  if (!hallazgoSeguimientoActivo) return;
+
+  setRevisionCierrePc({ accion, comentario: "" });
+  setErrorRevisionCierrePc("");
+};
+
+const cerrarRevisionCierrePc = () => {
+  if (guardandoRevisionCierrePc) return;
+  setRevisionCierrePc(null);
+  setErrorRevisionCierrePc("");
+};
+
+const confirmarRevisionCierrePc = async () => {
+  if (!hallazgoSeguimientoActivo || !revisionCierrePc) return;
+
+  const comentario = revisionCierrePc.comentario.trim();
+  const aprueba = revisionCierrePc.accion === "aprobar";
+
+  if (comentario.length < 8) {
+    setErrorRevisionCierrePc("Agrega un comentario de al menos 8 caracteres.");
+    return;
+  }
+
+  if (aprueba && !tieneEvidenciaCierre(hallazgoSeguimientoActivo)) {
+    setErrorRevisionCierrePc("No se puede aprobar el cierre sin evidencia recibida.");
+    return;
+  }
+
+  setGuardandoRevisionCierrePc(true);
+  setErrorRevisionCierrePc("");
+
+  const hallazgoPersistente = await obtenerHallazgoCentralPorCodigo(
+    hallazgoSeguimientoActivo.codigo
+  );
+
+  if (!hallazgoPersistente.ok || !hallazgoPersistente.data?.id) {
+    setErrorRevisionCierrePc("No se pudo confirmar el hallazgo en Supabase.");
+    setGuardandoRevisionCierrePc(false);
+    return;
+  }
+
+  const hallazgoActual = hallazgoPersistente.data;
+  const hallazgoActualId = hallazgoActual.id;
+  if (!hallazgoActualId) {
+    setErrorRevisionCierrePc("No se pudo confirmar el identificador del hallazgo.");
+    setGuardandoRevisionCierrePc(false);
+    return;
+  }
+  const seguimientoPrevio = hallazgoActual.seguimientoCierre;
+  const fechaHoraIso = new Date().toISOString();
+  const usuarioAuditoria = {
+    id: authPerfilPanel.id || "",
+    nombre: usuario?.nombre || "Usuario autorizado",
+    email: authPerfilPanel.email || usuario?.correo || "",
+    rol: authPerfilPanel.rol || usuario?.rol || "",
+  };
+  const estadoAnterior =
+    seguimientoPrevio?.estadoSeguimiento ||
+    seguimientoPrevio?.estadoCierre ||
+    hallazgoActual.estadoCierre ||
+    hallazgoActual.estado;
+  const estadoHallazgo: EstadoHallazgoCentral = aprueba ? "CERRADO" : "EN_SEGUIMIENTO";
+  const estadoCierre: EstadoCierreCentral = aprueba ? "CERRADO" : "RECHAZADO";
+  const estadoSeguimiento = aprueba
+    ? "Cerrado con evidencia"
+    : "Requiere nueva evidencia";
+  const validadorEstado = aprueba ? "Aprobado" : "Rechazado";
+  const accionBitacora = aprueba
+    ? "cierre_evidencia_aprobada_pc"
+    : "cierre_evidencia_rechazada_pc";
+  const resumenBitacora = aprueba
+    ? `Cierre aprobado desde plataforma PC. Comentario: ${comentario}`
+    : `Evidencia rechazada desde plataforma PC. Se requiere nueva evidencia. Motivo: ${comentario}`;
+  const evidenciaRecibida = seguimientoPrevio?.evidenciaRecibida || [];
+  const rawPanelPrevio =
+    hallazgoActual.rawPanel && typeof hallazgoActual.rawPanel === "object"
+      ? hallazgoActual.rawPanel
+      : {};
+  const revisionPrevia = rawPanelPrevio.revisionCierrePc;
+  const historialRevision = Array.isArray(
+    (revisionPrevia as { historial?: unknown[] } | undefined)?.historial
+  )
+    ? ((revisionPrevia as { historial: unknown[] }).historial)
+    : [];
+  const eventoRevision = {
+    accion: aprueba ? "aprobar_cierre" : "rechazar_evidencia",
+    fechaHora: fechaHoraIso,
+    comentario,
+    usuario: usuarioAuditoria,
+    estadoAnterior,
+    estadoNuevo: estadoSeguimiento,
+    evidenciaRecibida: evidenciaRecibida.length,
+    mantieneEvidenciaHistorica: true,
+  };
+
+  const seguimientoPersistente: SeguimientoCierreCentral = {
+    ...(seguimientoPrevio || {}),
+    responsable: seguimientoPrevio?.responsable || {
+      nombre: hallazgoSeguimientoActivo.responsableCorreccionNombre,
+      cargo: hallazgoSeguimientoActivo.responsableCorreccionCargo,
+      empresa: hallazgoSeguimientoActivo.responsableCorreccionEmpresa,
+      telefono: hallazgoSeguimientoActivo.responsableCorreccionTelefono,
+      tipoResponsable: tipoResponsableCentralDesdeGestion(
+        hallazgoSeguimientoActivo.responsableCorreccionTipo
+      ),
+    },
+    estadoCierre,
+    estadoSeguimiento,
+    evidenciaRecibida,
+    fechaCierre: aprueba ? fechaHoraIso : undefined,
+    validadorNombre:
+      usuarioAuditoria.nombre ||
+      usuarioAuditoria.email ||
+      "Usuario autorizado",
+    validadorEstado,
+    validadorObservacion: comentario,
+    actualizadoEn: fechaHoraIso,
+    actualizadoPor:
+      usuarioAuditoria.email ||
+      usuarioAuditoria.nombre ||
+      "Plataforma PC",
+  };
+
+  const resultadoPersistencia = await actualizarHallazgoCentral(
+    hallazgoActualId,
+    {
+      estado: estadoHallazgo,
+      estadoCierre,
+      seguimientoCierre: seguimientoPersistente,
+      bitacora: [
+        ...(hallazgoActual.bitacora || []),
+        {
+          id:
+            typeof crypto !== "undefined" && "randomUUID" in crypto
+              ? crypto.randomUUID()
+              : `revision-cierre-${Date.now()}`,
+          fechaHora: fechaHoraIso,
+          usuario:
+            usuarioAuditoria.email ||
+            usuarioAuditoria.nombre ||
+            "Usuario autorizado",
+          accion: accionBitacora,
+          resumen: resumenBitacora,
+          estadoAnterior,
+          estadoNuevo: estadoSeguimiento,
+          camposModificados: [
+            "estado",
+            "estado_cierre",
+            "seguimiento_cierre",
+            "bitacora",
+            "raw_panel",
+          ],
+          metadata: {
+            origen: "panel-pc",
+            usuario: usuarioAuditoria,
+            comentario,
+            mantieneEvidenciaHistorica: true,
+            evidenciaRecibida: evidenciaRecibida.length,
+          },
+        },
+      ],
+      rawPanel: {
+        ...rawPanelPrevio,
+        revisionCierrePc: {
+          ultimoEvento: eventoRevision,
+          historial: [...historialRevision, eventoRevision],
+        },
+      },
+    }
+  );
+
+  if (!resultadoPersistencia.ok) {
+    setErrorRevisionCierrePc(
+      "Supabase no confirmó la revisión de cierre. Revisa conexión/permisos e intenta nuevamente."
+    );
+    setGuardandoRevisionCierrePc(false);
+    return;
+  }
+
+  const estadoPanelActualizado: HallazgoPanel["estado"] = aprueba
+    ? "CERRADO"
+    : "EN SEGUIMIENTO";
+  const fechaCierrePanel = aprueba ? fechaHoraIso : "";
+  const validadorNombre =
+    usuarioAuditoria.nombre ||
+    usuarioAuditoria.email ||
+    "Usuario autorizado";
+
+  setFilasPanel((actual) =>
+    actual.map((item) =>
+      item.codigo === hallazgoSeguimientoActivo.codigo
+        ? {
+            ...item,
+            estado: estadoPanelActualizado,
+            fechaCierre: fechaCierrePanel || item.fechaCierre,
+            responsableCierreEstadoSeguimiento: estadoSeguimiento,
+            validadorCierreNombre: validadorNombre,
+            validadorCierreEstado: validadorEstado,
+            validadorCierreObservacion: comentario,
+            evidenciaRecibida: hallazgoSeguimientoActivo.evidenciaRecibida,
+            responsableCierreEvidencia:
+              hallazgoSeguimientoActivo.responsableCierreEvidencia,
+          }
+        : item
+    )
+  );
+
+  setGestionCierreLocal((actual) => {
+    const previo = actual[hallazgoSeguimientoActivo.codigo] || {};
+    const eventoLocal: BitacoraCierreLocal = {
+      fechaHora: fechaHoraIso,
+      usuario: validadorNombre,
+      accion: aprueba ? "Aprobación PC" : "Rechazo PC",
+      resumen: resumenBitacora,
+      camposModificados: [
+        "Estado seguimiento",
+        "Estado cierre",
+        "Validación",
+      ],
+      estadoAnterior: String(estadoAnterior || ""),
+      estadoNuevo: estadoSeguimiento,
+    };
+
+    return {
+      ...actual,
+      [hallazgoSeguimientoActivo.codigo]: {
+        ...previo,
+        responsableCierreEstadoSeguimiento: estadoSeguimiento,
+        estadoSeguimiento,
+        validadorCierreNombre: validadorNombre,
+        validadorCierreEstado: validadorEstado,
+        validadorCierreObservacion: comentario,
+        evidenciaRecibida: hallazgoSeguimientoActivo.evidenciaRecibida,
+        responsableCierreEvidencia:
+          hallazgoSeguimientoActivo.responsableCierreEvidencia,
+        bitacoraCierre: [...(previo.bitacoraCierre || []), eventoLocal],
+      },
+    };
+  });
+
+  setCodigoSeguimientoActivo(hallazgoSeguimientoActivo.codigo);
+  setRevisionCierrePc(null);
+  setErrorRevisionCierrePc("");
+  setGuardandoRevisionCierrePc(false);
+};
+
 const kpisSeguimiento = [
   {
     id: "sin-responsable",
@@ -6014,6 +6309,12 @@ const kpisSeguimiento = [
     titulo: t("En seguimiento"),
     valor: String(hallazgosSeguimiento.filter((item) => estadoSeguimientoVisual(item) === "En seguimiento").length),
     color: "#3b82f6",
+  },
+  {
+    id: "en-revision",
+    titulo: t("En revisión"),
+    valor: String(hallazgosSeguimiento.filter(hallazgoEnRevisionPc).length),
+    color: "#8b5cf6",
   },
   {
     id: "vencidos",
@@ -8454,6 +8755,182 @@ const riesgoOperativoPrincipal =
           }}
         >
           {t(guardandoGestionCierre ? "Guardando..." : "Guardar cambios")}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+{revisionCierrePc && hallazgoSeguimientoActivo && (
+  <div
+    style={{
+      position: "fixed",
+      inset: 0,
+      zIndex: 90,
+      background: temaClaro ? "rgba(15,23,42,0.18)" : "rgba(2,6,23,0.64)",
+      backdropFilter: "blur(8px)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "24px",
+    }}
+  >
+    <div
+      style={{
+        width: "min(560px, calc(100vw - 32px))",
+        borderRadius: "24px",
+        border: tema.bordeFuerte,
+        background: temaClaro
+          ? "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.96))"
+          : "linear-gradient(180deg, rgba(15,23,42,0.96), rgba(8,19,36,0.96))",
+        boxShadow: temaClaro
+          ? "0 28px 70px rgba(15,23,42,0.18)"
+          : "0 28px 80px rgba(0,0,0,0.46)",
+        padding: "22px",
+        display: "grid",
+        gap: "16px",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          gap: "16px",
+          alignItems: "flex-start",
+        }}
+      >
+        <div>
+          <div style={{ fontSize: "22px", fontWeight: 950, marginBottom: "5px" }}>
+            {revisionCierrePc.accion === "aprobar"
+              ? t("Aprobar cierre")
+              : t("Rechazar evidencia")}{" "}
+            · {hallazgoSeguimientoActivo.codigo}
+          </div>
+          <div style={{ color: tema.textoSuave, fontSize: "13px", lineHeight: 1.5 }}>
+            {revisionCierrePc.accion === "aprobar"
+              ? t("El hallazgo quedará cerrado con evidencia y la aprobación se registrará en bitácora.")
+              : t("El hallazgo volverá a Por cerrar para solicitar nueva evidencia, manteniendo la evidencia rechazada como trazabilidad.")}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={cerrarRevisionCierrePc}
+          disabled={guardandoRevisionCierrePc}
+          style={{
+            width: "42px",
+            height: "42px",
+            borderRadius: "14px",
+            ...secondaryButtonStyle,
+            fontSize: "20px",
+            fontWeight: 900,
+            cursor: guardandoRevisionCierrePc ? "wait" : "pointer",
+            opacity: guardandoRevisionCierrePc ? 0.66 : 1,
+          }}
+          aria-label={t("Cerrar")}
+        >
+          ×
+        </button>
+      </div>
+
+      <div
+        style={{
+          padding: "14px",
+          borderRadius: "17px",
+          border: tema.borde,
+          background: tema.tarjetaSuave,
+          display: "grid",
+          gap: "8px",
+          fontSize: "12px",
+          lineHeight: 1.45,
+        }}
+      >
+        <div style={{ fontWeight: 950 }}>
+          {t("Evidencia de cierre recibida")}: {evidenciasCierreSeguimiento(hallazgoSeguimientoActivo).length}
+        </div>
+        <div style={{ color: tema.textoSuave, fontWeight: 780 }}>
+          {comentarioUltimaEvidenciaCierre(hallazgoSeguimientoActivo) ||
+            t("Sin comentario móvil registrado.")}
+        </div>
+      </div>
+
+      <label style={{ display: "grid", gap: "7px" }}>
+        <span style={{ fontSize: "12px", color: tema.textoSuave, fontWeight: 950 }}>
+          {revisionCierrePc.accion === "aprobar"
+            ? t("Comentario de aprobación")
+            : t("Motivo del rechazo")}
+        </span>
+        <textarea
+          value={revisionCierrePc.comentario}
+          onChange={(e) =>
+            setRevisionCierrePc((actual) =>
+              actual ? { ...actual, comentario: e.target.value } : actual
+            )
+          }
+          style={{
+            ...premiumInputStyle,
+            minHeight: "104px",
+            resize: "vertical",
+            lineHeight: 1.45,
+          }}
+          placeholder={
+            revisionCierrePc.accion === "aprobar"
+              ? t("Ej: Evidencia revisada y cierre conforme.")
+              : t("Ej: La fotografía no permite verificar la corrección completa.")
+          }
+        />
+      </label>
+
+      {errorRevisionCierrePc && (
+        <div
+          style={{
+            padding: "12px 14px",
+            borderRadius: "14px",
+            background: "rgba(190,99,83,0.14)",
+            border: "1px solid rgba(251,146,124,0.38)",
+            color: temaClaro ? "#7f1d1d" : "#fecaca",
+            fontSize: "13px",
+            fontWeight: 850,
+            textAlign: "center",
+          }}
+        >
+          {t(errorRevisionCierrePc)}
+        </div>
+      )}
+
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          gap: "10px",
+          flexWrap: "wrap",
+        }}
+      >
+        <button
+          type="button"
+          onClick={cerrarRevisionCierrePc}
+          disabled={guardandoRevisionCierrePc}
+          style={perfilButtonStyle("cancelar-revision", "neutral")}
+        >
+          {t("Cancelar")}
+        </button>
+        <button
+          type="button"
+          onClick={confirmarRevisionCierrePc}
+          disabled={guardandoRevisionCierrePc}
+          style={{
+            ...perfilButtonStyle(
+              "confirmar-revision",
+              revisionCierrePc.accion === "aprobar" ? "primary" : "salmon"
+            ),
+            opacity: guardandoRevisionCierrePc ? 0.72 : 1,
+            cursor: guardandoRevisionCierrePc ? "wait" : "pointer",
+          }}
+        >
+          {guardandoRevisionCierrePc
+            ? t("Guardando...")
+            : revisionCierrePc.accion === "aprobar"
+              ? t("Aprobar cierre")
+              : t("Solicitar nueva evidencia")}
         </button>
       </div>
     </div>
@@ -11322,6 +11799,236 @@ style={{
               <div style={{ fontSize: "13px", fontWeight: 800, lineHeight: 1.35, overflowWrap: "anywhere" }}>{value}</div>
             </div>
           ))}
+          <div
+            style={{
+              padding: "13px",
+              ...premiumInnerStyle,
+              display: "grid",
+              gap: "10px",
+            }}
+          >
+            <div style={{ fontSize: "12px", fontWeight: 950 }}>
+              {t("Evidencia inicial del hallazgo")}
+            </div>
+            {obtenerEvidenciasPanel(hallazgoSeguimientoActivo).length > 0 ? (
+              <div
+                style={{
+                  display: "grid",
+                  gap: "8px",
+                }}
+              >
+                {obtenerEvidenciasPanel(hallazgoSeguimientoActivo).map((evidencia, index) => (
+                  <div
+                    key={evidencia.id || evidencia.url || evidencia.storagePath || index}
+                    style={{
+                      padding: "10px",
+                      borderRadius: "12px",
+                      border: tema.bordeSutil,
+                      background: temaClaro
+                        ? "rgba(248,250,252,0.78)"
+                        : "rgba(15,23,42,0.34)",
+                      display: "grid",
+                      gap: "6px",
+                    }}
+                  >
+                    <div style={{ fontSize: "12px", fontWeight: 900 }}>
+                      {evidencia.nombre || `${t("Evidencia")} ${index + 1}`}
+                    </div>
+                    <div style={{ fontSize: "11px", color: tema.textoSuave, lineHeight: 1.35 }}>
+                      {evidencia.mensajeVisualizacion}
+                    </div>
+                    {evidencia.disponibleVisualmente && (
+                      <button
+                        type="button"
+                        onClick={() => setEvidenciaEnVisor(evidencia)}
+                        style={{
+                          justifySelf: "start",
+                          padding: "8px 10px",
+                          borderRadius: "11px",
+                          ...premiumSecondaryButtonStyle,
+                          fontSize: "11px",
+                          minHeight: "32px",
+                        }}
+                      >
+                        {t("Ver evidencia")}
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ fontSize: "12px", color: tema.textoSuave, fontWeight: 780 }}>
+                {t("Sin evidencia inicial disponible.")}
+              </div>
+            )}
+          </div>
+
+          <div
+            style={{
+              padding: "13px",
+              borderRadius: "16px",
+              border: hallazgoEnRevisionPc(hallazgoSeguimientoActivo)
+                ? temaClaro
+                  ? "1px solid rgba(139,92,246,0.32)"
+                  : "1px solid rgba(167,139,250,0.30)"
+                : tema.bordeSutil,
+              background: hallazgoEnRevisionPc(hallazgoSeguimientoActivo)
+                ? temaClaro
+                  ? "rgba(245,243,255,0.86)"
+                  : "rgba(88,28,135,0.18)"
+                : temaClaro
+                  ? "rgba(248,250,252,0.76)"
+                  : "rgba(15,23,42,0.32)",
+              display: "grid",
+              gap: "10px",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "10px",
+                flexWrap: "wrap",
+              }}
+            >
+              <div style={{ fontSize: "12px", fontWeight: 950 }}>
+                {t("Evidencia de cierre recibida")}
+              </div>
+              {hallazgoEnRevisionPc(hallazgoSeguimientoActivo) && (
+                <span
+                  style={{
+                    padding: "6px 8px",
+                    borderRadius: "999px",
+                    background: temaClaro
+                      ? "rgba(124,58,237,0.12)"
+                      : "rgba(167,139,250,0.14)",
+                    color: temaClaro ? "#5b21b6" : "#ddd6fe",
+                    fontSize: "10px",
+                    fontWeight: 950,
+                  }}
+                >
+                  {t("EN REVISIÓN")}
+                </span>
+              )}
+            </div>
+            {fechaUltimaEvidenciaCierre(hallazgoSeguimientoActivo) && (
+              <div style={{ fontSize: "11px", color: tema.textoSuave, fontWeight: 820 }}>
+                {t("Fecha de envío")}: {formatearFechaCompromisoVisual(fechaUltimaEvidenciaCierre(hallazgoSeguimientoActivo))}
+              </div>
+            )}
+            {comentarioUltimaEvidenciaCierre(hallazgoSeguimientoActivo) && (
+              <div
+                style={{
+                  padding: "10px",
+                  borderRadius: "12px",
+                  border: tema.bordeSutil,
+                  background: temaClaro
+                    ? "rgba(255,255,255,0.72)"
+                    : "rgba(15,23,42,0.42)",
+                  fontSize: "12px",
+                  fontWeight: 780,
+                  lineHeight: 1.4,
+                }}
+              >
+                {comentarioUltimaEvidenciaCierre(hallazgoSeguimientoActivo)}
+              </div>
+            )}
+            {evidenciasCierreSeguimiento(hallazgoSeguimientoActivo).length > 0 ? (
+              <div style={{ display: "grid", gap: "8px" }}>
+                {evidenciasCierreSeguimiento(hallazgoSeguimientoActivo).map((evidencia, index) => (
+                  <div
+                    key={evidencia.id || evidencia.url || evidencia.storagePath || index}
+                    style={{
+                      padding: "10px",
+                      borderRadius: "12px",
+                      border: tema.bordeSutil,
+                      background: temaClaro
+                        ? "rgba(255,255,255,0.80)"
+                        : "rgba(15,23,42,0.40)",
+                      display: "grid",
+                      gap: "6px",
+                    }}
+                  >
+                    <div style={{ fontSize: "12px", fontWeight: 900 }}>
+                      {evidencia.nombre || `${t("Evidencia de cierre")} ${index + 1}`}
+                    </div>
+                    <div style={{ fontSize: "11px", color: tema.textoSuave, lineHeight: 1.35 }}>
+                      {evidencia.mensajeVisualizacion}
+                      {evidencia.storagePath ? ` · ${evidencia.storagePath}` : ""}
+                    </div>
+                    {evidencia.disponibleVisualmente && (
+                      <button
+                        type="button"
+                        onClick={() => setEvidenciaEnVisor(evidencia)}
+                        style={{
+                          justifySelf: "start",
+                          padding: "8px 10px",
+                          borderRadius: "11px",
+                          ...premiumSecondaryButtonStyle,
+                          fontSize: "11px",
+                          minHeight: "32px",
+                        }}
+                      >
+                        {t("Ver evidencia de cierre")}
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ fontSize: "12px", color: tema.textoSuave, fontWeight: 780 }}>
+                {t("Sin evidencia de cierre recibida.")}
+              </div>
+            )}
+            {hallazgoEnRevisionPc(hallazgoSeguimientoActivo) && (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "8px",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => abrirRevisionCierrePc("aprobar")}
+                  style={{
+                    padding: "12px 10px",
+                    borderRadius: "13px",
+                    border: "1px solid rgba(34,197,94,0.44)",
+                    background: temaClaro
+                      ? "linear-gradient(135deg, rgba(220,252,231,1), rgba(187,247,208,0.95))"
+                      : "linear-gradient(135deg, rgba(34,197,94,0.28), rgba(21,128,61,0.22))",
+                    color: temaClaro ? "#14532d" : "#dcfce7",
+                    fontSize: "12px",
+                    fontWeight: 950,
+                    cursor: "pointer",
+                  }}
+                >
+                  {t("Aprobar cierre")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => abrirRevisionCierrePc("rechazar")}
+                  style={{
+                    padding: "12px 10px",
+                    borderRadius: "13px",
+                    border: "1px solid rgba(239,68,68,0.42)",
+                    background: temaClaro
+                      ? "linear-gradient(135deg, rgba(254,242,242,1), rgba(254,226,226,0.95))"
+                      : "linear-gradient(135deg, rgba(239,68,68,0.24), rgba(127,29,29,0.20))",
+                    color: temaClaro ? "#7f1d1d" : "#fee2e2",
+                    fontSize: "12px",
+                    fontWeight: 950,
+                    cursor: "pointer",
+                  }}
+                >
+                  {t("Rechazar evidencia")}
+                </button>
+              </div>
+            )}
+          </div>
+
           <button
             type="button"
             onClick={abrirGestionCierre}

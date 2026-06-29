@@ -66,6 +66,7 @@ export type HallazgoPanelDesdeCentral = HallazgoPanel & {
   cierreSinEvidenciaJustificado?: boolean;
   justificacionCierreSinEvidencia?: string;
   evidenciasPanel?: EvidenciaPanel[];
+  evidenciasCierrePanel?: EvidenciaPanel[];
   totalEvidencias?: number;
   evidenciasPendientesVisualizacion?: number;
   evaluacionPreventiva?: EvaluacionPreventivaPanel;
@@ -251,6 +252,9 @@ export function adaptarHallazgoCentralAHallazgoPanel(
   const evidenciaCierre = evidenciasRecibidasPanel(hallazgo);
   const responsableNombre = texto(responsable?.nombre, "Sin asignar");
   const evidenciasPanel = normalizarEvidenciasPanel(hallazgo.evidencias);
+  const evidenciasCierrePanel = normalizarEvidenciasPanel(
+    seguimiento?.evidenciaRecibida
+  );
   const evidenciasVisibles = evidenciasPanel.filter(
     (evidencia) => evidencia.disponibleVisualmente
   ).length;
@@ -277,6 +281,7 @@ export function adaptarHallazgoCentralAHallazgoPanel(
     ),
     fotos: fotosPanel(evidenciasPanel),
     evidenciasPanel,
+    evidenciasCierrePanel,
     totalEvidencias: evidenciasPanel.length,
     evidenciasPendientesVisualizacion: evidenciasPanel.length - evidenciasVisibles,
     evaluacionPreventiva: evaluacionPreventivaPanel(hallazgo),

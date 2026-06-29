@@ -235,6 +235,15 @@ function hallazgoEnRevisionMovil(hallazgo: HallazgoCentral) {
   );
   const validadorEstado = normalizarTextoCierreMovil(seguimiento?.validadorEstado);
   const evidenciaRecibida = seguimiento?.evidenciaRecibida || [];
+  const requiereNuevaEvidencia =
+    estadoCierre.includes("RECHAZ") ||
+    estadoSeguimiento.includes("RECHAZ") ||
+    estadoSeguimiento.includes("NUEVA EVIDENCIA") ||
+    estadoSeguimiento.includes("EVIDENCIA RECHAZ") ||
+    validadorEstado.includes("RECHAZ") ||
+    validadorEstado.includes("NUEVA EVIDENCIA");
+
+  if (requiereNuevaEvidencia) return false;
 
   return (
     estadoSeguimiento.includes("REVISION") ||
