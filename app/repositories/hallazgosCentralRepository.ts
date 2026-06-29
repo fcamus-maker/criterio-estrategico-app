@@ -570,14 +570,15 @@ function evidenciasDesdeFilaSupabase(
   return evidencias;
 }
 
-async function resolverUrlsFirmadasEvidencias(
-  hallazgo: HallazgoCentral,
-  cliente: SupabaseClient
-): Promise<HallazgoCentral> {
-  if (!hallazgo.evidencias?.length) return hallazgo;
+async function resolverUrlsFirmadasListaEvidencias(
+  evidencias: EvidenciaHallazgoCentral[] | undefined,
+  cliente: SupabaseClient,
+  codigo: string
+): Promise<EvidenciaHallazgoCentral[] | undefined> {
+  if (!evidencias?.length) return evidencias;
 
-  const evidencias = await Promise.all(
-    hallazgo.evidencias.map(async (evidencia) => {
+  return Promise.all(
+    evidencias.map(async (evidencia) => {
       const urlExistente = texto(evidencia.url || evidencia.dataUrl);
       const storagePath = texto(evidencia.storagePath);
 
@@ -593,7 +594,7 @@ async function resolverUrlsFirmadasEvidencias(
         if (error || !data?.signedUrl) {
           if (process.env.NODE_ENV !== "production") {
             console.warn("[hallazgos_central] evidencia sin url firmada", {
-              codigo: hallazgo.codigo,
+              codigo,
               bucket,
               storagePath,
               error: error?.message || "Sin URL firmada",
@@ -603,6 +604,7 @@ async function resolverUrlsFirmadasEvidencias(
           return {
             ...evidencia,
             bucket,
+            error: error?.message || evidencia.error,
             descripcion: texto(
               evidencia.descripcion,
               "Evidencia subida a Storage, pero no disponible para visualización por permisos actuales."
@@ -618,7 +620,7 @@ async function resolverUrlsFirmadasEvidencias(
       } catch (error) {
         if (process.env.NODE_ENV !== "production") {
           console.warn("[hallazgos_central] fallo creando url firmada", {
-            codigo: hallazgo.codigo,
+            codigo,
             bucket,
             storagePath,
             error: error instanceof Error ? error.message : "Error desconocido",
@@ -628,6 +630,7 @@ async function resolverUrlsFirmadasEvidencias(
         return {
           ...evidencia,
           bucket,
+          error: error instanceof Error ? error.message : evidencia.error,
           descripcion: texto(
             evidencia.descripcion,
             "Evidencia subida a Storage, pero no disponible para visualización por permisos actuales."
@@ -636,10 +639,33 @@ async function resolverUrlsFirmadasEvidencias(
       }
     })
   );
+}
+
+async function resolverUrlsFirmadasEvidencias(
+  hallazgo: HallazgoCentral,
+  cliente: SupabaseClient
+): Promise<HallazgoCentral> {
+  const evidencias = await resolverUrlsFirmadasListaEvidencias(
+    hallazgo.evidencias,
+    cliente,
+    hallazgo.codigo
+  );
+  const evidenciasCierre = await resolverUrlsFirmadasListaEvidencias(
+    hallazgo.seguimientoCierre?.evidenciaRecibida,
+    cliente,
+    hallazgo.codigo
+  );
+  const seguimientoCierre = hallazgo.seguimientoCierre
+    ? {
+        ...hallazgo.seguimientoCierre,
+        evidenciaRecibida: evidenciasCierre,
+      }
+    : hallazgo.seguimientoCierre;
 
   return {
     ...hallazgo,
     evidencias,
+    seguimientoCierre,
   };
 }
 
