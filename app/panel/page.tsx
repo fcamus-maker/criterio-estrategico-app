@@ -243,6 +243,18 @@ function normalizarFechaCompromiso(fechaCompromiso: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(valor) ? valor : "";
 }
 
+function normalizarFechaSeguimiento(valorFecha: string) {
+  const valor = String(valorFecha || "").trim();
+  if (!valor) return "";
+  const fechaDirecta = valor.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (fechaDirecta) return fechaDirecta[1];
+
+  const fechaParseada = new Date(valor);
+  return Number.isNaN(fechaParseada.getTime())
+    ? ""
+    : fechaLocalISO(fechaParseada);
+}
+
 function diasPlazoPorCriticidad(criticidad: string) {
   const valor = String(criticidad || "").toUpperCase();
   if (valor.includes("CRÍT") || valor.includes("CRIT")) return 1;
@@ -362,6 +374,7 @@ type FormatoHojaPDF = "carta" | "a4";
 type OrientacionPDF = "vertical" | "horizontal";
 type PerfilPermiso = "administrador" | "supervisor" | "gerencia" | "cliente";
 type LogoFitConfig = "contain" | "cover";
+type ModoFechaSeguimiento = "todas" | "hoy" | "semana" | "mes" | "fecha" | "rango";
 
 type LogoAjusteConfig = {
   logoScale: number;
@@ -3659,7 +3672,10 @@ const [filtroTipoHallazgo, setFiltroTipoHallazgo] = useState("TODOS");
 const [filtroSeguimientoEstado, setFiltroSeguimientoEstado] = useState("TODOS");
 const [filtroSeguimientoEmpresa, setFiltroSeguimientoEmpresa] = useState("TODAS");
 const [filtroSeguimientoCriticidad, setFiltroSeguimientoCriticidad] = useState("TODAS");
+const [modoFechaSeguimiento, setModoFechaSeguimiento] = useState<ModoFechaSeguimiento>("todas");
 const [filtroSeguimientoFecha, setFiltroSeguimientoFecha] = useState("");
+const [filtroSeguimientoFechaDesde, setFiltroSeguimientoFechaDesde] = useState("");
+const [filtroSeguimientoFechaHasta, setFiltroSeguimientoFechaHasta] = useState("");
 const [busquedaResponsableSeguimiento, setBusquedaResponsableSeguimiento] = useState("");
 const [busquedaResponsableSeguimientoDraft, setBusquedaResponsableSeguimientoDraft] = useState("");
 const [codigoSeguimientoActivo, setCodigoSeguimientoActivo] = useState("");
@@ -3671,6 +3687,7 @@ const [gestionCierreLocal, setGestionCierreLocal] = useState<Record<string, Gest
 const [revisionCierrePc, setRevisionCierrePc] = useState<{
   accion: AccionRevisionCierrePc;
   comentario: string;
+  confirmaAprobacionSinEvidenciaVisual: boolean;
 } | null>(null);
 const [errorRevisionCierrePc, setErrorRevisionCierrePc] = useState("");
 const [guardandoRevisionCierrePc, setGuardandoRevisionCierrePc] = useState(false);
@@ -4173,6 +4190,15 @@ const limpiarFiltros = () => {
   setFiltroFechaDesde("");
   setFiltroFechaHasta("");
   setFiltroTipoHallazgo("TODOS");
+  setFiltroSeguimientoEstado("TODOS");
+  setFiltroSeguimientoEmpresa("TODAS");
+  setFiltroSeguimientoCriticidad("TODAS");
+  setModoFechaSeguimiento("todas");
+  setFiltroSeguimientoFecha("");
+  setFiltroSeguimientoFechaDesde("");
+  setFiltroSeguimientoFechaHasta("");
+  setBusquedaResponsableSeguimiento("");
+  setBusquedaResponsableSeguimientoDraft("");
 };
 const abrirNotificacion = (notificacion: NotificacionPanel) => {
   if (notificacion.hallazgoId) {
@@ -4611,6 +4637,21 @@ const imprimirCalendarioMeta = () => {
 const fechaHoyPanel = fechaLocalISO();
 const inicioSemanaPanel = desplazarFechaISO(fechaHoyPanel, -6);
 const inicioMesPanel = `${fechaHoyPanel.slice(0, 8)}01`;
+const fechaHoyPartes = fechaHoyPanel.split("-").map(Number);
+const fechaHoyObjeto = new Date(
+  fechaHoyPartes[0],
+  fechaHoyPartes[1] - 1,
+  fechaHoyPartes[2]
+);
+const diaSemanaHoy = fechaHoyObjeto.getDay();
+const inicioSemanaCalendarioPanel = desplazarFechaISO(
+  fechaHoyPanel,
+  diaSemanaHoy === 0 ? -6 : 1 - diaSemanaHoy
+);
+const finSemanaCalendarioPanel = desplazarFechaISO(inicioSemanaCalendarioPanel, 6);
+const finMesPanel = `${fechaHoyPanel.slice(0, 8)}${String(
+  new Date(fechaHoyPartes[0], fechaHoyPartes[1], 0).getDate()
+).padStart(2, "0")}`;
 
 const filasBase = filas.filter((item) => {
   const timestampItem = timestampHallazgoPanel(item);
@@ -4806,6 +4847,19 @@ const hallazgosSeguimiento: HallazgoSeguimiento[] = filas.map((item) => {
 const evidenciasCierreSeguimiento = (item: HallazgoSeguimiento) =>
   item.evidenciasCierrePanel || [];
 
+const evidenciasCierreVisiblesSeguimiento = (item: HallazgoSeguimiento) =>
+  evidenciasCierreSeguimiento(item).filter(
+    (evidencia) => evidencia.disponibleVisualmente
+  );
+
+const evidenciasCierreNoVisiblesSeguimiento = (item: HallazgoSeguimiento) =>
+  evidenciasCierreSeguimiento(item).filter(
+    (evidencia) => !evidencia.disponibleVisualmente
+  );
+
+const puedeAprobarCierreConRevisionVisual = (item: HallazgoSeguimiento) =>
+  tieneEvidenciaCierre(item) && evidenciasCierreVisiblesSeguimiento(item).length > 0;
+
 const tieneEvidenciaCierre = (item: HallazgoSeguimiento) => {
   if (evidenciasCierreSeguimiento(item).length > 0) return true;
 
@@ -4847,6 +4901,56 @@ const comentarioUltimaEvidenciaCierre = (item: HallazgoSeguimiento) =>
     .map((evidencia) => evidencia.descripcion || "")
     .find(Boolean) || "";
 
+const fechaReferenciaSeguimiento = (item: HallazgoSeguimiento) =>
+  normalizarFechaSeguimiento(fechaUltimaEvidenciaCierre(item)) ||
+  normalizarFechaSeguimiento(item.fechaCierre || "") ||
+  normalizarFechaSeguimiento(item.responsableCierreFechaCompromiso);
+
+const cumpleFiltroFechaSeguimiento = (item: HallazgoSeguimiento) => {
+  const fechaReferencia = fechaReferenciaSeguimiento(item);
+  if (modoFechaSeguimiento === "todas") return true;
+  if (!fechaReferencia) return false;
+
+  if (modoFechaSeguimiento === "hoy") return fechaReferencia === fechaHoyPanel;
+  if (modoFechaSeguimiento === "semana") {
+    return (
+      fechaReferencia >= inicioSemanaCalendarioPanel &&
+      fechaReferencia <= finSemanaCalendarioPanel
+    );
+  }
+  if (modoFechaSeguimiento === "mes") {
+    return fechaReferencia >= inicioMesPanel && fechaReferencia <= finMesPanel;
+  }
+  if (modoFechaSeguimiento === "fecha") {
+    return !filtroSeguimientoFecha || fechaReferencia === filtroSeguimientoFecha;
+  }
+  if (modoFechaSeguimiento === "rango") {
+    const cumpleDesde =
+      !filtroSeguimientoFechaDesde || fechaReferencia >= filtroSeguimientoFechaDesde;
+    const cumpleHasta =
+      !filtroSeguimientoFechaHasta || fechaReferencia <= filtroSeguimientoFechaHasta;
+    return cumpleDesde && cumpleHasta;
+  }
+
+  return true;
+};
+
+const etiquetaModoFechaSeguimiento = () => {
+  if (modoFechaSeguimiento === "todas") return "Todas las fechas";
+  if (modoFechaSeguimiento === "hoy") return "Hoy";
+  if (modoFechaSeguimiento === "semana") return "Esta semana";
+  if (modoFechaSeguimiento === "mes") return "Este mes";
+  if (modoFechaSeguimiento === "fecha") {
+    return filtroSeguimientoFecha
+      ? `Fecha ${filtroSeguimientoFecha}`
+      : "Fecha específica";
+  }
+  return [
+    filtroSeguimientoFechaDesde ? `Desde ${filtroSeguimientoFechaDesde}` : null,
+    filtroSeguimientoFechaHasta ? `Hasta ${filtroSeguimientoFechaHasta}` : null,
+  ].filter(Boolean).join(" · ") || "Rango personalizado";
+};
+
 const hallazgoEnRevisionPc = (item: HallazgoSeguimiento) =>
   estadoSeguimientoVisual(item) === "En revisión" && tieneEvidenciaCierre(item);
 
@@ -4869,7 +4973,7 @@ const estadoSeguimientoVisual = (item: HallazgoSeguimiento) => {
     item.responsableCierreEstadoSeguimiento === "Requiere nueva evidencia" ||
     item.responsableCierreEstadoSeguimiento === "Evidencia rechazada"
   ) {
-    return "Rechazado";
+    return "Requiere nueva evidencia";
   }
   if (item.responsableCierreEstadoSeguimiento === "En revisión") return "En revisión";
   if (
@@ -4909,6 +5013,7 @@ const opcionesSeguimientoEstado = [
   "En seguimiento",
   "En revisión",
   "Pendiente de evidencia",
+  "Requiere nueva evidencia",
   "Rechazado",
   "Vencido",
   "Plazo extendido",
@@ -4920,22 +5025,49 @@ const opcionesSeguimientoEmpresa = [
   ...Array.from(new Set(hallazgosSeguimiento.map((item) => item.responsableCierreEmpresa))),
 ];
 
+const limpiarFiltrosSeguimiento = () => {
+  setFiltroSeguimientoEstado("TODOS");
+  setFiltroSeguimientoEmpresa("TODAS");
+  setFiltroSeguimientoCriticidad("TODAS");
+  setModoFechaSeguimiento("todas");
+  setFiltroSeguimientoFecha("");
+  setFiltroSeguimientoFechaDesde("");
+  setFiltroSeguimientoFechaHasta("");
+  setBusquedaResponsableSeguimiento("");
+  setBusquedaResponsableSeguimientoDraft("");
+};
+
 const hallazgosSeguimientoFiltrados = hallazgosSeguimiento.filter((item) => {
   const estadoVisual = estadoSeguimientoVisual(item);
   const busqueda = busquedaResponsableSeguimiento.trim().toLowerCase();
-  const fechaCompromiso = item.responsableCierreFechaCompromiso;
 
   return (
     (filtroSeguimientoEstado === "TODOS" || estadoVisual === filtroSeguimientoEstado) &&
     (filtroSeguimientoEmpresa === "TODAS" || item.responsableCierreEmpresa === filtroSeguimientoEmpresa) &&
     (filtroSeguimientoCriticidad === "TODAS" || item.criticidad === filtroSeguimientoCriticidad) &&
-    (!filtroSeguimientoFecha || fechaCompromiso === filtroSeguimientoFecha) &&
+    cumpleFiltroFechaSeguimiento(item) &&
     (!busqueda ||
       item.responsableCorreccionNombre.toLowerCase().includes(busqueda) ||
       item.encargadoSeguimientoNombre.toLowerCase().includes(busqueda) ||
       item.codigo.toLowerCase().includes(busqueda))
   );
 });
+
+const filtrosSeguimientoActivos = [
+  filtroSeguimientoEstado !== "TODOS" ? `Estado: ${filtroSeguimientoEstado}` : null,
+  filtroSeguimientoEmpresa !== "TODAS"
+    ? `Empresa responsable: ${filtroSeguimientoEmpresa}`
+    : null,
+  filtroSeguimientoCriticidad !== "TODAS"
+    ? `Criticidad: ${filtroSeguimientoCriticidad}`
+    : null,
+  modoFechaSeguimiento !== "todas"
+    ? `Fecha: ${etiquetaModoFechaSeguimiento()}`
+    : null,
+  busquedaResponsableSeguimiento
+    ? `Responsable: ${busquedaResponsableSeguimiento}`
+    : null,
+].filter(Boolean) as string[];
 
 const hallazgoSeguimientoActivo =
   hallazgosSeguimiento.find((item) => item.codigo === codigoSeguimientoActivo) ||
@@ -6053,7 +6185,11 @@ const guardarGestionCierre = async () => {
 const abrirRevisionCierrePc = (accion: AccionRevisionCierrePc) => {
   if (!hallazgoSeguimientoActivo) return;
 
-  setRevisionCierrePc({ accion, comentario: "" });
+  setRevisionCierrePc({
+    accion,
+    comentario: "",
+    confirmaAprobacionSinEvidenciaVisual: false,
+  });
   setErrorRevisionCierrePc("");
 };
 
@@ -6076,6 +6212,28 @@ const confirmarRevisionCierrePc = async () => {
 
   if (aprueba && !tieneEvidenciaCierre(hallazgoSeguimientoActivo)) {
     setErrorRevisionCierrePc("No se puede aprobar el cierre sin evidencia recibida.");
+    return;
+  }
+
+  if (
+    aprueba &&
+    !puedeAprobarCierreConRevisionVisual(hallazgoSeguimientoActivo) &&
+    !revisionCierrePc.confirmaAprobacionSinEvidenciaVisual
+  ) {
+    setErrorRevisionCierrePc(
+      "La evidencia existe, pero no está disponible para revisión visual. Marca la confirmación explícita o rechaza para solicitar nueva evidencia."
+    );
+    return;
+  }
+
+  if (
+    aprueba &&
+    !puedeAprobarCierreConRevisionVisual(hallazgoSeguimientoActivo) &&
+    comentario.length < 20
+  ) {
+    setErrorRevisionCierrePc(
+      "Para aprobar sin evidencia visual disponible, agrega una justificación de al menos 20 caracteres."
+    );
     return;
   }
 
@@ -6125,6 +6283,8 @@ const confirmarRevisionCierrePc = async () => {
     ? `Cierre aprobado desde plataforma PC. Comentario: ${comentario}`
     : `Evidencia rechazada desde plataforma PC. Se requiere nueva evidencia. Motivo: ${comentario}`;
   const evidenciaRecibida = seguimientoPrevio?.evidenciaRecibida || [];
+  const aprobacionSinEvidenciaVisual =
+    aprueba && !puedeAprobarCierreConRevisionVisual(hallazgoSeguimientoActivo);
   const rawPanelPrevio =
     hallazgoActual.rawPanel && typeof hallazgoActual.rawPanel === "object"
       ? hallazgoActual.rawPanel
@@ -6143,6 +6303,7 @@ const confirmarRevisionCierrePc = async () => {
     estadoAnterior,
     estadoNuevo: estadoSeguimiento,
     evidenciaRecibida: evidenciaRecibida.length,
+    aprobacionSinEvidenciaVisual,
     mantieneEvidenciaHistorica: true,
   };
 
@@ -6209,6 +6370,7 @@ const confirmarRevisionCierrePc = async () => {
             comentario,
             mantieneEvidenciaHistorica: true,
             evidenciaRecibida: evidenciaRecibida.length,
+            aprobacionSinEvidenciaVisual,
           },
         },
       ],
@@ -7020,6 +7182,14 @@ const riesgoOperativoPrincipal =
         background: "rgba(168,85,247,0.15)",
         border: "1px solid rgba(168,85,247,0.34)",
         color: temaClaro ? "#6b21a8" : "#e9d5ff",
+      };
+    }
+
+    if (estado === "Requiere nueva evidencia") {
+      return {
+        background: "rgba(251,146,124,0.16)",
+        border: "1px solid rgba(251,146,124,0.40)",
+        color: temaClaro ? "#9a3412" : "#fed7aa",
       };
     }
 
@@ -8845,13 +9015,64 @@ const riesgoOperativoPrincipal =
         }}
       >
         <div style={{ fontWeight: 950 }}>
-          {t("Evidencia de cierre recibida")}: {evidenciasCierreSeguimiento(hallazgoSeguimientoActivo).length}
+          {t("Evidencia de cierre recibida")}:{" "}
+          {evidenciasCierreSeguimiento(hallazgoSeguimientoActivo).length}
+        </div>
+        <div style={{ color: tema.textoSuave, fontWeight: 780 }}>
+          {t("Visualizables")}:{" "}
+          {evidenciasCierreVisiblesSeguimiento(hallazgoSeguimientoActivo).length} ·{" "}
+          {t("No visualizables")}:{" "}
+          {evidenciasCierreNoVisiblesSeguimiento(hallazgoSeguimientoActivo).length}
         </div>
         <div style={{ color: tema.textoSuave, fontWeight: 780 }}>
           {comentarioUltimaEvidenciaCierre(hallazgoSeguimientoActivo) ||
             t("Sin comentario móvil registrado.")}
         </div>
       </div>
+
+      {revisionCierrePc.accion === "aprobar" &&
+        tieneEvidenciaCierre(hallazgoSeguimientoActivo) &&
+        !puedeAprobarCierreConRevisionVisual(hallazgoSeguimientoActivo) && (
+          <label
+            style={{
+              display: "grid",
+              gridTemplateColumns: "auto 1fr",
+              gap: "10px",
+              alignItems: "start",
+              padding: "12px 14px",
+              borderRadius: "16px",
+              border: "1px solid rgba(245,158,11,0.38)",
+              background: temaClaro
+                ? "rgba(255,251,235,0.82)"
+                : "rgba(120,53,15,0.18)",
+              color: temaClaro ? "#78350f" : "#fde68a",
+              fontSize: "12px",
+              lineHeight: 1.45,
+              fontWeight: 820,
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={revisionCierrePc.confirmaAprobacionSinEvidenciaVisual}
+              onChange={(e) =>
+                setRevisionCierrePc((actual) =>
+                  actual
+                    ? {
+                        ...actual,
+                        confirmaAprobacionSinEvidenciaVisual: e.target.checked,
+                      }
+                    : actual
+                )
+              }
+              style={{ marginTop: "2px" }}
+            />
+            <span>
+              {t(
+                "Confirmo que la evidencia está registrada, pero no pudo visualizarse temporalmente en el panel. Aprobaré solo dejando justificación en el comentario."
+              )}
+            </span>
+          </label>
+        )}
 
       <label style={{ display: "grid", gap: "7px" }}>
         <span style={{ fontSize: "12px", color: tema.textoSuave, fontWeight: 950 }}>
@@ -11531,13 +11752,88 @@ style={{
         <span style={seguimientoFilterLabelStyle}>
           {t("Fecha").toUpperCase()}
         </span>
-        <input
-          type="date"
-          value={filtroSeguimientoFecha}
-          onChange={(e) => setFiltroSeguimientoFecha(e.target.value)}
-          style={premiumInputStyle}
-          aria-label={t("Fecha")}
-        />
+        <div style={{ display: "grid", gap: "8px" }}>
+          <select
+            value={modoFechaSeguimiento}
+            onChange={(e) => {
+              const modo = e.target.value as ModoFechaSeguimiento;
+              setModoFechaSeguimiento(modo);
+              if (modo !== "fecha") setFiltroSeguimientoFecha("");
+              if (modo !== "rango") {
+                setFiltroSeguimientoFechaDesde("");
+                setFiltroSeguimientoFechaHasta("");
+              }
+            }}
+            style={{ ...premiumInputStyle, cursor: "pointer" }}
+          >
+            <option value="todas" style={optionStyle}>
+              {t("Todas las fechas")}
+            </option>
+            <option value="hoy" style={optionStyle}>
+              {t("Hoy")}
+            </option>
+            <option value="semana" style={optionStyle}>
+              {t("Esta semana")}
+            </option>
+            <option value="mes" style={optionStyle}>
+              {t("Este mes")}
+            </option>
+            <option value="fecha" style={optionStyle}>
+              {t("Fecha")}
+            </option>
+            <option value="rango" style={optionStyle}>
+              {t("Rango personalizado")}
+            </option>
+          </select>
+          {modoFechaSeguimiento === "fecha" && (
+            <input
+              type="date"
+              value={filtroSeguimientoFecha}
+              onChange={(e) => setFiltroSeguimientoFecha(e.target.value)}
+              style={premiumInputStyle}
+              aria-label={t("Fecha")}
+            />
+          )}
+          {modoFechaSeguimiento === "rango" && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+              <input
+                type="date"
+                value={filtroSeguimientoFechaDesde}
+                onChange={(e) => setFiltroSeguimientoFechaDesde(e.target.value)}
+                style={premiumInputStyle}
+                aria-label={t("Desde")}
+              />
+              <input
+                type="date"
+                value={filtroSeguimientoFechaHasta}
+                onChange={(e) => setFiltroSeguimientoFechaHasta(e.target.value)}
+                style={premiumInputStyle}
+                aria-label={t("Hasta")}
+              />
+            </div>
+          )}
+          {modoFechaSeguimiento !== "todas" && (
+            <button
+              type="button"
+              onClick={() => {
+                setModoFechaSeguimiento("todas");
+                setFiltroSeguimientoFecha("");
+                setFiltroSeguimientoFechaDesde("");
+                setFiltroSeguimientoFechaHasta("");
+              }}
+              style={{
+                justifySelf: "start",
+                padding: "7px 9px",
+                borderRadius: "11px",
+                ...premiumSecondaryButtonStyle,
+                minHeight: "30px",
+                fontSize: "10.5px",
+              }}
+            >
+              {t("Limpiar fecha")}
+            </button>
+          )}
+        </div>
       </label>
       <label style={{ display: "grid", gap: "7px" }}>
         <span style={seguimientoFilterLabelStyle}>
@@ -11595,6 +11891,55 @@ style={{
 
     <div
       style={{
+        ...premiumPanelStyle,
+        padding: "12px 14px",
+        display: "flex",
+        flexWrap: "wrap",
+        alignItems: "center",
+        gap: "8px",
+      }}
+    >
+      <span style={{ color: premiumTextoSuave, fontSize: "12px", fontWeight: 850 }}>
+        {t("Mostrando")}: {t(etiquetaModoFechaSeguimiento())} ·{" "}
+        {hallazgosSeguimientoFiltrados.length} {t("de")} {hallazgosSeguimiento.length}{" "}
+        {t("hallazgos")}
+      </span>
+      {filtrosSeguimientoActivos.map((filtro) => (
+        <span
+          key={filtro}
+          style={{
+            padding: "7px 10px",
+            borderRadius: "999px",
+            border: tema.bordeSutil,
+            background: tema.tarjetaSuave,
+            color: tema.texto,
+            fontSize: "11px",
+            fontWeight: 850,
+          }}
+        >
+          {t(filtro)}
+        </span>
+      ))}
+      {filtrosSeguimientoActivos.length > 0 && (
+        <button
+          type="button"
+          onClick={limpiarFiltrosSeguimiento}
+          style={{
+            marginLeft: "auto",
+            padding: "8px 10px",
+            borderRadius: "12px",
+            ...premiumSecondaryButtonStyle,
+            minHeight: "34px",
+            fontSize: "11px",
+          }}
+        >
+          {t("Limpiar filtros")}
+        </button>
+      )}
+    </div>
+
+    <div
+      style={{
         display: "grid",
         gridTemplateColumns: "minmax(0, 1fr) clamp(280px, 23vw, 340px)",
         gap: "16px",
@@ -11648,9 +11993,27 @@ style={{
               fontSize: "14px",
               fontWeight: 800,
               textAlign: "center",
+              display: "grid",
+              justifyItems: "center",
+              gap: "12px",
             }}
           >
-            {t("Sin coincidencias para los filtros de seguimiento seleccionados.")}
+            <div>
+              {t("Sin coincidencias para los filtros de seguimiento seleccionados.")}
+            </div>
+            <button
+              type="button"
+              onClick={limpiarFiltrosSeguimiento}
+              style={{
+                padding: "9px 12px",
+                borderRadius: "12px",
+                ...premiumSecondaryButtonStyle,
+                minHeight: "36px",
+                fontSize: "12px",
+              }}
+            >
+              {t("Limpiar filtros")}
+            </button>
           </div>
         ) : hallazgosSeguimientoFiltrados.map((item) => {
           const estadoVisual = estadoSeguimientoVisual(item);
@@ -11895,7 +12258,26 @@ style={{
               <div style={{ fontSize: "12px", fontWeight: 950 }}>
                 {t("Evidencia de cierre recibida")}
               </div>
-              {hallazgoEnRevisionPc(hallazgoSeguimientoActivo) && (
+              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                {evidenciasCierreSeguimiento(hallazgoSeguimientoActivo).length > 0 && (
+                  <span
+                    style={{
+                      padding: "6px 8px",
+                      borderRadius: "999px",
+                      background: temaClaro
+                        ? "rgba(14,165,233,0.10)"
+                        : "rgba(14,165,233,0.14)",
+                      color: temaClaro ? "#075985" : "#bae6fd",
+                      fontSize: "10px",
+                      fontWeight: 950,
+                    }}
+                  >
+                    {evidenciasCierreVisiblesSeguimiento(hallazgoSeguimientoActivo).length}/
+                    {evidenciasCierreSeguimiento(hallazgoSeguimientoActivo).length}{" "}
+                    {t("visibles")}
+                  </span>
+                )}
+                {hallazgoEnRevisionPc(hallazgoSeguimientoActivo) && (
                 <span
                   style={{
                     padding: "6px 8px",
@@ -11910,7 +12292,8 @@ style={{
                 >
                   {t("EN REVISIÓN")}
                 </span>
-              )}
+                )}
+              </div>
             </div>
             {fechaUltimaEvidenciaCierre(hallazgoSeguimientoActivo) && (
               <div style={{ fontSize: "11px", color: tema.textoSuave, fontWeight: 820 }}>
@@ -11934,6 +12317,27 @@ style={{
                 {comentarioUltimaEvidenciaCierre(hallazgoSeguimientoActivo)}
               </div>
             )}
+            {tieneEvidenciaCierre(hallazgoSeguimientoActivo) &&
+              evidenciasCierreNoVisiblesSeguimiento(hallazgoSeguimientoActivo).length > 0 && (
+                <div
+                  style={{
+                    padding: "10px",
+                    borderRadius: "12px",
+                    border: "1px solid rgba(245,158,11,0.34)",
+                    background: temaClaro
+                      ? "rgba(255,251,235,0.72)"
+                      : "rgba(120,53,15,0.16)",
+                    color: temaClaro ? "#78350f" : "#fde68a",
+                    fontSize: "11px",
+                    fontWeight: 820,
+                    lineHeight: 1.4,
+                  }}
+                >
+                  {t(
+                    "Hay evidencia registrada que no pudo visualizarse temporalmente. Revisa el mensaje de cada archivo antes de aprobar o solicita nueva evidencia."
+                  )}
+                </div>
+              )}
             {evidenciasCierreSeguimiento(hallazgoSeguimientoActivo).length > 0 ? (
               <div style={{ display: "grid", gap: "8px" }}>
                 {evidenciasCierreSeguimiento(hallazgoSeguimientoActivo).map((evidencia, index) => (
@@ -11950,13 +12354,95 @@ style={{
                       gap: "6px",
                     }}
                   >
-                    <div style={{ fontSize: "12px", fontWeight: 900 }}>
-                      {evidencia.nombre || `${t("Evidencia de cierre")} ${index + 1}`}
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: "8px",
+                        alignItems: "flex-start",
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <div style={{ fontSize: "12px", fontWeight: 900 }}>
+                        {evidencia.nombre || `${t("Evidencia de cierre")} ${index + 1}`}
+                      </div>
+                      <span
+                        style={{
+                          padding: "5px 7px",
+                          borderRadius: "999px",
+                          border: evidencia.disponibleVisualmente
+                            ? "1px solid rgba(34,197,94,0.34)"
+                            : "1px solid rgba(245,158,11,0.34)",
+                          background: evidencia.disponibleVisualmente
+                            ? "rgba(34,197,94,0.12)"
+                            : "rgba(245,158,11,0.12)",
+                          color: evidencia.disponibleVisualmente
+                            ? temaClaro ? "#166534" : "#bbf7d0"
+                            : temaClaro ? "#92400e" : "#fde68a",
+                          fontSize: "9.5px",
+                          fontWeight: 950,
+                        }}
+                      >
+                        {t(evidencia.disponibleVisualmente ? "Visualizable" : "No visualizable")}
+                      </span>
                     </div>
                     <div style={{ fontSize: "11px", color: tema.textoSuave, lineHeight: 1.35 }}>
                       {evidencia.mensajeVisualizacion}
-                      {evidencia.storagePath ? ` · ${evidencia.storagePath}` : ""}
                     </div>
+                    {evidencia.rechazada && (
+                      <div
+                        style={{
+                          justifySelf: "start",
+                          padding: "5px 7px",
+                          borderRadius: "999px",
+                          border: "1px solid rgba(251,146,124,0.36)",
+                          background: "rgba(251,146,124,0.13)",
+                          color: temaClaro ? "#9a3412" : "#fed7aa",
+                          fontSize: "10px",
+                          fontWeight: 950,
+                        }}
+                      >
+                        {t("Evidencia rechazada / histórica")}
+                      </div>
+                    )}
+                    {evidencia.descripcion && (
+                      <div style={{ fontSize: "11px", color: tema.textoSuave, lineHeight: 1.35 }}>
+                        {evidencia.descripcion}
+                      </div>
+                    )}
+                    {(evidencia.fechaSubida || evidencia.fechaCaptura) && (
+                      <div style={{ fontSize: "10.5px", color: tema.textoSuave, fontWeight: 780 }}>
+                        {t("Fecha")}:{" "}
+                        {formatearFechaCompromisoVisual(
+                          normalizarFechaSeguimiento(
+                            evidencia.fechaSubida || evidencia.fechaCaptura || ""
+                          )
+                        )}
+                      </div>
+                    )}
+                    {!evidencia.disponibleVisualmente && evidencia.error && (
+                      <div
+                        style={{
+                          padding: "8px",
+                          borderRadius: "10px",
+                          border: "1px solid rgba(245,158,11,0.30)",
+                          background: temaClaro
+                            ? "rgba(255,251,235,0.62)"
+                            : "rgba(120,53,15,0.16)",
+                          color: temaClaro ? "#78350f" : "#fde68a",
+                          fontSize: "10.5px",
+                          fontWeight: 780,
+                          lineHeight: 1.35,
+                        }}
+                      >
+                        {t("Detalle técnico para soporte")}: {evidencia.error}
+                      </div>
+                    )}
+                    {!evidencia.disponibleVisualmente && evidencia.storagePath && (
+                      <div style={{ fontSize: "10.5px", color: tema.textoSuave, lineHeight: 1.35 }}>
+                        {t("La evidencia mantiene trazabilidad en Storage.")}
+                      </div>
+                    )}
                     {evidencia.disponibleVisualmente && (
                       <button
                         type="button"

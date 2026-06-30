@@ -11,8 +11,11 @@ export type EvidenciaPanel = {
   descripcion?: string;
   fechaCaptura?: string;
   fechaSubida?: string;
+  origen?: string;
+  error?: string;
   intentos?: number;
   localBlobKey?: string;
+  rechazada?: boolean;
   disponibleVisualmente: boolean;
   mensajeVisualizacion: string;
 };
@@ -25,6 +28,11 @@ type HallazgoConEvidencias = {
 function texto(valor: unknown, fallback = "") {
   const limpio = String(valor ?? "").trim();
   return limpio || fallback;
+}
+
+function incluyeRechazo(valor: unknown) {
+  const limpio = texto(valor).toLowerCase();
+  return limpio.includes("rechaz");
 }
 
 export function normalizarEvidenciasPanel(
@@ -44,14 +52,17 @@ export function normalizarEvidenciasPanel(
 
     const disponibleVisualmente = Boolean(url);
     const estadoSubida = texto(evidencia.estadoSubida);
+    const descripcion = texto(evidencia.descripcion);
+    const error = texto(evidencia.error);
+    const rechazada = [estadoSubida, descripcion, error].some(incluyeRechazo);
     const mensajeVisualizacion = disponibleVisualmente
       ? "Evidencia fotográfica disponible."
       : estadoSubida === "pendiente" || estadoSubida === "subiendo"
         ? "Evidencia pendiente de sincronización."
         : estadoSubida === "error"
-          ? "Evidencia fallida; no hay URL/path disponible para visualización."
+          ? "Evidencia registrada con error de sincronización."
           : storagePath
-            ? "Evidencia subida a Storage, pero no disponible para visualización por permisos actuales."
+            ? "No se pudo generar una visualización temporal de esta evidencia."
             : "Evidencia registrada, pendiente de visualización.";
 
     vistas.push({
@@ -62,11 +73,14 @@ export function normalizarEvidenciasPanel(
       url,
       storagePath,
       estadoSubida,
-      descripcion: texto(evidencia.descripcion),
+      descripcion,
       fechaCaptura: texto(evidencia.fechaCaptura),
-      fechaSubida: texto(evidencia.fechaSubida),
+      fechaSubida: texto(evidencia.fechaSubida || evidencia.fechaCarga || evidencia.capturedAt),
+      origen: texto(evidencia.origenDeclarado || evidencia.origen),
+      error,
       intentos: evidencia.intentos,
       localBlobKey: texto(evidencia.localBlobKey),
+      rechazada,
       disponibleVisualmente,
       mensajeVisualizacion,
     });
