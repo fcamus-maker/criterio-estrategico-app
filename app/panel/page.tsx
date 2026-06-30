@@ -255,6 +255,30 @@ function normalizarFechaSeguimiento(valorFecha: string) {
     : fechaLocalISO(fechaParseada);
 }
 
+function detalleErrorOperacion(error: unknown) {
+  if (!error || typeof error !== "object") return String(error || "").trim();
+
+  const registro = error as {
+    message?: unknown;
+    error?: unknown;
+    details?: unknown;
+    hint?: unknown;
+    code?: unknown;
+    status?: unknown;
+  };
+  return [
+    registro.message,
+    registro.error,
+    registro.details,
+    registro.hint,
+    registro.code ? `codigo=${registro.code}` : "",
+    registro.status ? `status=${registro.status}` : "",
+  ]
+    .map((valor) => String(valor || "").trim())
+    .filter(Boolean)
+    .join(" · ");
+}
+
 function diasPlazoPorCriticidad(criticidad: string) {
   const valor = String(criticidad || "").toUpperCase();
   if (valor.includes("CRÍT") || valor.includes("CRIT")) return 1;
@@ -6385,8 +6409,17 @@ const confirmarRevisionCierrePc = async () => {
   );
 
   if (!resultadoPersistencia.ok) {
+    const detalle = detalleErrorOperacion(resultadoPersistencia.detalle);
+    console.warn("[panel] revision cierre pc no confirmada", {
+      codigo: hallazgoSeguimientoActivo.codigo,
+      accion: revisionCierrePc.accion,
+      error: resultadoPersistencia.error,
+      detalle,
+    });
     setErrorRevisionCierrePc(
-      "Supabase no confirmó la revisión de cierre. Revisa conexión/permisos e intenta nuevamente."
+      detalle
+        ? `Supabase no confirmó la revisión de cierre: ${detalle}`
+        : "Supabase no confirmó la revisión de cierre. Revisa conexión/permisos e intenta nuevamente."
     );
     setGuardandoRevisionCierrePc(false);
     return;

@@ -270,6 +270,14 @@ function textoEvidenciaEsUrl(valor: string) {
   return /^(https?:|data:image\/|blob:)/i.test(valor);
 }
 
+function urlFirmadaTemporalSupabase(valor: unknown) {
+  const url = texto(valor);
+  return (
+    url.includes("/storage/v1/object/sign/") ||
+    /[?&]token=/.test(url)
+  );
+}
+
 function evidenciaDesdeReferencia(
   valor: unknown,
   origenCampo?: string
@@ -582,7 +590,10 @@ async function resolverUrlsFirmadasListaEvidencias(
       const urlExistente = texto(evidencia.url || evidencia.dataUrl);
       const storagePath = texto(evidencia.storagePath);
 
-      if (urlExistente || !storagePath) return evidencia;
+      if (urlExistente && (!storagePath || !urlFirmadaTemporalSupabase(urlExistente))) {
+        return evidencia;
+      }
+      if (!storagePath) return evidencia;
 
       const bucket = texto(evidencia.bucket, BUCKET_EVIDENCIAS);
 
@@ -740,6 +751,12 @@ function evidenciasSinBase64(
 ) {
   return (evidencias || []).map(({ dataUrl, ...evidencia }) => {
     void dataUrl;
+    if (evidencia.storagePath && urlFirmadaTemporalSupabase(evidencia.url)) {
+      const { url, ...evidenciaSinUrlTemporal } = evidencia;
+      void url;
+      return evidenciaSinUrlTemporal;
+    }
+
     return evidencia;
   });
 }
