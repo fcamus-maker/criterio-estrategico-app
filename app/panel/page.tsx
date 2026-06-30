@@ -1072,6 +1072,18 @@ const [menuExportacionMetaAbierto, setMenuExportacionMetaAbierto] = useState(fal
     "Responsable pendiente de definición": "Closure responsible pending definition",
     "Responsable de cierre pendiente de definición": "Closure responsible pending definition",
     "Ver detalle": "View detail",
+    "Ver hallazgo": "View finding",
+    "Revisar cierre": "Review closure",
+    "Ver cierre": "View closure",
+    "Ver rechazo": "View rejection",
+    "Gestión de cierre": "Closure management",
+    "Resumen del hallazgo": "Finding summary",
+    "Actualizar seguimiento": "Update follow-up",
+    "Modo solo lectura": "Read-only mode",
+    "El cierre ya fue aprobado. Esta sección queda disponible solo para consulta.": "The closure has already been approved. This section is available for review only.",
+    "La evidencia fue rechazada. El hallazgo debe volver a gestionarse desde móvil con una nueva evidencia.": "The evidence was rejected. The finding must be managed again from mobile with new evidence.",
+    "Revisa la evidencia recibida y aprueba el cierre o solicita una nueva evidencia.": "Review the received evidence and approve the closure or request new evidence.",
+    "Consulta la evidencia de cierre registrada y su trazabilidad.": "Review the registered closure evidence and traceability.",
     "Buscar responsable": "Search responsible",
     Buscar: "Search",
     "Buscar por nombre de responsable": "Search by responsible person's name",
@@ -4992,7 +5004,7 @@ const estadoSeguimientoVisual = (item: HallazgoSeguimiento) => {
     if (hallazgoTieneCierreSinEvidenciaJustificada(item)) return "Cerrado sin evidencia justificada";
     return tieneEvidenciaCierre(item) ? "Cerrado con evidencia" : "Pendiente de evidencia";
   }
-  if (item.responsableCierreEstadoSeguimiento === "Rechazado") return "Rechazado";
+  if (item.responsableCierreEstadoSeguimiento === "Rechazado") return "Requiere nueva evidencia";
   if (
     item.responsableCierreEstadoSeguimiento === "Requiere nueva evidencia" ||
     item.responsableCierreEstadoSeguimiento === "Evidencia rechazada"
@@ -5012,6 +5024,58 @@ const estadoSeguimientoVisual = (item: HallazgoSeguimiento) => {
   if (hallazgoTieneExtensionPlazo(item)) return "Plazo extendido";
   if (item.responsableCierreEstadoSeguimiento === "En seguimiento") return "En seguimiento";
   return "Asignado";
+};
+
+const hallazgoCerradoSeguimiento = (item: HallazgoSeguimiento) =>
+  ["Cerrado con evidencia", "Cerrado sin evidencia justificada"].includes(
+    estadoSeguimientoVisual(item)
+  );
+
+const hallazgoRequiereNuevaEvidenciaSeguimiento = (item: HallazgoSeguimiento) =>
+  ["Requiere nueva evidencia", "Rechazado"].includes(estadoSeguimientoVisual(item));
+
+const debeMostrarCierreSeguimiento = (item: HallazgoSeguimiento) =>
+  hallazgoEnRevisionPc(item) ||
+  hallazgoCerradoSeguimiento(item) ||
+  hallazgoRequiereNuevaEvidenciaSeguimiento(item) ||
+  tieneEvidenciaCierre(item);
+
+const puedeGestionarSeguimientoPc = (item: HallazgoSeguimiento) =>
+  !hallazgoEnRevisionPc(item) &&
+  !hallazgoCerradoSeguimiento(item) &&
+  !hallazgoRequiereNuevaEvidenciaSeguimiento(item);
+
+const accionPrincipalSeguimiento = (item: HallazgoSeguimiento) => {
+  if (hallazgoEnRevisionPc(item)) {
+    return { etiqueta: "Revisar cierre", variante: "primary" as const };
+  }
+  if (hallazgoCerradoSeguimiento(item)) {
+    return { etiqueta: "Ver cierre", variante: "secondary" as const };
+  }
+  if (hallazgoRequiereNuevaEvidenciaSeguimiento(item)) {
+    return { etiqueta: "Ver rechazo", variante: "secondary" as const };
+  }
+  return { etiqueta: "Ver hallazgo", variante: "secondary" as const };
+};
+
+const tituloCierreSeguimiento = (item: HallazgoSeguimiento) => {
+  if (hallazgoEnRevisionPc(item)) return "Gestión de cierre";
+  if (hallazgoCerradoSeguimiento(item)) return "Ver cierre";
+  if (hallazgoRequiereNuevaEvidenciaSeguimiento(item)) return "Ver rechazo";
+  return "Evidencia de cierre recibida";
+};
+
+const ayudaCierreSeguimiento = (item: HallazgoSeguimiento) => {
+  if (hallazgoEnRevisionPc(item)) {
+    return "Revisa la evidencia recibida y aprueba el cierre o solicita una nueva evidencia.";
+  }
+  if (hallazgoCerradoSeguimiento(item)) {
+    return "El cierre ya fue aprobado. Esta sección queda disponible solo para consulta.";
+  }
+  if (hallazgoRequiereNuevaEvidenciaSeguimiento(item)) {
+    return "La evidencia fue rechazada. El hallazgo debe volver a gestionarse desde móvil con una nueva evidencia.";
+  }
+  return "Consulta la evidencia de cierre registrada y su trazabilidad.";
 };
 
 const hallazgoTieneExtensionPlazo = (item: HallazgoSeguimiento) =>
@@ -5038,7 +5102,6 @@ const opcionesSeguimientoEstado = [
   "En revisión",
   "Pendiente de evidencia",
   "Requiere nueva evidencia",
-  "Rechazado",
   "Vencido",
   "Plazo extendido",
   "Cerrado con evidencia",
@@ -7487,6 +7550,24 @@ const riesgoOperativoPrincipal =
   const evidenciaDisponibleGestion = hallazgoSeguimientoActivo
     ? tieneEvidenciaCierre(hallazgoSeguimientoActivo)
     : false;
+  const estadoSeguimientoActivoVisual = hallazgoSeguimientoActivo
+    ? estadoSeguimientoVisual(hallazgoSeguimientoActivo)
+    : "";
+  const accionPrincipalSeguimientoActiva = hallazgoSeguimientoActivo
+    ? accionPrincipalSeguimiento(hallazgoSeguimientoActivo)
+    : null;
+  const mostrarCierreSeguimientoActivo = hallazgoSeguimientoActivo
+    ? debeMostrarCierreSeguimiento(hallazgoSeguimientoActivo)
+    : false;
+  const mostrarGestionSeguimientoActivo = hallazgoSeguimientoActivo
+    ? puedeGestionarSeguimientoPc(hallazgoSeguimientoActivo)
+    : false;
+  const tituloCierreSeguimientoActivo = hallazgoSeguimientoActivo
+    ? tituloCierreSeguimiento(hallazgoSeguimientoActivo)
+    : "";
+  const ayudaCierreSeguimientoActiva = hallazgoSeguimientoActivo
+    ? ayudaCierreSeguimiento(hallazgoSeguimientoActivo)
+    : "";
   const premiumActiveToggleStyle: React.CSSProperties = {
     border: "1px solid rgba(96,165,250,0.58)",
     background: "linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)",
@@ -8464,7 +8545,7 @@ const riesgoOperativoPrincipal =
       >
         <div>
           <div style={{ fontSize: "22px", fontWeight: 900, marginBottom: "5px" }}>
-            {t("Gestionar cierre")} · {hallazgoSeguimientoActivo.codigo}
+            {t("Actualizar seguimiento")} · {hallazgoSeguimientoActivo.codigo}
           </div>
           <div style={{ color: tema.textoSuave, fontSize: "13px", lineHeight: 1.5 }}>
             {t("El reportante no se asume automáticamente como responsable de corrección. El seguimiento puede ser asignado a un supervisor o usuario autorizado.")}
@@ -12052,6 +12133,7 @@ style={{
           const estadoVisual = estadoSeguimientoVisual(item);
           const estadoPlazo = estadoPlazoCierre(item);
           const activo = hallazgoSeguimientoActivo?.codigo === item.codigo;
+          const accionPrincipal = accionPrincipalSeguimiento(item);
           return (
             <div
               key={item.codigo}
@@ -12124,14 +12206,16 @@ style={{
                 style={{
                   padding: "9px 10px",
                   borderRadius: "12px",
-                  ...premiumSecondaryButtonStyle,
+                  ...(accionPrincipal.variante === "primary"
+                    ? premiumPrimaryButtonStyle
+                    : premiumSecondaryButtonStyle),
                   minHeight: "36px",
                   fontSize: "11px",
                   paddingTop: "8px",
                   paddingBottom: "8px",
                 }}
               >
-                {t("Ver detalle")}
+                {t(accionPrincipal.etiqueta)}
               </button>
             </div>
           );
@@ -12157,6 +12241,55 @@ style={{
             <div style={{ color: tema.textoSuave, fontSize: "12px", lineHeight: 1.45 }}>
               {hallazgoSeguimientoActivo.descripcion}
             </div>
+            <div
+              style={{
+                display: "flex",
+                gap: "8px",
+                flexWrap: "wrap",
+                marginTop: "10px",
+              }}
+            >
+              <span
+                style={{
+                  display: "inline-flex",
+                  padding: "6px 8px",
+                  borderRadius: "999px",
+                  fontSize: "10px",
+                  fontWeight: 950,
+                  ...seguimientoChipStyle(estadoSeguimientoActivoVisual),
+                }}
+              >
+                {t(estadoSeguimientoActivoVisual)}
+              </span>
+              {accionPrincipalSeguimientoActiva && (
+                <span
+                  style={{
+                    display: "inline-flex",
+                    padding: "6px 8px",
+                    borderRadius: "999px",
+                    background: temaClaro
+                      ? "rgba(37,99,235,0.10)"
+                      : "rgba(96,165,250,0.12)",
+                    color: temaClaro ? "#1e3a8a" : "#dbeafe",
+                    fontSize: "10px",
+                    fontWeight: 950,
+                  }}
+                >
+                  {t(accionPrincipalSeguimientoActiva.etiqueta)}
+                </span>
+              )}
+            </div>
+          </div>
+          <div
+            style={{
+              fontSize: "11px",
+              color: tema.textoSuave,
+              fontWeight: 950,
+              textTransform: "uppercase",
+              letterSpacing: "0",
+            }}
+          >
+            {t("Resumen del hallazgo")}
           </div>
           {[
             [t("Supervisor reportante"), hallazgoSeguimientoActivo.reportante],
@@ -12174,9 +12307,11 @@ style={{
               ? [[t("Justificación de extensión de plazo"), hallazgoSeguimientoActivo.justificacionExtensionPlazo]]
               : []),
             [t("Estado seguimiento"), t(estadoSeguimientoVisual(hallazgoSeguimientoActivo))],
+            ...(hallazgoCerradoSeguimiento(hallazgoSeguimientoActivo)
+              ? [[t("Fecha cierre"), formatearFechaCompromisoVisual(hallazgoSeguimientoActivo.fechaCierre || "")]]
+              : []),
             [t("Acción correctiva requerida"), t(hallazgoSeguimientoActivo.accionCorrectivaRequerida)],
             [t("Evidencia requerida"), t(hallazgoSeguimientoActivo.evidenciaRequerida)],
-            [t("Evidencia recibida"), t(hallazgoSeguimientoActivo.evidenciaRecibida)],
             ...(hallazgoTieneCierreSinEvidenciaJustificada(hallazgoSeguimientoActivo)
               ? [[t("Justificación de cierre sin evidencia"), hallazgoSeguimientoActivo.justificacionCierreSinEvidencia]]
               : []),
@@ -12201,6 +12336,7 @@ style={{
               ...premiumInnerStyle,
               display: "grid",
               gap: "10px",
+              order: 4,
             }}
           >
             <div style={{ fontSize: "12px", fontWeight: 950 }}>
@@ -12259,6 +12395,7 @@ style={{
             )}
           </div>
 
+          {mostrarCierreSeguimientoActivo && (
           <div
             style={{
               padding: "13px",
@@ -12277,6 +12414,7 @@ style={{
                   : "rgba(15,23,42,0.32)",
               display: "grid",
               gap: "10px",
+              order: 3,
             }}
           >
             <div
@@ -12289,9 +12427,25 @@ style={{
               }}
             >
               <div style={{ fontSize: "12px", fontWeight: 950 }}>
-                {t("Evidencia de cierre recibida")}
+                {t(tituloCierreSeguimientoActivo)}
               </div>
               <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                {hallazgoCerradoSeguimiento(hallazgoSeguimientoActivo) && (
+                  <span
+                    style={{
+                      padding: "6px 8px",
+                      borderRadius: "999px",
+                      background: temaClaro
+                        ? "rgba(34,197,94,0.12)"
+                        : "rgba(34,197,94,0.14)",
+                      color: temaClaro ? "#166534" : "#bbf7d0",
+                      fontSize: "10px",
+                      fontWeight: 950,
+                    }}
+                  >
+                    {t("Modo solo lectura")}
+                  </span>
+                )}
                 {evidenciasCierreSeguimiento(hallazgoSeguimientoActivo).length > 0 && (
                   <span
                     style={{
@@ -12323,10 +12477,13 @@ style={{
                     fontWeight: 950,
                   }}
                 >
-                  {t("EN REVISIÓN")}
+                  {t("En revisión")}
                 </span>
                 )}
               </div>
+            </div>
+            <div style={{ fontSize: "12px", color: tema.textoSuave, fontWeight: 820, lineHeight: 1.42 }}>
+              {t(ayudaCierreSeguimientoActiva)}
             </div>
             {fechaUltimaEvidenciaCierre(hallazgoSeguimientoActivo) && (
               <div style={{ fontSize: "11px", color: tema.textoSuave, fontWeight: 820 }}>
@@ -12547,26 +12704,31 @@ style={{
               </div>
             )}
           </div>
+          )}
 
-          <button
-            type="button"
-            onClick={abrirGestionCierre}
-            style={{
-              width: "100%",
-              padding: "13px 14px",
-              borderRadius: "14px",
-              ...premiumPrimaryButtonStyle,
-              fontSize: "13px",
-            }}
-          >
-            {t("Gestionar cierre")}
-          </button>
+          {mostrarGestionSeguimientoActivo && (
+            <button
+              type="button"
+              onClick={abrirGestionCierre}
+              style={{
+                width: "100%",
+                padding: "13px 14px",
+                borderRadius: "14px",
+                ...premiumPrimaryButtonStyle,
+                fontSize: "13px",
+                order: 5,
+              }}
+            >
+              {t("Actualizar seguimiento")}
+            </button>
+          )}
           <div
             style={{
               padding: "13px",
               ...premiumInnerStyle,
               display: "grid",
               gap: "10px",
+              order: 6,
             }}
           >
             <div
