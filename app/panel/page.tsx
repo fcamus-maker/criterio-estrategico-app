@@ -7611,6 +7611,52 @@ const riesgoOperativoPrincipal =
       }}
     >
       <style>{`
+        .ce-panel-followup-table-scroll,
+        .ce-panel-followup-detail-scroll {
+          scrollbar-color: #3b82f6 rgba(15, 39, 74, 0.92);
+          scrollbar-width: thin;
+        }
+
+        .ce-panel-followup-table-scroll::-webkit-scrollbar,
+        .ce-panel-followup-detail-scroll::-webkit-scrollbar {
+          width: 11px;
+          height: 11px;
+        }
+
+        .ce-panel-followup-table-scroll::-webkit-scrollbar-track,
+        .ce-panel-followup-detail-scroll::-webkit-scrollbar-track {
+          background: rgba(15, 39, 74, 0.92);
+          border-radius: 999px;
+        }
+
+        .ce-panel-followup-table-scroll::-webkit-scrollbar-thumb,
+        .ce-panel-followup-detail-scroll::-webkit-scrollbar-thumb {
+          background: linear-gradient(180deg, #60a5fa 0%, #2563eb 56%, #1d4ed8 100%);
+          border: 2px solid rgba(15, 39, 74, 0.92);
+          border-radius: 999px;
+          box-shadow: 0 0 10px rgba(59, 130, 246, 0.48);
+        }
+
+        .ce-panel-followup-table-scroll::-webkit-scrollbar-thumb:hover,
+        .ce-panel-followup-detail-scroll::-webkit-scrollbar-thumb:hover {
+          background: linear-gradient(180deg, #93c5fd 0%, #3b82f6 52%, #2563eb 100%);
+        }
+
+        [data-panel-theme="light"] .ce-panel-followup-table-scroll,
+        [data-panel-theme="light"] .ce-panel-followup-detail-scroll {
+          scrollbar-color: #2563eb rgba(219, 234, 254, 0.94);
+        }
+
+        [data-panel-theme="light"] .ce-panel-followup-table-scroll::-webkit-scrollbar-track,
+        [data-panel-theme="light"] .ce-panel-followup-detail-scroll::-webkit-scrollbar-track {
+          background: rgba(219, 234, 254, 0.94);
+        }
+
+        [data-panel-theme="light"] .ce-panel-followup-table-scroll::-webkit-scrollbar-thumb,
+        [data-panel-theme="light"] .ce-panel-followup-detail-scroll::-webkit-scrollbar-thumb {
+          border-color: rgba(219, 234, 254, 0.94);
+        }
+
         @keyframes ceClosurePulse {
           0%, 100% {
             transform: translateZ(0) scale(1);
@@ -12064,7 +12110,7 @@ style={{
         className="ce-panel-followup-table-scroll"
         style={{
           ...premiumPanelStyle,
-          height: "clamp(520px, 62vh, 720px)",
+          height: "760px",
           overflow: "auto",
           overscrollBehavior: "contain",
           scrollbarGutter: "stable",
@@ -12234,7 +12280,7 @@ style={{
           style={{
             ...premiumPanelStyle,
             padding: "18px",
-            height: "clamp(520px, 62vh, 720px)",
+            height: "760px",
             display: "grid",
             gap: "14px",
             alignSelf: "start",
