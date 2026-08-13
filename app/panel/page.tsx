@@ -12110,7 +12110,7 @@ style={{
         className="ce-panel-followup-table-scroll"
         style={{
           ...premiumPanelStyle,
-          height: "760px",
+          height: "1120px",
           overflow: "auto",
           overscrollBehavior: "contain",
           scrollbarGutter: "stable",
@@ -12280,7 +12280,7 @@ style={{
           style={{
             ...premiumPanelStyle,
             padding: "18px",
-            height: "760px",
+            height: "1120px",
             display: "grid",
             gap: "14px",
             alignSelf: "start",
