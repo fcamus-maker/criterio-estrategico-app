@@ -7620,7 +7620,7 @@ const riesgoOperativoPrincipal =
           content-visibility: visible;
           isolation: isolate;
           -webkit-overflow-scrolling: touch;
-          scrollbar-color: #3b82f6 rgba(15, 39, 74, 0.92);
+          scrollbar-color: #3b82f6 rgba(37, 99, 235, 0.12);
           scrollbar-width: thin;
         }
 
@@ -7631,42 +7631,72 @@ const riesgoOperativoPrincipal =
 
         .ce-panel-followup-table-scroll::-webkit-scrollbar,
         .ce-panel-followup-detail-scroll::-webkit-scrollbar {
-          width: 11px;
-          height: 11px;
+          width: 12px;
+          height: 12px;
+          background: transparent;
         }
 
         .ce-panel-followup-table-scroll::-webkit-scrollbar-track,
         .ce-panel-followup-detail-scroll::-webkit-scrollbar-track {
-          background: rgba(15, 39, 74, 0.92);
+          background: rgba(37, 99, 235, 0.14);
+          border: 3px solid transparent;
+          background-clip: padding-box;
           border-radius: 999px;
+        }
+
+        .ce-panel-followup-table-scroll::-webkit-scrollbar-track:vertical,
+        .ce-panel-followup-detail-scroll::-webkit-scrollbar-track:vertical {
+          margin-block: 12px;
+        }
+
+        .ce-panel-followup-table-scroll::-webkit-scrollbar-track:horizontal,
+        .ce-panel-followup-detail-scroll::-webkit-scrollbar-track:horizontal {
+          margin-inline: 12px;
         }
 
         .ce-panel-followup-table-scroll::-webkit-scrollbar-thumb,
         .ce-panel-followup-detail-scroll::-webkit-scrollbar-thumb {
           background: linear-gradient(180deg, #60a5fa 0%, #2563eb 56%, #1d4ed8 100%);
-          border: 2px solid rgba(15, 39, 74, 0.92);
+          border: 2px solid transparent;
+          background-clip: padding-box;
           border-radius: 999px;
-          box-shadow: 0 0 10px rgba(59, 130, 246, 0.48);
+          min-height: 48px;
+          box-shadow: inset 0 0 0 1px rgba(191, 219, 254, 0.38), 0 0 7px rgba(59, 130, 246, 0.34);
         }
 
         .ce-panel-followup-table-scroll::-webkit-scrollbar-thumb:hover,
         .ce-panel-followup-detail-scroll::-webkit-scrollbar-thumb:hover {
           background: linear-gradient(180deg, #93c5fd 0%, #3b82f6 52%, #2563eb 100%);
+          background-clip: padding-box;
+        }
+
+        .ce-panel-followup-table-scroll::-webkit-scrollbar-button,
+        .ce-panel-followup-detail-scroll::-webkit-scrollbar-button {
+          display: none;
+          width: 0;
+          height: 0;
+        }
+
+        .ce-panel-followup-table-scroll::-webkit-scrollbar-corner,
+        .ce-panel-followup-detail-scroll::-webkit-scrollbar-corner {
+          background: transparent;
         }
 
         [data-panel-theme="light"] .ce-panel-followup-table-scroll,
         [data-panel-theme="light"] .ce-panel-followup-detail-scroll {
-          scrollbar-color: #2563eb rgba(219, 234, 254, 0.94);
+          scrollbar-color: #2563eb rgba(37, 99, 235, 0.10);
         }
 
         [data-panel-theme="light"] .ce-panel-followup-table-scroll::-webkit-scrollbar-track,
         [data-panel-theme="light"] .ce-panel-followup-detail-scroll::-webkit-scrollbar-track {
-          background: rgba(219, 234, 254, 0.94);
+          background: rgba(37, 99, 235, 0.10);
+          border-color: transparent;
         }
 
         [data-panel-theme="light"] .ce-panel-followup-table-scroll::-webkit-scrollbar-thumb,
         [data-panel-theme="light"] .ce-panel-followup-detail-scroll::-webkit-scrollbar-thumb {
-          border-color: rgba(219, 234, 254, 0.94);
+          border-color: transparent;
+          box-shadow: inset 0 0 0 1px rgba(30, 64, 175, 0.20), 0 0 6px rgba(37, 99, 235, 0.24);
         }
 
         @keyframes ceClosurePulse {
