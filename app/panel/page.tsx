@@ -7613,8 +7613,20 @@ const riesgoOperativoPrincipal =
       <style>{`
         .ce-panel-followup-table-scroll,
         .ce-panel-followup-detail-scroll {
+          background: #0f172a !important;
+          backdrop-filter: none !important;
+          -webkit-backdrop-filter: none !important;
+          contain: paint;
+          content-visibility: visible;
+          isolation: isolate;
+          -webkit-overflow-scrolling: touch;
           scrollbar-color: #3b82f6 rgba(15, 39, 74, 0.92);
           scrollbar-width: thin;
+        }
+
+        [data-panel-theme="light"] .ce-panel-followup-table-scroll,
+        [data-panel-theme="light"] .ce-panel-followup-detail-scroll {
+          background: #ffffff !important;
         }
 
         .ce-panel-followup-table-scroll::-webkit-scrollbar,
