@@ -12061,10 +12061,13 @@ style={{
       }}
     >
       <div
+        className="ce-panel-followup-table-scroll"
         style={{
           ...premiumPanelStyle,
-          overflow: "hidden",
-          overflowX: "auto",
+          height: "clamp(520px, 62vh, 720px)",
+          overflow: "auto",
+          overscrollBehavior: "contain",
+          scrollbarGutter: "stable",
           minWidth: 0,
         }}
       >
@@ -12080,6 +12083,9 @@ style={{
             textTransform: "uppercase",
             minWidth: "1040px",
             letterSpacing: "0",
+            position: "sticky",
+            top: 0,
+            zIndex: 4,
           }}
         >
           {[
@@ -12224,13 +12230,18 @@ style={{
 
       {hallazgoSeguimientoActivo && (
         <div
+          className="ce-panel-followup-detail-scroll"
           style={{
             ...premiumPanelStyle,
             padding: "18px",
+            height: "clamp(520px, 62vh, 720px)",
             display: "grid",
             gap: "14px",
             alignSelf: "start",
             minWidth: 0,
+            overflowY: "auto",
+            overscrollBehavior: "contain",
+            scrollbarGutter: "stable",
             overflowWrap: "anywhere",
           }}
         >
