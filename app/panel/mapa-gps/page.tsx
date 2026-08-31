@@ -371,7 +371,6 @@ const textosMapaEn: Record<string, string> = {
   "Marcadores compactos": "Compact markers",
   "Vista territorial GPS": "GPS territorial view",
   "Visualizacion territorial con registros disponibles para apoyar decisiones preventivas.": "Territorial visualization with available records to support preventive decisions.",
-  "Lectura territorial preventiva": "Preventive territorial review",
   "Mapa ejecutivo": "Executive map",
   "Puntos preparados": "Prepared points",
   "Hallazgos con GPS": "Findings with GPS",
