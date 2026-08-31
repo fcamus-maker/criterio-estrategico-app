@@ -650,6 +650,86 @@ function posicionNormalizada(
   };
 }
 
+type MarcoMapaLibre = {
+  minLat: number;
+  maxLat: number;
+  minLng: number;
+  maxLng: number;
+  disponible: boolean;
+};
+
+function esCoordenadaGeografica(punto: PuntoMapaGpsHallazgo) {
+  return (
+    Number.isFinite(punto.latitud) &&
+    Number.isFinite(punto.longitud) &&
+    punto.latitud >= -85 &&
+    punto.latitud <= 85 &&
+    punto.longitud >= -180 &&
+    punto.longitud <= 180
+  );
+}
+
+function calcularMarcoMapaLibre(puntos: PuntoMapaGpsHallazgo[]): MarcoMapaLibre {
+  const puntosValidos = puntos.filter(esCoordenadaGeografica);
+
+  if (puntosValidos.length === 0) {
+    return {
+      minLat: -35.8,
+      maxLat: -17.4,
+      minLng: -76.2,
+      maxLng: -65.8,
+      disponible: false,
+    };
+  }
+
+  const latitudes = puntosValidos.map((punto) => punto.latitud);
+  const longitudes = puntosValidos.map((punto) => punto.longitud);
+  const minLatBase = Math.min(...latitudes);
+  const maxLatBase = Math.max(...latitudes);
+  const minLngBase = Math.min(...longitudes);
+  const maxLngBase = Math.max(...longitudes);
+  const rangoLat = Math.max(maxLatBase - minLatBase, 0.05);
+  const rangoLng = Math.max(maxLngBase - minLngBase, 0.05);
+  const paddingLat = Math.max(rangoLat * 0.22, 0.08);
+  const paddingLng = Math.max(rangoLng * 0.22, 0.08);
+
+  return {
+    minLat: Math.max(-85, minLatBase - paddingLat),
+    maxLat: Math.min(85, maxLatBase + paddingLat),
+    minLng: Math.max(-180, minLngBase - paddingLng),
+    maxLng: Math.min(180, maxLngBase + paddingLng),
+    disponible: true,
+  };
+}
+
+function construirUrlOpenStreetMap(marco: MarcoMapaLibre) {
+  const bbox = `${marco.minLng},${marco.minLat},${marco.maxLng},${marco.maxLat}`;
+  return `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(
+    bbox
+  )}&layer=mapnik`;
+}
+
+function posicionMapaLibre(
+  latitud: number,
+  longitud: number,
+  puntos: PuntoMapaGpsHallazgo[],
+  index: number,
+  marco: MarcoMapaLibre | null
+) {
+  if (!marco?.disponible) {
+    return posicionNormalizada(latitud, longitud, puntos, index);
+  }
+
+  const rangoLat = Math.max(marco.maxLat - marco.minLat, 0.001);
+  const rangoLng = Math.max(marco.maxLng - marco.minLng, 0.001);
+  const offset = puntos.length === 1 ? 0 : ((index % 5) - 2) * 0.55;
+
+  return {
+    left: Math.min(94, Math.max(6, ((longitud - marco.minLng) / rangoLng) * 100 + offset)),
+    top: Math.min(92, Math.max(8, 100 - ((latitud - marco.minLat) / rangoLat) * 100 - offset)),
+  };
+}
+
 function resumirDescripcionMapa(descripcion: string) {
   const limpia = descripcion.trim();
   return limpia.length > 120 ? `${limpia.slice(0, 117)}...` : limpia;
@@ -1056,6 +1136,15 @@ export default function MapaGpsHallazgosPage() {
     googleMapsListo &&
     !googleMapsError;
   const mostrarMapaPreparado = !usarProveedorGoogle;
+  const marcoMapaLibre = useMemo(
+    () => calcularMarcoMapaLibre(puntosMapaActivos),
+    [puntosMapaActivos]
+  );
+  const mapaLibreUrl = useMemo(
+    () => construirUrlOpenStreetMap(marcoMapaLibre),
+    [marcoMapaLibre]
+  );
+  const mostrarMapaLibre = mostrarMapaPreparado && marcoMapaLibre.disponible;
 
   const puntosVisibles = useMemo(() => {
     if (modoMapa === "zonas") {
@@ -2581,7 +2670,7 @@ export default function MapaGpsHallazgosPage() {
                 overflow: "hidden",
                 border: "1px solid rgba(125,211,252,0.18)",
                 backgroundColor:
-                  usarProveedorGoogle
+                  usarProveedorGoogle || mostrarMapaLibre
                     ? temaClaro
                       ? "#e2e8f0"
                       : "#0f172a"
@@ -2589,13 +2678,13 @@ export default function MapaGpsHallazgosPage() {
                       ? "#eef4fb"
                       : "#061126",
                 backgroundImage:
-                  usarProveedorGoogle
+                  usarProveedorGoogle || mostrarMapaLibre
                     ? "none"
                     : temaClaro
                     ? "linear-gradient(rgba(100,116,139,0.12) 1px, transparent 1px), linear-gradient(90deg, rgba(100,116,139,0.12) 1px, transparent 1px), radial-gradient(circle at 25% 35%, rgba(59,130,246,0.16), transparent 24%), radial-gradient(circle at 68% 46%, rgba(239,68,68,0.12), transparent 20%), linear-gradient(145deg, rgba(248,250,252,0.98), rgba(226,232,240,0.82))"
                     : "linear-gradient(rgba(148,163,184,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,0.08) 1px, transparent 1px), radial-gradient(circle at 25% 35%, rgba(59,130,246,0.20), transparent 24%), radial-gradient(circle at 68% 46%, rgba(239,68,68,0.16), transparent 20%), linear-gradient(145deg, rgba(2,6,23,0.94), rgba(15,23,42,0.82))",
                 backgroundSize:
-                  usarProveedorGoogle
+                  usarProveedorGoogle || mostrarMapaLibre
                     ? "auto, auto, auto, auto, auto"
                     : "48px 48px, 48px 48px, auto, auto, auto",
                 backgroundPosition: "center",
@@ -2612,6 +2701,48 @@ export default function MapaGpsHallazgosPage() {
                   pointerEvents: "none",
                 }}
               />
+
+
+              {mostrarMapaLibre && (
+                <>
+                  <iframe
+                    key={`mapa-libre-${mapaLibreUrl}-${tipoVistaMapa}`}
+                    title="Mapa territorial GPS"
+                    src={mapaLibreUrl}
+                    loading="lazy"
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      width: "100%",
+                      height: "100%",
+                      border: 0,
+                      zIndex: 0,
+                      pointerEvents: "none",
+                      filter:
+                        tipoVistaMapa === "satelital"
+                          ? "saturate(0.75) contrast(1.15) brightness(0.72)"
+                          : temaClaro
+                            ? "saturate(0.95) contrast(1.02)"
+                            : "saturate(0.82) contrast(1.16) brightness(0.68)",
+                      opacity: temaClaro ? 0.86 : 0.62,
+                    }}
+                  />
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      zIndex: 1,
+                      pointerEvents: "none",
+                      background:
+                        tipoVistaMapa === "satelital"
+                          ? "linear-gradient(135deg, rgba(15,23,42,0.36), rgba(30,41,59,0.20)), radial-gradient(circle at 74% 72%, rgba(239,68,68,0.14), transparent 32%)"
+                          : temaClaro
+                            ? "linear-gradient(135deg, rgba(248,250,252,0.20), rgba(219,234,254,0.14))"
+                            : "linear-gradient(135deg, rgba(2,6,23,0.30), rgba(15,23,42,0.46)), radial-gradient(circle at 74% 72%, rgba(239,68,68,0.16), transparent 32%)",
+                    }}
+                  />
+                </>
+              )}
 
               {usarProveedorGoogle && (
                 <div
@@ -2681,7 +2812,7 @@ export default function MapaGpsHallazgosPage() {
                 </div>
               )}
 
-              {pantallaCompletaActiva && !GOOGLE_MAPS_CONFIGURADO && (
+              {pantallaCompletaActiva && !GOOGLE_MAPS_CONFIGURADO && !mostrarMapaLibre && (
                 <div
                   style={{
                     position: "absolute",
@@ -2912,11 +3043,12 @@ export default function MapaGpsHallazgosPage() {
 
               {mostrarMapaPreparado && modoMapa !== "puntos" &&
                 zonasMapaActivas.map((zona, index) => {
-                  const posicion = posicionNormalizada(
+                  const posicion = posicionMapaLibre(
                     zona.latitudPromedio,
                     zona.longitudPromedio,
                     puntosMapaActivos,
-                    index
+                    index,
+                    mostrarMapaLibre ? marcoMapaLibre : null
                   );
                   const color = colorCriticidad(zona.criticidadMaxima);
                   const tamano = Math.min(210, (72 + zona.total * 22 + zona.criticosAltos * 16) * zoomMapa);
@@ -2934,6 +3066,7 @@ export default function MapaGpsHallazgosPage() {
                         position: "absolute",
                         left: `${posicion.left}%`,
                         top: `${posicion.top}%`,
+                        zIndex: 2,
                         width: `${tamano}px`,
                         height: `${tamano}px`,
                         transform: "translate(-50%, -50%)",
@@ -2957,11 +3090,12 @@ export default function MapaGpsHallazgosPage() {
                 })}
 
               {mostrarMapaPreparado && puntosVisibles.map((punto, index) => {
-                const posicion = posicionNormalizada(
+                const posicion = posicionMapaLibre(
                   punto.latitud,
                   punto.longitud,
                   puntosMapaActivos,
-                  index
+                  index,
+                  mostrarMapaLibre ? marcoMapaLibre : null
                 );
                 const color = colorCriticidad(punto.criticidad);
                 const tamanoPunto = (punto.criticidad === "CRITICO" ? 22 : 17) * zoomMapa;
@@ -2979,6 +3113,7 @@ export default function MapaGpsHallazgosPage() {
                       position: "absolute",
                       left: `${posicion.left}%`,
                       top: `${posicion.top}%`,
+                      zIndex: 3,
                       width: `${tamanoPunto}px`,
                       height: `${tamanoPunto}px`,
                       transform: "translate(-50%, -50%)",
@@ -3075,6 +3210,7 @@ export default function MapaGpsHallazgosPage() {
                   position: "absolute",
                   left: "18px",
                   bottom: "18px",
+                  zIndex: 4,
                   display: "flex",
                   gap: "8px",
                   flexWrap: "wrap",
