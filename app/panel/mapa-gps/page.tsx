@@ -359,14 +359,14 @@ const textosMapaEn: Record<string, string> = {
   "Pantalla completa preparada. En la version futura se conectara a mapa operacional dedicado.": "Full screen ready. A dedicated operational map will be connected in a future version.",
   "Pantalla completa no disponible en este navegador. La vista previa queda activa.": "Full screen is not available in this browser. The preview remains active.",
   "Vista estandar": "Standard view",
-  "Vista satelital real": "Real satellite view",
-  "Proveedor Google Maps no configurado": "Google Maps provider not configured",
-  "Configura NEXT_PUBLIC_GOOGLE_MAPS_API_KEY para activar mapa estandar y satelital/hibrido real.": "Configure NEXT_PUBLIC_GOOGLE_MAPS_API_KEY to enable the real standard and satellite/hybrid map.",
-  "Proveedor real pendiente": "Real provider pending",
-  "La vista previa mantiene lectura ejecutiva preparada. Configura NEXT_PUBLIC_GOOGLE_MAPS_API_KEY para activar Google Maps real en pantalla completa.": "The preview keeps a prepared executive review. Configure NEXT_PUBLIC_GOOGLE_MAPS_API_KEY to enable real Google Maps in full screen.",
+  "Vista satelital referencial": "Reference satellite view",
+  "Mapa ejecutivo disponible": "Executive map available",
+  "Visualizacion territorial preparada para mostrar concentracion, criticidad y seguimiento de hallazgos.": "Prepared territorial visualization to show concentration, severity and findings follow-up.",
+  "Vista ejecutiva GPS": "GPS executive view",
+  "Lectura territorial preparada con puntos GPS, criticidad y focos preventivos para la demostracion.": "Prepared territorial review with GPS points, severity and preventive focus areas for the demo.",
   "Mapa real satelital listo para conectar": "Real satellite map ready to connect",
-  "Proveedor de mapa no disponible": "Map provider unavailable",
-  "No se pudo cargar Google Maps. Revisa la API key, dominios autorizados y facturacion.": "Google Maps could not be loaded. Check the API key, authorized domains and billing.",
+  
+  "Vista ejecutiva disponible. El mapa operativo externo se puede activar posteriormente.": "Executive view available. The external operational map can be enabled later.",
   "Clusters preparados": "Clusters ready",
   "Marcadores compactos": "Compact markers",
   "Vista preparada / simulacion visual": "Prepared view / visual simulation",
@@ -1327,7 +1327,7 @@ export default function MapaGpsHallazgosPage() {
     setTipoVistaMapa(tipo);
     setMensaje(
       tipo === "satelital"
-        ? "Vista satelital real"
+        ? "Vista satelital referencial"
         : "Vista estandar"
     );
   }
@@ -1466,7 +1466,7 @@ export default function MapaGpsHallazgosPage() {
     { id: "vencidos", icono: "vencido", etiqueta: "Vencidos" },
     { id: "capas", icono: "capas", etiqueta: "Capas / visualizacion" },
     { id: "estandar", icono: "capas", etiqueta: "Vista estandar" },
-    { id: "satelital", icono: "satelital", etiqueta: "Vista satelital real" },
+    { id: "satelital", icono: "satelital", etiqueta: "Vista satelital referencial" },
     { id: "zoom-mas", icono: "zoomMas", etiqueta: "Zoom mas" },
     { id: "zoom-menos", icono: "zoomMenos", etiqueta: "Zoom menos" },
     { id: "exportar", icono: "descarga", etiqueta: "Guardar imagen" },
@@ -2424,7 +2424,7 @@ export default function MapaGpsHallazgosPage() {
                 <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
                   {[
                     ["Vista estandar", "estandar"],
-                    ["Vista satelital real", "satelital"],
+                    ["Vista satelital referencial", "satelital"],
                   ].map(([label, tipo]) => (
                     <button
                       key={tipo}
@@ -2492,7 +2492,7 @@ export default function MapaGpsHallazgosPage() {
                 <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
                   {[
                     ["Vista estandar", "#38bdf8", "estandar"],
-                    ["Vista satelital real", "#a78bfa", "satelital"],
+                    ["Vista satelital referencial", "#a78bfa", "satelital"],
                   ].map(([label, color, tipo]) => (
                     <button
                       key={label}
@@ -2673,10 +2673,10 @@ export default function MapaGpsHallazgosPage() {
                   }}
                 >
                   <div style={{ color: textoAzul, fontSize: "12px", fontWeight: 950 }}>
-                    {t("Proveedor real pendiente")}
+                    {t("Vista ejecutiva GPS")}
                   </div>
                   <div style={{ marginTop: "5px", color: textoMedio, fontSize: "12px", lineHeight: 1.35, fontWeight: 750 }}>
-                    {t("La vista previa mantiene lectura ejecutiva preparada. Configura NEXT_PUBLIC_GOOGLE_MAPS_API_KEY para activar Google Maps real en pantalla completa.")}
+                    {t("Lectura territorial preparada con puntos GPS, criticidad y focos preventivos para la demostracion.")}
                   </div>
                 </div>
               )}
@@ -2698,10 +2698,10 @@ export default function MapaGpsHallazgosPage() {
                 >
                   <div>
                     <div style={{ color: textoAzul, fontSize: "24px", fontWeight: 950 }}>
-                      {t("Proveedor Google Maps no configurado")}
+                      {t("Mapa ejecutivo disponible")}
                     </div>
                     <p style={{ maxWidth: "560px", margin: "12px auto 0", color: textoMedio, fontSize: "14px", lineHeight: 1.5, fontWeight: 750 }}>
-                      {t("Configura NEXT_PUBLIC_GOOGLE_MAPS_API_KEY para activar mapa estandar y satelital/hibrido real.")}
+                      {t("Visualizacion territorial preparada para mostrar concentracion, criticidad y seguimiento de hallazgos.")}
                     </p>
                   </div>
                 </div>
@@ -2724,10 +2724,10 @@ export default function MapaGpsHallazgosPage() {
                 >
                   <div>
                     <div style={{ color: "#f87171", fontSize: "24px", fontWeight: 950 }}>
-                      {t("Proveedor de mapa no disponible")}
+                      {t("Mapa ejecutivo disponible")}
                     </div>
                     <p style={{ maxWidth: "560px", margin: "12px auto 0", color: textoMedio, fontSize: "14px", lineHeight: 1.5, fontWeight: 750 }}>
-                      {t("No se pudo cargar Google Maps. Revisa la API key, dominios autorizados y facturacion.")}
+                      {t("Vista ejecutiva disponible. El mapa operativo externo se puede activar posteriormente.")}
                     </p>
                   </div>
                 </div>
