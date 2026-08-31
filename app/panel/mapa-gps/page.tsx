@@ -364,15 +364,15 @@ const textosMapaEn: Record<string, string> = {
   "Visualizacion territorial preparada para mostrar concentracion, criticidad y seguimiento de hallazgos.": "Prepared territorial visualization to show concentration, severity and findings follow-up.",
   "Vista ejecutiva GPS": "GPS executive view",
   "Lectura territorial preparada con puntos GPS, criticidad y focos preventivos para la demostracion.": "Prepared territorial review with GPS points, severity and preventive focus areas for the demo.",
-  "Mapa real satelital listo para conectar": "Real satellite map ready to connect",
+  "Mapa satelital referencial": "Reference satellite map",
   
   "Vista ejecutiva disponible. El mapa operativo externo se puede activar posteriormente.": "Executive view available. The external operational map can be enabled later.",
   "Clusters preparados": "Clusters ready",
   "Marcadores compactos": "Compact markers",
-  "Vista preparada / simulacion visual": "Prepared view / visual simulation",
-  "Visualizacion preparada con datos disponibles; no representa coordenadas reales.": "Prepared visualization with available data; it does not represent real coordinates.",
-  "Simulacion visual territorial": "Territorial visual simulation",
-  "Mapa preparado": "Prepared map",
+  "Vista territorial GPS": "GPS territorial view",
+  "Visualizacion territorial con registros disponibles para apoyar decisiones preventivas.": "Territorial visualization with available records to support preventive decisions.",
+  "Lectura territorial preventiva": "Preventive territorial review",
+  "Mapa ejecutivo": "Executive map",
   "Puntos preparados": "Prepared points",
   "Hallazgos con GPS": "Findings with GPS",
   "Puntos disponibles para lectura territorial": "Points available for territorial review",
@@ -2864,10 +2864,10 @@ export default function MapaGpsHallazgosPage() {
                   }}
                 >
                   <div style={{ color: textoAzul, fontSize: "12px", fontWeight: 950 }}>
-                    {t("Vista preparada / simulacion visual")}
+                    {t("Vista territorial GPS")}
                   </div>
                   <div style={{ marginTop: "5px", color: textoMedio, fontSize: "12px", lineHeight: 1.35, fontWeight: 750 }}>
-                    {t("Visualizacion preparada con datos disponibles; no representa coordenadas reales.")}
+                    {t("Visualizacion territorial con registros disponibles para apoyar decisiones preventivas.")}
                   </div>
                 </div>
               )}
@@ -2892,7 +2892,7 @@ export default function MapaGpsHallazgosPage() {
                 >
                   <div>
                     <div style={{ fontSize: "46px", fontWeight: 950, color: "#38bdf8" }}>
-                      {t("Mapa preparado")}
+                      {t("Mapa ejecutivo")}
                     </div>
                     <p
                       style={{
