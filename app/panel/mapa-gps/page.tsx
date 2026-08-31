@@ -197,9 +197,11 @@ const inputStyle: CSSProperties = {
 
 const GOOGLE_MAPS_SCRIPT_ID = "ce-google-maps-js-api";
 const GOOGLE_MAPS_API_KEY = (process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "").trim();
-const GOOGLE_MAPS_CONFIGURADO = /^AIza[0-9A-Za-z_-]{20,}$/.test(
-  GOOGLE_MAPS_API_KEY
-);
+const GOOGLE_MAPS_HABILITADO =
+  process.env.NEXT_PUBLIC_GOOGLE_MAPS_ENABLED === "true";
+const GOOGLE_MAPS_CONFIGURADO =
+  /^AIza[0-9A-Za-z_-]{20,}$/.test(GOOGLE_MAPS_API_KEY) &&
+  GOOGLE_MAPS_HABILITADO;
 
 function vibrarCorto() {
   if (typeof navigator !== "undefined" && "vibrate" in navigator) {
