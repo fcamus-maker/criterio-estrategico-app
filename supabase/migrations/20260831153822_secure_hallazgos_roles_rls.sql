@@ -1,5 +1,5 @@
 -- Security hardening for the Hallazgos platform.
--- Applied to production on 2026-08-31 through Supabase migration secure_hallazgos_roles_rls.
+-- Applied to production on 2026-08-31 as Supabase migration 20260831153822_secure_hallazgos_roles_rls.
 
 drop policy if exists allow_all on public.hallazgos;
 drop policy if exists allow_insert on public.hallazgos;
