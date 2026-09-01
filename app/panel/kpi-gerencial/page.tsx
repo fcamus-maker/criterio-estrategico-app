@@ -2986,10 +2986,31 @@ export default function KpiGerencialAvanzadoPage() {
     }
   }
 
-  async function generarPdfInformeGerencial() {
-    activarBoton("pdf-informe");
-    setEstadoPdfInformeGerencial("generando");
-    setMensaje("Generando PDF del informe gerencial.");
+  async function generarPdfInformeGerencial(
+    modo: "vista-previa" | "descargar" = "descargar"
+  ) {
+    const esVistaPrevia = modo === "vista-previa";
+    activarBoton(esVistaPrevia ? "vista-previa-informe" : "pdf-informe");
+
+    const ventanaVistaPrevia = esVistaPrevia
+      ? window.open("", "vista-previa-informe-gerencial")
+      : null;
+
+    if (esVistaPrevia && !ventanaVistaPrevia) {
+      setMensaje("El navegador bloqueo la vista previa. Habilite las ventanas emergentes e intente nuevamente.");
+      return;
+    }
+
+    if (esVistaPrevia) {
+      ventanaVistaPrevia?.document.write(
+        "<!doctype html><html lang='es'><head><title>Preparando vista previa...</title></head><body style='font-family:Arial,sans-serif;padding:32px'>Preparando vista previa del informe...</body></html>"
+      );
+      ventanaVistaPrevia?.document.close();
+      setMensaje("Preparando vista previa del informe gerencial.");
+    } else {
+      setEstadoPdfInformeGerencial("generando");
+      setMensaje("Preparando descarga del PDF gerencial.");
+    }
 
     const fechaGeneracion = new Date();
     const fechaDocumento = fechaGeneracion.toLocaleString("es-CL", {
@@ -3807,6 +3828,71 @@ export default function KpiGerencialAvanzadoPage() {
       </article>
     `;
 
+    if (esVistaPrevia && ventanaVistaPrevia) {
+      ventanaVistaPrevia.document.open();
+      ventanaVistaPrevia.document.write(`
+        <!doctype html>
+        <html lang="es">
+          <head>
+            <meta charset="utf-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1" />
+            <title>${escaparHtmlInforme(tituloAutomaticoInformeGerencial)} · Vista previa</title>
+            <style>
+              * { box-sizing: border-box; }
+              html { background: #e2e8f0; }
+              body { margin: 0; padding: 76px 24px 36px; display: grid; justify-content: center; color: #172033; }
+              .preview-toolbar {
+                position: fixed;
+                inset: 0 0 auto;
+                min-height: 58px;
+                z-index: 10;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 16px;
+                padding: 10px 18px;
+                background: #071a2d;
+                color: #ffffff;
+                box-shadow: 0 8px 24px rgba(15,23,42,0.24);
+                font: 700 13px Arial, Helvetica, sans-serif;
+              }
+              .preview-toolbar button {
+                min-height: 36px;
+                padding: 8px 14px;
+                border: 1px solid rgba(255,255,255,0.28);
+                border-radius: 10px;
+                background: #2563eb;
+                color: #ffffff;
+                font-weight: 800;
+                cursor: pointer;
+              }
+              .pdf-doc { box-shadow: 0 18px 48px rgba(15,23,42,0.20); }
+              @media (max-width: 820px) {
+                body { padding: 72px 10px 24px; }
+                .pdf-doc { width: 100%; }
+              }
+              @media print {
+                html, body { background: #ffffff; padding: 0; }
+                .preview-toolbar { display: none; }
+                .pdf-doc { box-shadow: none; }
+              }
+            </style>
+          </head>
+          <body>
+            <div class="preview-toolbar">
+              <span>Vista previa del informe · revise el contenido antes de descargarlo</span>
+              <button type="button" onclick="window.close()">Cerrar vista previa</button>
+            </div>
+            ${htmlInforme}
+          </body>
+        </html>
+      `);
+      ventanaVistaPrevia.document.close();
+      ventanaVistaPrevia.focus();
+      setMensaje("Vista previa abierta. Revise el informe y luego use Descargar PDF si esta conforme.");
+      return;
+    }
+
     const contenedor = document.createElement("div");
     contenedor.style.position = "fixed";
     contenedor.style.left = "0";
@@ -3901,6 +3987,7 @@ export default function KpiGerencialAvanzadoPage() {
         language={idiomaActivo}
         profileName={usuarioGeneradorInforme.nombre || "Usuario autorizado"}
         profileRole={usuarioGeneradorInforme.cargo || "Gerencia preventiva"}
+        profileImageUrl={usuarioGeneradorInforme.foto || null}
         metrics={[
           { label: t("Total reportado"), value: analisis.total, tone: "blue" },
           { label: t("Críticos abiertos"), value: metricasGerenciales.criticosAbiertos, tone: "red" },
@@ -5571,15 +5658,24 @@ export default function KpiGerencialAvanzadoPage() {
                     <button
                       type="button"
                       onClick={() => void copiarResumenInformeGerencial()}
+                      title="Copia al portapapeles el texto ejecutivo construido con la seleccion actual."
                       style={{ ...botonStyle("copiar-informe-gerencial", true), minHeight: "36px", padding: "8px 11px", fontSize: "12px" }}
                     >
-                      Copiar resumen ejecutivo
+                      Copiar texto del resumen
+                    </button>
+                    <button
+                      type="button"
+                      title="Abre el informe completo en una ventana de vista previa, sin descargar archivos."
+                      onClick={() => void generarPdfInformeGerencial("vista-previa")}
+                      style={{ ...botonStyle("vista-previa-informe", true), minHeight: "36px", padding: "8px 11px", fontSize: "12px" }}
+                    >
+                      Visualizar informe
                     </button>
                     <button
                       type="button"
                       disabled={estadoPdfInformeGerencial === "generando"}
-                      title="Genera un PDF documental desde la configuracion actual del Constructor."
-                      onClick={() => void generarPdfInformeGerencial()}
+                      title="Descarga el informe configurado como archivo PDF."
+                      onClick={() => void generarPdfInformeGerencial("descargar")}
                       style={{
                         ...botonStyle("pdf-informe", true),
                         minHeight: "36px",
@@ -5595,7 +5691,7 @@ export default function KpiGerencialAvanzadoPage() {
                           ? "PDF generado"
                           : estadoPdfInformeGerencial === "error"
                             ? "Error al generar PDF"
-                            : "Generar PDF"}
+                            : "Descargar PDF"}
                     </button>
                     <button type="button" disabled title="Excel real pendiente para KPI-E4." style={{ ...botonStyle("excel-informe"), minHeight: "36px", padding: "8px 11px", fontSize: "12px", opacity: 0.55, cursor: "not-allowed", color: textoSuave }}>
                       Exportar Excel — Proximamente
