@@ -49,6 +49,12 @@ import {
 } from "../services/profilePhotoService";
 import PreventiveLegalRibbon from "../components/PreventiveLegalRibbon";
 import { resolveClientBranding } from "../services/clientBranding";
+import {
+  construirEstadoAsignacion,
+  construirEstadoRevision,
+  puedeAsignarCierre,
+  puedeValidarCierre,
+} from "../domain/flujoCierreHallazgo";
 
 type HallazgoPanelExtendido = HallazgoPanel & {
   area?: string;
@@ -1007,6 +1013,7 @@ const [menuExportacionMetaAbierto, setMenuExportacionMetaAbierto] = useState(fal
     "No se pudo guardar. Revisa los campos obligatorios.": "Could not save. Review the required fields.",
     "Tipo de responsable de corrección es obligatorio.": "Correction responsible type is required.",
     "Empresa responsable es obligatoria.": "Responsible company is required.",
+    "Responsable de corrección es obligatorio.": "Correction responsible person is required.",
     "Acción correctiva requerida es obligatoria.": "Required corrective action is required.",
     "Selecciona al menos una evidencia requerida.": "Select at least one required evidence item.",
     "Para aprobar o cerrar, agrega evidencia requerida o una observación de validación.": "To approve or close, add required evidence or a validation note.",
@@ -1067,7 +1074,6 @@ const [menuExportacionMetaAbierto, setMenuExportacionMetaAbierto] = useState(fal
     Vencido: "Overdue",
     Cerrado: "Closed",
     "Requiere corrección": "Requires correction",
-    "Pendiente de asignación": "Pending assignment",
     "Sin contacto": "No contact",
     "Responsable pendiente de definición": "Closure responsible pending definition",
     "Responsable de cierre pendiente de definición": "Closure responsible pending definition",
@@ -1244,6 +1250,18 @@ const [menuExportacionMetaAbierto, setMenuExportacionMetaAbierto] = useState(fal
     "máximo 3 días": "maximum 3 days",
     "máximo 5 días": "maximum 5 days",
     "Plazo sugerido": "Suggested deadline",
+    "Asignación y plan de cierre": "Closure assignment and plan",
+    "Flujo de cierre automático": "Automatic closure workflow",
+    "Guardar asignación y plan": "Save assignment and plan",
+    "Asignar o actualizar plan": "Assign or update plan",
+    "1. Asignar": "1. Assign",
+    "2. Enviar evidencia": "2. Send evidence",
+    "3. Revisar": "3. Review",
+    "4. Verificar": "4. Verify",
+    "Pendiente de asignación": "Pending assignment",
+    "Aquí solo se define la asignación y el plan. El estado avanza automáticamente cuando el responsable envía evidencia; la aprobación o el rechazo se realiza únicamente en la revisión de cierre.": "This section only defines the assignment and plan. The status advances automatically when the responsible person sends evidence; approval or rejection is performed only during closure review.",
+    "Evidencia en revisión por un validador autorizado.": "Evidence under review by an authorized validator.",
+    "Tu perfil no tiene autorización para aprobar o rechazar cierres.": "Your profile is not authorized to approve or reject closures.",
     "Imprimir informe": "Print report",
     "Imprimir / Guardar como PDF": "Print / Save as PDF",
     "Preparar correo": "Prepare email",
@@ -5041,6 +5059,7 @@ const debeMostrarCierreSeguimiento = (item: HallazgoSeguimiento) =>
   tieneEvidenciaCierre(item);
 
 const puedeGestionarSeguimientoPc = (item: HallazgoSeguimiento) =>
+  puedeAsignarCierre(authPerfilPanel.rol) &&
   !hallazgoEnRevisionPc(item) &&
   !hallazgoCerradoSeguimiento(item) &&
   !hallazgoRequiereNuevaEvidenciaSeguimiento(item);
@@ -5538,34 +5557,6 @@ const opcionesEvidenciaRequerida = [
   "Otra evidencia",
 ];
 
-const opcionesEstadoValidacion = [
-  "Pendiente de revisión",
-  "En revisión",
-  "Aprobado",
-  "Rechazado",
-  "Requiere nueva evidencia",
-];
-
-const opcionesEstadoSeguimientoGestion = [
-  "Asignado",
-  "En seguimiento",
-  "En revisión",
-  "Pendiente de evidencia",
-  "Requiere nueva evidencia",
-  "Rechazado",
-  "Cerrado con evidencia",
-  "Cerrado sin evidencia justificada",
-];
-
-const opcionesValidadorCierre = [
-  "Administrador",
-  "Prevencionista",
-  "Supervisor autorizado",
-  "Mandante",
-  "Jefe de obra",
-  "Otro usuario autorizado",
-];
-
 const abrirGestionCierre = () => {
   if (!hallazgoSeguimientoActivo) return;
 
@@ -5619,33 +5610,6 @@ const alternarEvidenciaGestion = (evidencia: string) => {
       ? actual.evidenciaRequerida.filter((item) => item !== evidencia)
       : [...actual.evidenciaRequerida, evidencia],
   }));
-};
-
-const estadoSeguimientoDesdeGestion = (draft: GestionCierreDraft) => {
-  if (draft.estadoSeguimiento) return draft.estadoSeguimiento;
-  if (draft.responsableCorreccionNombre.trim()) return "Asignado";
-  return "Pendiente de asignación";
-};
-
-const estadoCierreCentralDesdeSeguimiento = (estado: string): EstadoCierreCentral => {
-  if (
-    estado === "Cerrado" ||
-    estado === "Cerrado con evidencia" ||
-    estado === "Cerrado sin evidencia justificada"
-  ) return "CERRADO";
-  if (estado === "Rechazado") return "RECHAZADO";
-  if (estado === "Requiere nueva evidencia") return "RECHAZADO";
-  if (estado === "Vencido") return "VENCIDO";
-  if (estado === "Asignado") return "ASIGNADO";
-  if (
-    estado === "En seguimiento" ||
-    estado === "Evidencia solicitada" ||
-    estado === "Evidencia cargada" ||
-    estado === "En revisión"
-  ) {
-    return "EN_GESTION";
-  }
-  return "PENDIENTE";
 };
 
 const tipoResponsableCentralDesdeGestion = (
@@ -6010,6 +5974,11 @@ const guardarGestionCierre = async () => {
     return;
   }
 
+  if (!gestionCierreDraft.responsableCorreccionNombre.trim()) {
+    setErrorGestionCierre("Responsable de corrección es obligatorio.");
+    return;
+  }
+
   if (!gestionCierreDraft.accionCorrectivaRequerida.trim()) {
     setErrorGestionCierre("Acción correctiva requerida es obligatoria.");
     return;
@@ -6020,21 +5989,12 @@ const guardarGestionCierre = async () => {
     return;
   }
 
-  if (
-    gestionCierreDraft.validadorCierreEstado === "Aprobado" &&
-    (!gestionCierreDraft.validadorCierreNombre.trim() ||
-      gestionCierreDraft.evidenciaRequerida.length === 0 ||
-      !gestionCierreDraft.validadorCierreObservacion.trim())
-  ) {
-    setErrorGestionCierre("Para aprobar, define validador, evidencia requerida y observación de validación.");
-    return;
-  }
-
   const estadoAnterior = estadoSeguimientoVisual(hallazgoSeguimientoActivo);
-  const estadoSeguimiento = estadoSeguimientoDesdeGestion(gestionCierreDraft);
-  const cierreConEvidencia = estadoSeguimiento === "Cerrado con evidencia";
-  const cierreSinEvidenciaJustificada = estadoSeguimiento === "Cerrado sin evidencia justificada";
-  const evidenciaCierreDisponible = tieneEvidenciaCierre(hallazgoSeguimientoActivo);
+  const estadoAsignacion = construirEstadoAsignacion({
+    responsableNombre: gestionCierreDraft.responsableCorreccionNombre,
+    estadoSeguimientoAnterior: estadoAnterior,
+  });
+  const estadoSeguimiento = estadoAsignacion.estadoSeguimiento;
   const validacionFechaCompromiso = validarFechaCompromisoPorCriticidad(
     gestionCierreDraft.responsableCierreFechaCompromiso,
     hallazgoSeguimientoActivo.criticidad
@@ -6055,16 +6015,6 @@ const guardarGestionCierre = async () => {
     return;
   }
 
-  if (cierreConEvidencia && !evidenciaCierreDisponible) {
-    setErrorGestionCierre("No se puede cerrar con evidencia si no existe evidencia recibida.");
-    return;
-  }
-
-  if (cierreSinEvidenciaJustificada && !gestionCierreDraft.justificacionCierreSinEvidencia.trim()) {
-    setErrorGestionCierre("Para cerrar sin evidencia, agrega una justificación formal.");
-    return;
-  }
-
   setGuardandoGestionCierre(true);
 
   const camposModificados = [
@@ -6081,19 +6031,9 @@ const guardarGestionCierre = async () => {
       ? t("Encargado de seguimiento")
       : null,
     estadoSeguimiento !== estadoAnterior ? t("Estado seguimiento") : null,
-    gestionCierreDraft.validadorCierreEstado !== hallazgoSeguimientoActivo.validadorCierreEstado
-      ? t("Estado de validación")
-      : null,
-    gestionCierreDraft.validadorCierreNombre !== hallazgoSeguimientoActivo.validadorCierreNombre
-      ? t("Validador de cierre")
-      : null,
     requiereJustificacionExtension &&
     gestionCierreDraft.justificacionExtensionPlazo !== hallazgoSeguimientoActivo.justificacionExtensionPlazo
       ? t("Justificación de extensión de plazo")
-      : null,
-    cierreSinEvidenciaJustificada &&
-    gestionCierreDraft.justificacionCierreSinEvidencia !== hallazgoSeguimientoActivo.justificacionCierreSinEvidencia
-      ? t("Justificación de cierre sin evidencia")
       : null,
   ].filter(Boolean) as string[];
   const fechaHora = new Date().toLocaleString("es-CL");
@@ -6106,9 +6046,6 @@ const guardarGestionCierre = async () => {
       gestionCierreDraft.responsableCierreFechaCompromiso || t("Sin definir")
     }`,
     requiereJustificacionExtension ? `${t("Plazo de cierre")}: ${t("Plazo extendido")}` : null,
-    cierreSinEvidenciaJustificada
-      ? `${t("Justificación de cierre sin evidencia")}: ${gestionCierreDraft.justificacionCierreSinEvidencia.trim()}`
-      : null,
   ].filter(Boolean).join(" · ");
   const eventoBitacora = {
     fechaHora,
@@ -6122,9 +6059,6 @@ const guardarGestionCierre = async () => {
   const justificacionExtension = requiereJustificacionExtension
     ? gestionCierreDraft.justificacionExtensionPlazo.trim()
     : "";
-  const justificacionCierreSinEvidencia = cierreSinEvidenciaJustificada
-    ? gestionCierreDraft.justificacionCierreSinEvidencia.trim()
-    : "";
   const fechaCompromisoNormalizada = normalizarFechaCompromiso(
     gestionCierreDraft.responsableCierreFechaCompromiso
   );
@@ -6134,7 +6068,7 @@ const guardarGestionCierre = async () => {
   const estadoPlazoPersistente = requiereJustificacionExtension
     ? "Plazo extendido"
     : semaforoVencimiento(fechaCompromisoNormalizada, hallazgoSeguimientoActivo.estado).etiqueta;
-  const estadoCierreCentral = estadoCierreCentralDesdeSeguimiento(estadoSeguimiento);
+  const estadoCierreCentral = estadoAsignacion.estadoCierre;
 
   setGestionCierreLocal((actual) => {
     const previo = actual[hallazgoSeguimientoActivo.codigo] || {};
@@ -6158,18 +6092,15 @@ const guardarGestionCierre = async () => {
         justificacionExtensionPlazo: requiereJustificacionExtension
           ? gestionCierreDraft.justificacionExtensionPlazo.trim()
           : "",
-        justificacionCierreSinEvidencia,
         responsableCierreEstadoSeguimiento: estadoSeguimiento,
         responsableCierreObservacion:
-          gestionCierreDraft.validadorCierreObservacion.trim() ||
-          "Responsable de cierre pendiente de definición",
+          previo.responsableCierreObservacion ||
+          hallazgoSeguimientoActivo.responsableCierreObservacion ||
+          "Asignación y plan de cierre actualizados",
         evidenciaRecibida:
-          cierreSinEvidenciaJustificada
-            ? "Sin evidencia de cierre"
-            : gestionCierreDraft.validadorCierreEstado === "Aprobado" &&
-          gestionCierreDraft.evidenciaRequerida.length > 0
-            ? gestionCierreDraft.evidenciaRequerida.join(", ")
-            : previo.evidenciaRecibida || hallazgoSeguimientoActivo.evidenciaRecibida || "Pendiente de evidencia",
+          previo.evidenciaRecibida ||
+          hallazgoSeguimientoActivo.evidenciaRecibida ||
+          "Pendiente de evidencia",
         bitacoraCierre: [
           ...(previo.bitacoraCierre || []),
           eventoBitacora,
@@ -6212,22 +6143,17 @@ const guardarGestionCierre = async () => {
       plazoEstado: estadoPlazoPersistente,
       plazoExtendido: requiereJustificacionExtension,
       justificacionExtensionPlazo: justificacionExtension || undefined,
-      cierreSinEvidenciaJustificado: cierreSinEvidenciaJustificada,
-      justificacionCierreSinEvidencia: justificacionCierreSinEvidencia || undefined,
+      cierreSinEvidenciaJustificado: seguimientoPrevio?.cierreSinEvidenciaJustificado,
+      justificacionCierreSinEvidencia: seguimientoPrevio?.justificacionCierreSinEvidencia,
       observacionInicial:
-        gestionCierreDraft.validadorCierreObservacion.trim() ||
         seguimientoPrevio?.observacionInicial,
       accionCorrectivaRequerida: gestionCierreDraft.accionCorrectivaRequerida.trim(),
       evidenciaRequerida: gestionCierreDraft.evidenciaRequerida,
       evidenciaRecibida: seguimientoPrevio?.evidenciaRecibida || [],
-      fechaCierre:
-        estadoCierreCentral === "CERRADO"
-          ? seguimientoPrevio?.fechaCierre || new Date().toISOString()
-          : seguimientoPrevio?.fechaCierre,
-      validadorNombre: gestionCierreDraft.validadorCierreNombre.trim() || undefined,
-      validadorEstado: gestionCierreDraft.validadorCierreEstado,
-      validadorObservacion:
-        gestionCierreDraft.validadorCierreObservacion.trim() || undefined,
+      fechaCierre: seguimientoPrevio?.fechaCierre,
+      validadorNombre: seguimientoPrevio?.validadorNombre,
+      validadorEstado: seguimientoPrevio?.validadorEstado,
+      validadorObservacion: seguimientoPrevio?.validadorObservacion,
       actualizadoEn: new Date().toISOString(),
       actualizadoPor: usuario?.correo || usuario?.nombre || "Plataforma PC",
     };
@@ -6235,6 +6161,7 @@ const guardarGestionCierre = async () => {
     const resultadoPersistencia = await actualizarHallazgoCentral(
       hallazgoPersistente.data.id,
       {
+        estado: estadoAsignacion.estado,
         estadoCierre: estadoCierreCentral,
         seguimientoCierre: seguimientoPersistente,
         bitacora: [
@@ -6247,7 +6174,7 @@ const guardarGestionCierre = async () => {
               origen: "panel-pc",
               plazoEstado: estadoPlazoPersistente,
               plazoExtendido: requiereJustificacionExtension,
-              cierreSinEvidenciaJustificado: cierreSinEvidenciaJustificada,
+              operacion: "asignacion_y_plan_cierre",
             },
           },
         ],
@@ -6271,6 +6198,10 @@ const guardarGestionCierre = async () => {
 
 const abrirRevisionCierrePc = (accion: AccionRevisionCierrePc) => {
   if (!hallazgoSeguimientoActivo) return;
+  if (!puedeValidarCierre(authPerfilPanel.rol)) {
+    setErrorRevisionCierrePc("Tu perfil no tiene autorización para aprobar o rechazar cierres.");
+    return;
+  }
 
   setRevisionCierrePc({
     accion,
@@ -6357,12 +6288,11 @@ const confirmarRevisionCierrePc = async () => {
     seguimientoPrevio?.estadoCierre ||
     hallazgoActual.estadoCierre ||
     hallazgoActual.estado;
-  const estadoHallazgo: EstadoHallazgoCentral = aprueba ? "CERRADO" : "EN_SEGUIMIENTO";
-  const estadoCierre: EstadoCierreCentral = aprueba ? "CERRADO" : "RECHAZADO";
-  const estadoSeguimiento = aprueba
-    ? "Cerrado con evidencia"
-    : "Requiere nueva evidencia";
-  const validadorEstado = aprueba ? "Aprobado" : "Rechazado";
+  const resultadoRevision = construirEstadoRevision(revisionCierrePc.accion);
+  const estadoHallazgo: EstadoHallazgoCentral = resultadoRevision.estado;
+  const estadoCierre: EstadoCierreCentral = resultadoRevision.estadoCierre;
+  const estadoSeguimiento = resultadoRevision.estadoSeguimiento;
+  const validadorEstado = resultadoRevision.validadorEstado;
   const accionBitacora = aprueba
     ? "cierre_evidencia_aprobada_pc"
     : "cierre_evidencia_rechazada_pc";
@@ -7543,13 +7473,6 @@ const riesgoOperativoPrincipal =
     : requiereJustificacionGestionCierre
       ? t("La fecha seleccionada excede el plazo recomendado para esta criticidad.")
     : "";
-  const cierreConEvidenciaGestion =
-    gestionCierreDraft.estadoSeguimiento === "Cerrado con evidencia";
-  const cierreSinEvidenciaGestion =
-    gestionCierreDraft.estadoSeguimiento === "Cerrado sin evidencia justificada";
-  const evidenciaDisponibleGestion = hallazgoSeguimientoActivo
-    ? tieneEvidenciaCierre(hallazgoSeguimientoActivo)
-    : false;
   const estadoSeguimientoActivoVisual = hallazgoSeguimientoActivo
     ? estadoSeguimientoVisual(hallazgoSeguimientoActivo)
     : "";
@@ -8633,7 +8556,7 @@ const riesgoOperativoPrincipal =
       >
         <div>
           <div style={{ fontSize: "22px", fontWeight: 900, marginBottom: "5px" }}>
-            {t("Actualizar seguimiento")} · {hallazgoSeguimientoActivo.codigo}
+            {t("Asignación y plan de cierre")} · {hallazgoSeguimientoActivo.codigo}
           </div>
           <div style={{ color: tema.textoSuave, fontSize: "13px", lineHeight: 1.5 }}>
             {t("El reportante no se asume automáticamente como responsable de corrección. El seguimiento puede ser asignado a un supervisor o usuario autorizado.")}
@@ -8929,70 +8852,6 @@ const riesgoOperativoPrincipal =
             />
           </label>
         )}
-        <label style={{ display: "grid", gap: "6px" }}>
-          <span style={{ fontSize: "11px", color: tema.textoSuave, fontWeight: 900 }}>
-            {t("Estado seguimiento")}
-          </span>
-          <select
-            value={gestionCierreDraft.estadoSeguimiento}
-            onChange={(e) =>
-              setGestionCierreDraft((actual) => ({
-                ...actual,
-                estadoSeguimiento: e.target.value,
-              }))
-            }
-            style={{ ...controlStyle, cursor: "pointer" }}
-          >
-            {opcionesEstadoSeguimientoGestion.map((opcion) => (
-              <option key={opcion} value={opcion} style={optionStyle}>
-                {t(opcion)}
-              </option>
-            ))}
-          </select>
-          {cierreConEvidenciaGestion && !evidenciaDisponibleGestion && (
-            <span
-              style={{
-                padding: "9px 10px",
-                borderRadius: "12px",
-                border: "1px solid rgba(239,68,68,0.34)",
-                background: temaClaro ? "rgba(254,242,242,0.82)" : "rgba(239,68,68,0.12)",
-                color: temaClaro ? "#991b1b" : "#fecaca",
-                fontSize: "12px",
-                fontWeight: 850,
-                lineHeight: 1.35,
-              }}
-            >
-              {t("No se puede cerrar con evidencia si no existe evidencia recibida.")}{" "}
-              {t("Puedes seleccionar Cerrado sin evidencia justificada si corresponde.")}
-            </span>
-          )}
-        </label>
-        {cierreSinEvidenciaGestion && (
-          <label style={{ display: "grid", gap: "6px" }}>
-            <span style={{ fontSize: "11px", color: tema.textoSuave, fontWeight: 900 }}>
-              {t("Justificación de cierre sin evidencia")}
-            </span>
-            <textarea
-              value={gestionCierreDraft.justificacionCierreSinEvidencia}
-              onChange={(e) =>
-                setGestionCierreDraft((actual) => ({
-                  ...actual,
-                  justificacionCierreSinEvidencia: e.target.value,
-                }))
-              }
-              style={{
-                ...controlStyle,
-                minHeight: "82px",
-                resize: "vertical",
-                lineHeight: 1.45,
-                border: !gestionCierreDraft.justificacionCierreSinEvidencia.trim()
-                  ? "1px solid rgba(249,115,22,0.46)"
-                  : controlStyle.border,
-              }}
-              placeholder={t("Justificación formal requerida cuando no existe evidencia de cierre disponible.")}
-            />
-          </label>
-        )}
       </div>
 
       <div
@@ -9005,83 +8864,79 @@ const riesgoOperativoPrincipal =
           gap: "12px",
         }}
       >
-        <div style={{ fontSize: "14px", fontWeight: 900 }}>{t("Validación")}</div>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "12px",
+            flexWrap: "wrap",
+          }}
+        >
+          <div style={{ fontSize: "14px", fontWeight: 950 }}>
+            {t("Flujo de cierre automático")}
+          </div>
+          <span
+            style={{
+              padding: "7px 10px",
+              borderRadius: "999px",
+              border: temaClaro
+                ? "1px solid rgba(37,99,235,0.30)"
+                : "1px solid rgba(96,165,250,0.32)",
+              background: temaClaro
+                ? "rgba(219,234,254,0.72)"
+                : "rgba(37,99,235,0.16)",
+              color: temaClaro ? "#1d4ed8" : "#bfdbfe",
+              fontSize: "11px",
+              fontWeight: 950,
+            }}
+          >
+            {t(
+              construirEstadoAsignacion({
+                responsableNombre: gestionCierreDraft.responsableCorreccionNombre,
+                estadoSeguimientoAnterior: estadoSeguimientoVisual(hallazgoSeguimientoActivo),
+              }).estadoSeguimiento
+            )}
+          </span>
+        </div>
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: "10px",
+            gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+            gap: "8px",
           }}
         >
-          <label style={{ display: "grid", gap: "6px" }}>
-            <span style={{ fontSize: "11px", color: tema.textoSuave, fontWeight: 900 }}>
-              {t("Validador de cierre")}
-            </span>
-            <select
-              value={gestionCierreDraft.validadorCierreNombre}
-              onChange={(e) =>
-                setGestionCierreDraft((actual) => ({
-                  ...actual,
-                  validadorCierreNombre: e.target.value,
-                }))
-              }
-              style={{ ...controlStyle, cursor: "pointer" }}
-            >
-              <option value="" style={optionStyle}>
-                {t("Seleccionar validador")}
-              </option>
-              {opcionesValidadorCierre.map((opcion) => (
-                <option key={opcion} value={opcion} style={optionStyle}>
-                  {t(opcion)}
-                </option>
-              ))}
-            </select>
-            <span style={{ fontSize: "11px", color: tema.textoSuave, fontWeight: 700, lineHeight: 1.35 }}>
-              {t("El validador revisa la evidencia y aprueba o rechaza el cierre definitivo.")}
-            </span>
-          </label>
-          <label style={{ display: "grid", gap: "6px" }}>
-            <span style={{ fontSize: "11px", color: tema.textoSuave, fontWeight: 900 }}>
-              {t("Estado de validación")}
-            </span>
-            <select
-              value={gestionCierreDraft.validadorCierreEstado}
-              onChange={(e) =>
-                setGestionCierreDraft((actual) => ({
-                  ...actual,
-                  validadorCierreEstado: e.target.value,
-                }))
-              }
-              style={{ ...controlStyle, cursor: "pointer" }}
-            >
-              {opcionesEstadoValidacion.map((opcion) => (
-                <option key={opcion} value={opcion} style={optionStyle}>
-                  {t(opcion)}
-                </option>
-              ))}
-            </select>
-          </label>
+          {["1. Asignar", "2. Enviar evidencia", "3. Revisar", "4. Verificar"].map(
+            (paso, indice) => (
+              <div
+                key={paso}
+                style={{
+                  padding: "10px 8px",
+                  borderRadius: "12px",
+                  border: indice === 0 ? tema.bordeFuerte : tema.borde,
+                  background:
+                    indice === 0
+                      ? temaClaro
+                        ? "rgba(219,234,254,0.72)"
+                        : "rgba(37,99,235,0.16)"
+                      : temaClaro
+                        ? "rgba(248,250,252,0.72)"
+                        : "rgba(15,23,42,0.48)",
+                  color: indice === 0 ? tema.texto : tema.textoSuave,
+                  textAlign: "center",
+                  fontSize: "10.5px",
+                  fontWeight: 900,
+                  lineHeight: 1.3,
+                }}
+              >
+                {t(paso)}
+              </div>
+            )
+          )}
         </div>
-        <label style={{ display: "grid", gap: "6px" }}>
-          <span style={{ fontSize: "11px", color: tema.textoSuave, fontWeight: 900 }}>
-            {t("Observación de validación")}
-          </span>
-          <textarea
-            value={gestionCierreDraft.validadorCierreObservacion}
-            onChange={(e) =>
-              setGestionCierreDraft((actual) => ({
-                ...actual,
-                validadorCierreObservacion: e.target.value,
-              }))
-            }
-            style={{
-              ...controlStyle,
-              minHeight: "82px",
-              resize: "vertical",
-              lineHeight: 1.45,
-            }}
-          />
-        </label>
+        <div style={{ fontSize: "11.5px", color: tema.textoSuave, fontWeight: 780, lineHeight: 1.45 }}>
+          {t("Aquí solo se define la asignación y el plan. El estado avanza automáticamente cuando el responsable envía evidencia; la aprobación o el rechazo se realiza únicamente en la revisión de cierre.")}
+        </div>
       </div>
 
       {errorGestionCierre && (
@@ -9126,7 +8981,7 @@ const riesgoOperativoPrincipal =
             cursor: guardandoGestionCierre ? "wait" : "pointer",
           }}
         >
-          {t(guardandoGestionCierre ? "Guardando..." : "Guardar cambios")}
+          {t(guardandoGestionCierre ? "Guardando..." : "Guardar asignación y plan")}
         </button>
       </div>
     </div>
@@ -12756,7 +12611,8 @@ style={{
                 {t("Sin evidencia de cierre recibida.")}
               </div>
             )}
-            {hallazgoEnRevisionPc(hallazgoSeguimientoActivo) && (
+            {hallazgoEnRevisionPc(hallazgoSeguimientoActivo) &&
+              puedeValidarCierre(authPerfilPanel.rol) && (
               <div
                 style={{
                   display: "grid",
@@ -12802,6 +12658,23 @@ style={{
                 </button>
               </div>
             )}
+            {hallazgoEnRevisionPc(hallazgoSeguimientoActivo) &&
+              !puedeValidarCierre(authPerfilPanel.rol) && (
+                <div
+                  style={{
+                    padding: "11px 12px",
+                    borderRadius: "13px",
+                    border: tema.borde,
+                    background: tema.tarjetaSuave,
+                    color: tema.textoSuave,
+                    fontSize: "11.5px",
+                    fontWeight: 820,
+                    lineHeight: 1.4,
+                  }}
+                >
+                  {t("Evidencia en revisión por un validador autorizado.")}
+                </div>
+              )}
           </div>
           )}
 
@@ -12818,7 +12691,7 @@ style={{
                 order: 5,
               }}
             >
-              {t("Actualizar seguimiento")}
+              {t("Asignar o actualizar plan")}
             </button>
           )}
           <div

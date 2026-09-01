@@ -49,6 +49,7 @@ import type {
   HallazgoCentral,
   SeguimientoCierreCentral,
 } from "../types/hallazgoCentral";
+import { construirEstadoEnvioEvidencia } from "../domain/flujoCierreHallazgo";
 
 const textosMobileEn: Record<string, string> = {
   "Supervisor activo": "Active supervisor",
@@ -134,18 +135,8 @@ const textosMobileEn: Record<string, string> = {
   "Comentario obligatorio": "Comment required",
   "Describe brevemente la corrección realizada": "Briefly describe the correction performed",
   "Enviar a revisión": "Send for review",
-  "Cerrar con evidencia": "Close with evidence",
-  "Cerrando hallazgo...": "Closing finding...",
-  "Cerrar hallazgo con evidencia": "Close finding with evidence",
-  "Este hallazgo será marcado como cerrado con evidencia. La acción quedará registrada en la bitácora.":
-    "This finding will be marked as closed with evidence. The action will be recorded in the log.",
-  "Confirmar cierre": "Confirm closure",
-  "Los hallazgos de baja criticidad pueden cerrarse directamente con evidencia.":
-    "Low-criticality findings can be closed directly with evidence.",
-  "Este hallazgo requiere revisión antes del cierre.":
-    "This finding requires review before closure.",
-  "Solo hallazgos de baja criticidad pueden cerrarse directamente desde móvil.":
-    "Only low-criticality findings can be closed directly from mobile.",
+  "Toda evidencia requiere revisión antes del cierre definitivo.":
+    "All evidence requires review before final closure.",
   "Enviando evidencia...": "Sending evidence...",
   Cancelar: "Cancel",
   "La fotografía de cierre es obligatoria.": "Closure photo is required.",
@@ -255,10 +246,6 @@ function hallazgoEnRevisionMovil(hallazgo: HallazgoCentral) {
     estadoCierre.includes("REVISION") ||
     evidenciaRecibida.length > 0
   );
-}
-
-function hallazgoBajoCierreMovil(hallazgo: HallazgoCentral) {
-  return normalizarTextoCierreMovil(hallazgo.criticidad) === "BAJO";
 }
 
 function agruparHallazgosCierreMovil(
@@ -570,7 +557,6 @@ export default function EvaluarV2HomePage() {
     useState(false);
   const [comentarioEvidenciaCierre, setComentarioEvidenciaCierre] = useState("");
   const [errorEvidenciaCierre, setErrorEvidenciaCierre] = useState("");
-  const [confirmacionCierreBajo, setConfirmacionCierreBajo] = useState("");
   const [enviandoEvidenciaCierre, setEnviandoEvidenciaCierre] = useState(false);
   const [procesandoEvidenciaCierre, setProcesandoEvidenciaCierre] = useState(false);
   const [camaraEvidenciaCierreAbierta, setCamaraEvidenciaCierreAbierta] =
@@ -1141,7 +1127,6 @@ export default function EvaluarV2HomePage() {
     setPreviewEvidenciaCierreAmpliada(false);
     setComentarioEvidenciaCierre("");
     setErrorEvidenciaCierre("");
-    setConfirmacionCierreBajo("");
     setProcesandoEvidenciaCierre(false);
   };
 
@@ -1156,7 +1141,6 @@ export default function EvaluarV2HomePage() {
     setPreviewEvidenciaCierreAmpliada(false);
     setComentarioEvidenciaCierre("");
     setErrorEvidenciaCierre("");
-    setConfirmacionCierreBajo("");
     setProcesandoEvidenciaCierre(false);
     vibrarOk();
   };
@@ -1411,56 +1395,8 @@ export default function EvaluarV2HomePage() {
     }
   };
 
-  const solicitarConfirmacionCierreDirectoBajo = (hallazgo: HallazgoCentral) => {
-    if (!hallazgoBajoCierreMovil(hallazgo)) {
-      setErrorEvidenciaCierre(
-        t("Solo hallazgos de baja criticidad pueden cerrarse directamente desde móvil.")
-      );
-      return;
-    }
-
+  const enviarEvidenciaCierreRevision = async (hallazgo: HallazgoCentral) => {
     if (enviandoEvidenciaCierre) return;
-
-    if (procesandoEvidenciaCierre) {
-      setErrorEvidenciaCierre(t("Procesando fotografía de cierre..."));
-      return;
-    }
-
-    if (!hallazgo.id) {
-      setErrorEvidenciaCierre(t("No se pudo identificar el hallazgo para actualizarlo."));
-      return;
-    }
-
-    if (!archivoEvidenciaCierre) {
-      setErrorEvidenciaCierre(t("La fotografía de cierre es obligatoria."));
-      return;
-    }
-
-    if (comentarioEvidenciaCierre.trim().length < 5) {
-      setErrorEvidenciaCierre(t("Agrega un comentario de al menos 5 caracteres."));
-      return;
-    }
-
-    setErrorEvidenciaCierre("");
-    setConfirmacionCierreBajo(claveHallazgoCierreMovil(hallazgo));
-    vibrarOk();
-  };
-
-  const enviarEvidenciaCierreRevision = async (
-    hallazgo: HallazgoCentral,
-    opciones?: { cerrarDirectoBajo?: boolean }
-  ) => {
-    if (enviandoEvidenciaCierre) return;
-
-    const cerrarDirectoBajo = Boolean(opciones?.cerrarDirectoBajo);
-
-    if (cerrarDirectoBajo && !hallazgoBajoCierreMovil(hallazgo)) {
-      setErrorEvidenciaCierre(
-        t("Solo hallazgos de baja criticidad pueden cerrarse directamente desde móvil.")
-      );
-      setConfirmacionCierreBajo("");
-      return;
-    }
 
     if (procesandoEvidenciaCierre) {
       setErrorEvidenciaCierre(t("Procesando fotografía de cierre..."));
@@ -1492,7 +1428,6 @@ export default function EvaluarV2HomePage() {
 
     setEnviandoEvidenciaCierre(true);
     setErrorEvidenciaCierre("");
-    setConfirmacionCierreBajo("");
 
     const fechaHoraIso = new Date().toISOString();
     const evidenciaId = crearIdEvidenciaCierreMovil();
@@ -1547,20 +1482,13 @@ export default function EvaluarV2HomePage() {
       ...(seguimientoPrevio?.evidenciaRecibida || []),
       evidenciaCierre,
     ];
-    const estadoHallazgoDestino: HallazgoCentral["estado"] = cerrarDirectoBajo
-      ? "CERRADO"
-      : "EN_SEGUIMIENTO";
+    const resultadoEnvioEvidencia = construirEstadoEnvioEvidencia();
+    const estadoHallazgoDestino: HallazgoCentral["estado"] = resultadoEnvioEvidencia.estado;
     const estadoCierreDestino: SeguimientoCierreCentral["estadoCierre"] =
-      cerrarDirectoBajo ? "CERRADO" : "EN_GESTION";
-    const estadoSeguimientoDestino = cerrarDirectoBajo
-      ? "Cerrado con evidencia"
-      : "En revisión";
-    const accionBitacora = cerrarDirectoBajo
-      ? "cierre_bajo_con_evidencia_movil"
-      : "evidencia_cierre_enviada_movil";
-    const resumenBitacora = cerrarDirectoBajo
-      ? `Hallazgo bajo cerrado con evidencia desde móvil. Comentario: ${comentario}`
-      : `Evidencia de cierre enviada desde móvil. Comentario: ${comentario}`;
+      resultadoEnvioEvidencia.estadoCierre;
+    const estadoSeguimientoDestino = resultadoEnvioEvidencia.estadoSeguimiento;
+    const accionBitacora = "evidencia_cierre_enviada_movil";
+    const resumenBitacora = `Evidencia de cierre enviada desde móvil. Comentario: ${comentario}`;
     const seguimientoCierre: SeguimientoCierreCentral = {
       ...(seguimientoPrevio || {}),
       responsable: seguimientoPrevio?.responsable || {
@@ -1571,19 +1499,10 @@ export default function EvaluarV2HomePage() {
       estadoCierre: estadoCierreDestino,
       estadoSeguimiento: estadoSeguimientoDestino,
       evidenciaRecibida: evidenciasRecibidas,
-      fechaCierre: cerrarDirectoBajo
-        ? fechaHoraIso
-        : seguimientoPrevio?.fechaCierre,
-      validadorEstado:
-        cerrarDirectoBajo
-          ? "Aprobado"
-          : seguimientoPrevio?.validadorEstado || "Pendiente de revision",
-      validadorNombre: cerrarDirectoBajo
-        ? usuarioAuditoria
-        : seguimientoPrevio?.validadorNombre,
-      validadorObservacion: cerrarDirectoBajo
-        ? `Cierre directo móvil de hallazgo bajo. Comentario: ${comentario}`
-        : seguimientoPrevio?.validadorObservacion,
+      fechaCierre: seguimientoPrevio?.fechaCierre,
+      validadorEstado: resultadoEnvioEvidencia.validadorEstado,
+      validadorNombre: seguimientoPrevio?.validadorNombre,
+      validadorObservacion: seguimientoPrevio?.validadorObservacion,
       actualizadoEn: fechaHoraIso,
       actualizadoPor: usuarioAuditoria,
     };
@@ -1602,7 +1521,6 @@ export default function EvaluarV2HomePage() {
         "estado_seguimiento",
         "seguimiento_cierre",
         "evidencia_recibida",
-        ...(cerrarDirectoBajo ? ["fecha_cierre"] : []),
         "bitacora",
       ],
       metadata: {
@@ -1611,7 +1529,7 @@ export default function EvaluarV2HomePage() {
         evidenciaId,
         storagePath: subida.data.storagePath,
         comentario,
-        cerrarDirectoBajo,
+        requiereRevisionAutorizada: true,
       },
     };
 
@@ -1634,7 +1552,7 @@ export default function EvaluarV2HomePage() {
           evidenciaId,
           comentario,
           usuario: usuarioAuditoria,
-          cerrarDirectoBajo,
+          requiereRevisionAutorizada: true,
           criticidad: hallazgo.criticidad,
         },
       },
@@ -1657,15 +1575,11 @@ export default function EvaluarV2HomePage() {
       )
     );
     limpiarFormularioEvidenciaCierre();
-    setCategoriaCierreActiva(cerrarDirectoBajo ? "cerrados" : "en_revision");
+    setCategoriaCierreActiva("en_revision");
     setHallazgoCierreExpandido(claveHallazgoCierreMovil(actualizado.data));
     setFiltroFechaCierre("semana");
     setLimiteVisibleCierre(LIMITE_INICIAL_LISTADO_CIERRE_MOVIL);
-    setMensaje(
-      cerrarDirectoBajo
-        ? t("Hallazgo cerrado con evidencia.")
-        : t("Evidencia enviada a revisión.")
-    );
+    setMensaje(t("Evidencia enviada a revisión."));
     setEnviandoEvidenciaCierre(false);
     vibrarOk();
   };
@@ -2893,9 +2807,6 @@ export default function EvaluarV2HomePage() {
                       hallazgo.seguimientoCierre?.evidenciaRecibida || [];
                     const formularioActivo =
                       formularioEvidenciaCierre === claveHallazgo;
-                    const cierreDirectoBajo = hallazgoBajoCierreMovil(hallazgo);
-                    const confirmacionCierreBajoActiva =
-                      confirmacionCierreBajo === claveHallazgo;
                     return (
                       <div
                         key={claveHallazgo}
@@ -3131,30 +3042,16 @@ export default function EvaluarV2HomePage() {
                                       style={{
                                         borderRadius: "10px",
                                         padding: "8px 9px",
-                                        background: cierreDirectoBajo
-                                          ? temaClaro
-                                            ? "rgba(34,197,94,0.10)"
-                                            : "rgba(34,197,94,0.16)"
-                                          : temaClaro
-                                            ? "rgba(37,99,235,0.08)"
-                                            : "rgba(59,130,246,0.14)",
-                                        color: cierreDirectoBajo
-                                          ? temaClaro
-                                            ? "#166534"
-                                            : "#bbf7d0"
-                                          : temaClaro
-                                            ? "#1d4ed8"
-                                            : "#bfdbfe",
+                                        background: temaClaro
+                                          ? "rgba(37,99,235,0.08)"
+                                          : "rgba(59,130,246,0.14)",
+                                        color: temaClaro ? "#1d4ed8" : "#bfdbfe",
                                         fontSize: "11px",
                                         fontWeight: 900,
                                         lineHeight: 1.35,
                                       }}
                                     >
-                                      {cierreDirectoBajo
-                                        ? t(
-                                            "Los hallazgos de baja criticidad pueden cerrarse directamente con evidencia."
-                                          )
-                                        : t("Este hallazgo requiere revisión antes del cierre.")}
+                                      {t("Toda evidencia requiere revisión antes del cierre definitivo.")}
                                     </div>
                                     <div
                                       style={{
@@ -3738,13 +3635,7 @@ export default function EvaluarV2HomePage() {
                                       </button>
                                       <button
                                         type="button"
-                                        onClick={() =>
-                                          cierreDirectoBajo
-                                            ? solicitarConfirmacionCierreDirectoBajo(
-                                                hallazgo
-                                              )
-                                            : enviarEvidenciaCierreRevision(hallazgo)
-                                        }
+                                        onClick={() => enviarEvidenciaCierreRevision(hallazgo)}
                                         disabled={enviandoEvidenciaCierre}
                                         style={{
                                           border: "0",
@@ -3762,142 +3653,10 @@ export default function EvaluarV2HomePage() {
                                         }}
                                       >
                                         {enviandoEvidenciaCierre
-                                          ? cierreDirectoBajo
-                                            ? t("Cerrando hallazgo...")
-                                            : t("Enviando evidencia...")
-                                          : cierreDirectoBajo
-                                            ? t("Cerrar con evidencia")
-                                            : t("Enviar a revisión")}
+                                          ? t("Enviando evidencia...")
+                                          : t("Enviar a revisión")}
                                       </button>
                                     </div>
-                                    {confirmacionCierreBajoActiva && (
-                                      <div
-                                        role="dialog"
-                                        aria-modal="true"
-                                        aria-label={t(
-                                          "Cerrar hallazgo con evidencia"
-                                        )}
-                                        style={{
-                                          position: "fixed",
-                                          inset: 0,
-                                          zIndex: 88,
-                                          background: "rgba(2,6,23,0.72)",
-                                          padding: "18px",
-                                          display: "flex",
-                                          alignItems: "center",
-                                          justifyContent: "center",
-                                        }}
-                                      >
-                                        <div
-                                          style={{
-                                            width: "min(100%, 380px)",
-                                            borderRadius: "18px",
-                                            background: temaClaro
-                                              ? "rgba(255,255,255,0.98)"
-                                              : "rgba(15,23,42,0.98)",
-                                            border: temaClaro
-                                              ? "1px solid rgba(100,116,139,0.18)"
-                                              : "1px solid rgba(255,255,255,0.16)",
-                                            boxShadow:
-                                              "0 24px 60px rgba(0,0,0,0.38)",
-                                            padding: "16px",
-                                            display: "grid",
-                                            gap: "12px",
-                                          }}
-                                        >
-                                          <div
-                                            style={{
-                                              color: temaClaro
-                                                ? "#0f172a"
-                                                : "white",
-                                              fontSize: "16px",
-                                              fontWeight: 950,
-                                            }}
-                                          >
-                                            {t("Cerrar hallazgo con evidencia")}
-                                          </div>
-                                          <div
-                                            style={{
-                                              color: temaClaro
-                                                ? "#475569"
-                                                : "rgba(226,232,240,0.82)",
-                                              fontSize: "13px",
-                                              fontWeight: 850,
-                                              lineHeight: 1.45,
-                                            }}
-                                          >
-                                            {t(
-                                              "Este hallazgo será marcado como cerrado con evidencia. La acción quedará registrada en la bitácora."
-                                            )}
-                                          </div>
-                                          <div
-                                            style={{
-                                              display: "grid",
-                                              gridTemplateColumns: "1fr 1fr",
-                                              gap: "8px",
-                                            }}
-                                          >
-                                            <button
-                                              type="button"
-                                              onClick={() =>
-                                                setConfirmacionCierreBajo("")
-                                              }
-                                              disabled={enviandoEvidenciaCierre}
-                                              style={{
-                                                border: temaClaro
-                                                  ? "1px solid rgba(100,116,139,0.20)"
-                                                  : "1px solid rgba(255,255,255,0.14)",
-                                                borderRadius: "12px",
-                                                background: temaClaro
-                                                  ? "rgba(248,250,252,0.94)"
-                                                  : "rgba(255,255,255,0.10)",
-                                                color: temaClaro
-                                                  ? "#334155"
-                                                  : "white",
-                                                padding: "11px 10px",
-                                                fontSize: "12px",
-                                                fontWeight: 950,
-                                                cursor: enviandoEvidenciaCierre
-                                                  ? "not-allowed"
-                                                  : "pointer",
-                                              }}
-                                            >
-                                              {t("Cancelar")}
-                                            </button>
-                                            <button
-                                              type="button"
-                                              onClick={() =>
-                                                enviarEvidenciaCierreRevision(
-                                                  hallazgo,
-                                                  { cerrarDirectoBajo: true }
-                                                )
-                                              }
-                                              disabled={enviandoEvidenciaCierre}
-                                              style={{
-                                                border: "0",
-                                                borderRadius: "12px",
-                                                background:
-                                                  "linear-gradient(180deg, #16a34a, #15803d)",
-                                                color: "white",
-                                                padding: "11px 10px",
-                                                fontSize: "12px",
-                                                fontWeight: 950,
-                                                cursor: enviandoEvidenciaCierre
-                                                  ? "not-allowed"
-                                                  : "pointer",
-                                                opacity: enviandoEvidenciaCierre
-                                                  ? 0.76
-                                                  : 1,
-                                              }}
-                                            >
-                                              {enviandoEvidenciaCierre
-                                                ? t("Cerrando hallazgo...")
-                                                : t("Confirmar cierre")}
-                                            </button>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    )}
                                   </div>
                                 )}
                               </div>

@@ -41,18 +41,10 @@ type TipoVistaMapa = "estandar" | "satelital";
 type AccionBarraMapa =
   | "general"
   | "criticos"
-  | "altos"
-  | "medios"
-  | "bajos"
-  | "mas-criticos"
   | "abiertos"
   | "cerrados"
   | "empresas"
-  | "obras"
   | "recientes"
-  | "hoy"
-  | "historico"
-  | "vencidos"
   | "capas"
   | "estandar"
   | "satelital"
@@ -322,6 +314,11 @@ const textosMapaEn: Record<string, string> = {
   "Sin celda territorial dominante": "No dominant territorial cell",
   "Filtros territoriales": "Territorial filters",
   "Cruce rapido por empresa, obra, area, criticidad, estado, fecha y GPS.": "Quick cross-filter by company, site, area, severity, status, date and GPS.",
+  "Filtros maestros del mapa": "Map master filters",
+  "Un unico conjunto controla el mapa, los contadores y la exportacion.": "One filter set controls the map, counters and export.",
+  "Filtros adicionales": "Additional filters",
+  "visibles de": "visible out of",
+  "filtros activos": "active filters",
   Empresa: "Company",
   "Obra / proyecto": "Site / project",
   Area: "Area",
@@ -711,6 +708,19 @@ export default function MapaGpsHallazgosPage() {
   const bordeInterno = temaClaro
     ? "1px solid rgba(100,116,139,0.20)"
     : "1px solid rgba(148,163,184,0.18)";
+  const filtroControlStyle: CSSProperties = {
+    width: "100%",
+    minHeight: "42px",
+    borderRadius: "13px",
+    border: bordeInterno,
+    background: temaClaro ? "rgba(255,255,255,0.94)" : "rgba(15,23,42,0.88)",
+    color: textoPrincipal,
+    padding: "0 11px",
+    fontSize: "12px",
+    fontWeight: 800,
+    outline: "none",
+    boxSizing: "border-box",
+  };
   const [hallazgos, setHallazgos] = useState<HallazgoCentral[]>([]);
   const [cargando, setCargando] = useState(false);
   const [filtros, setFiltros] = useState<FiltrosVista>(filtrosIniciales);
@@ -793,6 +803,11 @@ export default function MapaGpsHallazgosPage() {
     () => filtrarHallazgos(hallazgos, filtros),
     [hallazgos, filtros]
   );
+
+  useEffect(() => {
+    setPuntoSeleccionado(null);
+    setZonaSeleccionada(null);
+  }, [filtros]);
 
   const resumenMapa = useMemo(
     () => analizarMapaGpsHallazgos(hallazgosFiltrados),
@@ -942,8 +957,7 @@ export default function MapaGpsHallazgosPage() {
     setSelectorEmpresasAbierto(false);
   }
 
-  function resumenFiltrosActivos() {
-    const partes = [
+  const filtrosActivosLista = [
       filtros.empresa && `${t("Empresa")}: ${filtros.empresa}`,
       filtros.obra && `${t("Obra / faena")}: ${filtros.obra}`,
       filtros.area && `${t("Area")}: ${filtros.area}`,
@@ -953,9 +967,12 @@ export default function MapaGpsHallazgosPage() {
       filtros.fechaDesde && `${t("Desde")}: ${filtros.fechaDesde}`,
       filtros.fechaHasta && `${t("Hasta")}: ${filtros.fechaHasta}`,
       filtros.gps !== "todos" && `${t("GPS")}: ${t(filtros.gps === "con-gps" ? "Solo con GPS" : "Solo sin GPS")}`,
-    ].filter(Boolean);
+    ].filter(Boolean) as string[];
 
-    return partes.length ? partes.join(" · ") : t("Sin filtro activo");
+  function resumenFiltrosActivos() {
+    return filtrosActivosLista.length
+      ? filtrosActivosLista.join(" · ")
+      : t("Sin filtro activo");
   }
 
   function descargarVistaMapa() {
@@ -1029,17 +1046,10 @@ export default function MapaGpsHallazgosPage() {
   }> = [
     { id: "general", icono: "mapa", etiqueta: "Ver todos los puntos", destacado: true },
     { id: "criticos", icono: "alerta", etiqueta: "Criticos" },
-    { id: "altos", icono: "filtro", etiqueta: "Altos" },
-    { id: "medios", icono: "filtro", etiqueta: "Medios" },
-    { id: "bajos", icono: "bajo", etiqueta: "Bajos" },
     { id: "abiertos", icono: "alerta", etiqueta: "Abiertos" },
     { id: "cerrados", icono: "check", etiqueta: "Cerrados" },
     { id: "empresas", icono: "empresa", etiqueta: "Empresas" },
-    { id: "obras", icono: "obra", etiqueta: "Obras/areas" },
     { id: "recientes", icono: "reciente", etiqueta: "Recientes" },
-    { id: "hoy", icono: "reciente", etiqueta: "Historico del dia" },
-    { id: "historico", icono: "mapa", etiqueta: "Historico global" },
-    { id: "vencidos", icono: "vencido", etiqueta: "Vencidos" },
     { id: "capas", icono: "capas", etiqueta: "Capas / visualizacion" },
     { id: "estandar", icono: "capas", etiqueta: "Vista estandar" },
     { id: "satelital", icono: "satelital", etiqueta: "Vista satelital" },
@@ -1057,8 +1067,6 @@ export default function MapaGpsHallazgosPage() {
     { id: "general", icono: "mapa", etiqueta: "Ver todos los puntos", destacado: true },
     { id: "criticos", icono: "alerta", etiqueta: "Criticos" },
     { id: "abiertos", icono: "alerta", etiqueta: "Abiertos" },
-    { id: "empresas", icono: "empresa", etiqueta: "Empresas" },
-    { id: "obras", icono: "obra", etiqueta: "Obras/areas" },
     { id: "exportar", icono: "descarga", etiqueta: "Guardar imagen" },
   ];
 
@@ -1075,31 +1083,10 @@ export default function MapaGpsHallazgosPage() {
       return;
     }
 
-    if (id === "criticos" || id === "mas-criticos") {
+    if (id === "criticos") {
       setFiltros((actual) => ({ ...actual, criticidad: "CRITICO", gps: "todos" }));
       setModoMapa("zonas");
-      setMensaje(id === "mas-criticos" ? "Foco en puntos de mayor criticidad." : "Filtro aplicado a hallazgos criticos.");
-      return;
-    }
-
-    if (id === "altos") {
-      setFiltros((actual) => ({ ...actual, criticidad: "ALTO", gps: "todos" }));
-      setModoMapa("zonas");
-      setMensaje("Filtro aplicado a hallazgos altos.");
-      return;
-    }
-
-    if (id === "medios") {
-      setFiltros((actual) => ({ ...actual, criticidad: "MEDIO", gps: "todos" }));
-      setModoMapa("puntos");
-      setMensaje("Filtro aplicado a hallazgos medios.");
-      return;
-    }
-
-    if (id === "bajos") {
-      setFiltros((actual) => ({ ...actual, criticidad: "BAJO", gps: "todos" }));
-      setModoMapa("puntos");
-      setMensaje("Filtro aplicado a hallazgos bajos.");
+      setMensaje("Filtro aplicado a hallazgos criticos.");
       return;
     }
 
@@ -1121,22 +1108,6 @@ export default function MapaGpsHallazgosPage() {
       setBarraExpandida(true);
       setSelectorEmpresasAbierto((abierto) => !abierto);
       setMensaje("Selector de empresas disponible.");
-      return;
-    }
-
-    if (id === "obras") {
-      if (!concentracionObra?.[0] && !concentracionArea?.[0]) {
-        setMensaje("Sin datos suficientes");
-        return;
-      }
-      setFiltros((actual) => ({
-        ...actual,
-        obra: concentracionObra?.[0] || "",
-        area: concentracionArea?.[0] || "",
-        gps: "todos",
-      }));
-      setModoMapa("calor");
-      setMensaje("Lectura por obras y areas destacada.");
       return;
     }
 
@@ -1174,38 +1145,6 @@ export default function MapaGpsHallazgosPage() {
           ? "Lectura de hallazgos recientes aplicada."
           : "No hay hallazgos recientes con ubicación GPS."
       );
-      return;
-    }
-
-    if (id === "hoy") {
-      const hoy = fechaLocalISO(new Date());
-      setFiltros((actual) => ({
-        ...actual,
-        fechaDesde: hoy,
-        fechaHasta: hoy,
-        gps: "todos",
-      }));
-      setModoMapa("puntos");
-      setMensaje("Historico del dia aplicado.");
-      return;
-    }
-
-    if (id === "historico") {
-      setFiltros((actual) => ({
-        ...actual,
-        fechaDesde: "",
-        fechaHasta: "",
-        gps: "todos",
-      }));
-      setModoMapa("calor");
-      setMensaje("Historico global aplicado.");
-      return;
-    }
-
-    if (id === "vencidos") {
-      setFiltros((actual) => ({ ...actual, estado: "ABIERTO", gps: "todos" }));
-      setModoMapa("zonas");
-      setMensaje("Revision de vencidos aplicada.");
       return;
     }
 
@@ -1440,6 +1379,126 @@ export default function MapaGpsHallazgosPage() {
         </section>
 
         <section
+          style={{
+            ...themedSurfaceStyle,
+            padding: "16px",
+            display: "grid",
+            gap: "14px",
+            background: fondoTarjeta,
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", gap: "14px", alignItems: "center", flexWrap: "wrap" }}>
+            <div>
+              <div style={{ color: textoAzul, fontSize: "11px", fontWeight: 950, letterSpacing: "0.7px", textTransform: "uppercase" }}>
+                {t("Filtros maestros del mapa")}
+              </div>
+              <div style={{ marginTop: "4px", color: textoSuave, fontSize: "12px", fontWeight: 750 }}>
+                {t("Un unico conjunto controla el mapa, los contadores y la exportacion.")}
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: "9px", alignItems: "center", flexWrap: "wrap" }}>
+              <span style={{ borderRadius: "999px", padding: "8px 11px", background: fondoInterno, border: bordeInterno, color: textoAzul, fontSize: "12px", fontWeight: 950 }}>
+                {hallazgosFiltrados.length} {t("visibles de")} {hallazgos.length} · {resumenMapa.totalConGps} GPS
+              </span>
+              <span style={{ borderRadius: "999px", padding: "8px 11px", background: filtrosActivosLista.length ? "rgba(37,99,235,0.16)" : fondoInterno, border: filtrosActivosLista.length ? "1px solid rgba(96,165,250,0.42)" : bordeInterno, color: filtrosActivosLista.length ? textoAzul : textoSuave, fontSize: "12px", fontWeight: 900 }}>
+                {filtrosActivosLista.length} {t("filtros activos")}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setFiltros(filtrosIniciales);
+                  setModoMapa("puntos");
+                  setMensaje("Vista general del mapa restablecida.");
+                }}
+                disabled={filtrosActivosLista.length === 0}
+                style={{ ...botonStyle("limpiar-filtros"), minHeight: "38px", padding: "8px 12px", opacity: filtrosActivosLista.length === 0 ? 0.5 : 1, cursor: filtrosActivosLista.length === 0 ? "not-allowed" : "pointer" }}
+              >
+                {t("Limpiar filtros")}
+              </button>
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(145px, 1fr))", gap: "10px" }} className="ce-map-master-filters">
+            <label style={{ display: "grid", gap: "6px" }}>
+              <span style={{ color: textoSuave, fontSize: "10px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.5px" }}>{t("Empresa")}</span>
+              <select value={filtros.empresa} onChange={(event) => setFiltros((actual) => ({ ...actual, empresa: event.target.value, obra: "", area: "" }))} style={filtroControlStyle}>
+                <option value="">{t("Todas")}</option>
+                {opciones.empresas.map((empresa) => <option key={empresa} value={empresa}>{empresa}</option>)}
+              </select>
+            </label>
+            <label style={{ display: "grid", gap: "6px" }}>
+              <span style={{ color: textoSuave, fontSize: "10px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.5px" }}>{t("Obra / proyecto")}</span>
+              <select value={filtros.obra} onChange={(event) => setFiltros((actual) => ({ ...actual, obra: event.target.value }))} style={filtroControlStyle}>
+                <option value="">{t("Todas")}</option>
+                {opciones.obras.map((obra) => <option key={obra} value={obra}>{obra}</option>)}
+              </select>
+            </label>
+            <label style={{ display: "grid", gap: "6px" }}>
+              <span style={{ color: textoSuave, fontSize: "10px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.5px" }}>{t("Criticidad")}</span>
+              <select value={filtros.criticidad} onChange={(event) => setFiltros((actual) => ({ ...actual, criticidad: event.target.value as FiltrosVista["criticidad"] }))} style={filtroControlStyle}>
+                <option value="">{t("Todas")}</option>
+                {criticidades.map((criticidad) => <option key={criticidad} value={criticidad}>{traducirCriticidad(criticidad)}</option>)}
+              </select>
+            </label>
+            <label style={{ display: "grid", gap: "6px" }}>
+              <span style={{ color: textoSuave, fontSize: "10px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.5px" }}>{t("Estado")}</span>
+              <select value={filtros.estado} onChange={(event) => setFiltros((actual) => ({ ...actual, estado: event.target.value as FiltrosVista["estado"] }))} style={filtroControlStyle}>
+                <option value="">{t("Todos")}</option>
+                {(["ABIERTO", "REPORTADO", "EN_SEGUIMIENTO", "CERRADO", "ANULADO"] as EstadoHallazgoCentral[]).map((estado) => <option key={estado} value={estado}>{traducirEstado(estado)}</option>)}
+              </select>
+            </label>
+            <label style={{ display: "grid", gap: "6px" }}>
+              <span style={{ color: textoSuave, fontSize: "10px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.5px" }}>{t("Desde")}</span>
+              <input type="date" value={filtros.fechaDesde} onChange={(event) => setFiltros((actual) => ({ ...actual, fechaDesde: event.target.value }))} style={filtroControlStyle} />
+            </label>
+            <label style={{ display: "grid", gap: "6px" }}>
+              <span style={{ color: textoSuave, fontSize: "10px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.5px" }}>{t("Hasta")}</span>
+              <input type="date" value={filtros.fechaHasta} onChange={(event) => setFiltros((actual) => ({ ...actual, fechaHasta: event.target.value }))} style={filtroControlStyle} />
+            </label>
+          </div>
+
+          <details style={{ borderRadius: "15px", border: bordeInterno, background: fondoInterno, padding: "10px 12px" }}>
+            <summary style={{ cursor: "pointer", color: textoAzul, fontSize: "12px", fontWeight: 950 }}>
+              {t("Filtros adicionales")}: {t("Area")}, {t("Tipo de hallazgo")} y GPS
+            </summary>
+            <div style={{ marginTop: "12px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "10px" }} className="ce-map-secondary-filters">
+              <label style={{ display: "grid", gap: "6px" }}>
+                <span style={{ color: textoSuave, fontSize: "10px", fontWeight: 900, textTransform: "uppercase" }}>{t("Area")}</span>
+                <select value={filtros.area} onChange={(event) => setFiltros((actual) => ({ ...actual, area: event.target.value }))} style={filtroControlStyle}>
+                  <option value="">{t("Todas")}</option>
+                  {opciones.areas.map((area) => <option key={area} value={area}>{area}</option>)}
+                </select>
+              </label>
+              <label style={{ display: "grid", gap: "6px" }}>
+                <span style={{ color: textoSuave, fontSize: "10px", fontWeight: 900, textTransform: "uppercase" }}>{t("Tipo de hallazgo")}</span>
+                <select value={filtros.tipoHallazgo} onChange={(event) => setFiltros((actual) => ({ ...actual, tipoHallazgo: event.target.value }))} style={filtroControlStyle}>
+                  <option value="">{t("Todos")}</option>
+                  {opciones.tipos.map((tipo) => <option key={tipo} value={tipo}>{tipo}</option>)}
+                </select>
+              </label>
+              <label style={{ display: "grid", gap: "6px" }}>
+                <span style={{ color: textoSuave, fontSize: "10px", fontWeight: 900, textTransform: "uppercase" }}>{t("GPS")}</span>
+                <select value={filtros.gps} onChange={(event) => setFiltros((actual) => ({ ...actual, gps: event.target.value as FiltroGps }))} style={filtroControlStyle}>
+                  <option value="todos">{t("Con GPS y sin GPS")}</option>
+                  <option value="con-gps">{t("Solo con GPS")}</option>
+                  <option value="sin-gps">{t("Solo sin GPS")}</option>
+                </select>
+              </label>
+            </div>
+          </details>
+
+          {filtrosActivosLista.length > 0 && (
+            <div style={{ display: "flex", gap: "7px", flexWrap: "wrap" }}>
+              {filtrosActivosLista.map((filtro) => (
+                <span key={filtro} style={{ borderRadius: "999px", padding: "6px 9px", background: temaClaro ? "rgba(37,99,235,0.10)" : "rgba(56,189,248,0.10)", border: temaClaro ? "1px solid rgba(37,99,235,0.20)" : "1px solid rgba(125,211,252,0.22)", color: textoAzul, fontSize: "11px", fontWeight: 900 }}>
+                  {filtro}
+                </span>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section
           className="ce-panel-map-grid"
           ref={mapaOperativoRef}
           style={{
@@ -1546,13 +1605,9 @@ export default function MapaGpsHallazgosPage() {
                   (accion.id === "estandar" && tipoVistaMapa === "estandar") ||
                   (accion.id === "satelital" && tipoVistaMapa === "satelital") ||
                   (accion.id === "criticos" && filtros.criticidad === "CRITICO") ||
-                  (accion.id === "altos" && filtros.criticidad === "ALTO") ||
-                  (accion.id === "medios" && filtros.criticidad === "MEDIO") ||
-                  (accion.id === "bajos" && filtros.criticidad === "BAJO") ||
                   (accion.id === "abiertos" && filtros.estado === "ABIERTO") ||
                   (accion.id === "cerrados" && filtros.estado === "CERRADO") ||
-                  (accion.id === "empresas" && (selectorEmpresasAbierto || Boolean(filtros.empresa))) ||
-                  (accion.id === "obras" && Boolean(filtros.obra || filtros.area));
+                  (accion.id === "empresas" && (selectorEmpresasAbierto || Boolean(filtros.empresa)));
                 const contenido = (
                   <>
                     <span
@@ -1857,8 +1912,6 @@ export default function MapaGpsHallazgosPage() {
                         modoMapa === "puntos"
                       : (accion.id === "criticos" && filtros.criticidad === "CRITICO") ||
                         (accion.id === "abiertos" && filtros.estado === "ABIERTO") ||
-                        (accion.id === "empresas" && Boolean(filtros.empresa)) ||
-                        (accion.id === "obras" && Boolean(filtros.obra || filtros.area)) ||
                         accionActiva === accion.id;
 
                   return (
