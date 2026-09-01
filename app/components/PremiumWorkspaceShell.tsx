@@ -25,6 +25,9 @@ type EtapaPremium = {
   label: string;
   value: string | number;
   tone?: "blue" | "cyan" | "green" | "amber" | "red" | "violet";
+  active?: boolean;
+  actionLabel?: string;
+  onClick?: () => void;
 };
 
 type PremiumWorkspaceShellProps = {
@@ -400,12 +403,44 @@ export default function PremiumWorkspaceShell({
               {stages.map((stage, index) => {
                 const tone = TONOS[stage.tone || "blue"];
                 return (
-                  <div key={stage.label} style={{ position: "relative", padding: "10px 11px", borderRadius: 13, background: tone.soft, border: `1px solid ${tone.border}` }}>
+                  <div
+                    key={stage.label}
+                    role={stage.onClick ? "button" : undefined}
+                    tabIndex={stage.onClick ? 0 : undefined}
+                    aria-label={stage.actionLabel}
+                    aria-pressed={stage.onClick ? Boolean(stage.active) : undefined}
+                    onClick={stage.onClick}
+                    onKeyDown={(event) => {
+                      if (stage.onClick && (event.key === "Enter" || event.key === " ")) {
+                        event.preventDefault();
+                        stage.onClick();
+                      }
+                    }}
+                    style={{
+                      position: "relative",
+                      padding: "10px 11px",
+                      borderRadius: 13,
+                      background: stage.active
+                        ? `linear-gradient(135deg,${tone.soft},rgba(255,255,255,0.08))`
+                        : tone.soft,
+                      border: stage.active ? `2px solid ${tone.color}` : `1px solid ${tone.border}`,
+                      boxShadow: stage.active ? `0 0 0 3px ${tone.soft}, 0 12px 28px rgba(2,6,23,0.22)` : "none",
+                      cursor: stage.onClick ? "pointer" : "default",
+                      transform: stage.active ? "translateY(-1px)" : "none",
+                    }}
+                  >
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
                       <span style={{ width: 21, height: 21, borderRadius: 99, display: "grid", placeItems: "center", color: "#fff", background: tone.color, fontSize: 9.5, fontWeight: 950 }}>{index + 1}</span>
                       <strong style={{ color: tone.color, fontSize: 16 }}>{stage.value}</strong>
                     </div>
                     <div style={{ marginTop: 7, color: text, fontSize: 10.5, lineHeight: 1.25, fontWeight: 900 }}>{stage.label}</div>
+                    {stage.onClick ? (
+                      <div style={{ marginTop: 5, color: muted, fontSize: 9, fontWeight: 800 }}>
+                        {stage.active
+                          ? (language === "en" ? "Active filter · click to clear" : "Filtro activo · pincha para quitar")
+                          : (language === "en" ? "View findings" : "Ver hallazgos")}
+                      </div>
+                    ) : null}
                   </div>
                 );
               })}

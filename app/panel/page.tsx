@@ -1101,9 +1101,17 @@ const [menuExportacionMetaAbierto, setMenuExportacionMetaAbierto] = useState(fal
     "Responsable de cierre pendiente de definición": "Closure responsible pending definition",
     "Ver detalle": "View detail",
     "Ver hallazgo": "View finding",
+    "Asignar responsable": "Assign responsible person",
     "Revisar cierre": "Review closure",
     "Ver cierre": "View closure",
     "Ver rechazo": "View rejection",
+    "Ruta de cierre": "Closure route",
+    "Mostrar todos": "Show all",
+    "Ver hallazgos sin responsable asignado": "View findings without an assigned responsible person",
+    "Ver hallazgos en seguimiento": "View findings in progress",
+    "Ver hallazgos en revisión": "View findings under review",
+    "Ver hallazgos vencidos": "View overdue findings",
+    "Ver hallazgos cerrados con evidencia": "View findings closed with evidence",
     "Gestión de cierre": "Closure management",
     "Resumen del hallazgo": "Finding summary",
     "Actualizar seguimiento": "Update follow-up",
@@ -3738,6 +3746,9 @@ useEffect(() => {
 const [hallazgoActivo, setHallazgoActivo] = useState<HallazgoPanelExtendido>(hallazgosMock[0]);
 const [hallazgoSeleccionadoInformeId, setHallazgoSeleccionadoInformeId] = useState("");
 const [filtroRapido, setFiltroRapido] = useState<"HOY" | "SEMANA" | "MES" | "PERSONALIZADO">("HOY");
+const [filtroRutaCierreActivo, setFiltroRutaCierreActivo] = useState<
+  "TODOS" | "sin-responsable" | "en-seguimiento" | "en-revision" | "vencidos" | "cerrados-evidencia"
+>("TODOS");
 const [filtroEmpresa, setFiltroEmpresa] = useState("TODAS");
 const [filtroObra, setFiltroObra] = useState("TODAS");
 const [filtroEstado, setFiltroEstado] = useState("TODOS");
@@ -5099,6 +5110,27 @@ const accionPrincipalSeguimiento = (item: HallazgoSeguimiento) => {
   return { etiqueta: "Ver hallazgo", variante: "secondary" as const };
 };
 
+const accionOperacionCierre = (item: HallazgoSeguimiento) => {
+  if (hallazgoEnRevisionPc(item)) {
+    return { etiqueta: "Revisar cierre", variante: "primary" as const };
+  }
+  if (hallazgoCerradoSeguimiento(item)) {
+    return { etiqueta: "Ver cierre", variante: "secondary" as const };
+  }
+  if (hallazgoRequiereNuevaEvidenciaSeguimiento(item)) {
+    return { etiqueta: "Ver rechazo", variante: "secondary" as const };
+  }
+  if (puedeGestionarSeguimientoPc(item)) {
+    return {
+      etiqueta: estadoSeguimientoVisual(item) === "Sin asignar"
+        ? "Asignar responsable"
+        : "Gestionar cierre",
+      variante: "primary" as const,
+    };
+  }
+  return { etiqueta: "Ver hallazgo", variante: "secondary" as const };
+};
+
 const tituloCierreSeguimiento = (item: HallazgoSeguimiento) => {
   if (hallazgoEnRevisionPc(item)) return "Gestión de cierre";
   if (hallazgoCerradoSeguimiento(item)) return "Ver cierre";
@@ -5579,47 +5611,50 @@ const opcionesEvidenciaRequerida = [
   "Otra evidencia",
 ];
 
-const abrirGestionCierre = () => {
-  if (!hallazgoSeguimientoActivo) return;
+const abrirGestionCierre = (hallazgoObjetivo?: HallazgoSeguimiento) => {
+  const hallazgoGestionado = hallazgoObjetivo || hallazgoSeguimientoActivo;
+  if (!hallazgoGestionado) return;
+
+  setCodigoSeguimientoActivo(hallazgoGestionado.codigo);
 
   const fechaCompromisoExistente = normalizarFechaCompromiso(
-    hallazgoSeguimientoActivo.responsableCierreFechaCompromiso
+    hallazgoGestionado.responsableCierreFechaCompromiso
   );
   const fechaCompromisoSugerida = sugerirFechaCompromisoPorCriticidad(
-    hallazgoSeguimientoActivo.criticidad
+    hallazgoGestionado.criticidad
   );
 
   setGestionCierreDraft({
-    responsableCorreccionTipo: hallazgoSeguimientoActivo.responsableCorreccionTipo,
-    responsableCorreccionEmpresa: hallazgoSeguimientoActivo.responsableCorreccionEmpresa,
+    responsableCorreccionTipo: hallazgoGestionado.responsableCorreccionTipo,
+    responsableCorreccionEmpresa: hallazgoGestionado.responsableCorreccionEmpresa,
     responsableCorreccionNombre:
-      hallazgoSeguimientoActivo.responsableCorreccionNombre === "Sin asignar"
+      hallazgoGestionado.responsableCorreccionNombre === "Sin asignar"
         ? ""
-        : hallazgoSeguimientoActivo.responsableCorreccionNombre,
+        : hallazgoGestionado.responsableCorreccionNombre,
     responsableCorreccionCargo:
-      hallazgoSeguimientoActivo.responsableCorreccionCargo === "Pendiente"
+      hallazgoGestionado.responsableCorreccionCargo === "Pendiente"
         ? ""
-        : hallazgoSeguimientoActivo.responsableCorreccionCargo,
+        : hallazgoGestionado.responsableCorreccionCargo,
     responsableCorreccionTelefono:
-      hallazgoSeguimientoActivo.responsableCorreccionTelefono === "Sin contacto"
+      hallazgoGestionado.responsableCorreccionTelefono === "Sin contacto"
         ? ""
-        : hallazgoSeguimientoActivo.responsableCorreccionTelefono,
-    encargadoSeguimientoNombre: hallazgoSeguimientoActivo.encargadoSeguimientoNombre,
-    accionCorrectivaRequerida: hallazgoSeguimientoActivo.accionCorrectivaRequerida,
+        : hallazgoGestionado.responsableCorreccionTelefono,
+    encargadoSeguimientoNombre: hallazgoGestionado.encargadoSeguimientoNombre,
+    accionCorrectivaRequerida: hallazgoGestionado.accionCorrectivaRequerida,
     evidenciaRequerida:
-      hallazgoSeguimientoActivo.evidenciaRequerida === "Registro fotográfico y documentación de corrección"
+      hallazgoGestionado.evidenciaRequerida === "Registro fotográfico y documentación de corrección"
         ? []
-        : hallazgoSeguimientoActivo.evidenciaRequerida.split(", ").filter(Boolean),
+        : hallazgoGestionado.evidenciaRequerida.split(", ").filter(Boolean),
     responsableCierreFechaCompromiso: fechaCompromisoExistente || fechaCompromisoSugerida,
-    justificacionExtensionPlazo: hallazgoSeguimientoActivo.justificacionExtensionPlazo || "",
-    justificacionCierreSinEvidencia: hallazgoSeguimientoActivo.justificacionCierreSinEvidencia || "",
+    justificacionExtensionPlazo: hallazgoGestionado.justificacionExtensionPlazo || "",
+    justificacionCierreSinEvidencia: hallazgoGestionado.justificacionCierreSinEvidencia || "",
     validadorCierreNombre:
-      hallazgoSeguimientoActivo.validadorCierreNombre === "Pendiente de validador"
+      hallazgoGestionado.validadorCierreNombre === "Pendiente de validador"
         ? ""
-        : hallazgoSeguimientoActivo.validadorCierreNombre,
-    estadoSeguimiento: estadoSeguimientoVisual(hallazgoSeguimientoActivo),
-    validadorCierreEstado: hallazgoSeguimientoActivo.validadorCierreEstado,
-    validadorCierreObservacion: hallazgoSeguimientoActivo.validadorCierreObservacion,
+        : hallazgoGestionado.validadorCierreNombre,
+    estadoSeguimiento: estadoSeguimientoVisual(hallazgoGestionado),
+    validadorCierreEstado: hallazgoGestionado.validadorCierreEstado,
+    validadorCierreObservacion: hallazgoGestionado.validadorCierreObservacion,
   });
   setErrorGestionCierre("");
   setMostrarGestionCierre(true);
@@ -5828,6 +5863,38 @@ const abrirInformeHallazgoPanel = (
   if (vistaBorradosActiva) {
     setHallazgoAuditoriaActivo(hallazgoSeleccionado);
   }
+};
+
+const abrirAccionCierreDesdeOperacion = (hallazgo: HallazgoPanelExtendido) => {
+  const seguimiento = hallazgosSeguimiento.find((item) => item.codigo === hallazgo.codigo);
+
+  if (!seguimiento) {
+    abrirInformeHallazgoPanel(hallazgo, { seleccionarParaInforme: true });
+    return;
+  }
+
+  setHallazgoActivo({ ...hallazgo });
+  setHallazgoSeleccionadoInformeId(identidadHallazgoPanel(hallazgo));
+  setCodigoSeguimientoActivo(seguimiento.codigo);
+
+  if (puedeGestionarSeguimientoPc(seguimiento)) {
+    abrirGestionCierre(seguimiento);
+    return;
+  }
+
+  if (filtroRapido === "HOY") setModoFechaSeguimiento("hoy");
+  if (filtroRapido === "SEMANA") setModoFechaSeguimiento("semana");
+  if (filtroRapido === "MES") setModoFechaSeguimiento("mes");
+  if (filtroRapido === "PERSONALIZADO") {
+    setModoFechaSeguimiento("rango");
+    setFiltroSeguimientoFechaDesde(filtroFechaDesde);
+    setFiltroSeguimientoFechaHasta(filtroFechaHasta);
+  }
+
+  setFiltroSeguimientoEstado("TODOS");
+  setModuloWorkspaceActivo("cierres");
+  setVistaPrincipal("seguimiento");
+  setVistaDerecha("seguimiento");
 };
 
 const abrirBorradoHallazgo = (hallazgo: HallazgoPanelExtendido) => {
@@ -6507,36 +6574,63 @@ const confirmarRevisionCierrePc = async () => {
   setGuardandoRevisionCierrePc(false);
 };
 
+const codigosHallazgosVisibles = new Set(filasFiltradas.map((item) => item.codigo));
+const hallazgosSeguimientoVisibles = hallazgosSeguimiento.filter((item) =>
+  codigosHallazgosVisibles.has(item.codigo)
+);
+
+const coincideRutaCierre = (
+  item: HallazgoSeguimiento,
+  filtro: typeof filtroRutaCierreActivo
+) => {
+  if (filtro === "TODOS") return true;
+  if (filtro === "sin-responsable") return estadoSeguimientoVisual(item) === "Sin asignar";
+  if (filtro === "en-seguimiento") return estadoSeguimientoVisual(item) === "En seguimiento";
+  if (filtro === "en-revision") return hallazgoEnRevisionPc(item);
+  if (filtro === "vencidos") return estadoSeguimientoVisual(item) === "Vencido";
+  return estadoSeguimientoVisual(item) === "Cerrado con evidencia" && tieneEvidenciaCierre(item);
+};
+
+const codigosRutaCierreActiva = new Set(
+  hallazgosSeguimientoVisibles
+    .filter((item) => coincideRutaCierre(item, filtroRutaCierreActivo))
+    .map((item) => item.codigo)
+);
+
+const filasOperacionVisibles = filtroRutaCierreActivo === "TODOS"
+  ? filasFiltradas
+  : filasFiltradas.filter((item) => codigosRutaCierreActiva.has(item.codigo));
+
 const kpisSeguimiento = [
   {
     id: "sin-responsable",
     titulo: t("Sin responsable asignado"),
-    valor: String(hallazgosSeguimiento.filter((item) => estadoSeguimientoVisual(item) === "Sin asignar").length),
+    valor: String(hallazgosSeguimientoVisibles.filter((item) => estadoSeguimientoVisual(item) === "Sin asignar").length),
     color: "#f59e0b",
   },
   {
     id: "en-seguimiento",
     titulo: t("En seguimiento"),
-    valor: String(hallazgosSeguimiento.filter((item) => estadoSeguimientoVisual(item) === "En seguimiento").length),
+    valor: String(hallazgosSeguimientoVisibles.filter((item) => estadoSeguimientoVisual(item) === "En seguimiento").length),
     color: "#3b82f6",
   },
   {
     id: "en-revision",
     titulo: t("En revisión"),
-    valor: String(hallazgosSeguimiento.filter(hallazgoEnRevisionPc).length),
+    valor: String(hallazgosSeguimientoVisibles.filter(hallazgoEnRevisionPc).length),
     color: "#8b5cf6",
   },
   {
     id: "vencidos",
     titulo: t("Vencidos"),
-    valor: String(hallazgosSeguimiento.filter((item) => estadoSeguimientoVisual(item) === "Vencido").length),
+    valor: String(hallazgosSeguimientoVisibles.filter((item) => estadoSeguimientoVisual(item) === "Vencido").length),
     color: "#ef4444",
   },
   {
     id: "cerrados-evidencia",
     titulo: t("Cerrados con evidencia"),
     valor: String(
-      hallazgosSeguimiento.filter(
+      hallazgosSeguimientoVisibles.filter(
         (item) =>
           estadoSeguimientoVisual(item) === "Cerrado con evidencia" &&
           tieneEvidenciaCierre(item)
@@ -6545,6 +6639,19 @@ const kpisSeguimiento = [
     color: "#22c55e",
   },
 ];
+
+const alternarFiltroRutaCierre = (filtro: Exclude<typeof filtroRutaCierreActivo, "TODOS">) => {
+  setFiltroRutaCierreActivo((actual) => actual === filtro ? "TODOS" : filtro);
+  window.setTimeout(() => {
+    document.getElementById("tabla-operacion-hallazgos")?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }, 60);
+};
+
+const etiquetaFiltroRutaCierre =
+  kpisSeguimiento.find((item) => item.id === filtroRutaCierreActivo)?.titulo || "";
 const ultimaActualizacion = formatearUltimaActualizacion(fechaActualizacion);
     const filtrosActivos = [
   filtroEmpresa !== "TODAS" ? `Empresa reportante: ${filtroEmpresa}` : null,
@@ -7750,7 +7857,7 @@ const riesgoOperativoPrincipal =
         onProfileClick={abrirEditorPerfil}
         lastUpdate={ultimaActualizacion ? `${t("Última actualización:")} ${ultimaActualizacion}` : undefined}
         metrics={[
-          { label: t("Hallazgos visibles"), value: filasFiltradas.length, tone: "blue" },
+          { label: t("Hallazgos visibles"), value: filasOperacionVisibles.length, tone: "blue" },
           { label: t("Críticos abiertos"), value: criticidadResumen[0]?.total || 0, tone: "red" },
           { label: t("Vencidos"), value: totalVencidos, tone: "amber" },
           { label: t("Cerrados"), value: estadoReportesResumen.find((item) => item.label === t("Cerrados"))?.total || 0, tone: "green" },
@@ -7764,11 +7871,11 @@ const riesgoOperativoPrincipal =
           },
         ]}
         stages={[
-          { label: t("Sin responsable asignado"), value: kpisSeguimiento.find((item) => item.id === "sin-responsable")?.valor || 0, tone: "amber" },
-          { label: t("En seguimiento"), value: kpisSeguimiento.find((item) => item.id === "en-seguimiento")?.valor || 0, tone: "blue" },
-          { label: t("En revisión"), value: kpisSeguimiento.find((item) => item.id === "en-revision")?.valor || 0, tone: "violet" },
-          { label: t("Vencidos"), value: kpisSeguimiento.find((item) => item.id === "vencidos")?.valor || 0, tone: "red" },
-          { label: t("Cerrados con evidencia"), value: kpisSeguimiento.find((item) => item.id === "cerrados-evidencia")?.valor || 0, tone: "green" },
+          { label: t("Sin responsable asignado"), value: kpisSeguimiento.find((item) => item.id === "sin-responsable")?.valor || 0, tone: "amber", active: filtroRutaCierreActivo === "sin-responsable", actionLabel: t("Ver hallazgos sin responsable asignado"), onClick: () => alternarFiltroRutaCierre("sin-responsable") },
+          { label: t("En seguimiento"), value: kpisSeguimiento.find((item) => item.id === "en-seguimiento")?.valor || 0, tone: "blue", active: filtroRutaCierreActivo === "en-seguimiento", actionLabel: t("Ver hallazgos en seguimiento"), onClick: () => alternarFiltroRutaCierre("en-seguimiento") },
+          { label: t("En revisión"), value: kpisSeguimiento.find((item) => item.id === "en-revision")?.valor || 0, tone: "violet", active: filtroRutaCierreActivo === "en-revision", actionLabel: t("Ver hallazgos en revisión"), onClick: () => alternarFiltroRutaCierre("en-revision") },
+          { label: t("Vencidos"), value: kpisSeguimiento.find((item) => item.id === "vencidos")?.valor || 0, tone: "red", active: filtroRutaCierreActivo === "vencidos", actionLabel: t("Ver hallazgos vencidos"), onClick: () => alternarFiltroRutaCierre("vencidos") },
+          { label: t("Cerrados con evidencia"), value: kpisSeguimiento.find((item) => item.id === "cerrados-evidencia")?.valor || 0, tone: "green", active: filtroRutaCierreActivo === "cerrados-evidencia", actionLabel: t("Ver hallazgos cerrados con evidencia"), onClick: () => alternarFiltroRutaCierre("cerrados-evidencia") },
         ]}
         onModuleSelect={(module) => {
           if (module === "configuracion") {
@@ -11460,7 +11567,48 @@ style={{
               </div>
             ) : null}
 
+            {filtroRutaCierreActivo !== "TODOS" ? (
+              <div
+                style={{
+                  padding: "10px 12px",
+                  borderRadius: "14px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: "10px",
+                  flexWrap: "wrap",
+                  border: temaClaro
+                    ? "1px solid rgba(37,99,235,0.24)"
+                    : "1px solid rgba(96,165,250,0.28)",
+                  background: temaClaro
+                    ? "rgba(219,234,254,0.72)"
+                    : "rgba(30,64,175,0.20)",
+                  color: temaClaro ? "#1e3a8a" : "#dbeafe",
+                  fontSize: "12px",
+                  fontWeight: 900,
+                }}
+              >
+                <span>
+                  {t("Ruta de cierre")}: {etiquetaFiltroRutaCierre} · {filasOperacionVisibles.length} {t("hallazgos")}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setFiltroRutaCierreActivo("TODOS")}
+                  style={{
+                    padding: "7px 10px",
+                    borderRadius: "10px",
+                    ...premiumSecondaryButtonStyle,
+                    minHeight: "30px",
+                    fontSize: "10.5px",
+                  }}
+                >
+                  {t("Mostrar todos")}
+                </button>
+              </div>
+            ) : null}
+
             <div
+              id="tabla-operacion-hallazgos"
               ref={listadoReportesRef}
               className="ce-panel-table"
               style={{
@@ -11476,7 +11624,7 @@ style={{
                 style={{
                   display: "grid",
                   gridTemplateColumns:
-                    "minmax(108px, 1.35fr) minmax(92px, 1fr) minmax(118px, 1.22fr) minmax(76px, 0.74fr) minmax(86px, 0.88fr) minmax(112px, 1.05fr) minmax(92px, 0.78fr)",
+                    "minmax(108px, 1.3fr) minmax(92px, 1fr) minmax(118px, 1.18fr) minmax(76px, 0.72fr) minmax(86px, 0.84fr) minmax(112px, 1fr) minmax(122px, 0.96fr)",
                   gap: "10px",
                   padding: "14px 16px",
 	                  background: tema.tarjetaSuave,
@@ -11508,7 +11656,7 @@ style={{
                   flex: "1 1 auto",
                 }}
               >
-             {filasFiltradas.length === 0 ? (
+             {filasOperacionVisibles.length === 0 ? (
   <div
     style={{
       padding: "28px 16px",
@@ -11525,10 +11673,14 @@ style={{
       )}
   </div>
 ) : (
-  filasFiltradas.map((fila, index) => {
+  filasOperacionVisibles.map((fila, index) => {
     const chip = chipColor(fila.criticidad);
     const fechaCompromiso = (fila as typeof fila & { fechaCompromiso?: string }).fechaCompromiso || "";
     const semaforoFila = semaforoVencimiento(fechaCompromiso, fila.estado);
+    const seguimientoFila = hallazgosSeguimiento.find((item) => item.codigo === fila.codigo);
+    const accionCierreFila = seguimientoFila
+      ? accionOperacionCierre(seguimientoFila)
+      : { etiqueta: "Ver hallazgo", variante: "secondary" as const };
     const identidadFila = identidadHallazgoPanel(fila);
     const filaActiva = esMismoHallazgoPanel(fila, hallazgoActivo);
     const filaSeleccionadaInforme = Boolean(
@@ -11541,7 +11693,7 @@ style={{
         style={{
           display: "grid",
           gridTemplateColumns:
-            "minmax(108px, 1.35fr) minmax(92px, 1fr) minmax(118px, 1.22fr) minmax(76px, 0.74fr) minmax(86px, 0.88fr) minmax(112px, 1.05fr) minmax(92px, 0.78fr)",
+            "minmax(108px, 1.3fr) minmax(92px, 1fr) minmax(118px, 1.18fr) minmax(76px, 0.72fr) minmax(86px, 0.84fr) minmax(112px, 1fr) minmax(122px, 0.96fr)",
           gap: "10px",
           padding: "16px",
           borderTop: tema.bordeSutil,
@@ -11634,23 +11786,27 @@ style={{
             type="button"
             onClick={(event) => {
               event.stopPropagation();
-              abrirInformeHallazgoPanel(fila, {
-                seleccionarParaInforme: !vistaBorradosActiva,
-              });
+              abrirAccionCierreDesdeOperacion(fila);
             }}
             style={{
               width: "100%",
               padding: "10px 10px",
               borderRadius: "12px",
-              border: "none",
+              border: accionCierreFila.variante === "primary"
+                ? "1px solid rgba(96,165,250,0.36)"
+                : tema.bordeSutil,
               cursor: "pointer",
               fontWeight: 800,
               fontSize: "12px",
-              background: "rgba(59,130,246,0.18)",
-              color: "#bfdbfe",
+              background: accionCierreFila.variante === "primary"
+                ? "linear-gradient(135deg,#2563eb,#0891b2)"
+                : tema.tarjetaSuave,
+              color: accionCierreFila.variante === "primary"
+                ? "#ffffff"
+                : tema.texto,
             }}
           >
-	            {t("Ver informe")}
+	            {t(accionCierreFila.etiqueta)}
           </button>
           {puedeBorrarHallazgos && !vistaBorradosActiva ? (
             <>
@@ -12827,7 +12983,7 @@ style={{
           {mostrarGestionSeguimientoActivo && (
             <button
               type="button"
-              onClick={abrirGestionCierre}
+              onClick={() => abrirGestionCierre()}
               style={{
                 width: "100%",
                 padding: "13px 14px",
