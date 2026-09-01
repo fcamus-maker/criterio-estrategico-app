@@ -48,6 +48,7 @@ import {
   subirFotoPerfilUsuarioActual,
 } from "../services/profilePhotoService";
 import PreventiveLegalRibbon from "../components/PreventiveLegalRibbon";
+import PremiumWorkspaceShell from "../components/PremiumWorkspaceShell";
 import { resolveClientBranding } from "../services/clientBranding";
 import {
   construirEstadoAsignacion,
@@ -763,6 +764,9 @@ export default function PanelEjecutivoPage() {
   const router = useRouter();
   const [vistaDerecha, setVistaDerecha] = useState<"informe" | "configuracion" | "seguimiento">("informe");
   const [vistaPrincipal, setVistaPrincipal] = useState<"panel" | "configuracion" | "seguimiento">("panel");
+  const [moduloWorkspaceActivo, setModuloWorkspaceActivo] = useState<
+    "inicio" | "hallazgos" | "cierres" | "planificacion"
+  >("inicio");
   const [modoSistema, setModoSistema] = useState<"claro" | "oscuro" | "automatico">(
     () => readPlatformPreferences().theme
   );
@@ -7523,7 +7527,7 @@ const riesgoOperativoPrincipal =
 
 	  return (
     <main
-      className="ce-panel-page"
+      className="ce-panel-page ce-premium-shell-host"
       data-panel-theme={temaClaro ? "light" : "dark"}
       style={{
         minHeight: "100vh",
@@ -7713,6 +7717,65 @@ const riesgoOperativoPrincipal =
           }
         }
       `}</style>
+      <PremiumWorkspaceShell
+        active={moduloWorkspaceActivo}
+        eyebrow={t("Centro de control preventivo")}
+        title={t("Operación ejecutiva")}
+        subtitle={t("Una sola navegación para reportes, responsables, plazos, evidencias, cierre y análisis gerencial.")}
+        theme={temaClaro ? "light" : "dark"}
+        language={idiomaActivo}
+        profileName={usuario.nombre || nombrePerfil || "Usuario autorizado"}
+        profileRole={usuario.cargo || cargoPerfil || authPerfilPanel.rol || "Gestión preventiva"}
+        lastUpdate={ultimaActualizacion ? `${t("Última actualización:")} ${ultimaActualizacion}` : undefined}
+        metrics={[
+          { label: t("Hallazgos visibles"), value: filasFiltradas.length, tone: "blue" },
+          { label: t("Críticos abiertos"), value: criticidadResumen[0]?.total || 0, tone: "red" },
+          { label: t("Vencidos"), value: totalVencidos, tone: "amber" },
+          { label: t("Cerrados"), value: estadoReportesResumen.find((item) => item.label === t("Cerrados"))?.total || 0, tone: "green" },
+          { label: t("Meta diaria"), value: `${reportesHoy}/${metaDiariaSegura}`, tone: "cyan", helper: `${porcentajeMetaRedondeado}%` },
+        ]}
+        stages={[
+          { label: t("Sin responsable asignado"), value: kpisSeguimiento.find((item) => item.id === "sin-responsable")?.valor || 0, tone: "amber" },
+          { label: t("En seguimiento"), value: kpisSeguimiento.find((item) => item.id === "en-seguimiento")?.valor || 0, tone: "blue" },
+          { label: t("En revisión"), value: kpisSeguimiento.find((item) => item.id === "en-revision")?.valor || 0, tone: "violet" },
+          { label: t("Vencidos"), value: kpisSeguimiento.find((item) => item.id === "vencidos")?.valor || 0, tone: "red" },
+          { label: t("Cerrados con evidencia"), value: kpisSeguimiento.find((item) => item.id === "cerrados-evidencia")?.valor || 0, tone: "green" },
+        ]}
+        onModuleSelect={(module) => {
+          if (module === "cierres") {
+            setModuloWorkspaceActivo("cierres");
+            setVistaPrincipal("seguimiento");
+            setVistaDerecha("seguimiento");
+            return;
+          }
+
+          setVistaPrincipal("panel");
+          setVistaDerecha("informe");
+          setModuloWorkspaceActivo(
+            module === "planificacion"
+              ? "planificacion"
+              : module === "hallazgos"
+                ? "hallazgos"
+                : "inicio"
+          );
+
+          window.setTimeout(() => {
+            const id = module === "planificacion" ? "planificacion-preventiva" : "hallazgos-operativos";
+            document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+          }, 60);
+        }}
+        actions={(
+          <>
+            <Link href="/panel/kpi-gerencial" prefetch style={{ padding: "9px 11px", borderRadius: "12px", color: "#fff", background: "linear-gradient(135deg,#7c3aed,#2563eb)", textDecoration: "none", fontSize: "11px", fontWeight: 950 }}>
+              {t("KPI")}
+            </Link>
+            <Link href="/panel/mapa-gps" prefetch style={{ padding: "9px 11px", borderRadius: "12px", color: "#fff", background: "linear-gradient(135deg,#0891b2,#2563eb)", textDecoration: "none", fontSize: "11px", fontWeight: 950 }}>
+              {t("Mapa GPS")}
+            </Link>
+          </>
+        )}
+      />
+      <div id="hallazgos-operativos" />
       <div
         className="ce-panel-shell"
         style={{
@@ -10035,6 +10098,7 @@ style={{
       <button
         type="button"
         onClick={() => {
+          setModuloWorkspaceActivo("cierres");
           setVistaPrincipal("seguimiento");
           setVistaDerecha("seguimiento");
         }}
@@ -14832,6 +14896,7 @@ style={{
     ) : null}
 
 	    <div
+	      id="planificacion-preventiva"
 	      style={{
 	        padding: "14px",
 	        borderRadius: "20px",

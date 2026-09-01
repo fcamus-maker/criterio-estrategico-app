@@ -27,6 +27,7 @@ import {
   filtrosHallazgosDesdeAlcanceCE,
 } from "../../services/visibleScope";
 import PreventiveLegalRibbon from "../../components/PreventiveLegalRibbon";
+import PremiumWorkspaceShell from "../../components/PremiumWorkspaceShell";
 import MapaGpsGoogle from "./MapaGpsGoogle";
 
 type HallazgoPanelExtendido = HallazgoPanel & {
@@ -1182,7 +1183,63 @@ export default function MapaGpsHallazgosPage() {
   }
 
   return (
-    <main className="ce-panel-page ce-panel-map-page" style={pageThemeStyle}>
+    <main className="ce-panel-page ce-panel-map-page ce-premium-shell-host" style={pageThemeStyle}>
+      <PremiumWorkspaceShell
+        active="mapa"
+        eyebrow={t("Inteligencia territorial")}
+        title={t("Mapa preventivo")}
+        subtitle={t("Ubicación, concentración y prioridad territorial controladas por un solo conjunto de filtros.")}
+        theme={temaClaro ? "light" : "dark"}
+        language={idiomaActivo}
+        profileName="Control territorial"
+        profileRole="GPS · ITO · Prevención"
+        metrics={[
+          { label: t("Puntos visibles"), value: hallazgosFiltrados.length, tone: "blue", helper: `${hallazgos.length} ${t("total")}` },
+          { label: t("GPS reales"), value: resumenMapa.totalConGps, tone: "cyan" },
+          { label: t("Críticos"), value: hallazgosFiltrados.filter((item) => item.criticidad === "CRITICO").length, tone: "red" },
+          { label: t("Abiertos"), value: hallazgosFiltrados.filter((item) => ["ABIERTO", "REPORTADO", "EN_SEGUIMIENTO"].includes(item.estado)).length, tone: "amber" },
+          { label: t("Zonas críticas"), value: zonasCriticas.length, tone: "violet" },
+        ]}
+        actions={(
+          <>
+            <button type="button" onClick={cargarDatos} style={{ padding: "9px 11px", borderRadius: "12px", border: "1px solid rgba(34,211,238,0.30)", color: "#fff", background: "linear-gradient(135deg,#0891b2,#2563eb)", cursor: "pointer", fontSize: "11px", fontWeight: 950 }}>
+              {t("Actualizar vista")}
+            </button>
+            <button type="button" onClick={() => void abrirPantallaCompleta()} style={{ padding: "9px 11px", borderRadius: "12px", border: "1px solid rgba(167,139,250,0.30)", color: "#fff", background: "linear-gradient(135deg,#7c3aed,#2563eb)", cursor: "pointer", fontSize: "11px", fontWeight: 950 }}>
+              {t("Pantalla completa")}
+            </button>
+          </>
+        )}
+        toolbar={(
+          <div style={{ display: "grid", gap: "12px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+              <div>
+                <div style={{ color: textoAzul, fontSize: "10px", fontWeight: 950, letterSpacing: "0.7px", textTransform: "uppercase" }}>{t("Filtros maestros del mapa")}</div>
+                <div style={{ marginTop: "3px", color: textoSuave, fontSize: "10.5px", fontWeight: 750 }}>{t("Un unico conjunto controla el mapa, los contadores y la exportacion.")}</div>
+              </div>
+              <button type="button" onClick={() => setFiltros(filtrosIniciales)} disabled={filtrosActivosLista.length === 0} style={{ padding: "8px 10px", borderRadius: "11px", border: bordeInterno, color: textoPrincipal, background: fondoInterno, opacity: filtrosActivosLista.length === 0 ? 0.5 : 1, cursor: filtrosActivosLista.length === 0 ? "not-allowed" : "pointer", fontSize: "10.5px", fontWeight: 900 }}>
+                {t("Limpiar filtros")}
+              </button>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(132px,1fr))", gap: "9px" }}>
+              <label style={{ display: "grid", gap: "5px" }}><span style={{ color: textoSuave, fontSize: "9px", fontWeight: 950, textTransform: "uppercase" }}>{t("Empresa")}</span><select value={filtros.empresa} onChange={(event) => setFiltros((actual) => ({ ...actual, empresa: event.target.value, obra: "", area: "" }))} style={filtroControlStyle}><option value="">{t("Todas")}</option>{opciones.empresas.map((empresa) => <option key={empresa} value={empresa}>{empresa}</option>)}</select></label>
+              <label style={{ display: "grid", gap: "5px" }}><span style={{ color: textoSuave, fontSize: "9px", fontWeight: 950, textTransform: "uppercase" }}>{t("Obra / proyecto")}</span><select value={filtros.obra} onChange={(event) => setFiltros((actual) => ({ ...actual, obra: event.target.value }))} style={filtroControlStyle}><option value="">{t("Todas")}</option>{opciones.obras.map((obra) => <option key={obra} value={obra}>{obra}</option>)}</select></label>
+              <label style={{ display: "grid", gap: "5px" }}><span style={{ color: textoSuave, fontSize: "9px", fontWeight: 950, textTransform: "uppercase" }}>{t("Criticidad")}</span><select value={filtros.criticidad} onChange={(event) => setFiltros((actual) => ({ ...actual, criticidad: event.target.value as FiltrosVista["criticidad"] }))} style={filtroControlStyle}><option value="">{t("Todas")}</option>{criticidades.map((criticidad) => <option key={criticidad} value={criticidad}>{traducirCriticidad(criticidad)}</option>)}</select></label>
+              <label style={{ display: "grid", gap: "5px" }}><span style={{ color: textoSuave, fontSize: "9px", fontWeight: 950, textTransform: "uppercase" }}>{t("Estado")}</span><select value={filtros.estado} onChange={(event) => setFiltros((actual) => ({ ...actual, estado: event.target.value as FiltrosVista["estado"] }))} style={filtroControlStyle}><option value="">{t("Todos")}</option>{(["ABIERTO", "REPORTADO", "EN_SEGUIMIENTO", "CERRADO", "ANULADO"] as EstadoHallazgoCentral[]).map((estado) => <option key={estado} value={estado}>{traducirEstado(estado)}</option>)}</select></label>
+              <label style={{ display: "grid", gap: "5px" }}><span style={{ color: textoSuave, fontSize: "9px", fontWeight: 950, textTransform: "uppercase" }}>{t("Desde")}</span><input type="date" value={filtros.fechaDesde} onChange={(event) => setFiltros((actual) => ({ ...actual, fechaDesde: event.target.value }))} style={filtroControlStyle} /></label>
+              <label style={{ display: "grid", gap: "5px" }}><span style={{ color: textoSuave, fontSize: "9px", fontWeight: 950, textTransform: "uppercase" }}>{t("Hasta")}</span><input type="date" value={filtros.fechaHasta} onChange={(event) => setFiltros((actual) => ({ ...actual, fechaHasta: event.target.value }))} style={filtroControlStyle} /></label>
+            </div>
+            <details style={{ borderRadius: "12px", border: bordeInterno, background: fondoInterno, padding: "9px 10px" }}>
+              <summary style={{ cursor: "pointer", color: textoAzul, fontSize: "10.5px", fontWeight: 950 }}>{t("Filtros adicionales")}: {t("Area")}, {t("Tipo de hallazgo")} y GPS</summary>
+              <div style={{ marginTop: "10px", display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: "9px" }}>
+                <label style={{ display: "grid", gap: "5px" }}><span style={{ color: textoSuave, fontSize: "9px", fontWeight: 950 }}>{t("Area")}</span><select value={filtros.area} onChange={(event) => setFiltros((actual) => ({ ...actual, area: event.target.value }))} style={filtroControlStyle}><option value="">{t("Todas")}</option>{opciones.areas.map((area) => <option key={area} value={area}>{area}</option>)}</select></label>
+                <label style={{ display: "grid", gap: "5px" }}><span style={{ color: textoSuave, fontSize: "9px", fontWeight: 950 }}>{t("Tipo de hallazgo")}</span><select value={filtros.tipoHallazgo} onChange={(event) => setFiltros((actual) => ({ ...actual, tipoHallazgo: event.target.value }))} style={filtroControlStyle}><option value="">{t("Todos")}</option>{opciones.tipos.map((tipo) => <option key={tipo} value={tipo}>{tipo}</option>)}</select></label>
+                <label style={{ display: "grid", gap: "5px" }}><span style={{ color: textoSuave, fontSize: "9px", fontWeight: 950 }}>GPS</span><select value={filtros.gps} onChange={(event) => setFiltros((actual) => ({ ...actual, gps: event.target.value as FiltroGps }))} style={filtroControlStyle}><option value="todos">{t("Con GPS y sin GPS")}</option><option value="con-gps">{t("Solo con GPS")}</option><option value="sin-gps">{t("Solo sin GPS")}</option></select></label>
+              </div>
+            </details>
+          </div>
+        )}
+      />
       <div className="ce-panel-shell ce-panel-map-shell" style={shellStyle}>
         <header
           className="ce-panel-header"
@@ -1379,6 +1436,7 @@ export default function MapaGpsHallazgosPage() {
         </section>
 
         <section
+          className="ce-map-legacy-master-filters"
           style={{
             ...themedSurfaceStyle,
             padding: "16px",

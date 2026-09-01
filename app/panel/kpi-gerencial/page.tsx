@@ -25,6 +25,7 @@ import {
   filtrosHallazgosDesdeAlcanceCE,
 } from "../../services/visibleScope";
 import PreventiveLegalRibbon from "../../components/PreventiveLegalRibbon";
+import PremiumWorkspaceShell from "../../components/PremiumWorkspaceShell";
 import { readClientBrandingFromPanelConfig } from "../../services/clientBranding";
 
 type HallazgoPanelGerencial = HallazgoPanel & {
@@ -3890,7 +3891,34 @@ export default function KpiGerencialAvanzadoPage() {
   }
 
   return (
-    <main className="ce-panel-page ce-panel-kpi-page" style={pageThemeStyle}>
+    <main className="ce-panel-page ce-panel-kpi-page ce-premium-shell-host" style={pageThemeStyle}>
+      <PremiumWorkspaceShell
+        active="kpi"
+        eyebrow={t("Inteligencia preventiva")}
+        title={t("KPI gerencial")}
+        subtitle={t("Lectura ejecutiva simple: riesgo, cumplimiento, responsables y tendencia en una sola vista.")}
+        theme={temaClaro ? "light" : "dark"}
+        language={idiomaActivo}
+        profileName={usuarioGeneradorInforme.nombre || "Usuario autorizado"}
+        profileRole={usuarioGeneradorInforme.cargo || "Gerencia preventiva"}
+        metrics={[
+          { label: t("Total reportado"), value: analisis.total, tone: "blue" },
+          { label: t("Críticos abiertos"), value: metricasGerenciales.criticosAbiertos, tone: "red" },
+          { label: t("Vencidos abiertos"), value: metricasGerenciales.vencidosAbiertos, tone: "amber" },
+          { label: t("Tasa cierre"), value: `${analisis.tasaCierre}%`, tone: "green" },
+          { label: t("Sin fecha compromiso"), value: metricasGerenciales.sinFechaCompromiso, tone: "violet" },
+        ]}
+        actions={(
+          <>
+            <button type="button" onClick={cargarDatos} style={{ padding: "9px 11px", borderRadius: "12px", border: "1px solid rgba(96,165,250,0.30)", color: "#fff", background: "linear-gradient(135deg,#2563eb,#06b6d4)", cursor: "pointer", fontSize: "11px", fontWeight: 950 }}>
+              {t("Actualizar analisis")}
+            </button>
+            <Link href="/panel" prefetch style={{ padding: "9px 11px", borderRadius: "12px", color: textoPrincipal, background: fondoInterno, border: bordeInterno, textDecoration: "none", fontSize: "11px", fontWeight: 950 }}>
+              {t("Volver al panel")}
+            </Link>
+          </>
+        )}
+      />
       <div className="ce-panel-shell ce-panel-kpi-shell" style={shellStyle}>
         <header
           className="ce-panel-header"
