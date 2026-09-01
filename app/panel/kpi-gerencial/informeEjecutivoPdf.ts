@@ -201,21 +201,13 @@ export async function generarInformeEjecutivoPdf(input: InformeEjecutivoPdfInput
   const setColorRelleno = (color: Rgb) => pdf.setFillColor(...color);
   const setColorBorde = (color: Rgb) => pdf.setDrawColor(...color);
 
-  const agregarEncabezadoInterior = () => {
-    setColorTexto(COLORES.textoMedio);
-    pdf.setFont(familiaFuente, "bold");
-    pdf.setFontSize(7.5);
-    pdf.text(input.marca.nombre, margenX, 9);
-    pdf.setFont(familiaFuente, "normal");
-    pdf.text(input.periodo, anchoPagina - margenX, 9, { align: "right" });
-    setColorBorde(COLORES.borde);
-    pdf.line(margenX, 11, anchoPagina - margenX, 11);
+  const prepararPaginaInterior = () => {
     y = 17;
   };
 
   const nuevaPagina = () => {
     pdf.addPage();
-    agregarEncabezadoInterior();
+    prepararPaginaInterior();
   };
 
   const asegurarEspacio = (altoNecesario: number) => {
@@ -341,9 +333,9 @@ export async function generarInformeEjecutivoPdf(input: InformeEjecutivoPdfInput
     const dibujarEncabezado = () => {
       asegurarEspacio(altoEncabezado + 5);
       let x = margenX;
-      setColorRelleno([239, 246, 255]);
       setColorBorde([191, 219, 254]);
       encabezados.forEach((encabezado, indice) => {
+        setColorRelleno([239, 246, 255]);
         pdf.rect(x, y, anchos[indice], altoEncabezado, "FD");
         setColorTexto([30, 64, 175]);
         pdf.setFont(familiaFuente, "bold");
@@ -483,10 +475,10 @@ export async function generarInformeEjecutivoPdf(input: InformeEjecutivoPdfInput
   setColorBorde(COLORES.borde);
   pdf.line(margenX + 6, y + 49, anchoPagina - margenX - 6, y + 49);
   const metadatos = [
-    ["PERIODO", input.periodo],
+    ["PERÍODO", input.periodo],
     ["ALCANCE", input.alcance],
     ["EMITIDO POR", `${input.autor.nombre} - ${input.autor.cargo}`],
-    ["GENERACION", input.fechaGeneracion],
+    ["GENERACIÓN", input.fechaGeneracion],
   ];
   metadatos.forEach(([etiqueta, valor], indice) => {
     const columna = indice % 2;
@@ -575,9 +567,9 @@ export async function generarInformeEjecutivoPdf(input: InformeEjecutivoPdfInput
         hallazgo.plazo,
         hallazgo.motivo,
       ]),
-      [27, 20, 44, 35, 25, 31],
+      [31, 18, 43, 33, 25, 32],
       {
-        tamano: 6.5,
+        tamano: 6.2,
         coloresFila: hallazgosPrioritariosVisibles.map((hallazgo) =>
           hallazgo.criticidad.toLowerCase().includes("crit") || hallazgo.motivo.toLowerCase().includes("venc")
             ? "critico"
@@ -610,6 +602,12 @@ export async function generarInformeEjecutivoPdf(input: InformeEjecutivoPdfInput
   );
 
   if (input.lecturasComplementarias.length > 0) {
+    const primeraLectura = input.lecturasComplementarias[0];
+    const primeraLecturaLineas = [
+      ...primeraLectura.valores.map((valor) => `- ${valor}`),
+      ...(primeraLectura.decision ? [`Decisión: ${primeraLectura.decision}`] : []),
+    ].flatMap((valor) => lineas(valor, anchoUtil - 10, 7.8));
+    asegurarEspacio(19 + primeraLecturaLineas.length * 3.4);
     tituloSeccion("Lecturas gerenciales complementarias");
     input.lecturasComplementarias.forEach((lectura) => {
       asegurarEspacio(18);
@@ -653,13 +651,23 @@ export async function generarInformeEjecutivoPdf(input: InformeEjecutivoPdfInput
   const totalPaginas = pdf.internal.pages.length - 1;
   for (let pagina = 1; pagina <= totalPaginas; pagina += 1) {
     pdf.setPage(pagina);
+    if (pagina > 1) {
+      setColorTexto(COLORES.textoMedio);
+      pdf.setFont(familiaFuente, "bold");
+      pdf.setFontSize(7.5);
+      pdf.text(input.marca.nombre, margenX, 9);
+      pdf.setFont(familiaFuente, "normal");
+      pdf.text(input.periodo, anchoPagina - margenX, 9, { align: "right" });
+      setColorBorde(COLORES.borde);
+      pdf.line(margenX, 11, anchoPagina - margenX, 11);
+    }
     setColorBorde(COLORES.borde);
     pdf.line(margenX, altoPagina - 13, anchoPagina - margenX, altoPagina - 13);
     setColorTexto(COLORES.textoMedio);
     pdf.setFont(familiaFuente, "normal");
     pdf.setFontSize(7);
     pdf.text("Criterio Estratégico - Informe preventivo de apoyo a la gestión", margenX, altoPagina - 8);
-    pdf.text(`Página ${pagina} de ${totalPaginas}`, anchoPagina - margenX, altoPagina - 8, { align: "right" });
+    pdf.text(`Página ${pagina} de ${totalPaginas}`, anchoPagina - margenX - 1, altoPagina - 8, { align: "right" });
   }
 
   pdf.setProperties({
