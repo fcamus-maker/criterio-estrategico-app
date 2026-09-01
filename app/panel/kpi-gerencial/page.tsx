@@ -100,9 +100,13 @@ type FocoDetalleAccionable =
   | "cerrados";
 
 type TipoInformeGerencial =
+  | "gestion-operativa"
   | "ejecutivo-general"
+  | "comparativo-gerencial"
   | "criticos-vencidos"
   | "calidad-dato";
+
+type CategoriaInformePreventivo = "operativo" | "gerencial";
 
 type NivelDetalleInformeGerencial =
   | "resumen-gerencial"
@@ -211,6 +215,7 @@ const PANEL_PROFILE_STORAGE_KEY = "ce_panel_profile";
 
 const plantillasInformeGerencial: Array<{
   id: TipoInformeGerencial;
+  categoria: CategoriaInformePreventivo;
   titulo: string;
   detalle: string;
   secciones: SeccionInformeGerencial[];
@@ -221,7 +226,31 @@ const plantillasInformeGerencial: Array<{
   maxFilasDetalle: MaxFilasDetalleInforme;
 }> = [
   {
+    id: "gestion-operativa",
+    categoria: "operativo",
+    titulo: "Informe de Gestión de Hallazgos",
+    detalle: "Seguimiento operativo con responsables, plazos, estados, evidencias y trazabilidad de cierre.",
+    nivelDetalle: "informe-operativo",
+    secciones: [
+      "kpis",
+      "resumen",
+      "riesgos",
+      "criticos-abiertos",
+      "vencidos-abiertos",
+      "sin-fecha-compromiso",
+      "cierre-vencimiento",
+      "detalle-resumido",
+      "recomendacion",
+      "advertencias",
+    ],
+    graficos: ["cierre-vencimiento", "control-inmediato"],
+    rankings: ["ranking-empresa-responsable", "ranking-responsables"],
+    detalleInforme: "detalle-filtrado",
+    maxFilasDetalle: 20,
+  },
+  {
     id: "ejecutivo-general",
+    categoria: "gerencial",
     titulo: "Informe Ejecutivo General",
     detalle: "Vision global para gerencia y mandante con KPIs, focos y recomendacion.",
     nivelDetalle: "resumen-gerencial",
@@ -240,7 +269,32 @@ const plantillasInformeGerencial: Array<{
     maxFilasDetalle: 5,
   },
   {
+    id: "comparativo-gerencial",
+    categoria: "gerencial",
+    titulo: "Informe Comparativo Gerencial",
+    detalle: "Benchmark transversal de empresas, obras, áreas y responsables con tendencias y concentración de riesgo.",
+    nivelDetalle: "resumen-gerencial",
+    secciones: [
+      "kpis",
+      "resumen",
+      "riesgos",
+      "recomendacion",
+      "nota-normativa",
+      "advertencias",
+    ],
+    graficos: ["tendencia", "matriz", "comparaciones", "cierre-vencimiento"],
+    rankings: [
+      "ranking-empresa-reportante",
+      "ranking-empresa-responsable",
+      "ranking-obras",
+      "ranking-areas",
+    ],
+    detalleInforme: "sin-detalle",
+    maxFilasDetalle: 5,
+  },
+  {
     id: "criticos-vencidos",
+    categoria: "operativo",
     titulo: "Informe Criticos y Vencidos",
     detalle: "Presion de cierre sobre criticos abiertos, vencidos y trazabilidad de plazo.",
     nivelDetalle: "informe-operativo",
@@ -262,6 +316,7 @@ const plantillasInformeGerencial: Array<{
   },
   {
     id: "calidad-dato",
+    categoria: "gerencial",
     titulo: "Informe Calidad del Dato",
     detalle: "Completitud de GPS, evidencia, responsable y fecha compromiso.",
     nivelDetalle: "resumen-gerencial",
@@ -327,7 +382,7 @@ const hallazgosDetalleInformeGerencial: Array<{
   { id: "cerrados", label: "Cerrados" },
   { id: "backlog-no-cerrado", label: "Backlog no cerrado" },
   { id: "detalle-resumido", label: "Detalle accionable resumido" },
-  { id: "anexos", label: "Anexo completo futuro" },
+  { id: "anexos", label: "Anexo documental ampliado" },
 ];
 
 const seccionesInformeGerencial = [
@@ -355,7 +410,7 @@ const nivelDetalleInformeOpciones: Array<{
   {
     id: "completo-anexos",
     label: "Informe completo con anexos",
-    detalle: "Deja preparado anexo completo para fase posterior.",
+    detalle: "Agrega lectura ejecutiva y anexo documental ampliado para respaldo.",
   },
 ];
 
@@ -367,7 +422,7 @@ const detalleInformeOpciones: Array<{
   { id: "sin-detalle", label: "No incluir detalle", detalle: "Solo lectura ejecutiva." },
   { id: "detalle-resumido", label: "Detalle resumido", detalle: "Filas principales para seguimiento." },
   { id: "detalle-filtrado", label: "Detalle filtrado actual", detalle: "Usa el alcance actual del informe." },
-  { id: "anexo-completo-futuro", label: "Anexo completo futuro", detalle: "Preparado para fase posterior." },
+  { id: "anexo-completo-futuro", label: "Anexo documental ampliado", detalle: "Incluye hasta 20 hallazgos filtrados como respaldo." },
 ];
 
 const maxFilasDetalleInformeOpciones: MaxFilasDetalleInforme[] = [5, 10, 20];
@@ -475,10 +530,6 @@ function etiquetaSeccionInforme(id: SeccionInformeGerencial) {
   return seccionesInformeGerencial.find((seccion) => seccion.id === id)?.label || id;
 }
 
-function etiquetaGraficoInforme(id: GraficoInformeGerencial) {
-  return graficosInformeGerencial.find((grafico) => grafico.id === id)?.label || id;
-}
-
 function etiquetaRankingInforme(id: RankingInformeGerencial) {
   return rankingsInformeGerencial.find((ranking) => ranking.id === id)?.label || id;
 }
@@ -510,6 +561,12 @@ function formatearMesInforme(valor: string) {
 }
 
 function tituloBaseInforme(tipo: TipoInformeGerencial, nivel: NivelDetalleInformeGerencial) {
+  if (tipo === "gestion-operativa") {
+    return "Informe de Gestión de Hallazgos Preventivos";
+  }
+  if (tipo === "comparativo-gerencial") {
+    return "Informe Comparativo Gerencial Preventivo";
+  }
   if (tipo === "criticos-vencidos") {
     return nivel === "completo-anexos"
       ? "Informe de Gestion Vigente con Backlog No Cerrado"
@@ -1151,6 +1208,8 @@ export default function KpiGerencialAvanzadoPage() {
   const [limiteDetalleAccionable, setLimiteDetalleAccionable] = useState(20);
   const [paginaDetalleAccionable, setPaginaDetalleAccionable] = useState(1);
   const [hallazgoDetalleAbierto, setHallazgoDetalleAbierto] = useState("");
+  const [categoriaInformePreventivo, setCategoriaInformePreventivo] =
+    useState<CategoriaInformePreventivo>("gerencial");
   const [tipoInformeGerencial, setTipoInformeGerencial] =
     useState<TipoInformeGerencial>("ejecutivo-general");
   const [alcanceInformeGerencial, setAlcanceInformeGerencial] =
@@ -1162,17 +1221,33 @@ export default function KpiGerencialAvanzadoPage() {
   const [nivelDetalleInformeGerencial, setNivelDetalleInformeGerencial] =
     useState<NivelDetalleInformeGerencial>("resumen-gerencial");
   const [seccionesInformeSeleccionadas, setSeccionesInformeSeleccionadas] =
-    useState<SeccionInformeGerencial[]>([]);
+    useState<SeccionInformeGerencial[]>([
+      "kpis",
+      "resumen",
+      "riesgos",
+      "recomendacion",
+      "calidad-dato",
+      "nota-normativa",
+      "advertencias",
+    ]);
   const [graficosInformeSeleccionados, setGraficosInformeSeleccionados] =
-    useState<GraficoInformeGerencial[]>([]);
+    useState<GraficoInformeGerencial[]>(["radar", "tendencia", "matriz"]);
   const [rankingsInformeSeleccionados, setRankingsInformeSeleccionados] =
-    useState<RankingInformeGerencial[]>([]);
+    useState<RankingInformeGerencial[]>([
+      "ranking-empresa-reportante",
+      "ranking-obras",
+    ]);
   const [detalleInformeGerencial, setDetalleInformeGerencial] =
     useState<DetalleInformeGerencial>("sin-detalle");
   const [maxFilasDetalleInforme, setMaxFilasDetalleInforme] =
     useState<MaxFilasDetalleInforme>(10);
   const [seriesTendenciaInformeSeleccionadas, setSeriesTendenciaInformeSeleccionadas] =
-    useState<SerieTendenciaInforme[]>([]);
+    useState<SerieTendenciaInforme[]>([
+      "total-reportado",
+      "cerrados",
+      "criticos-abiertos",
+      "vencidos-abiertos",
+    ]);
   const [rankingPrincipalInforme, setRankingPrincipalInforme] =
     useState<RankingInformeGerencial>("ranking-empresa-responsable");
   const [focoComparativoInforme, setFocoComparativoInforme] =
@@ -1681,7 +1756,7 @@ export default function KpiGerencialAvanzadoPage() {
               : "Ranking por empresa reportante";
   const rankingSubtitulo =
     modoAnalisis === "vencidos"
-      ? "Enfoque visual sobre carga y vencidos por empresa. El listado exacto queda para KPI-D."
+      ? "Concentración de carga y vencimientos por empresa, con acceso al detalle filtrado."
       : modoAnalisis === "criticidad"
         ? "Lectura de concentracion con criticidad visible en las barras y panel lateral."
         : modoAnalisis === "cierres"
@@ -1689,6 +1764,18 @@ export default function KpiGerencialAvanzadoPage() {
           : modoAnalisis === "reincidencias"
             ? "Tipos repetidos que ayudan a orientar prevencion."
             : "Comparacion segun los filtros activos y los registros cargados.";
+  const rankingInformeModoActivo: RankingInformeGerencial =
+    modoAnalisis === "ranking-obras"
+      ? "ranking-obras"
+      : modoAnalisis === "ranking-areas"
+        ? "ranking-areas"
+        : modoAnalisis === "ranking-tipos" || modoAnalisis === "reincidencias"
+          ? "ranking-tipos"
+          : modoAnalisis === "ranking-responsables" || modoAnalisis === "cierres"
+            ? "ranking-responsables"
+            : modoAnalisis === "ranking-empresas-responsables"
+              ? "ranking-empresa-responsable"
+              : "ranking-empresa-reportante";
   const maxRanking = maximoRanking(rankingPrincipal);
   const periodoTendenciaDesdeFecha = (valor?: string) => {
     if (!valor) return "Sin fecha";
@@ -1720,15 +1807,43 @@ export default function KpiGerencialAvanzadoPage() {
     criticosAbiertos: criticosAbiertosPorPeriodo.get(item.periodo) || 0,
     vencidosAbiertos: vencidosAbiertosPorPeriodo.get(item.periodo) || 0,
   }));
-  const maxTendencia = Math.max(
+  const maxTendenciaActividad = Math.max(
     1,
+    ...tendenciaSeriesVisible.flatMap((item) => [item.total, item.cerrados])
+  );
+  const maxTendenciaRiesgo = Math.max(
+    1,
+    ...tendenciaSeriesVisible.flatMap((item) => [
+      item.criticosAbiertos,
+      item.vencidosAbiertos,
+    ])
+  );
+  const lecturaTendenciaTablero = (() => {
+    const actual = tendenciaSeriesVisible.at(-1);
+    const anterior = tendenciaSeriesVisible.at(-2);
+    if (!actual) return "Sin datos temporales suficientes para emitir una lectura ejecutiva.";
+
+    const variacionVolumen = anterior ? actual.total - anterior.total : 0;
+    const direccionVolumen =
+      !anterior || variacionVolumen === 0
+        ? "se mantiene sin variación comparable"
+        : variacionVolumen > 0
+          ? `aumentó en ${variacionVolumen}`
+          : `disminuyó en ${Math.abs(variacionVolumen)}`;
+    const tasaCierrePeriodo = actual.total
+      ? Math.round((actual.cerrados / actual.total) * 100)
+      : 0;
+
+    return `En ${actual.periodo}, el volumen reportado ${direccionVolumen}. La tasa de cierre del periodo es ${tasaCierrePeriodo}% y permanecen ${actual.criticosAbiertos} crítico(s) y ${actual.vencidosAbiertos} vencido(s) abiertos asociados a ese periodo.`;
+  })();
+  const tendenciaEscalaMaxima = Math.max(
+    2,
     ...tendenciaSeriesVisible.flatMap((item) => [
       item.total,
       item.criticosAbiertos,
       item.vencidosAbiertos,
     ])
   );
-  const tendenciaEscalaMaxima = Math.max(2, maxTendencia);
   const tendenciaEscalaMedia = Math.ceil(tendenciaEscalaMaxima / 2);
   const tendenciaChartWidth = 680;
   const tendenciaChartHeight = 168;
@@ -1747,7 +1862,6 @@ export default function KpiGerencialAvanzadoPage() {
         : tendenciaPlotLeft + (index / (lista.length - 1)) * tendenciaPlotWidth;
     const criticosAbiertos = criticosAbiertosPorPeriodo.get(item.periodo) || 0;
     const vencidosAbiertos = vencidosAbiertosPorPeriodo.get(item.periodo) || 0;
-
     return {
       ...item,
       criticosAbiertos,
@@ -1758,28 +1872,14 @@ export default function KpiGerencialAvanzadoPage() {
       yVencidos: tendenciaY(vencidosAbiertos),
     };
   });
-  const tendenciaTotalPolyline = tendenciaPuntos
-    .map((item) => `${item.x},${item.yTotal}`)
-    .join(" ");
-  const tendenciaCriticosPolyline = tendenciaPuntos
-    .map((item) => `${item.x},${item.yCriticos}`)
-    .join(" ");
-  const tendenciaVencidosPolyline = tendenciaPuntos
-    .map((item) => `${item.x},${item.yVencidos}`)
-    .join(" ");
-  const tendenciaEscalas = [
-    tendenciaEscalaMaxima,
-    tendenciaEscalaMedia,
-    0,
-  ];
+  const tendenciaTotalPolyline = tendenciaPuntos.map((item) => `${item.x},${item.yTotal}`).join(" ");
+  const tendenciaCriticosPolyline = tendenciaPuntos.map((item) => `${item.x},${item.yCriticos}`).join(" ");
+  const tendenciaVencidosPolyline = tendenciaPuntos.map((item) => `${item.x},${item.yVencidos}`).join(" ");
+  const tendenciaEscalas = [tendenciaEscalaMaxima, tendenciaEscalaMedia, 0];
   const tendenciaLineasVerticales =
     tendenciaPuntos.length > 1
       ? tendenciaPuntos.map((item) => item.x)
-      : [
-          tendenciaPlotLeft,
-          (tendenciaPlotLeft + tendenciaPlotRight) / 2,
-          tendenciaPlotRight,
-        ];
+      : [tendenciaPlotLeft, (tendenciaPlotLeft + tendenciaPlotRight) / 2, tendenciaPlotRight];
   const tendenciaSegmentoUnico = 86;
   const radarGerencial = useMemo(() => {
     const abiertos = analisis.hallazgos.filter(esHallazgoAbiertoGerencial);
@@ -1981,6 +2081,18 @@ export default function KpiGerencialAvanzadoPage() {
   const plantillaInformeActiva =
     plantillasInformeGerencial.find((plantilla) => plantilla.id === tipoInformeGerencial) ||
     plantillasInformeGerencial[0];
+  const etiquetaCategoriaInforme =
+    categoriaInformePreventivo === "gerencial"
+      ? "Informe Ejecutivo Gerencial"
+      : "Informe de Gestión de Hallazgos";
+  const huellaPerfilInforme = `${usuarioGeneradorInforme.rol || ""} ${usuarioGeneradorInforme.cargo || ""}`.toLowerCase();
+  const perfilInformeSoloOperativo =
+    /supervisor|reportante|terreno/.test(huellaPerfilInforme) &&
+    !/admin|geren|ejecut|super_admin/.test(huellaPerfilInforme);
+  const perfilGerencialHabilitado = !perfilInformeSoloOperativo;
+  const plantillasCategoriaActiva = plantillasInformeGerencial.filter(
+    (plantilla) => plantilla.categoria === categoriaInformePreventivo
+  );
   const aplicarConfiguracionInforme = (configuracion: {
     nivelDetalle: NivelDetalleInformeGerencial;
     secciones: SeccionInformeGerencial[];
@@ -2002,6 +2114,22 @@ export default function KpiGerencialAvanzadoPage() {
       nivelDetalle: nivel,
       ...recomendacion,
     });
+  };
+  const aplicarPlantillaInforme = (plantilla: (typeof plantillasInformeGerencial)[number]) => {
+    if (plantilla.categoria === "gerencial" && !perfilGerencialHabilitado) {
+      setMensaje("El Informe Ejecutivo Gerencial requiere un perfil ejecutivo habilitado.");
+      return;
+    }
+    setCategoriaInformePreventivo(plantilla.categoria);
+    setTipoInformeGerencial(plantilla.id);
+    aplicarConfiguracionInforme(plantilla);
+    setSeriesTendenciaInformeSeleccionadas(
+      plantilla.categoria === "gerencial"
+        ? ["total-reportado", "cerrados", "criticos-abiertos", "vencidos-abiertos"]
+        : ["cerrados", "criticos-abiertos", "vencidos-abiertos", "sin-fecha-compromiso"]
+    );
+    setEstadoPdfInformeGerencial("idle");
+    setMensaje(`${plantilla.titulo} preparado. Ajuste el alcance o genere la vista previa.`);
   };
   const alternarSeccionInforme = (id: SeccionInformeGerencial, activo: boolean) => {
     setSeccionesInformeSeleccionadas((actual) =>
@@ -2056,6 +2184,8 @@ export default function KpiGerencialAvanzadoPage() {
   };
   const limpiarInformeGerencial = () => {
     setFiltrosInformeGerencial(filtrosInformeIniciales);
+    setCategoriaInformePreventivo("gerencial");
+    setTipoInformeGerencial("ejecutivo-general");
     setAlcanceInformeGerencial("general");
     setValorAlcanceInformeGerencial("");
     setNivelDetalleInformeGerencial("resumen-gerencial");
@@ -2064,6 +2194,7 @@ export default function KpiGerencialAvanzadoPage() {
     setRankingsInformeSeleccionados([]);
     setDetalleInformeGerencial("sin-detalle");
     setMaxFilasDetalleInforme(10);
+    setSeriesTendenciaInformeSeleccionadas([]);
     setEstadoPdfInformeGerencial("idle");
     setMensaje("Constructor de informe limpiado. No hay elementos seleccionados.");
   };
@@ -2092,6 +2223,73 @@ export default function KpiGerencialAvanzadoPage() {
       sinFechaCompromiso: false,
     });
     setMensaje("Filtros actuales agregados explicitamente al informe.");
+  };
+  const enfocarConstructorInforme = () => {
+    window.requestAnimationFrame(() => {
+      document.getElementById("constructor-informes-preventivos")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  };
+  const enfocarDetalleAccionable = (
+    foco: FocoDetalleAccionable,
+    descripcion: string
+  ) => {
+    setFocoDetalleAccionable(foco);
+    setPaginaDetalleAccionable(1);
+    setBusquedaDetalleAccionable("");
+    setHallazgoDetalleAbierto("");
+    setMensaje(`${descripcion} Detalle filtrado y listo para revisión.`);
+    window.requestAnimationFrame(() => {
+      document.getElementById("detalle-accionable-kpi")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  };
+  const prepararInformeGerencialDesdeTablero = (
+    tipo: "grafico" | "ranking",
+    id: GraficoInformeGerencial | RankingInformeGerencial,
+    etiqueta: string
+  ) => {
+    if (!perfilGerencialHabilitado) {
+      setMensaje("Esta visualización requiere un perfil ejecutivo gerencial habilitado.");
+      return;
+    }
+
+    setCategoriaInformePreventivo("gerencial");
+    setTipoInformeGerencial("comparativo-gerencial");
+    setNivelDetalleInformeGerencial("resumen-gerencial");
+    setSeccionesInformeSeleccionadas((actual) =>
+      Array.from(
+        new Set<SeccionInformeGerencial>([
+          ...actual,
+          "kpis",
+          "resumen",
+          "riesgos",
+          "recomendacion",
+          "nota-normativa",
+          "advertencias",
+        ])
+      )
+    );
+
+    if (tipo === "grafico") {
+      setGraficosInformeSeleccionados((actual) =>
+        Array.from(new Set([...actual, id as GraficoInformeGerencial]))
+      );
+    } else {
+      const ranking = id as RankingInformeGerencial;
+      setRankingsInformeSeleccionados((actual) =>
+        Array.from(new Set([...actual, ranking]))
+      );
+      setRankingPrincipalInforme(ranking);
+    }
+
+    agregarFiltrosActualesAlInforme();
+    setMensaje(`${etiqueta} agregado al Informe Ejecutivo Gerencial.`);
+    enfocarConstructorInforme();
   };
   const aplicarPeriodoInforme = (periodo: "hoy" | "semana" | "mes" | "periodo-filtrado") => {
     const hoy = new Date();
@@ -2132,40 +2330,6 @@ export default function KpiGerencialAvanzadoPage() {
       mes: filtros.mes || undefined,
     });
   };
-  const opcionesAlcanceInformeGerencial = useMemo(
-    () => ({
-      empresaResponsable: valorUnico(
-        analisis.hallazgos.map(
-          (hallazgo) => hallazgo.empresaResponsable || "Sin empresa responsable"
-        )
-      ),
-      empresaReportante: valorUnico(
-        analisis.hallazgos.map(
-          (hallazgo) => hallazgo.empresaReportante || hallazgo.empresa
-        )
-      ),
-      obra: valorUnico(analisis.hallazgos.map((hallazgo) => hallazgo.obra)),
-      area: valorUnico(analisis.hallazgos.map((hallazgo) => hallazgo.area)),
-      responsableCierre: valorUnico(
-        analisis.hallazgos.map(
-          (hallazgo) => hallazgo.responsableCierre || "Sin responsable"
-        )
-      ),
-    }),
-    [analisis.hallazgos]
-  );
-  const valoresAlcanceInformeGerencial =
-    alcanceInformeGerencial === "empresaResponsable"
-      ? opcionesAlcanceInformeGerencial.empresaResponsable
-      : alcanceInformeGerencial === "empresaReportante"
-        ? opcionesAlcanceInformeGerencial.empresaReportante
-        : alcanceInformeGerencial === "obra"
-          ? opcionesAlcanceInformeGerencial.obra
-          : alcanceInformeGerencial === "area"
-            ? opcionesAlcanceInformeGerencial.area
-            : alcanceInformeGerencial === "responsableCierre"
-              ? opcionesAlcanceInformeGerencial.responsableCierre
-              : [];
   const comandosInformeResumen = useMemo(() => {
     const comandos: string[] = [];
     const agregar = (label: string, valor?: string | boolean) => {
@@ -2232,9 +2396,13 @@ export default function KpiGerencialAvanzadoPage() {
     rankingsInformeSeleccionados.length > 0 ||
     detalleInformeGerencial !== "sin-detalle";
   const hallazgosInformeGerencial = useMemo(() => {
-    if (!hayElementosInformeGerencial || !hayComandosFiltroInforme) return [];
+    if (!hayElementosInformeGerencial) return [];
 
-    return filtrarHallazgosKpiGerencial(hallazgos, filtrosInformeGerencial).filter(
+    const universoInforme = hayComandosFiltroInforme
+      ? filtrarHallazgosKpiGerencial(hallazgos, filtrosInformeGerencial)
+      : hallazgos;
+
+    return universoInforme.filter(
       (hallazgo) =>
         filtrosInformeGerencial.sinFechaCompromiso
           ? esHallazgoAbiertoGerencial(hallazgo) && !hallazgo.fechaCompromiso
@@ -2349,6 +2517,46 @@ export default function KpiGerencialAvanzadoPage() {
     hallazgosInformeGerencial,
     seriesTendenciaInformeSeleccionadas,
   ]);
+  const tendenciaVisualInforme = useMemo(() => {
+    const criticosAbiertos = new Map<string, number>();
+    const vencidosAbiertos = new Map<string, number>();
+    const sinFecha = new Map<string, number>();
+
+    hallazgosInformeGerencial.forEach((hallazgo) => {
+      const periodo = periodoTendenciaDesdeFecha(hallazgo.fechaISO);
+      const abierto = esHallazgoAbiertoGerencial(hallazgo);
+      if (abierto && hallazgo.criticidad === "CRITICO") {
+        criticosAbiertos.set(periodo, (criticosAbiertos.get(periodo) || 0) + 1);
+      }
+      if (esHallazgoVencidoDetalle(hallazgo)) {
+        vencidosAbiertos.set(periodo, (vencidosAbiertos.get(periodo) || 0) + 1);
+      }
+      if (abierto && !hallazgo.fechaCompromiso) {
+        sinFecha.set(periodo, (sinFecha.get(periodo) || 0) + 1);
+      }
+    });
+
+    return analisisInformeGerencial.tendenciaTemporal.slice(-6).map((item) => ({
+      ...item,
+      criticosAbiertos: criticosAbiertos.get(item.periodo) || 0,
+      vencidosAbiertos: vencidosAbiertos.get(item.periodo) || 0,
+      sinFecha: sinFecha.get(item.periodo) || 0,
+    }));
+  }, [analisisInformeGerencial.tendenciaTemporal, hallazgosInformeGerencial]);
+  const lecturaTendenciaInforme = useMemo(() => {
+    const actual = tendenciaVisualInforme.at(-1);
+    const anterior = tendenciaVisualInforme.at(-2);
+    if (!actual) return "No existen periodos suficientes para interpretar una tendencia.";
+    const variacion = anterior ? actual.total - anterior.total : 0;
+    const cambio =
+      !anterior || variacion === 0
+        ? "sin variación comparable"
+        : variacion > 0
+          ? `con un aumento de ${variacion} reporte(s)`
+          : `con una disminución de ${Math.abs(variacion)} reporte(s)`;
+    const tasaCierre = actual.total ? Math.round((actual.cerrados / actual.total) * 100) : 0;
+    return `El periodo ${actual.periodo} registra ${actual.total} hallazgo(s), ${cambio} respecto del periodo anterior. La tasa de cierre del periodo alcanza ${tasaCierre}%, con ${actual.criticosAbiertos} crítico(s) y ${actual.vencidosAbiertos} vencido(s) abiertos.`;
+  }, [tendenciaVisualInforme]);
   const configuracionRankingsInformeGerencial = useMemo<
     Record<RankingInformeGerencial, { titulo: string; metrica: string; data: RankingKpiGerencial[] }>
   >(
@@ -2807,6 +3015,7 @@ export default function KpiGerencialAvanzadoPage() {
     .join("\n\n");
   const textoCopiableInformeGerencial = [
     tituloAutomaticoInformeGerencial,
+    `Categoría: ${etiquetaCategoriaInforme}`,
     `Tipo de informe: ${plantillaInformeActiva.titulo}`,
     `Nivel de detalle: ${etiquetaNivelDetalleInforme(nivelDetalleInformeGerencial)}`,
     `Periodo: ${periodoInformeEtiqueta}`,
@@ -2824,7 +3033,7 @@ export default function KpiGerencialAvanzadoPage() {
     `Comandos del informe: ${
       comandosInformeResumen.length > 0
         ? comandosInformeResumen.join(", ")
-        : "Sin comandos seleccionados"
+        : "Universo completo visible para el perfil actual"
     }`,
     "",
     resumenInformeGerencial,
@@ -2948,9 +3157,9 @@ export default function KpiGerencialAvanzadoPage() {
     ["Periodo", periodoInformeEtiqueta],
   ];
   const notasAlcanceInformePdf = [
-    hayElementosInformeGerencial
-      ? "El informe utiliza solo los comandos seleccionados explicitamente en el Constructor de Informe."
-      : "No se han seleccionado elementos para este informe.",
+    comandosInformeResumen.length > 0
+      ? "El informe utiliza solo los comandos seleccionados explícitamente en el Constructor de Informe."
+      : "El informe utiliza el universo completo visible para el perfil actual, sin filtros adicionales.",
     informeConBacklogVisible
       ? "Incluye lectura de gestión vigente con backlog abierto/no cerrado de periodos anteriores cuando corresponde."
       : "La lectura de backlog queda como advertencia preventiva para informes con periodo o gestión vigente.",
@@ -3023,7 +3232,7 @@ export default function KpiGerencialAvanzadoPage() {
     const filtrosPdf =
       comandosInformeResumen.length > 0
         ? comandosInformeResumen
-        : ["No se han seleccionado elementos para este informe."];
+        : ["Universo completo visible para el perfil actual, sin filtros adicionales."];
     const detallePdfActivo =
       detalleInformeGerencial !== "sin-detalle" ||
       seccionesInformeSeleccionadas.includes("detalle-resumido");
@@ -3046,6 +3255,85 @@ export default function KpiGerencialAvanzadoPage() {
         <strong>${escaparHtmlInforme(valor)}</strong>
       </div>
     `;
+    const colorSerieInforme: Record<SerieTendenciaInforme, string> = {
+      "total-reportado": "#0284c7",
+      "cerrados": "#16a34a",
+      "criticos-abiertos": "#dc2626",
+      "vencidos-abiertos": "#ea580c",
+      "sin-fecha-compromiso": "#ca8a04",
+    };
+    const valorSerieInforme = (
+      item: (typeof tendenciaVisualInforme)[number],
+      serie: SerieTendenciaInforme
+    ) =>
+      serie === "total-reportado"
+        ? item.total
+        : serie === "cerrados"
+          ? item.cerrados
+          : serie === "criticos-abiertos"
+            ? item.criticosAbiertos
+            : serie === "vencidos-abiertos"
+              ? item.vencidosAbiertos
+              : item.sinFecha;
+    const renderTendenciaVisual = () => {
+      const series = seriesTendenciaInformeSeleccionadas.length
+        ? seriesTendenciaInformeSeleccionadas
+        : (["total-reportado", "cerrados", "criticos-abiertos", "vencidos-abiertos"] as SerieTendenciaInforme[]);
+      const grupos = [
+        {
+          titulo: "Actividad operativa",
+          series: series.filter((serie) => serie === "total-reportado" || serie === "cerrados"),
+        },
+        {
+          titulo: "Presión de riesgo",
+          series: series.filter((serie) => serie !== "total-reportado" && serie !== "cerrados"),
+        },
+      ].filter((grupo) => grupo.series.length > 0);
+      const renderGrupo = (grupo: (typeof grupos)[number]) => {
+        const maximo = Math.max(
+          1,
+          ...tendenciaVisualInforme.flatMap((item) =>
+            grupo.series.map((serie) => valorSerieInforme(item, serie))
+          )
+        );
+        return `
+          <div class="pdf-trend-group">
+            <h4>${escaparHtmlInforme(grupo.titulo)}</h4>
+            <div class="pdf-trend-chart">
+              ${tendenciaVisualInforme
+                .map(
+                  (item) => `
+                    <div class="pdf-trend-period">
+                      <div class="pdf-trend-bars">
+                        ${grupo.series
+                          .map((serie) => {
+                            const valor = valorSerieInforme(item, serie);
+                            const altura = valor === 0 ? 3 : Math.max(10, Math.round((valor / maximo) * 100));
+                            return `<div class="pdf-trend-bar-wrap"><span>${valor}</span><div class="pdf-trend-bar" style="height:${altura}%;background:${colorSerieInforme[serie]}"></div></div>`;
+                          })
+                          .join("")}
+                      </div>
+                      <strong>${escaparHtmlInforme(item.periodo)}</strong>
+                    </div>
+                  `
+                )
+                .join("")}
+            </div>
+            <div class="pdf-legend">
+              ${grupo.series
+                .map(
+                  (serie) => `<span><i style="background:${colorSerieInforme[serie]}"></i>${escaparHtmlInforme(etiquetaSerieTendenciaInforme(serie))}</span>`
+                )
+                .join("")}
+            </div>
+          </div>
+        `;
+      };
+      return `
+        <div class="pdf-trend-groups">${grupos.map(renderGrupo).join("")}</div>
+        <p class="pdf-insight"><strong>Lectura gerencial:</strong> ${escaparHtmlInforme(lecturaTendenciaInforme)}</p>
+      `;
+    };
     const fotoGenerador = fotoPerfilPermitidaInforme(usuarioGeneradorInforme.foto);
     const clientBranding = readClientBrandingFromPanelConfig();
     const logoClientePdf = clientBranding.logoPrincipalUrl
@@ -3059,10 +3347,41 @@ export default function KpiGerencialAvanzadoPage() {
       titulo: string;
       metrica: string;
       data: RankingKpiGerencial[];
-    }) => `
+    }) => {
+      const dataVisible = ranking.data.slice(0, 8);
+      const maximo = Math.max(1, ...dataVisible.map((item) => item.total));
+      const totalRanking = ranking.data.reduce((acumulado, item) => acumulado + item.total, 0);
+      const lider = dataVisible[0];
+      const participacion = lider && totalRanking
+        ? Math.round((lider.total / totalRanking) * 100)
+        : 0;
+      return `
       <section class="pdf-section pdf-table-section pdf-avoid">
         <h2>${escaparHtmlInforme(ranking.titulo)}</h2>
         <p class="pdf-muted">${escaparHtmlInforme(ranking.metrica)}</p>
+        <div class="pdf-ranking-bars">
+          ${
+            dataVisible.length > 0
+              ? dataVisible
+                  .map(
+                    (item, index) => `
+                      <div class="pdf-ranking-row">
+                        <span>${index + 1}</span>
+                        <strong>${escaparHtmlInforme(item.nombre)}</strong>
+                        <div><i style="width:${Math.max(7, Math.round((item.total / maximo) * 100))}%"></i></div>
+                        <b>${item.total}</b>
+                      </div>
+                    `
+                  )
+                  .join("")
+              : `<p class="pdf-muted">Sin datos suficientes para este ranking.</p>`
+          }
+        </div>
+        <p class="pdf-insight"><strong>Lectura gerencial:</strong> ${
+          lider
+            ? `${escaparHtmlInforme(lider.nombre)} lidera el ranking con ${lider.total} registro(s), equivalente al ${participacion}% del universo comparado. La lectura debe complementarse con criticidad, vencimiento y tasa de cierre.`
+            : "No existen datos suficientes para emitir una comparación."
+        }</p>
         <table>
           <thead>
             <tr>
@@ -3100,6 +3419,7 @@ export default function KpiGerencialAvanzadoPage() {
         </table>
       </section>
     `;
+    };
     const htmlInforme = `
       <article class="pdf-doc">
         <style>
@@ -3142,13 +3462,15 @@ export default function KpiGerencialAvanzadoPage() {
             font-weight: 900;
           }
           .pdf-client-logo {
-            width: 42px;
-            height: 42px;
+            width: 96px;
+            max-width: 110px;
+            height: 46px;
             object-fit: contain;
-            border: 1px solid #dbeafe;
-            border-radius: 10px;
-            background: #ffffff;
-            padding: 4px;
+            object-position: left center;
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+            padding: 0;
           }
           h1 {
             margin: 10px 0 8px;
@@ -3446,6 +3768,106 @@ export default function KpiGerencialAvanzadoPage() {
           .pdf-chart-card li {
             margin-bottom: 2px;
           }
+          .pdf-trend-chart {
+            height: 150px;
+            display: flex;
+            align-items: stretch;
+            gap: 8px;
+            margin: 10px 0 8px;
+            padding: 12px 10px 6px;
+            border: 1px solid #dbeafe;
+            border-radius: 10px;
+            background: #f8fbff;
+          }
+          .pdf-trend-groups {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 9px;
+          }
+          .pdf-trend-group h4 {
+            margin: 8px 0 0;
+            color: #0f172a;
+            font-size: 10px;
+          }
+          .pdf-trend-period {
+            flex: 1 1 0;
+            min-width: 0;
+            display: grid;
+            grid-template-rows: minmax(0, 1fr) auto;
+            gap: 5px;
+            text-align: center;
+          }
+          .pdf-trend-period > strong { color: #475569; font-size: 8.5px; }
+          .pdf-trend-bars {
+            min-height: 0;
+            display: flex;
+            align-items: end;
+            justify-content: center;
+            gap: 3px;
+            border-bottom: 1px solid #cbd5e1;
+          }
+          .pdf-trend-bar-wrap {
+            width: 17%;
+            min-width: 7px;
+            max-width: 16px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: end;
+            align-items: center;
+          }
+          .pdf-trend-bar-wrap span {
+            color: #475569;
+            font-size: 7.5px;
+            font-weight: 900;
+            margin-bottom: 2px;
+          }
+          .pdf-trend-bar { width: 100%; min-height: 3px; border-radius: 4px 4px 1px 1px; }
+          .pdf-legend { display: flex; flex-wrap: wrap; gap: 8px 12px; margin: 7px 0; }
+          .pdf-legend span {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            color: #475569;
+            font-size: 9px;
+            font-weight: 800;
+          }
+          .pdf-legend i { width: 8px; height: 8px; border-radius: 2px; }
+          .pdf-insight {
+            margin: 9px 0 0;
+            padding: 8px 10px;
+            border: 1px solid #bfdbfe;
+            border-left: 3px solid #2563eb;
+            border-radius: 8px;
+            background: #eff6ff;
+            color: #334155;
+            font-size: 10px;
+            line-height: 1.4;
+          }
+          .pdf-ranking-bars { display: grid; gap: 6px; margin: 9px 0; }
+          .pdf-ranking-row {
+            display: grid;
+            grid-template-columns: 20px minmax(90px, 1fr) minmax(150px, 2fr) 30px;
+            gap: 7px;
+            align-items: center;
+            color: #334155;
+            font-size: 9.5px;
+          }
+          .pdf-ranking-row > span { color: #2563eb; font-weight: 900; }
+          .pdf-ranking-row > strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+          .pdf-ranking-row > div {
+            height: 9px;
+            overflow: hidden;
+            border-radius: 999px;
+            background: #e2e8f0;
+          }
+          .pdf-ranking-row i {
+            display: block;
+            height: 100%;
+            border-radius: inherit;
+            background: linear-gradient(90deg, #2563eb, #22c55e);
+          }
+          .pdf-ranking-row b { text-align: right; }
           ul.pdf-list {
             margin: 0;
             padding-left: 18px;
@@ -3500,7 +3922,7 @@ export default function KpiGerencialAvanzadoPage() {
             <div class="pdf-brand">${escaparHtmlInforme(clientBranding.poweredByText)}</div>
           </div>
           <h1>${escaparHtmlInforme(tituloAutomaticoInformeGerencial)}</h1>
-          <p class="pdf-muted">${escaparHtmlInforme(plantillaInformeActiva.titulo)} · ${escaparHtmlInforme(etiquetaNivelDetalleInforme(nivelDetalleInformeGerencial))} · ${escaparHtmlInforme(etiquetaAlcanceInforme)} · ${escaparHtmlInforme(periodoInformeEtiqueta)}</p>
+          <p class="pdf-muted">${escaparHtmlInforme(etiquetaCategoriaInforme)} · ${escaparHtmlInforme(plantillaInformeActiva.titulo)} · ${escaparHtmlInforme(etiquetaNivelDetalleInforme(nivelDetalleInformeGerencial))} · ${escaparHtmlInforme(etiquetaAlcanceInforme)} · ${escaparHtmlInforme(periodoInformeEtiqueta)}</p>
           <div class="pdf-note pdf-legal-base">
             Informe generado como herramienta de apoyo a la gestión preventiva, trazabilidad documental, evidencia de hallazgos, seguimiento de cierre y análisis ejecutivo, alineado al marco preventivo chileno vigente: Ley 16.744, DS 44 y DS 594.
           </div>
@@ -3623,10 +4045,6 @@ export default function KpiGerencialAvanzadoPage() {
               <p class="pdf-muted">${escaparHtmlInforme(focoComparativoInformeGerencial.detalle)}</p>
               <ul class="pdf-list">${renderLista(focoComparativoInformeGerencial.valores.length ? focoComparativoInformeGerencial.valores : ["Sin datos suficientes con los filtros actuales."])}</ul>
             </div>
-            <div class="pdf-card">
-              <h3>Control avanzado futuro</h3>
-              <p class="pdf-muted">Queda preparada la lógica para configurar datos por gráfico o sección sin convertir el PDF en una exportación rígida.</p>
-            </div>
           </div>
         </section>`
             : ""
@@ -3708,7 +4126,11 @@ export default function KpiGerencialAvanzadoPage() {
                         <div class="pdf-card pdf-chart-card pdf-avoid">
                           <h3>${escaparHtmlInforme(grafico.titulo)}</h3>
                           <p>${escaparHtmlInforme(grafico.representa)}</p>
-                          <ul class="pdf-list">${renderLista(grafico.valores.length ? grafico.valores : ["Sin datos suficientes con los filtros actuales."])}</ul>
+                          ${
+                            grafico.titulo === "Tendencia temporal"
+                              ? renderTendenciaVisual()
+                              : `<ul class="pdf-list">${renderLista(grafico.valores.length ? grafico.valores : ["Sin datos suficientes con los filtros actuales."])}</ul>`
+                          }
                           ${
                             grafico.analisis
                               ? `<p><strong>Análisis:</strong> ${escaparHtmlInforme(grafico.analisis.observacion)} ${escaparHtmlInforme(grafico.analisis.accion)}</p>`
@@ -4564,12 +4986,26 @@ export default function KpiGerencialAvanzadoPage() {
                     ["ranking-empresas-responsables", "Ranking responsables", "Ranking por empresa responsable/involucrada activo."],
                     ["ranking-obras", "Comparar obras", "Comparacion por obras activa."],
                     ["ranking-areas", "Ranking areas", "Ranking de areas activo."],
-                    ["criticidad", "Enfocar criticidad", "Enfoque visual en criticidad activo. No abre listado individual todavia."],
-                    ["cierres", "Enfocar cierres", "Enfoque visual en gestion de cierre activo. Drill-down queda para KPI-D."],
-                    ["vencidos", "Enfocar vencidos", "Enfoque visual en vencidos activo. Listado exacto queda para KPI-D."],
-                    ["reincidencias", "Enfocar reincidencias", "Enfoque visual en reincidencias activo. Detalle accionable queda para KPI-D."],
+                    ["criticidad", "Enfocar criticidad", "Enfoque visual en criticidad activo."],
+                    ["cierres", "Enfocar cierres", "Enfoque visual en gestión de cierre activo."],
+                    ["vencidos", "Enfocar vencidos", "Enfoque visual en vencidos activo."],
+                    ["reincidencias", "Enfocar reincidencias", "Enfoque visual en patrones reincidentes activo."],
                   ].map(([id, label, texto]) => (
-                    <button key={id} type="button" onClick={() => aplicarAccion(id, texto)} style={botonStyle(id, id === modoAnalisis)}>
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => {
+                        aplicarAccion(id, texto);
+                        if (id === "criticidad") {
+                          enfocarDetalleAccionable("criticos-abiertos", "Hallazgos críticos abiertos seleccionados.");
+                        } else if (id === "cierres") {
+                          enfocarDetalleAccionable("cerrados", "Hallazgos cerrados seleccionados.");
+                        } else if (id === "vencidos") {
+                          enfocarDetalleAccionable("vencidos-abiertos", "Hallazgos vencidos abiertos seleccionados.");
+                        }
+                      }}
+                      style={botonStyle(id, id === modoAnalisis)}
+                    >
                       {t(label)}
                     </button>
                   ))}
@@ -4593,7 +5029,16 @@ export default function KpiGerencialAvanzadoPage() {
                           {rankingSubtitulo}
                         </div>
                       </div>
-                      <div style={{ fontSize: "12px", color: textoAzul, fontWeight: 900, whiteSpace: "nowrap" }}>{modoAnalisis.replace("-", " ")}</div>
+                      <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                        <div style={{ fontSize: "11px", color: textoAzul, fontWeight: 900, whiteSpace: "nowrap" }}>{modoAnalisis.replace("-", " ")}</div>
+                        <button
+                          type="button"
+                          onClick={() => prepararInformeGerencialDesdeTablero("ranking", rankingInformeModoActivo, rankingTitulo)}
+                          style={{ ...botonStyle(`agregar-${rankingInformeModoActivo}`, rankingsInformeSeleccionados.includes(rankingInformeModoActivo)), minHeight: "32px", padding: "7px 10px", fontSize: "11px" }}
+                        >
+                          {rankingsInformeSeleccionados.includes(rankingInformeModoActivo) ? "✓ Incluido" : "+ Agregar al informe"}
+                        </button>
+                      </div>
                     </div>
                     <div style={{ display: "grid", gap: "10px" }}>
                       {rankingPrincipal.slice(0, 8).map((item, index) => {
@@ -4652,8 +5097,17 @@ export default function KpiGerencialAvanzadoPage() {
                     Focos ejecutivos priorizados segun los filtros activos.
                   </p>
                 </div>
-                <div style={{ borderRadius: "999px", padding: "7px 10px", background: fondoInterno, border: bordeInterno, color: textoAzul, fontSize: "11px", fontWeight: 950 }}>
-                  {analisis.hallazgos.length} registros filtrados
+                <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                  <div style={{ borderRadius: "999px", padding: "7px 10px", background: fondoInterno, border: bordeInterno, color: textoAzul, fontSize: "11px", fontWeight: 950 }}>
+                    {analisis.hallazgos.length} registros filtrados
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => prepararInformeGerencialDesdeTablero("grafico", "radar", "Prioridades gerenciales")}
+                    style={{ ...botonStyle("agregar-radar-informe", graficosInformeSeleccionados.includes("radar")), minHeight: "34px", padding: "7px 10px", fontSize: "11px" }}
+                  >
+                    {graficosInformeSeleccionados.includes("radar") ? "✓ Incluido" : "+ Agregar al informe"}
+                  </button>
                 </div>
               </div>
 
@@ -4665,7 +5119,8 @@ export default function KpiGerencialAvanzadoPage() {
                     subtitulo: "Criticos abiertos por responsable/involucrado.",
                     data: radarGerencial.empresasCriticas,
                     color: "#ef4444",
-                    accion: "Radar: foco visual en empresas con criticos abiertos. Conexion con Detalle accionable queda para fase posterior.",
+                    foco: "criticos-abiertos" as FocoDetalleAccionable,
+                    accion: "Foco en empresas con hallazgos críticos abiertos.",
                   },
                   {
                     id: "obras-vencidas",
@@ -4673,7 +5128,8 @@ export default function KpiGerencialAvanzadoPage() {
                     subtitulo: "Hallazgos vencidos que siguen abiertos.",
                     data: radarGerencial.obrasVencidas,
                     color: "#f97316",
-                    accion: "Radar: foco visual en obras con vencidos abiertos. Conexion con Detalle accionable queda para fase posterior.",
+                    foco: "vencidos-abiertos" as FocoDetalleAccionable,
+                    accion: "Foco en obras con hallazgos vencidos abiertos.",
                   },
                   {
                     id: "responsables-pendientes",
@@ -4681,7 +5137,8 @@ export default function KpiGerencialAvanzadoPage() {
                     subtitulo: "Abiertos y en gestion por responsable cierre.",
                     data: radarGerencial.responsablesPendientes,
                     color: "#38bdf8",
-                    accion: "Radar: foco visual en responsables con pendientes. Conexion con Detalle accionable queda para fase posterior.",
+                    foco: "abiertos" as FocoDetalleAccionable,
+                    accion: "Foco en responsables con hallazgos pendientes.",
                   },
                 ].map((modulo) => {
                   const maxRadar = Math.max(1, ...modulo.data.map((item) => item.total));
@@ -4718,7 +5175,7 @@ export default function KpiGerencialAvanzadoPage() {
                         type="button"
                         onClick={() => {
                           activarBoton(`radar-${modulo.id}`);
-                          setMensaje(modulo.accion);
+                          enfocarDetalleAccionable(modulo.foco, modulo.accion);
                         }}
                         style={{ ...botonStyle(`radar-${modulo.id}`), minHeight: "32px", padding: "7px 10px", fontSize: "11px" }}
                       >
@@ -4750,7 +5207,10 @@ export default function KpiGerencialAvanzadoPage() {
                     type="button"
                     onClick={() => {
                       activarBoton("radar-sin-fecha");
-                      setMensaje("Radar: foco visual en hallazgos sin fecha compromiso. Conexion con Detalle accionable queda para fase posterior.");
+                      enfocarDetalleAccionable(
+                        "sin-fecha-compromiso",
+                        "Foco en hallazgos abiertos sin fecha compromiso."
+                      );
                     }}
                     style={{ ...botonStyle("radar-sin-fecha"), minHeight: "32px", padding: "7px 10px", fontSize: "11px" }}
                   >
@@ -4761,7 +5221,101 @@ export default function KpiGerencialAvanzadoPage() {
             </section>
 
             <section className="ce-panel-kpi-secondary-grid" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.1fr) minmax(360px, 0.9fr)", gap: "16px" }}>
-              <div style={{ ...themedSurfaceStyle, padding: "18px" }}>
+              <div style={{ ...themedSurfaceStyle, padding: "18px", display: "grid", gap: "14px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start", flexWrap: "wrap" }}>
+                  <div>
+                    <div style={{ fontSize: "11px", color: textoAzul, fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.65px" }}>
+                      Evolución ejecutiva
+                    </div>
+                    <h2 style={{ margin: "4px 0 0", fontSize: "18px", lineHeight: 1.18, fontWeight: 950 }}>
+                      Actividad y presión de riesgo
+                    </h2>
+                    <p style={{ margin: "5px 0 0", color: textoSuave, fontSize: "12px", lineHeight: 1.4, fontWeight: 750 }}>
+                      Dos escalas independientes para distinguir volumen de gestión y exposición preventiva.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => prepararInformeGerencialDesdeTablero("grafico", "tendencia", "Evolución ejecutiva")}
+                    style={{ ...botonStyle("agregar-tendencia-informe", graficosInformeSeleccionados.includes("tendencia")), minHeight: "34px", padding: "7px 11px", fontSize: "11px" }}
+                  >
+                    {graficosInformeSeleccionados.includes("tendencia") ? "✓ Incluido en informe" : "+ Agregar al informe"}
+                  </button>
+                </div>
+
+                {tendenciaSeriesVisible.length > 0 ? (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "10px" }}>
+                    {[
+                      {
+                        titulo: "Actividad operativa",
+                        subtitulo: "Reportados versus cerrados",
+                        maximo: maxTendenciaActividad,
+                        series: [
+                          { key: "total", label: "Reportados", color: "#38bdf8" },
+                          { key: "cerrados", label: "Cerrados", color: "#22c55e" },
+                        ],
+                      },
+                      {
+                        titulo: "Presión de riesgo",
+                        subtitulo: "Críticos y vencidos abiertos",
+                        maximo: maxTendenciaRiesgo,
+                        series: [
+                          { key: "criticosAbiertos", label: "Críticos", color: "#ef4444" },
+                          { key: "vencidosAbiertos", label: "Vencidos", color: "#f97316" },
+                        ],
+                      },
+                    ].map((grafico) => (
+                      <div key={grafico.titulo} style={{ minWidth: 0, borderRadius: "18px", padding: "12px", background: fondoInterno, border: bordeInterno, display: "grid", gap: "10px" }}>
+                        <div>
+                          <div style={{ color: textoPrincipal, fontSize: "12px", fontWeight: 950 }}>{grafico.titulo}</div>
+                          <div style={{ marginTop: "3px", color: textoSuave, fontSize: "10px", fontWeight: 800 }}>{grafico.subtitulo}</div>
+                        </div>
+                        <div style={{ height: "132px", display: "flex", alignItems: "end", gap: "7px", padding: "8px 4px 0", borderBottom: bordeInterno }}>
+                          {tendenciaSeriesVisible.map((item) => (
+                            <div key={`${grafico.titulo}-${item.periodo}`} style={{ minWidth: 0, flex: "1 1 0", height: "100%", display: "grid", gridTemplateRows: "minmax(0, 1fr) auto", gap: "5px" }}>
+                              <div style={{ minHeight: 0, display: "flex", alignItems: "end", justifyContent: "center", gap: "3px" }}>
+                                {grafico.series.map((serie) => {
+                                  const valor = Number(item[serie.key as keyof typeof item] || 0);
+                                  const altura = valor === 0 ? 3 : Math.max(10, (valor / grafico.maximo) * 100);
+                                  return (
+                                    <div key={`${item.periodo}-${serie.key}`} title={`${serie.label}: ${valor}`} style={{ width: "min(18px, 42%)", height: `${altura}%`, minHeight: "3px", borderRadius: "6px 6px 2px 2px", background: `linear-gradient(180deg, ${serie.color}, ${serie.color}99)`, boxShadow: `0 0 12px ${serie.color}30`, position: "relative" }}>
+                                      <span style={{ position: "absolute", top: "-16px", left: "50%", transform: "translateX(-50%)", color: serie.color, fontSize: "9px", fontWeight: 950 }}>{valor}</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                              <div style={{ color: textoSuave, fontSize: "9px", fontWeight: 850, textAlign: "center", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                {item.periodo.slice(5)}/{item.periodo.slice(2, 4)}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                          {grafico.series.map((serie) => (
+                            <span key={`${grafico.titulo}-${serie.key}-leyenda`} style={{ display: "inline-flex", alignItems: "center", gap: "5px", color: textoSuave, fontSize: "10px", fontWeight: 850 }}>
+                              <span style={{ width: "8px", height: "8px", borderRadius: "3px", background: serie.color }} />
+                              {serie.label}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ minHeight: "150px", display: "grid", placeItems: "center", color: textoSuave, fontSize: "12px", fontWeight: 850 }}>
+                    Sin datos temporales con los filtros actuales.
+                  </div>
+                )}
+
+                <div style={{ borderRadius: "15px", padding: "11px 12px", background: temaClaro ? "rgba(239,246,255,0.72)" : "rgba(8,47,73,0.34)", border: temaClaro ? "1px solid rgba(37,99,235,0.18)" : "1px solid rgba(125,211,252,0.18)", display: "grid", gridTemplateColumns: "auto minmax(0, 1fr)", gap: "9px", alignItems: "start" }}>
+                  <span style={{ borderRadius: "999px", padding: "5px 8px", background: temaClaro ? "rgba(37,99,235,0.12)" : "rgba(56,189,248,0.14)", color: textoAzul, fontSize: "9px", fontWeight: 950, textTransform: "uppercase" }}>
+                    Lectura automática
+                  </span>
+                  <p style={{ margin: 0, color: textoMedio, fontSize: "11px", lineHeight: 1.45, fontWeight: 780 }}>{lecturaTendenciaTablero}</p>
+                </div>
+              </div>
+
+              <div aria-hidden="true" style={{ display: "none" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start", marginBottom: "14px" }}>
                   <div>
                     <div style={{ fontSize: "16px", fontWeight: 950 }}>{t("Tendencia temporal")}</div>
@@ -5099,22 +5653,14 @@ export default function KpiGerencialAvanzadoPage() {
             <div style={{ display: "grid", gap: "9px", borderRadius: "18px", padding: "12px", background: temaClaro ? "rgba(248,250,252,0.72)" : "rgba(15,23,42,0.34)", border: temaClaro ? "1px solid rgba(100,116,139,0.14)" : "1px solid rgba(148,163,184,0.12)" }}>
               <button
                 type="button"
-                disabled
-                title="El PDF formal se genera desde el Constructor de Informe Gerencial."
-                style={{ ...botonStyle("pdf"), opacity: 0.62, cursor: "not-allowed", color: textoSuave }}
+                onClick={enfocarConstructorInforme}
+                title="Abre el Constructor Premium con vista previa y descarga PDF."
+                style={{ ...botonStyle("abrir-constructor-informe", true), minHeight: "38px" }}
               >
-                Usar Constructor de Informe
-              </button>
-              <button
-                type="button"
-                disabled
-                title="Exportacion real pendiente de implementacion."
-                style={{ ...botonStyle("excel"), opacity: 0.58, cursor: "not-allowed", color: textoSuave }}
-              >
-                {t("Excel proximamente")}
+                Crear informe con este análisis
               </button>
               <div style={{ color: textoSuave, fontSize: "11px", lineHeight: 1.4, fontWeight: 750 }}>
-                El PDF formal se genera en el Constructor de Informe Gerencial. Excel queda pendiente para fase posterior.
+                Seleccione informe operativo o gerencial, revise la vista previa y descargue el documento final en PDF.
               </div>
             </div>
 
@@ -5196,18 +5742,18 @@ export default function KpiGerencialAvanzadoPage() {
             </div>
 
           </aside>
-            <section style={{ ...themedSurfaceStyle, padding: "16px", display: "grid", gap: "14px", width: "100%", maxWidth: "none", minWidth: 0, alignSelf: "stretch", justifySelf: "stretch", boxSizing: "border-box", gridColumn: "1 / -1" }}>
+            <section id="constructor-informes-preventivos" style={{ ...themedSurfaceStyle, padding: "16px", display: "grid", gap: "14px", width: "100%", maxWidth: "none", minWidth: 0, alignSelf: "stretch", justifySelf: "stretch", boxSizing: "border-box", gridColumn: "1 / -1", scrollMarginTop: "88px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start", flexWrap: "wrap" }}>
                 <div>
                   <div style={{ display: "inline-flex", alignItems: "center", gap: "9px", borderRadius: "999px", padding: "6px 10px", background: temaClaro ? "rgba(37,99,235,0.10)" : "rgba(56,189,248,0.10)", border: temaClaro ? "1px solid rgba(37,99,235,0.22)" : "1px solid rgba(125,211,252,0.22)", color: textoAzul, fontSize: "11px", fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.7px", boxShadow: temaClaro ? "0 8px 18px rgba(37,99,235,0.08)" : "0 0 18px rgba(56,189,248,0.10)" }}>
                     <span style={{ width: "7px", height: "18px", borderRadius: "999px", background: "linear-gradient(180deg, rgba(56,189,248,0.96), rgba(99,102,241,0.72))", boxShadow: "0 0 14px rgba(56,189,248,0.32)" }} />
-                    Filtros destacados para informe gerencial
+                    Centro de Inteligencia Preventiva
                   </div>
                   <h2 style={{ margin: "8px 0 0", fontSize: "24px", lineHeight: 1.08, fontWeight: 1000, color: textoPrincipal, textShadow: temaClaro ? "none" : "0 0 20px rgba(56,189,248,0.14)" }}>
-                    CONSTRUCTOR DE INFORME GERENCIAL PREVENTIVO
+                    CONSTRUCTOR PREMIUM DE INFORMES
                   </h2>
                   <p style={{ margin: "5px 0 0", color: textoSuave, fontSize: "12px", lineHeight: 1.4, fontWeight: 750 }}>
-                    El informe se arma solo con comandos, filtros y secciones seleccionadas aqui. Los filtros del dashboard no se incorporan automaticamente.
+                    Elija el propósito del informe, seleccione el alcance y agregue solamente la evidencia estratégica u operativa que necesita comunicar.
                   </p>
                   <PreventiveLegalRibbon
                     theme={temaClaro ? "light" : "dark"}
@@ -5217,8 +5763,92 @@ export default function KpiGerencialAvanzadoPage() {
                   />
                 </div>
                 <div style={{ borderRadius: "999px", padding: "7px 10px", background: fondoInterno, border: bordeInterno, color: textoAzul, fontSize: "11px", fontWeight: 950 }}>
-                  PDF controlado por selección
+                  Vista previa → PDF
                 </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "12px" }}>
+                {[
+                  {
+                    id: "operativo" as CategoriaInformePreventivo,
+                    titulo: "Informe de Gestión de Hallazgos",
+                    etiqueta: "Operación y seguimiento",
+                    detalle: "Responsables, plazos, estados, evidencias y trazabilidad individual de cierre.",
+                    color: "#38bdf8",
+                    habilitado: true,
+                  },
+                  {
+                    id: "gerencial" as CategoriaInformePreventivo,
+                    titulo: "Informe Ejecutivo Gerencial",
+                    etiqueta: "Decisión estratégica",
+                    detalle: "Tendencias, comparaciones, rankings, concentración de riesgos y recomendaciones gerenciales.",
+                    color: "#8b5cf6",
+                    habilitado: perfilGerencialHabilitado,
+                  },
+                ].map((categoria) => {
+                  const activa = categoriaInformePreventivo === categoria.id;
+                  return (
+                    <button
+                      key={`categoria-informe-${categoria.id}`}
+                      type="button"
+                      disabled={!categoria.habilitado}
+                      onClick={() => {
+                        const primeraPlantilla = plantillasInformeGerencial.find(
+                          (plantilla) => plantilla.categoria === categoria.id
+                        );
+                        if (primeraPlantilla) aplicarPlantillaInforme(primeraPlantilla);
+                      }}
+                      style={{
+                        minWidth: 0,
+                        borderRadius: "20px",
+                        padding: "15px",
+                        textAlign: "left",
+                        border: activa ? `1px solid ${categoria.color}88` : bordeInterno,
+                        borderLeft: `4px solid ${categoria.color}`,
+                        background: activa
+                          ? temaClaro
+                            ? `linear-gradient(135deg, ${categoria.color}18, rgba(255,255,255,0.92))`
+                            : `linear-gradient(135deg, ${categoria.color}24, rgba(15,23,42,0.82))`
+                          : fondoInterno,
+                        color: textoPrincipal,
+                        cursor: categoria.habilitado ? "pointer" : "not-allowed",
+                        opacity: categoria.habilitado ? 1 : 0.58,
+                        display: "grid",
+                        gridTemplateColumns: "auto minmax(0, 1fr) auto",
+                        gap: "11px",
+                        alignItems: "start",
+                        boxShadow: activa ? `0 16px 30px ${categoria.color}18` : "none",
+                      }}
+                    >
+                      <span style={{ width: "34px", height: "34px", borderRadius: "12px", display: "grid", placeItems: "center", background: `${categoria.color}20`, border: `1px solid ${categoria.color}50`, color: categoria.color, fontSize: "16px", fontWeight: 950 }}>
+                        {categoria.id === "operativo" ? "O" : "G"}
+                      </span>
+                      <span style={{ minWidth: 0, display: "grid", gap: "4px" }}>
+                        <span style={{ color: categoria.color, fontSize: "10px", fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.55px" }}>{categoria.etiqueta}</span>
+                        <strong style={{ color: textoPrincipal, fontSize: "15px", lineHeight: 1.2, fontWeight: 950 }}>{categoria.titulo}</strong>
+                        <span style={{ color: textoSuave, fontSize: "11px", lineHeight: 1.4, fontWeight: 760 }}>{categoria.detalle}</span>
+                      </span>
+                      <span style={{ borderRadius: "999px", padding: "5px 8px", background: activa ? `${categoria.color}22` : fondoInternoFuerte, color: activa ? categoria.color : textoSuave, fontSize: "9px", fontWeight: 950, whiteSpace: "nowrap" }}>
+                        {!categoria.habilitado ? "Perfil requerido" : activa ? "Seleccionado" : "Elegir"}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div style={{ borderRadius: "16px", padding: "11px 12px", background: temaClaro ? "rgba(239,246,255,0.72)" : "rgba(8,47,73,0.30)", border: temaClaro ? "1px solid rgba(37,99,235,0.18)" : "1px solid rgba(125,211,252,0.18)", display: "grid", gridTemplateColumns: "auto minmax(0, 1fr) auto", gap: "10px", alignItems: "center" }}>
+                <span style={{ width: "34px", height: "34px", borderRadius: "999px", overflow: "hidden", display: "grid", placeItems: "center", background: "linear-gradient(135deg,#2563eb,#7c3aed)", color: "#ffffff", fontSize: "11px", fontWeight: 950 }}>
+                  {inicialesUsuarioInforme(usuarioGeneradorInforme.nombre)}
+                </span>
+                <span style={{ minWidth: 0 }}>
+                  <strong style={{ display: "block", color: textoPrincipal, fontSize: "12px", fontWeight: 950 }}>Autoría individual del informe</strong>
+                  <span style={{ display: "block", marginTop: "2px", color: textoSuave, fontSize: "11px", lineHeight: 1.35, fontWeight: 760 }}>
+                    Se emitirá a nombre de {usuarioGeneradorInforme.nombre} · {usuarioGeneradorInforme.cargo}. Cada perfil ejecutivo conserva su propia trazabilidad documental.
+                  </span>
+                </span>
+                <span style={{ borderRadius: "999px", padding: "6px 9px", background: perfilGerencialHabilitado ? "rgba(34,197,94,0.12)" : "rgba(249,115,22,0.12)", color: perfilGerencialHabilitado ? "#22c55e" : "#f97316", fontSize: "10px", fontWeight: 950, whiteSpace: "nowrap" }}>
+                  {perfilGerencialHabilitado ? "Perfil ejecutivo habilitado" : "Perfil operativo"}
+                </span>
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 0.9fr) minmax(0, 1.1fr)", gap: "12px", alignItems: "stretch" }}>
@@ -5227,7 +5857,7 @@ export default function KpiGerencialAvanzadoPage() {
                     <div style={{ color: textoAzul, fontSize: "11px", fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.55px" }}>
                       Tipo de informe
                     </div>
-                    {plantillasInformeGerencial.map((plantilla) => {
+                    {plantillasCategoriaActiva.map((plantilla) => {
                       const activo = tipoInformeGerencial === plantilla.id;
 
                       return (
@@ -5236,7 +5866,7 @@ export default function KpiGerencialAvanzadoPage() {
                           type="button"
                           onClick={() => {
                             activarBoton(`plantilla-${plantilla.id}`);
-                            setTipoInformeGerencial(plantilla.id);
+                            aplicarPlantillaInforme(plantilla);
                           }}
                           style={{
                             borderRadius: "14px",
@@ -5273,7 +5903,7 @@ export default function KpiGerencialAvanzadoPage() {
                           type="button"
                           onClick={() => {
                             activarBoton(`nivel-informe-${opcion.id}`);
-                            setNivelDetalleInformeGerencial(opcion.id);
+                            aplicarNivelDetalleInforme(opcion.id);
                           }}
                           style={{
                             borderRadius: "14px",
@@ -5596,7 +6226,7 @@ export default function KpiGerencialAvanzadoPage() {
                     <div style={{ color: textoSuave, fontSize: "11px", lineHeight: 1.35, fontWeight: 750 }}>
                       {detalleInformeOpciones.find((opcion) => opcion.id === detalleInformeGerencial)?.detalle}
                       {detalleInformeGerencial === "anexo-completo-futuro"
-                        ? " Anexo completo queda preparado como fase posterior; no exporta todavia."
+                        ? " Se incluirán hasta 20 hallazgos filtrados como respaldo documental."
                         : ""}
                     </div>
                   </div>
@@ -5666,7 +6296,7 @@ export default function KpiGerencialAvanzadoPage() {
                       </label>
                     </div>
                     <div style={{ color: textoSuave, fontSize: "11px", lineHeight: 1.35, fontWeight: 750 }}>
-                      Configuracion inicial para que el PDF use datos seleccionados por el usuario. La fase futura puede abrir control por dato en cada grafico o seccion.
+                      Cada selección se refleja en la vista previa y en el PDF. Los elementos no marcados quedan fuera del informe.
                     </div>
                   </div>
                 </div>
@@ -5682,7 +6312,7 @@ export default function KpiGerencialAvanzadoPage() {
                       {tituloAutomaticoInformeGerencial}
                     </h3>
                     <div style={{ marginTop: "5px", color: textoSuave, fontSize: "12px", lineHeight: 1.4, fontWeight: 750 }}>
-                      {plantillaInformeActiva.titulo} · {etiquetaNivelDetalleInforme(nivelDetalleInformeGerencial)} · {etiquetaAlcanceInforme} · {analisisInformeGerencial.total} hallazgo(s) incluidos
+                      {etiquetaCategoriaInforme} · {plantillaInformeActiva.titulo} · {etiquetaAlcanceInforme} · {analisisInformeGerencial.total} hallazgo(s) incluidos
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
@@ -5724,9 +6354,6 @@ export default function KpiGerencialAvanzadoPage() {
                             ? "Error al generar PDF"
                             : "Descargar PDF"}
                     </button>
-                    <button type="button" disabled title="Excel real pendiente para KPI-E4." style={{ ...botonStyle("excel-informe"), minHeight: "36px", padding: "8px 11px", fontSize: "12px", opacity: 0.55, cursor: "not-allowed", color: textoSuave }}>
-                      Exportar Excel — Proximamente
-                    </button>
                   </div>
                 </div>
 
@@ -5737,6 +6364,10 @@ export default function KpiGerencialAvanzadoPage() {
                         {comando}
                       </span>
                     ))
+                  ) : hayElementosInformeGerencial ? (
+                    <span style={{ borderRadius: "999px", padding: "6px 9px", background: temaClaro ? "rgba(34,197,94,0.10)" : "rgba(34,197,94,0.08)", border: temaClaro ? "1px solid rgba(22,163,74,0.20)" : "1px solid rgba(74,222,128,0.20)", color: temaClaro ? "#15803d" : "#86efac", fontSize: "11px", fontWeight: 900 }}>
+                      Universo completo visible para este perfil
+                    </span>
                   ) : (
                     <span style={{ borderRadius: "999px", padding: "6px 9px", background: fondoInternoFuerte, border: bordeInterno, color: textoMedio, fontSize: "11px", fontWeight: 850 }}>
                       No se han seleccionado elementos para este informe.
@@ -5869,6 +6500,41 @@ export default function KpiGerencialAvanzadoPage() {
                 </div>
                 )}
 
+                {graficosInformeSeleccionados.includes("tendencia") && (
+                  <div style={{ borderRadius: "18px", padding: "12px", background: fondoInterno, border: bordeInterno, display: "grid", gap: "11px" }}>
+                    <div>
+                      <div style={{ color: textoAzul, fontSize: "11px", fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.55px" }}>Evolución ejecutiva</div>
+                      <div style={{ marginTop: "4px", color: textoSuave, fontSize: "11px", fontWeight: 760 }}>Reportados, cerrados, críticos y vencidos por periodo.</div>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.max(1, tendenciaVisualInforme.length)}, minmax(70px, 1fr))`, gap: "8px", overflowX: "auto", paddingBottom: "3px" }}>
+                      {tendenciaVisualInforme.map((item) => {
+                        const maximo = Math.max(1, item.total, item.cerrados, item.criticosAbiertos, item.vencidosAbiertos);
+                        return (
+                          <div key={`preview-tendencia-${item.periodo}`} style={{ minWidth: "70px", borderRadius: "12px", padding: "8px", background: fondoInternoFuerte, border: bordeInterno, display: "grid", gap: "6px" }}>
+                            <strong style={{ color: textoPrincipal, fontSize: "10px", textAlign: "center" }}>{item.periodo}</strong>
+                            {[
+                              ["Reportados", item.total, "#38bdf8"],
+                              ["Cerrados", item.cerrados, "#22c55e"],
+                              ["Críticos", item.criticosAbiertos, "#ef4444"],
+                              ["Vencidos", item.vencidosAbiertos, "#f97316"],
+                            ].map(([label, valor, color]) => (
+                              <div key={`preview-tendencia-${item.periodo}-${label}`} title={`${label}: ${valor}`} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 20px", gap: "5px", alignItems: "center" }}>
+                                <div style={{ height: "6px", borderRadius: "999px", background: temaClaro ? "rgba(148,163,184,0.22)" : "rgba(148,163,184,0.14)", overflow: "hidden" }}>
+                                  <div style={{ width: `${Number(valor) === 0 ? 3 : Math.max(8, (Number(valor) / maximo) * 100)}%`, height: "100%", borderRadius: "inherit", background: String(color) }} />
+                                </div>
+                                <strong style={{ color: String(color), fontSize: "10px", textAlign: "right" }}>{valor}</strong>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div style={{ borderRadius: "12px", padding: "9px 10px", background: temaClaro ? "rgba(239,246,255,0.72)" : "rgba(8,47,73,0.30)", border: temaClaro ? "1px solid rgba(37,99,235,0.16)" : "1px solid rgba(125,211,252,0.16)", color: textoMedio, fontSize: "11px", lineHeight: 1.45, fontWeight: 760 }}>
+                      <strong style={{ color: textoAzul }}>Lectura gerencial: </strong>{lecturaTendenciaInforme}
+                    </div>
+                  </div>
+                )}
+
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "10px" }}>
                   {(seccionesInformeSeleccionadas.includes("calidad-dato") ||
                     graficosInformeSeleccionados.includes("calidad-dato")) && (
@@ -5889,30 +6555,36 @@ export default function KpiGerencialAvanzadoPage() {
                   )}
 
                   {rankingsInformeSeleccionados.length > 0 && (
-                    <div style={{ borderRadius: "16px", padding: "12px", background: fondoInterno, border: bordeInterno, display: "grid", gap: "8px" }}>
-                      <div style={{ color: textoAzul, fontSize: "11px", fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.55px" }}>Focos comparativos</div>
-                      {[
-                        ["Empresa reportante", analisisInformeGerencial.porEmpresaReportante[0]?.nombre || "Sin datos"],
-                        ["Empresa responsable", analisisInformeGerencial.porEmpresaResponsable[0]?.nombre || "Sin datos"],
-                        ["Obra", analisisInformeGerencial.porObra[0]?.nombre || "Sin datos"],
-                        ["Area", analisisInformeGerencial.porArea[0]?.nombre || "Sin datos"],
-                        ["Tipo", analisisInformeGerencial.porTipo[0]?.nombre || "Sin datos"],
-                        ["Responsable", analisisInformeGerencial.porResponsable[0]?.nombre || "Sin datos"],
-                      ]
-                        .filter(([label]) => {
-                          if (label === "Empresa reportante") return rankingsInformeSeleccionados.includes("ranking-empresa-reportante");
-                          if (label === "Empresa responsable") return rankingsInformeSeleccionados.includes("ranking-empresa-responsable");
-                          if (label === "Obra") return rankingsInformeSeleccionados.includes("ranking-obras");
-                          if (label === "Area") return rankingsInformeSeleccionados.includes("ranking-areas");
-                          if (label === "Tipo") return rankingsInformeSeleccionados.includes("ranking-tipos");
-                          return rankingsInformeSeleccionados.includes("ranking-responsables");
-                        })
-                        .map(([label, valor]) => (
-                        <div key={`comparativo-informe-${label}`} style={{ display: "flex", justifyContent: "space-between", gap: "8px", color: textoMedio, fontSize: "11px", fontWeight: 850 }}>
-                          <span>{label}</span>
-                          <strong style={{ color: textoPrincipal, textAlign: "right" }}>{valor}</strong>
-                        </div>
-                      ))}
+                    <div style={{ gridColumn: "1 / -1", borderRadius: "16px", padding: "12px", background: fondoInterno, border: bordeInterno, display: "grid", gap: "12px" }}>
+                      <div>
+                        <div style={{ color: textoAzul, fontSize: "11px", fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.55px" }}>Rankings comparativos incluidos</div>
+                        <div style={{ marginTop: "4px", color: textoSuave, fontSize: "11px", fontWeight: 760 }}>La misma lectura visual se traspasará al documento final.</div>
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "10px" }}>
+                        {rankingsPdfInformeGerencial.map((ranking) => {
+                          const dataVisible = ranking.data.slice(0, 5);
+                          const maximo = Math.max(1, ...dataVisible.map((item) => item.total));
+                          return (
+                            <div key={`preview-${ranking.titulo}`} style={{ borderRadius: "14px", padding: "10px", background: fondoInternoFuerte, border: bordeInterno, display: "grid", gap: "8px" }}>
+                              <strong style={{ color: textoPrincipal, fontSize: "12px", fontWeight: 950 }}>{ranking.titulo}</strong>
+                              {dataVisible.length > 0 ? dataVisible.map((item, index) => (
+                                <div key={`preview-${ranking.titulo}-${item.nombre}`} style={{ display: "grid", gridTemplateColumns: "18px minmax(0, 1fr) 30px", gap: "7px", alignItems: "center" }}>
+                                  <span style={{ color: textoAzul, fontSize: "10px", fontWeight: 950 }}>{index + 1}</span>
+                                  <div style={{ minWidth: 0, display: "grid", gap: "4px" }}>
+                                    <span style={{ color: textoMedio, fontSize: "10px", fontWeight: 850, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.nombre}</span>
+                                    <div style={{ height: "7px", borderRadius: "999px", background: temaClaro ? "rgba(148,163,184,0.22)" : "rgba(148,163,184,0.14)", overflow: "hidden" }}>
+                                      <div style={{ width: `${Math.max(7, (item.total / maximo) * 100)}%`, height: "100%", borderRadius: "inherit", background: "linear-gradient(90deg,#2563eb,#22c55e)" }} />
+                                    </div>
+                                  </div>
+                                  <strong style={{ color: textoPrincipal, fontSize: "11px", textAlign: "right" }}>{item.total}</strong>
+                                </div>
+                              )) : (
+                                <span style={{ color: textoSuave, fontSize: "11px", fontWeight: 760 }}>Sin datos para este alcance.</span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
 
@@ -5954,7 +6626,7 @@ export default function KpiGerencialAvanzadoPage() {
                 )}
               </div>
             </section>
-            <section style={{ ...themedSurfaceStyle, padding: "18px", display: "grid", gap: "14px", width: "100%", maxWidth: "none", minWidth: 0, alignSelf: "stretch", justifySelf: "stretch", boxSizing: "border-box", gridColumn: "1 / -1" }}>
+            <section id="detalle-accionable-kpi" style={{ ...themedSurfaceStyle, padding: "18px", display: "grid", gap: "14px", width: "100%", maxWidth: "none", minWidth: 0, alignSelf: "stretch", justifySelf: "stretch", boxSizing: "border-box", gridColumn: "1 / -1", scrollMarginTop: "88px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start", flexWrap: "wrap" }}>
                 <div>
                   <div style={{ fontSize: "11px", color: textoAzul, fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.7px" }}>
@@ -6194,13 +6866,15 @@ export default function KpiGerencialAvanzadoPage() {
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => {
-                                    activarBoton(`seguimiento-${hallazgo.codigo}`);
-                                    setMensaje(`Seguimiento preparado visualmente para ${hallazgo.codigo}. Conexion accionable queda para fase posterior.`);
-                                  }}
+                                  onClick={() =>
+                                    void copiarResumenDetalle(
+                                      `${resumenHallazgoDetalle(hallazgo)}\n\nSeguimiento requerido: confirmar responsable, fecha compromiso, acción correctiva y evidencia de cierre.`,
+                                      `Seguimiento de ${hallazgo.codigo} copiado y listo para enviar.`
+                                    )
+                                  }
                                   style={{ ...botonStyle(`seguimiento-${hallazgo.codigo}`), minHeight: "32px", padding: "7px 10px", fontSize: "11px" }}
                                 >
-                                  Preparar seguimiento
+                                  Copiar seguimiento
                                 </button>
                               </div>
                             </div>
