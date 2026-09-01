@@ -224,7 +224,7 @@ export default function PremiumWorkspaceShell({
             display: none !important;
           }
           .ce-premium-client-logo-slot {
-            width: 112px !important;
+            max-width: 112px !important;
           }
         }
       `}</style>
@@ -341,31 +341,30 @@ export default function PremiumWorkspaceShell({
                 <div
                   className="ce-premium-client-logo-slot"
                   style={{
-                    width: "clamp(126px, 11vw, 168px)",
                     height: 36,
-                    flex: "0 0 auto",
-                    borderRadius: 10,
-                    padding: "6px 9px",
-                    display: "grid",
-                    placeItems: "center",
-                    position: "relative",
-                    overflow: "hidden",
-                    background: "linear-gradient(135deg,#071a2d,#0d3556)",
-                    border: "1px solid rgba(125,211,252,0.22)",
-                    boxShadow: "0 8px 20px rgba(2,6,23,0.18)",
+                    maxWidth: "clamp(42px, 15vw, 168px)",
+                    flex: "0 1 auto",
+                    minWidth: 0,
+                    display: "flex",
+                    alignItems: "center",
                   }}
                 >
                   <Image
                     src={companyLogoUrl}
                     alt={`Logo de ${companyName}`}
-                    fill
+                    width={168}
+                    height={48}
                     unoptimized
                     sizes="(max-width: 720px) 112px, 168px"
                     style={{
                       display: "block",
+                      width: "auto",
+                      height: 36,
+                      maxWidth: "100%",
                       objectFit: "contain",
                       objectPosition: "left center",
-                      ...companyLogoImageStyle,
+                      transform: companyLogoImageStyle?.transform,
+                      transformOrigin: companyLogoImageStyle?.transformOrigin || "left center",
                     }}
                   />
                 </div>
