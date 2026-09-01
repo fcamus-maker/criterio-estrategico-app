@@ -2968,13 +2968,13 @@ export default function KpiGerencialAvanzadoPage() {
     const cerrados = analisisInformeGerencial.cerrados;
     const tasaCierre = analisisInformeGerencial.tasaCierre;
     const tipoPrincipal = analisisInformeGerencial.porTipo[0]?.nombre || "sin tipo dominante";
-    const areaPrincipal = analisisInformeGerencial.porArea[0]?.nombre || "sin area dominante";
+    const areaPrincipal = analisisInformeGerencial.porArea[0]?.nombre || "sin área dominante";
     const enfoquePlantilla =
       tipoInformeGerencial === "criticos-vencidos"
         ? "priorizar escalamiento, responsables nominales, fecha compromiso y evidencia de cierre documentada."
         : tipoInformeGerencial === "calidad-dato"
-          ? "regularizar datos incompletos antes de usar el informe como respaldo documental o auditoria interna."
-          : "concentrar decision gerencial en criticidad, plazos, responsables y brechas con mayor impacto preventivo.";
+          ? "regularizar datos incompletos antes de usar el informe como respaldo documental o auditoría interna."
+          : "concentrar decisión gerencial en criticidad, plazos, responsables y brechas con mayor impacto preventivo.";
 
     const crearAnalisis = (
       id: SeccionInformeGerencial,
@@ -2996,65 +2996,65 @@ export default function KpiGerencialAvanzadoPage() {
         case "kpis":
           return crearAnalisis(
             seccion,
-            `El alcance incluye ${total} hallazgo(s), ${metricasInformeGerencial.abiertos} abierto(s), ${cerrados} cerrado(s), ${metricasInformeGerencial.criticosAbiertos} critico(s) abierto(s), ${metricasInformeGerencial.vencidosAbiertos} vencido(s) abierto(s), ${metricasInformeGerencial.sinFechaCompromiso} sin fecha compromiso y tasa de cierre ${tasaCierre}%.`,
-            "La combinacion de criticidad, vencimiento y ausencia de plazo muestra presion operativa y posibles brechas de seguimiento preventivo.",
+            `El alcance incluye ${total} hallazgo(s), ${metricasInformeGerencial.abiertos} abierto(s), ${cerrados} cerrado(s), ${metricasInformeGerencial.criticosAbiertos} crítico(s) abierto(s), ${metricasInformeGerencial.vencidosAbiertos} vencido(s) abierto(s), ${metricasInformeGerencial.sinFechaCompromiso} sin fecha compromiso y tasa de cierre ${tasaCierre}%.`,
+            "La combinación de criticidad, vencimiento y ausencia de plazo muestra presión operativa y posibles brechas de seguimiento preventivo.",
             `Usar estos KPIs para ordenar prioridades, exigir plan de cierre y ${enfoquePlantilla}`
           );
         case "resumen":
           return crearAnalisis(
             seccion,
             `La lectura global concentra foco en ${empresaFocoInforme}, ${obraFocoInforme} y responsable ${responsableFocoInforme}.`,
-            "Una concentracion sostenida puede indicar exposicion preventiva activa o carga de gestion que requiere seguimiento de gerencia.",
-            `Validar el foco con prevencion y administracion, confirmar causas, responsable, plazo y respaldo documental; luego ${enfoquePlantilla}`
+            "Una concentración sostenida puede indicar exposición preventiva activa o carga de gestión que requiere seguimiento de gerencia.",
+            `Validar el foco con prevención y administración, confirmar causas, responsable, plazo y respaldo documental; luego ${enfoquePlantilla}`
           );
         case "riesgos":
           return crearAnalisis(
             seccion,
-            `Los riesgos principales combinan ${metricasInformeGerencial.criticosAbiertos} critico(s), ${metricasInformeGerencial.vencidosAbiertos} vencido(s), ${metricasInformeGerencial.sinFechaCompromiso} sin fecha y ${metricasInformeGerencial.sinResponsable} sin responsable.`,
-            "La suma de criticidad, atraso, ausencia de plazo y responsable debilita la gestion vigente.",
-            "Priorizar responsables, plazos y evidencia de cierre para los focos con mayor presion preventiva."
+            `Los riesgos principales combinan ${metricasInformeGerencial.criticosAbiertos} crítico(s), ${metricasInformeGerencial.vencidosAbiertos} vencido(s), ${metricasInformeGerencial.sinFechaCompromiso} sin fecha y ${metricasInformeGerencial.sinResponsable} sin responsable.`,
+            "La suma de criticidad, atraso, ausencia de plazo y responsable debilita la gestión vigente.",
+            "Priorizar responsables, plazos y evidencia de cierre para los focos con mayor presión preventiva."
           );
         case "radar":
           return crearAnalisis(
             seccion,
-            `El radar prioriza empresas con carga critica, obras con vencidos, responsables pendientes y registros sin fecha compromiso en el alcance actual.`,
+            `El radar prioriza empresas con carga crítica, obras con vencidos, responsables pendientes y registros sin fecha compromiso en el alcance actual.`,
             "Estos focos muestran donde puede perderse control preventivo si no se asignan acciones, plazos y seguimiento verificable.",
-            "Usar el radar para preparar comite, solicitar cierre documentado y revisar semanalmente los focos que concentran mayor presion."
+            "Usar el radar para preparar comité, solicitar cierre documentado y revisar semanalmente los focos que concentran mayor presión."
           );
         case "tendencia":
           return crearAnalisis(
             seccion,
-            "La tendencia temporal muestra evolucion de hallazgos reportados, criticos abiertos y vencidos abiertos con los filtros actuales.",
-            "Un aumento sostenido o puntos altos en criticos/vencidos indican presion de gestion y posible acumulacion de brechas.",
+            "La tendencia temporal muestra evolución de hallazgos reportados, críticos abiertos y vencidos abiertos con los filtros actuales.",
+            "Un aumento sostenido o puntos altos en críticos/vencidos indican presión de gestión y posible acumulación de brechas.",
             "Revisar los periodos con mayor carga y exigir plan de cierre documentado para los focos abiertos."
           );
         case "matriz":
           return crearAnalisis(
             seccion,
-            `La matriz compara carga por empresas, obras, areas, tipos y responsables; destacan ${empresaFocoInforme}, ${obraFocoInforme}, ${areaPrincipal} y ${tipoPrincipal}.`,
-            "La comparacion permite detectar concentraciones que pueden requerir intervencion preventiva, redistribucion de seguimiento o control por contrato.",
-            "Presentar la matriz en reunion ejecutiva para definir prioridades por empresa, obra y responsable, evitando interpretar mayor reporte como peor desempeno sin revisar contexto."
+            `La matriz compara carga por empresas, obras, áreas, tipos y responsables; destacan ${empresaFocoInforme}, ${obraFocoInforme}, ${areaPrincipal} y ${tipoPrincipal}.`,
+            "La comparación permite detectar concentraciones que pueden requerir intervención preventiva, redistribución de seguimiento o control por contrato.",
+            "Presentar la matriz en reunión ejecutiva para definir prioridades por empresa, obra y responsable, evitando interpretar mayor reporte como peor desempeño sin revisar contexto."
           );
         case "comparaciones":
           return crearAnalisis(
             seccion,
-            "Las comparaciones muestran variacion entre periodo actual y periodo anterior para volumen, criticidad y cierre.",
+            "Las comparaciones muestran variación entre periodo actual y periodo anterior para volumen, criticidad y cierre.",
             "Variaciones fuertes requieren revisar si responden a cambio real de riesgo, carga operativa o diferencia de registro.",
-            "Usar la comparacion como alerta gerencial y validar el detalle antes de definir conclusiones contractuales."
+            "Usar la comparación como alerta gerencial y validar el detalle antes de definir conclusiones contractuales."
           );
         case "cierre-vencimiento":
           return crearAnalisis(
             seccion,
             `El cierre y vencimiento muestra ${metricasInformeGerencial.vencidosAbiertos} vencido(s), ${metricasInformeGerencial.sinFechaCompromiso} sin fecha y tasa de cierre ${tasaCierre}%.`,
-            "La brecha de plazos y cierre afecta trazabilidad y oportunidad de la gestion preventiva.",
-            "Escalar vencidos, regularizar fechas compromiso y validar evidencia o justificacion formal de cierre."
+            "La brecha de plazos y cierre afecta trazabilidad y oportunidad de la gestión preventiva.",
+            "Escalar vencidos, regularizar fechas compromiso y validar evidencia o justificación formal de cierre."
           );
         case "control-inmediato":
           return crearAnalisis(
             seccion,
-            "El control inmediato resume focos que requieren atencion prioritaria por criticidad, vencimiento o falta de trazabilidad.",
+            "El control inmediato resume focos que requieren atención prioritaria por criticidad, vencimiento o falta de trazabilidad.",
             "Si estos focos no se gestionan, pueden mantenerse riesgos abiertos sin cierre verificable.",
-            "Definir responsables nominales, plazos y evidencia esperada antes del siguiente comite."
+            "Definir responsables nominales, plazos y evidencia esperada antes del siguiente comité."
           );
         case "criticos-abiertos":
           return crearAnalisis(
@@ -3262,7 +3262,7 @@ export default function KpiGerencialAvanzadoPage() {
         titulo: "Radar gerencial",
         representa: "Focos ejecutivos priorizados por criticidad, vencimiento y responsables.",
         valores: [
-          `Criticos abiertos: ${metricasInformeGerencial.criticosAbiertos}`,
+          `Críticos abiertos: ${metricasInformeGerencial.criticosAbiertos}`,
           `Vencidos abiertos: ${metricasInformeGerencial.vencidosAbiertos}`,
           `Sin fecha compromiso: ${metricasInformeGerencial.sinFechaCompromiso}`,
         ],
@@ -3270,31 +3270,31 @@ export default function KpiGerencialAvanzadoPage() {
       tendencia: {
         titulo: "Tendencia temporal",
         representa:
-          "Evolucion mensual configurada por el usuario para las series seleccionadas.",
+          "Evolución mensual configurada por el usuario para las series seleccionadas.",
         valores: tendenciaInformeConfigurada.map(
           (item) => `${item.periodo}: ${item.valores.join(", ")}`
         ),
       },
       matriz: {
         titulo: "Matriz comparativa gerencial",
-        representa: "Comparacion de concentracion por empresa, obra, area, tipo y responsable.",
+        representa: "Comparación de concentración por empresa, obra, área, tipo y responsable.",
         valores: [
           `Empresa responsable foco: ${analisisInformeGerencial.porEmpresaResponsable[0]?.nombre || "Sin datos"}`,
           `Obra foco: ${analisisInformeGerencial.porObra[0]?.nombre || "Sin datos"}`,
-          `Area foco: ${analisisInformeGerencial.porArea[0]?.nombre || "Sin datos"}`,
+          `Área foco: ${analisisInformeGerencial.porArea[0]?.nombre || "Sin datos"}`,
         ],
       },
       comparaciones: {
         titulo: "Comparaciones",
-        representa: "Variacion entre periodo actual y periodo comparado en volumen, criticidad y cierre.",
+        representa: "Variación entre periodo actual y periodo comparado en volumen, criticidad y cierre.",
         valores: analisisInformeGerencial.comparaciones.map(
           (item) =>
-            `${item.etiqueta}: actual ${item.actual}, comparado ${item.comparado}, variacion ${item.variacion > 0 ? "+" : ""}${item.variacion}`
+            `${item.etiqueta}: actual ${item.actual}, comparado ${item.comparado}, variación ${item.variacion > 0 ? "+" : ""}${item.variacion}`
         ),
       },
       "cierre-vencimiento": {
         titulo: "Cierre y vencimiento",
-        representa: "Presion de cierre, hallazgos vencidos y abiertos sin plazo.",
+        representa: "Presión de cierre, hallazgos vencidos y abiertos sin plazo.",
         valores: [
           `Tasa de cierre: ${analisisInformeGerencial.tasaCierre}%`,
           `Vencidos abiertos: ${metricasInformeGerencial.vencidosAbiertos}`,
@@ -3313,9 +3313,9 @@ export default function KpiGerencialAvanzadoPage() {
       },
       "control-inmediato": {
         titulo: "Control inmediato",
-        representa: "Brechas que requieren accion operativa inmediata dentro del filtro actual.",
+        representa: "Brechas que requieren acción operativa inmediata dentro del filtro actual.",
         valores: [
-          `Criticos abiertos: ${metricasInformeGerencial.criticosAbiertos}`,
+          `Críticos abiertos: ${metricasInformeGerencial.criticosAbiertos}`,
           `Sin responsable: ${metricasInformeGerencial.sinResponsable}`,
           `Sin fecha compromiso: ${metricasInformeGerencial.sinFechaCompromiso}`,
         ],
@@ -4485,7 +4485,7 @@ export default function KpiGerencialAvanzadoPage() {
           { etiqueta: "Cierres sin respaldo", valor: metricasInformeGerencial.cerradosSinRespaldo, nivel: metricasInformeGerencial.cerradosSinRespaldo > 0 ? "critico" : "controlado" },
         ],
         criticidad: [
-          { etiqueta: "Criticos", total: analisisInformeGerencial.porCriticidad.CRITICO, nivel: "critico" },
+          { etiqueta: "Críticos", total: analisisInformeGerencial.porCriticidad.CRITICO, nivel: "critico" },
           { etiqueta: "Altos", total: analisisInformeGerencial.porCriticidad.ALTO, nivel: "alto" },
           { etiqueta: "Medios", total: analisisInformeGerencial.porCriticidad.MEDIO, nivel: "atencion" },
           { etiqueta: "Bajos", total: analisisInformeGerencial.porCriticidad.BAJO, nivel: "controlado" },
