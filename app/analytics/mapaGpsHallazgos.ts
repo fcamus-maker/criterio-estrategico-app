@@ -114,16 +114,34 @@ function claveMapaCalor(latitud: number, longitud: number) {
   return `${latitud.toFixed(3)},${longitud.toFixed(3)}`;
 }
 
+export function tieneCoordenadaGpsReal(hallazgo: HallazgoCentral) {
+  const gps = hallazgo.geolocalizacion;
+  const latitud = gps?.latitud;
+  const longitud = gps?.longitud;
+  const estado = String(gps?.estadoGeolocalizacion || "").toLowerCase();
+
+  return (
+    typeof latitud === "number" &&
+    typeof longitud === "number" &&
+    Number.isFinite(latitud) &&
+    Number.isFinite(longitud) &&
+    latitud >= -85 &&
+    latitud <= 85 &&
+    longitud >= -180 &&
+    longitud <= 180 &&
+    !(latitud === 0 && longitud === 0) &&
+    !estado.includes("simulad") &&
+    !estado.includes("vista_preparada")
+  );
+}
+
 export function prepararPuntosMapaGpsHallazgos(
   hallazgos: HallazgoCentral[],
   filtros: FiltrosMapaGpsHallazgos = {}
 ): PuntoMapaGpsHallazgo[] {
   return hallazgos
     .filter((hallazgo) => cumpleFiltros(hallazgo, filtros))
-    .filter((hallazgo) => {
-      const gps = hallazgo.geolocalizacion;
-      return typeof gps?.latitud === "number" && typeof gps.longitud === "number";
-    })
+    .filter(tieneCoordenadaGpsReal)
     .map((hallazgo) => ({
       id: hallazgo.id,
       codigo: hallazgo.codigo,
