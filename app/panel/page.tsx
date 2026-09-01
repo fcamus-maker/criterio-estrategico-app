@@ -1478,7 +1478,6 @@ const [menuExportacionMetaAbierto, setMenuExportacionMetaAbierto] = useState(fal
   const logoScaleInforme = informeUsaLogoEmpresa ? logoScale : LOGO_AJUSTE_DEFECTO.logoScale;
   const logoOffsetXInforme = informeUsaLogoEmpresa ? logoOffsetX : LOGO_AJUSTE_DEFECTO.logoOffsetX;
   const logoOffsetYInforme = informeUsaLogoEmpresa ? logoOffsetY : LOGO_AJUSTE_DEFECTO.logoOffsetY;
-  const logoFitInforme = informeUsaLogoEmpresa ? logoFit : LOGO_AJUSTE_DEFECTO.logoFit;
   const logoPositionInforme = informeUsaLogoEmpresa ? logoPosition : LOGO_AJUSTE_DEFECTO.logoPosition;
   const hayFormatoExportacionActivo = Object.values(formatosExportacion).some(Boolean);
   const cargarLogoEmpresa = async (archivo: File | undefined) => {
@@ -3072,30 +3071,26 @@ const generarInformeEmpresaObra = (opciones: { imprimir?: boolean } = {}) => {
           }
 
           .report-brand {
-            display: grid;
-            grid-template-columns: 178px minmax(0, 1fr);
+            display: flex;
             gap: 14px;
             align-items: center;
             min-width: 0;
           }
 
           .report-logo-slot {
-            width: 178px;
             height: 52px;
-            border: 1px solid #1e4f72;
-            border-radius: 11px;
-            background: linear-gradient(135deg, #071a2d 0%, #0d3556 100%);
+            max-width: 178px;
             display: flex;
             align-items: center;
-            justify-content: center;
-            padding: 8px 12px;
-            overflow: hidden;
+            flex: 0 1 auto;
+            min-width: 0;
           }
 
           .report-logo {
-            width: 100%;
-            height: 100%;
-            object-fit: ${logoFitInforme};
+            width: auto;
+            height: 52px;
+            max-width: 100%;
+            object-fit: contain;
             object-position: ${escapeHtml(logoPositionInforme)};
             transform: translate(${logoOffsetXInforme}px, ${logoOffsetYInforme}px) scale(${logoScaleInforme});
             transform-origin: left center;
@@ -4635,8 +4630,8 @@ const generarHtmlCalendarioMeta = () => {
     .page { width: 210mm; min-height: 297mm; margin: 0 auto; background: #fff; box-shadow: 0 18px 50px rgba(15,23,42,.18); padding: 14mm; }
     .header { display: flex; align-items: center; justify-content: space-between; gap: 12mm; border-bottom: 1px solid #e2e8f0; padding-bottom: 7mm; break-inside: avoid; }
     .report-brand-calendar { display: flex; align-items: center; gap: 10px; min-width: 0; }
-    .calendar-logo-slot { width: 44mm; height: 12mm; padding: 2mm 3mm; border-radius: 3mm; background: linear-gradient(135deg,#071a2d,#0d3556); border: 1px solid #1e4f72; flex: 0 0 auto; }
-    .calendar-logo-slot img { width: 100%; height: 100%; object-fit: contain; object-position: left center; display: block; }
+    .calendar-logo-slot { height: 12mm; max-width: 44mm; display: flex; align-items: center; flex: 0 1 auto; min-width: 0; }
+    .calendar-logo-slot img { width: auto; height: 12mm; max-width: 100%; object-fit: contain; object-position: left center; display: block; }
     .calendar-brand-name { color: #163a70; font-size: 9px; line-height: 1.25; font-weight: 900; text-transform: uppercase; margin-bottom: 3px; }
     .user { display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; margin-top: 5px; }
     .avatar { width: 16mm; height: 16mm; border-radius: 999px; overflow: hidden; display: grid; place-items: center; background: #0f172a; color: #fff; font-size: 16px; font-weight: 900; flex: 0 0 auto; }
@@ -5532,15 +5527,14 @@ const imprimirInformeSeguimiento = () => {
             max-width: 270px;
           }
           .brand-logo-slot {
-            width: 150px;
             height: 40px;
-            padding: 7px 10px;
-            border-radius: 9px;
-            background: linear-gradient(135deg, #071a2d, #0d3556);
-            border: 1px solid #1e4f72;
-            flex: 0 0 auto;
+            max-width: 150px;
+            display: flex;
+            align-items: center;
+            flex: 0 1 auto;
+            min-width: 0;
           }
-          .brand img { width: 100%; height: 100%; object-fit: contain; object-position: left center; display: block; }
+          .brand img { width: auto; height: 40px; max-width: 100%; object-fit: contain; object-position: left center; display: block; }
           .brand-name { font-size: 10px; line-height: 1.25; text-transform: uppercase; }
           h1 { font-size: 22px; margin: 0 0 8px; line-height: 1.12; }
           .sub { color: #4b5563; font-size: 12px; line-height: 1.45; font-weight: 700; }
@@ -13497,27 +13491,24 @@ style={{
     >
       <div
         style={{
-          width: "min(100%, 260px)",
+          maxWidth: "min(100%, 260px)",
           height: "72px",
-          borderRadius: "14px",
-          border: temaClaro
-            ? "1px solid rgba(15,23,42,0.16)"
-            : "1px solid rgba(148,163,184,0.24)",
-          background: "linear-gradient(135deg, #071a2d 0%, #0d3556 100%)",
-          boxShadow: temaClaro
-            ? "0 10px 24px rgba(15,23,42,0.10)"
-            : "0 12px 26px rgba(0,0,0,0.28)",
-          overflow: "hidden",
           display: "flex",
           alignItems: "center",
-          justifyContent: "center",
-          padding: "10px 14px",
+          justifyContent: "flex-start",
         }}
       >
         <img
           src={logoPreviewUrl}
           alt={logoPreviewNombre}
-          style={logoPreviewImageStyle}
+          style={{
+            ...logoPreviewImageStyle,
+            width: "auto",
+            height: "72px",
+            maxWidth: "100%",
+            objectFit: "contain",
+            objectPosition: "left center",
+          }}
         />
       </div>
 
@@ -13543,7 +13534,7 @@ style={{
           lineHeight: 1.4,
         }}
       >
-        PNG, SVG o JPG
+        PNG, SVG o JPG · {t("se adapta automáticamente a logos horizontales, cuadrados y circulares")}
       </div>
     </div>
 
