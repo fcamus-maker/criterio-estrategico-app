@@ -201,6 +201,20 @@ type AnalisisSeccionInformeGerencial = {
 
 type EstadoPdfInformeGerencial = "idle" | "generando" | "generado" | "error";
 
+type DocumentoPdfNumerable = {
+  internal: {
+    getNumberOfPages: () => number;
+    pageSize: {
+      getWidth: () => number;
+      getHeight: () => number;
+    };
+  };
+  setPage: (pagina: number) => void;
+  setFontSize: (tamano: number) => void;
+  setTextColor: (rojo: number, verde: number, azul: number) => void;
+  text: (texto: string, x: number, y: number, opciones?: { align?: "left" | "center" | "right" }) => void;
+};
+
 type UsuarioGeneradorInforme = {
   nombre: string;
   cargo: string;
@@ -376,13 +390,11 @@ const hallazgosDetalleInformeGerencial: Array<{
   id: SeccionInformeGerencial;
   label: string;
 }> = [
-  { id: "criticos-abiertos", label: "Criticos abiertos" },
-  { id: "vencidos-abiertos", label: "Vencidos abiertos" },
-  { id: "sin-fecha-compromiso", label: "Sin fecha compromiso" },
-  { id: "cerrados", label: "Cerrados" },
-  { id: "backlog-no-cerrado", label: "Backlog no cerrado" },
-  { id: "detalle-resumido", label: "Detalle accionable resumido" },
-  { id: "anexos", label: "Anexo documental ampliado" },
+  { id: "criticos-abiertos", label: "Análisis de críticos abiertos" },
+  { id: "vencidos-abiertos", label: "Análisis de vencidos" },
+  { id: "sin-fecha-compromiso", label: "Análisis de hallazgos sin fecha" },
+  { id: "cerrados", label: "Análisis de cierres" },
+  { id: "backlog-no-cerrado", label: "Análisis del backlog" },
 ];
 
 const seccionesInformeGerencial = [
@@ -850,6 +862,33 @@ function colorCriticidad(criticidad: CriticidadKpiGerencial) {
   if (criticidad === "ALTO") return "#f97316";
   if (criticidad === "MEDIO") return "#facc15";
   return "#22c55e";
+}
+
+function colorTasaCierre(tasa: number) {
+  if (tasa < 30) return "#dc2626";
+  if (tasa < 60) return "#ea580c";
+  if (tasa < 80) return "#ca8a04";
+  return "#16a34a";
+}
+
+function tonoTasaCierre(tasa: number): "red" | "amber" | "green" {
+  if (tasa < 30) return "red";
+  if (tasa < 80) return "amber";
+  return "green";
+}
+
+function colorRiesgoRanking(item: RankingKpiGerencial) {
+  const pendientes = Math.max(0, item.total - item.cerrados);
+  if (item.vencidos > 0 || (item.criticos > 0 && item.tasaCierre < 50)) {
+    return "linear-gradient(90deg,#b91c1c,#ef4444)";
+  }
+  if (item.criticos > 0 || (pendientes > 0 && item.tasaCierre === 0)) {
+    return "linear-gradient(90deg,#dc2626,#f97316)";
+  }
+  if (pendientes > 0 || item.tasaCierre < 80) {
+    return "linear-gradient(90deg,#d97706,#facc15)";
+  }
+  return "linear-gradient(90deg,#15803d,#22c55e)";
 }
 
 function etiquetaCriticidad(criticidad: CriticidadKpiGerencial) {
@@ -1834,7 +1873,7 @@ export default function KpiGerencialAvanzadoPage() {
       ? Math.round((actual.cerrados / actual.total) * 100)
       : 0;
 
-    return `En ${actual.periodo}, el volumen reportado ${direccionVolumen}. La tasa de cierre del periodo es ${tasaCierrePeriodo}% y permanecen ${actual.criticosAbiertos} crítico(s) y ${actual.vencidosAbiertos} vencido(s) abiertos asociados a ese periodo.`;
+    return `En ${actual.periodo}, el volumen reportado ${direccionVolumen}. La tasa de cierre del periodo es ${tasaCierrePeriodo}% y permanecen abiertos ${actual.criticosAbiertos} hallazgos críticos y ${actual.vencidosAbiertos} hallazgos vencidos asociados a ese periodo.`;
   })();
   const tendenciaEscalaMaxima = Math.max(
     2,
@@ -2323,13 +2362,25 @@ export default function KpiGerencialAvanzadoPage() {
       return;
     }
 
+    const existePeriodoMaestro = Boolean(
+      filtros.fechaDesde || filtros.fechaHasta || filtros.semana || filtros.mes
+    );
+    if (!existePeriodoMaestro) {
+      setMensaje("No existe un período activo en los filtros maestros del KPI. Seleccione fechas en el constructor o aplique Hoy, Esta semana o Este mes.");
+      return;
+    }
+
     asignarFiltroInforme({
       fechaDesde: filtros.fechaDesde || undefined,
       fechaHasta: filtros.fechaHasta || undefined,
       semana: filtros.semana || undefined,
       mes: filtros.mes || undefined,
     });
+    setMensaje("Período del tablero aplicado correctamente al informe.");
   };
+  const existePeriodoMaestroInforme = Boolean(
+    filtros.fechaDesde || filtros.fechaHasta || filtros.semana || filtros.mes
+  );
   const comandosInformeResumen = useMemo(() => {
     const comandos: string[] = [];
     const agregar = (label: string, valor?: string | boolean) => {
@@ -2430,7 +2481,20 @@ export default function KpiGerencialAvanzadoPage() {
         !hallazgo.responsableCierre ||
         hallazgo.responsableCierre === "Sin responsable"
     );
-    const total = Math.max(1, hallazgosInformeGerencial.length);
+    const cerrados = hallazgosInformeGerencial.filter(
+      (hallazgo) => hallazgo.estado === "CERRADO"
+    );
+    const cerradosValidados = cerrados.filter(
+      (hallazgo) =>
+        Boolean(hallazgo.evidenciaCierreRecibida) ||
+        Boolean(hallazgo.cierreSinEvidenciaJustificado)
+    );
+    const cerradosSinRespaldo = cerrados.filter(
+      (hallazgo) =>
+        !hallazgo.evidenciaCierreRecibida &&
+        !hallazgo.cierreSinEvidenciaJustificado
+    );
+    const total = hallazgosInformeGerencial.length;
 
     return {
       abiertos: abiertos.length,
@@ -2450,6 +2514,8 @@ export default function KpiGerencialAvanzadoPage() {
       conFechaCompromiso: hallazgosInformeGerencial.filter((hallazgo) =>
         Boolean(hallazgo.fechaCompromiso)
       ).length,
+      cerradosValidados: cerradosValidados.length,
+      cerradosSinRespaldo: cerradosSinRespaldo.length,
       total,
     };
   }, [hallazgosInformeGerencial]);
@@ -2552,10 +2618,10 @@ export default function KpiGerencialAvanzadoPage() {
       !anterior || variacion === 0
         ? "sin variación comparable"
         : variacion > 0
-          ? `con un aumento de ${variacion} reporte(s)`
-          : `con una disminución de ${Math.abs(variacion)} reporte(s)`;
+          ? `con un aumento de ${variacion} reportes`
+          : `con una disminución de ${Math.abs(variacion)} reportes`;
     const tasaCierre = actual.total ? Math.round((actual.cerrados / actual.total) * 100) : 0;
-    return `El periodo ${actual.periodo} registra ${actual.total} hallazgo(s), ${cambio} respecto del periodo anterior. La tasa de cierre del periodo alcanza ${tasaCierre}%, con ${actual.criticosAbiertos} crítico(s) y ${actual.vencidosAbiertos} vencido(s) abiertos.`;
+    return `El periodo ${actual.periodo} registra ${actual.total} hallazgos, ${cambio} respecto del periodo anterior. La tasa de cierre alcanza ${tasaCierre}%. Permanecen abiertos ${actual.criticosAbiertos} hallazgos críticos y ${actual.vencidosAbiertos} hallazgos vencidos.`;
   }, [tendenciaVisualInforme]);
   const configuracionRankingsInformeGerencial = useMemo<
     Record<RankingInformeGerencial, { titulo: string; metrica: string; data: RankingKpiGerencial[] }>
@@ -2594,41 +2660,6 @@ export default function KpiGerencialAvanzadoPage() {
     }),
     [analisisInformeGerencial]
   );
-  const focoComparativoInformeGerencial = useMemo(() => {
-    const base = [...analisisInformeGerencial.porEmpresaResponsable];
-    const ordenar = (items: RankingKpiGerencial[]) => {
-      if (focoComparativoInforme === "mas-vencidos") {
-        return items.sort((a, b) => b.vencidos - a.vencidos || b.total - a.total);
-      }
-      if (focoComparativoInforme === "mas-cerrados") {
-        return items.sort((a, b) => b.cerrados - a.cerrados || b.total - a.total);
-      }
-      if (focoComparativoInforme === "mejor-tasa-cierre") {
-        return items.sort((a, b) => b.tasaCierre - a.tasaCierre || b.cerrados - a.cerrados);
-      }
-      if (focoComparativoInforme === "peor-tasa-cierre") {
-        return items.sort((a, b) => a.tasaCierre - b.tasaCierre || b.total - a.total);
-      }
-      if (focoComparativoInforme === "mayor-backlog") {
-        return items.sort(
-          (a, b) => b.total - b.cerrados - (a.total - a.cerrados) || b.total - a.total
-        );
-      }
-      return items.sort((a, b) => b.criticos - a.criticos || b.total - a.total);
-    };
-    const valores = ordenar(base).slice(0, 5).map((item, index) => {
-      const backlog = Math.max(0, item.total - item.cerrados);
-      return `${index + 1}. ${item.nombre}: total ${item.total}, criticos ${item.criticos}, vencidos ${item.vencidos}, cerrados ${item.cerrados}, tasa cierre ${item.tasaCierre}%, backlog ${backlog}`;
-    });
-
-    return {
-      titulo: etiquetaFocoComparativoInforme(focoComparativoInforme),
-      detalle:
-        focoComparativoInformeOpciones.find((opcion) => opcion.id === focoComparativoInforme)
-          ?.detalle || "Comparacion seleccionada por el usuario.",
-      valores,
-    };
-  }, [analisisInformeGerencial.porEmpresaResponsable, focoComparativoInforme]);
   const etiquetaAlcanceInforme =
     alcanceInformeGerencial === "periodo"
       ? "Periodo actual filtrado"
@@ -2637,13 +2668,18 @@ export default function KpiGerencialAvanzadoPage() {
         : `${alcanceInformeOpciones.find((opcion) => opcion.id === alcanceInformeGerencial)?.label || "Alcance"}: ${
             valorAlcanceInformeGerencial || "Todos"
           }`;
+  const fechaCorteInforme = new Date().toLocaleDateString("es-CL", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
   const periodoInformeEtiqueta = filtrosInformeGerencial.mes
     ? formatearMesInforme(filtrosInformeGerencial.mes)
     : filtrosInformeGerencial.semana
       ? `Semana desde ${filtrosInformeGerencial.semana}`
       : filtrosInformeGerencial.fechaDesde || filtrosInformeGerencial.fechaHasta
         ? `${filtrosInformeGerencial.fechaDesde || "inicio"} a ${filtrosInformeGerencial.fechaHasta || "hoy"}`
-        : "Sin periodo seleccionado";
+        : `Corte acumulado al ${fechaCorteInforme}`;
   const informeConBacklogVisible =
     seccionesInformeSeleccionadas.includes("backlog-no-cerrado") ||
     Boolean(
@@ -2655,9 +2691,7 @@ export default function KpiGerencialAvanzadoPage() {
   const tituloAutomaticoInformeGerencial = hayElementosInformeGerencial
     ? [
         tituloBaseInforme(tipoInformeGerencial, nivelDetalleInformeGerencial),
-        comandosInformeResumen.length ? "Alcance definido por comandos" : "Sin alcance operativo",
         periodoInformeEtiqueta,
-        informeConBacklogVisible ? "Gestion vigente con backlog" : null,
       ].filter(Boolean).join(" — ")
     : "Informe Gerencial en construcción";
   const seccionesAnalisisInformeGerencial = Array.from(
@@ -2719,12 +2753,8 @@ export default function KpiGerencialAvanzadoPage() {
       return "No se han seleccionado elementos para este informe.";
     }
 
-    if (!hayComandosFiltroInforme) {
-      return "Seleccione al menos un comando de alcance, riesgo, estado, evidencia o periodo para alimentar el informe con datos reales.";
-    }
-
     if (analisisInformeGerencial.total === 0) {
-      return "No hay hallazgos disponibles para los comandos seleccionados del informe.";
+      return "No existen hallazgos disponibles para el alcance seleccionado. Esta ausencia de registros no debe interpretarse como cumplimiento preventivo.";
     }
 
     if (tipoInformeGerencial === "criticos-vencidos") {
@@ -2735,39 +2765,82 @@ export default function KpiGerencialAvanzadoPage() {
       return `La calidad del dato del alcance seleccionado muestra ${metricasInformeGerencial.conGps} registros con GPS, ${metricasInformeGerencial.conEvidencia} con evidencia de reporte, ${metricasInformeGerencial.conResponsable} con responsable asignado y ${metricasInformeGerencial.conFechaCompromiso} con fecha compromiso. Se recomienda regularizar registros sin responsable, sin plazo o sin evidencia antes de usarlos como respaldo formal.`;
     }
 
-    return `Durante el periodo analizado se registran ${analisisInformeGerencial.total} hallazgos, de los cuales ${metricasInformeGerencial.abiertos} permanecen abiertos. Se identifican ${metricasInformeGerencial.criticosAbiertos} criticos abiertos y ${metricasInformeGerencial.vencidosAbiertos} vencidos abiertos, con foco principal en ${empresaFocoInforme} y ${obraFocoInforme}. Se recomienda priorizar el cierre de hallazgos criticos y regularizar registros sin fecha compromiso.`;
+    const tasaAbiertos = analisisInformeGerencial.total
+      ? Math.round((metricasInformeGerencial.abiertos / analisisInformeGerencial.total) * 100)
+      : 0;
+    return `El alcance analizado contiene ${analisisInformeGerencial.total} hallazgos. ${metricasInformeGerencial.abiertos} permanecen abiertos (${tasaAbiertos}% del total), incluidos ${metricasInformeGerencial.criticosAbiertos} críticos y ${metricasInformeGerencial.vencidosAbiertos} vencidos. La tasa de cierre es ${analisisInformeGerencial.tasaCierre}% y ${metricasInformeGerencial.sinFechaCompromiso} hallazgos abiertos no tienen fecha de compromiso. La mayor concentración se observa en ${empresaFocoInforme} y ${obraFocoInforme}. Se requiere priorización gerencial, responsables verificables y un plan documentado de cierre.`;
   }, [
+    analisisInformeGerencial.tasaCierre,
     analisisInformeGerencial.total,
     empresaFocoInforme,
-    hayComandosFiltroInforme,
     hayElementosInformeGerencial,
     metricasInformeGerencial,
     obraFocoInforme,
     responsableFocoInforme,
     tipoInformeGerencial,
   ]);
+  const nivelAlertaInforme =
+    metricasInformeGerencial.vencidosAbiertos > 0 ||
+    metricasInformeGerencial.criticosAbiertos > 0 ||
+    (analisisInformeGerencial.total > 0 && analisisInformeGerencial.tasaCierre <= 20)
+      ? "critico"
+      : metricasInformeGerencial.sinFechaCompromiso > 0 ||
+          analisisInformeGerencial.tasaCierre < 60
+        ? "alto"
+        : metricasInformeGerencial.abiertos > 0
+          ? "atencion"
+          : "controlado";
+  const etiquetaNivelAlertaInforme =
+    nivelAlertaInforme === "critico"
+      ? "ALERTA CRÍTICA"
+      : nivelAlertaInforme === "alto"
+        ? "RIESGO ALTO"
+        : nivelAlertaInforme === "atencion"
+          ? "REQUIERE ATENCIÓN"
+          : "GESTIÓN CONTROLADA";
+  const alertaEjecutivaInforme =
+    analisisInformeGerencial.total === 0
+      ? "No existen registros para el alcance seleccionado. La ausencia de reportes no acredita cumplimiento y debe validarse contra la nómina de empresas activas y su meta de reportabilidad."
+      : `${metricasInformeGerencial.abiertos} de ${analisisInformeGerencial.total} hallazgos permanecen abiertos. Se mantienen ${metricasInformeGerencial.criticosAbiertos} críticos, ${metricasInformeGerencial.vencidosAbiertos} vencidos y ${metricasInformeGerencial.sinFechaCompromiso} sin fecha de compromiso. La tasa de cierre alcanza solo ${analisisInformeGerencial.tasaCierre}%.`;
+  const accionesPrioritariasInforme = [
+    metricasInformeGerencial.criticosAbiertos > 0
+      ? `Escalar de inmediato los ${metricasInformeGerencial.criticosAbiertos} hallazgos críticos abiertos y exigir responsable, plazo y evidencia de cierre.`
+      : null,
+    metricasInformeGerencial.vencidosAbiertos > 0
+      ? `Regularizar los ${metricasInformeGerencial.vencidosAbiertos} hallazgos vencidos, identificando empresa responsable y días de atraso.`
+      : null,
+    metricasInformeGerencial.sinFechaCompromiso > 0
+      ? `Asignar fecha de compromiso a los ${metricasInformeGerencial.sinFechaCompromiso} hallazgos abiertos que actualmente no tienen plazo.`
+      : null,
+    metricasInformeGerencial.cerradosSinRespaldo > 0
+      ? `Revisar ${metricasInformeGerencial.cerradosSinRespaldo} cierres sin evidencia o justificación formal antes de contabilizarlos como cumplimiento.`
+      : null,
+    metricasInformeGerencial.sinResponsable > 0
+      ? `Asignar responsable nominal a ${metricasInformeGerencial.sinResponsable} hallazgos abiertos sin responsable de cierre.`
+      : null,
+  ].filter(Boolean) as string[];
   const advertenciasInformeGerencial = useMemo(
     () =>
       [
         hayElementosInformeGerencial
-          ? "El analisis opera solo sobre los comandos y secciones seleccionados en el Constructor de Informe."
+          ? "El análisis considera exclusivamente el alcance, los filtros y las secciones seleccionadas al momento de emitir el documento."
           : "No se han seleccionado elementos para este informe.",
         metricasGerenciales.analisisLimitadoPorCarga
-          ? "El limite actual de carga puede no representar todo el historico si existen mas registros."
+          ? "El límite actual de carga puede no representar todo el histórico si existen más registros."
           : null,
         informeConBacklogVisible
-          ? "El periodo debe leerse con backlog abierto/no cerrado de periodos anteriores para mantener trazabilidad de gestion vigente."
+          ? "El periodo debe leerse junto con los hallazgos pendientes de periodos anteriores para mantener la trazabilidad de la gestión vigente."
           : null,
         seccionesInformeSeleccionadas.includes("calidad-dato")
-          ? "La evidencia de cierre requiere trazabilidad formal antes de usarse como cumplimiento contractual."
+          ? "Todo cierre debe contar con evidencia o justificación formal antes de contabilizarse como cumplimiento."
           : null,
         seccionesInformeSeleccionadas.includes("matriz") ||
         seccionesInformeSeleccionadas.includes("radar")
-          ? "Los rankings y focos visuales son apoyo gerencial y deben respaldarse con el detalle accionable."
+          ? "Los rankings y comparativos son herramientas de priorización; sus conclusiones deben respaldarse con el detalle accionable."
           : null,
-        "La reincidencia es un patron preventivo simple y no debe usarse como prueba contractual definitiva.",
-        "Los indices sinteticos de cumplimiento/preventivo son referenciales y no reemplazan validacion tecnica.",
-        "Este informe no reemplaza auditoria legal ni validacion tecnica por profesional competente.",
+        "La reincidencia es un patrón preventivo de alerta y no constituye, por sí sola, una conclusión contractual definitiva.",
+        "Los índices de cumplimiento son indicadores de gestión y no reemplazan la validación técnica.",
+        "Este informe apoya la toma de decisiones preventivas; no reemplaza una auditoría legal ni la validación de un profesional competente.",
       ].filter(Boolean) as string[],
     [
       hayElementosInformeGerencial,
@@ -3140,52 +3213,6 @@ export default function KpiGerencialAvanzadoPage() {
       analisis: analisisGrafico,
     };
   });
-  const alcanceOperacionalInformePdf = [
-    ["Empresa reportante", filtrosInformeGerencial.empresaReportante || "No seleccionada"],
-    ["Empresa responsable / involucrada", filtrosInformeGerencial.empresaResponsable || "No seleccionada"],
-    ["Obra / proyecto", filtrosInformeGerencial.obra || "No seleccionada"],
-    ["Área", filtrosInformeGerencial.area || "No seleccionada"],
-    ["Supervisor/reportante", filtrosInformeGerencial.reportante || "No seleccionado"],
-    ["Responsable de cierre", filtrosInformeGerencial.responsableCierre || "No seleccionado"],
-    ["Tipo de hallazgo", filtrosInformeGerencial.tipoHallazgo || "No seleccionado"],
-    [
-      "Criticidad",
-      filtrosInformeGerencial.criticidad ? etiquetaCriticidad(filtrosInformeGerencial.criticidad) : "No seleccionada",
-    ],
-    ["Estado operativo", filtrosInformeGerencial.estado ? filtrosInformeGerencial.estado.replace("_", " ") : "No seleccionado"],
-    ["Estado de cierre", filtrosInformeGerencial.estadoCierre || "No seleccionado"],
-    ["Periodo", periodoInformeEtiqueta],
-  ];
-  const notasAlcanceInformePdf = [
-    comandosInformeResumen.length > 0
-      ? "El informe utiliza solo los comandos seleccionados explícitamente en el Constructor de Informe."
-      : "El informe utiliza el universo completo visible para el perfil actual, sin filtros adicionales.",
-    informeConBacklogVisible
-      ? "Incluye lectura de gestión vigente con backlog abierto/no cerrado de periodos anteriores cuando corresponde."
-      : "La lectura de backlog queda como advertencia preventiva para informes con periodo o gestión vigente.",
-    "La fuente actual no distingue formalmente contratista/subcontratista como categoría separada; se informa como empresa responsable / involucrada y empresa reportante según los datos disponibles.",
-  ];
-  const empresasConsideradasInformePdf = [
-    {
-      titulo: "Empresas reportantes principales",
-      items: analisisInformeGerencial.porEmpresaReportante
-        .slice(0, 5)
-        .map((item) => `${item.nombre} (${item.total})`),
-    },
-    {
-      titulo: "Empresas responsables / involucradas principales",
-      items: analisisInformeGerencial.porEmpresaResponsable
-        .slice(0, 5)
-        .map((item) => `${item.nombre} (${item.total})`),
-    },
-    {
-      titulo: "Obras / proyectos principales",
-      items: analisisInformeGerencial.porObra
-        .slice(0, 5)
-        .map((item) => `${item.nombre} (${item.total})`),
-    },
-  ];
-
   async function copiarResumenInformeGerencial() {
     activarBoton("copiar-informe-gerencial");
     try {
@@ -3249,8 +3276,12 @@ export default function KpiGerencialAvanzadoPage() {
     };
     const renderLista = (items: string[]) =>
       items.map((item) => `<li>${escaparHtmlInforme(item)}</li>`).join("");
-    const renderDato = (label: string, valor: string | number) => `
-      <div class="pdf-kpi">
+    const renderDato = (
+      label: string,
+      valor: string | number,
+      tono: "critico" | "alto" | "atencion" | "controlado" | "neutral" = "neutral"
+    ) => `
+      <div class="pdf-kpi ${tono === "neutral" ? "" : tono}">
         <span>${escaparHtmlInforme(label)}</span>
         <strong>${escaparHtmlInforme(valor)}</strong>
       </div>
@@ -3350,36 +3381,54 @@ export default function KpiGerencialAvanzadoPage() {
     }) => {
       const dataVisible = ranking.data.slice(0, 8);
       const maximo = Math.max(1, ...dataVisible.map((item) => item.total));
-      const totalRanking = ranking.data.reduce((acumulado, item) => acumulado + item.total, 0);
       const lider = dataVisible[0];
-      const participacion = lider && totalRanking
-        ? Math.round((lider.total / totalRanking) * 100)
-        : 0;
+      const nivelRiesgoRanking = (item: RankingKpiGerencial) => {
+        const pendientes = Math.max(0, item.total - item.cerrados);
+        if (item.vencidos > 0 || (item.criticos > 0 && item.tasaCierre < 50)) return "critico";
+        if (item.criticos > 0 || (pendientes > 0 && item.tasaCierre === 0)) return "alto";
+        if (pendientes > 0 || item.tasaCierre < 80) return "atencion";
+        return "controlado";
+      };
+      const etiquetaRiesgoRanking = (item: RankingKpiGerencial) => {
+        const nivel = nivelRiesgoRanking(item);
+        if (nivel === "critico") return "Crítico";
+        if (nivel === "alto") return "Alto";
+        if (nivel === "atencion") return "Atención";
+        return "Controlado";
+      };
       return `
-      <section class="pdf-section pdf-table-section pdf-avoid">
+      <section class="pdf-section pdf-table-section">
         <h2>${escaparHtmlInforme(ranking.titulo)}</h2>
-        <p class="pdf-muted">${escaparHtmlInforme(ranking.metrica)}</p>
+        <p class="pdf-muted">${escaparHtmlInforme(ranking.metrica)}. El color representa condición de gestión; la longitud representa volumen.</p>
         <div class="pdf-ranking-bars">
           ${
             dataVisible.length > 0
               ? dataVisible
                   .map(
-                    (item, index) => `
-                      <div class="pdf-ranking-row">
+                    (item, index) => {
+                      const cerradosPct = item.total ? Math.round((item.cerrados / item.total) * 100) : 0;
+                      const nivel = nivelRiesgoRanking(item);
+                      return `
+                      <div class="pdf-ranking-row pdf-risk-${nivel}">
                         <span>${index + 1}</span>
                         <strong>${escaparHtmlInforme(item.nombre)}</strong>
-                        <div><i style="width:${Math.max(7, Math.round((item.total / maximo) * 100))}%"></i></div>
-                        <b>${item.total}</b>
+                        <div class="pdf-ranking-track">
+                          <i class="pdf-ranking-volume" style="width:${Math.max(7, Math.round((item.total / maximo) * 100))}%">
+                            <em class="pdf-ranking-closed" style="width:${cerradosPct}%"></em>
+                          </i>
+                        </div>
+                        <b>${item.total}</b><small>${escaparHtmlInforme(etiquetaRiesgoRanking(item))}</small>
                       </div>
-                    `
+                    `;
+                    }
                   )
                   .join("")
               : `<p class="pdf-muted">Sin datos suficientes para este ranking.</p>`
           }
         </div>
-        <p class="pdf-insight"><strong>Lectura gerencial:</strong> ${
+        <p class="pdf-insight pdf-insight-${lider ? nivelRiesgoRanking(lider) : "atencion"}"><strong>Lectura gerencial:</strong> ${
           lider
-            ? `${escaparHtmlInforme(lider.nombre)} lidera el ranking con ${lider.total} registro(s), equivalente al ${participacion}% del universo comparado. La lectura debe complementarse con criticidad, vencimiento y tasa de cierre.`
+            ? `${escaparHtmlInforme(lider.nombre)} concentra ${lider.total} hallazgos: ${lider.criticos} críticos, ${lider.vencidos} vencidos, ${lider.cerrados} cerrados y una tasa de cierre de ${lider.tasaCierre}%. ${lider.tasaCierre === 0 && lider.total > 0 ? "No registra cierres y requiere escalamiento inmediato." : "Su condición debe revisarse junto con evidencia y plazos de cierre."}`
             : "No existen datos suficientes para emitir una comparación."
         }</p>
         <table>
@@ -3392,6 +3441,7 @@ export default function KpiGerencialAvanzadoPage() {
               <th>Vencidos</th>
               <th>Cerrados</th>
               <th>Tasa cierre</th>
+              <th>Alerta</th>
             </tr>
           </thead>
           <tbody>
@@ -3401,19 +3451,20 @@ export default function KpiGerencialAvanzadoPage() {
                     .slice(0, 8)
                     .map(
                       (item, index) => `
-                        <tr>
+                        <tr class="pdf-risk-${nivelRiesgoRanking(item)}">
                           <td>${index + 1}</td>
                           <td>${escaparHtmlInforme(item.nombre)}</td>
                           <td>${item.total}</td>
                           <td>${item.criticos}</td>
                           <td>${item.vencidos}</td>
                           <td>${item.cerrados}</td>
-                          <td>${item.tasaCierre}%</td>
+                          <td class="pdf-rate">${item.tasaCierre}%</td>
+                          <td><strong>${escaparHtmlInforme(etiquetaRiesgoRanking(item))}</strong></td>
                         </tr>
                       `
                     )
                     .join("")
-                : `<tr><td colspan="7">Sin datos suficientes para este ranking.</td></tr>`
+                : `<tr><td colspan="8">Sin datos suficientes para este ranking.</td></tr>`
             }
           </tbody>
         </table>
@@ -3844,30 +3895,74 @@ export default function KpiGerencialAvanzadoPage() {
             font-size: 10px;
             line-height: 1.4;
           }
+          .pdf-insight-critico { border-color: #fecaca; border-left-color: #b91c1c; background: #fef2f2; color: #7f1d1d; }
+          .pdf-insight-alto { border-color: #fed7aa; border-left-color: #ea580c; background: #fff7ed; color: #9a3412; }
+          .pdf-insight-atencion { border-color: #fde68a; border-left-color: #ca8a04; background: #fefce8; color: #854d0e; }
+          .pdf-alert-banner {
+            margin: 12px 0;
+            padding: 13px 15px;
+            border-radius: 12px;
+            border: 1px solid #fecaca;
+            border-left: 6px solid #b91c1c;
+            background: linear-gradient(135deg, #fff1f2, #fef2f2);
+            color: #7f1d1d;
+            page-break-inside: avoid;
+            break-inside: avoid-page;
+          }
+          .pdf-alert-banner.alto { border-color: #fed7aa; border-left-color: #ea580c; background: #fff7ed; color: #9a3412; }
+          .pdf-alert-banner.atencion { border-color: #fde68a; border-left-color: #ca8a04; background: #fefce8; color: #854d0e; }
+          .pdf-alert-banner.controlado { border-color: #bbf7d0; border-left-color: #16a34a; background: #f0fdf4; color: #166534; }
+          .pdf-alert-label { font-size: 10px; font-weight: 950; letter-spacing: 0.9px; text-transform: uppercase; }
+          .pdf-alert-banner strong { display: block; margin: 4px 0; font-size: 16px; }
+          .pdf-alert-banner p { margin: 0; font-size: 11px; line-height: 1.45; }
+          .pdf-kpi.critico { border-color: #fecaca; background: #fff1f2; }
+          .pdf-kpi.critico span, .pdf-kpi.critico strong { color: #b91c1c; }
+          .pdf-kpi.alto { border-color: #fed7aa; background: #fff7ed; }
+          .pdf-kpi.alto span, .pdf-kpi.alto strong { color: #c2410c; }
+          .pdf-kpi.atencion { border-color: #fde68a; background: #fefce8; }
+          .pdf-kpi.atencion span, .pdf-kpi.atencion strong { color: #a16207; }
+          .pdf-kpi.controlado { border-color: #bbf7d0; background: #f0fdf4; }
+          .pdf-kpi.controlado span, .pdf-kpi.controlado strong { color: #15803d; }
           .pdf-ranking-bars { display: grid; gap: 6px; margin: 9px 0; }
           .pdf-ranking-row {
             display: grid;
-            grid-template-columns: 20px minmax(90px, 1fr) minmax(150px, 2fr) 30px;
+            grid-template-columns: 20px minmax(120px, 1fr) minmax(150px, 2fr) 28px 50px;
             gap: 7px;
             align-items: center;
             color: #334155;
             font-size: 9.5px;
           }
           .pdf-ranking-row > span { color: #2563eb; font-weight: 900; }
-          .pdf-ranking-row > strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-          .pdf-ranking-row > div {
+          .pdf-ranking-row > strong { overflow: visible; white-space: normal; line-height: 1.15; }
+          .pdf-ranking-track {
             height: 9px;
             overflow: hidden;
             border-radius: 999px;
             background: #e2e8f0;
           }
-          .pdf-ranking-row i {
+          .pdf-ranking-volume {
             display: block;
             height: 100%;
             border-radius: inherit;
-            background: linear-gradient(90deg, #2563eb, #22c55e);
+            background: #f59e0b;
+            position: relative;
+            overflow: hidden;
           }
+          .pdf-ranking-closed { display: block; height: 100%; background: #16a34a; border-radius: inherit 0 0 inherit; }
+          .pdf-risk-critico .pdf-ranking-volume { background: #b91c1c; }
+          .pdf-risk-alto .pdf-ranking-volume { background: #ea580c; }
+          .pdf-risk-atencion .pdf-ranking-volume { background: #ca8a04; }
+          .pdf-risk-controlado .pdf-ranking-volume { background: #16a34a; }
           .pdf-ranking-row b { text-align: right; }
+          .pdf-ranking-row small { text-align: right; font-size: 8px; font-weight: 900; }
+          .pdf-risk-critico small, tr.pdf-risk-critico .pdf-rate, tr.pdf-risk-critico td:last-child { color: #b91c1c; }
+          .pdf-risk-alto small, tr.pdf-risk-alto .pdf-rate, tr.pdf-risk-alto td:last-child { color: #c2410c; }
+          .pdf-risk-atencion small, tr.pdf-risk-atencion .pdf-rate, tr.pdf-risk-atencion td:last-child { color: #a16207; }
+          .pdf-risk-controlado small, tr.pdf-risk-controlado .pdf-rate, tr.pdf-risk-controlado td:last-child { color: #15803d; }
+          tr.pdf-risk-critico { background: #fff1f2; }
+          tr.pdf-risk-alto { background: #fff7ed; }
+          tr.pdf-risk-atencion { background: #fefce8; }
+          tr.pdf-risk-controlado { background: #f0fdf4; }
           ul.pdf-list {
             margin: 0;
             padding-left: 18px;
@@ -3929,15 +4024,15 @@ export default function KpiGerencialAvanzadoPage() {
           <div class="pdf-meta">
             <div><span>Fecha de generación</span><strong>${escaparHtmlInforme(fechaDocumento)}</strong></div>
             <div><span>Hallazgos incluidos</span><strong>${analisisInformeGerencial.total}</strong></div>
-            <div><span>Tipo de detalle</span><strong>${escaparHtmlInforme(etiquetaDetalleInforme(detalleInformeGerencial))}</strong></div>
-            <div><span>Máximo de filas</span><strong>${detallePdfActivo ? maxFilasDetalleInforme : "No aplica"}</strong></div>
+            <div><span>Nivel de alerta</span><strong>${escaparHtmlInforme(etiquetaNivelAlertaInforme)}</strong></div>
+            <div><span>Tasa de cierre</span><strong>${analisisInformeGerencial.tasaCierre}%</strong></div>
           </div>
           <section class="pdf-generated-by pdf-avoid">
             <div class="pdf-avatar">${avatarGenerador}</div>
             <div>
               <div class="pdf-generated-title">Informe generado por</div>
               <div class="pdf-generated-name">${escaparHtmlInforme(usuarioGeneradorInforme.nombre)}</div>
-              <div class="pdf-generated-detail">${escaparHtmlInforme(usuarioGeneradorInforme.cargo)}${usuarioGeneradorInforme.rol ? ` · ${escaparHtmlInforme(usuarioGeneradorInforme.rol)}` : ""}</div>
+              <div class="pdf-generated-detail">${escaparHtmlInforme(usuarioGeneradorInforme.cargo)}</div>
               <div class="pdf-generated-detail">${escaparHtmlInforme(usuarioGeneradorInforme.empresa)}</div>
               ${usuarioGeneradorInforme.correo ? `<div class="pdf-generated-detail">${escaparHtmlInforme(usuarioGeneradorInforme.correo)}</div>` : ""}
             </div>
@@ -3949,234 +4044,99 @@ export default function KpiGerencialAvanzadoPage() {
           </section>
         </header>
 
-        ${
-          !hayElementosInformeGerencial
-            ? `
-              <section class="pdf-section pdf-avoid">
-                <h2>No se han seleccionado elementos para este informe.</h2>
-                <p class="pdf-muted">Seleccione comandos, filtros destacados o secciones desde el Constructor de Informe Gerencial para generar contenido ejecutivo.</p>
-              </section>
-            `
-            : `
-        <div class="pdf-note">
-          Este informe considera los registros actualmente cargados en KPI. La version futura con HV-DATA permitirá generar informes sobre dataset filtrado completo server-side.
-        </div>
-        ${
-          informeConBacklogVisible
-            ? `<div class="pdf-note">El periodo debe considerar hallazgos del periodo, backlog no cerrado anterior y cerrados del periodo para mantener trazabilidad de gestion vigente.</div>`
-            : ""
-        }
-
-        <section class="pdf-section pdf-avoid">
-          <h2>Alcance del informe</h2>
-          <div class="pdf-scope-grid">
-            ${alcanceOperacionalInformePdf
-              .map(
-                ([label, valor]) => `
-                  <div class="pdf-scope-item">
-                    <span>${escaparHtmlInforme(label)}</span>
-                    <strong>${escaparHtmlInforme(valor)}</strong>
-                  </div>
-                `
-              )
-              .join("")}
-          </div>
-          <ul class="pdf-list">${renderLista(notasAlcanceInformePdf)}</ul>
+        ${!hayElementosInformeGerencial ? `
+          <section class="pdf-section pdf-avoid">
+            <h2>Informe sin contenido seleccionado</h2>
+            <p class="pdf-muted">Seleccione al menos una sección o visualización antes de generar el documento.</p>
+          </section>
+        ` : `
+        <section class="pdf-alert-banner ${nivelAlertaInforme === "critico" ? "" : nivelAlertaInforme}">
+          <span class="pdf-alert-label">${escaparHtmlInforme(etiquetaNivelAlertaInforme)}</span>
+          <strong>Estado general de la gestión preventiva</strong>
+          <p>${escaparHtmlInforme(alertaEjecutivaInforme)}</p>
         </section>
 
         <section class="pdf-section pdf-avoid">
-          <h2>Empresas consideradas en el análisis</h2>
-          <div class="pdf-grid">
-            ${empresasConsideradasInformePdf
-              .map(
-                (bloque) => `
-                  <div class="pdf-card">
-                    <h3>${escaparHtmlInforme(bloque.titulo)}</h3>
-                    <ul class="pdf-list">${renderLista(
-                      bloque.items.length
-                        ? bloque.items
-                        : [
-                            "Vista general: el informe considera las empresas visibles dentro del universo actualmente cargado en KPI.",
-                          ]
-                    )}</ul>
-                  </div>
-                `
-              )
-              .join("")}
-          </div>
-        </section>
-
-        <section class="pdf-section pdf-avoid">
-          <h2>Filtros aplicados</h2>
-          <ul class="pdf-chip-list">${renderLista(filtrosPdf)}</ul>
-        </section>
-
-        <section class="pdf-section pdf-avoid">
-          <h2>Elementos incluidos</h2>
-          <div class="pdf-grid">
-            <div class="pdf-card"><h3>Secciones</h3><ul class="pdf-list">${renderLista(etiquetasSeccionesPrincipalesSeleccionadas)}</ul></div>
-            <div class="pdf-card"><h3>Graficos</h3><ul class="pdf-list">${renderLista(etiquetasGraficosSeleccionados)}</ul></div>
-            <div class="pdf-card"><h3>Rankings</h3><ul class="pdf-list">${renderLista(etiquetasRankingsSeleccionados)}</ul></div>
-            <div class="pdf-card"><h3>Hallazgos y detalle</h3><ul class="pdf-list">${renderLista(etiquetasHallazgosDetalleSeleccionados)}</ul></div>
-            <div class="pdf-card"><h3>Series de tendencia</h3><ul class="pdf-list">${renderLista(etiquetasSeriesTendenciaSeleccionadas)}</ul></div>
-            <div class="pdf-card"><h3>Ranking principal</h3><p>${escaparHtmlInforme(etiquetaRankingPrincipalSeleccionado)}</p></div>
-            <div class="pdf-card"><h3>Foco comparativo</h3><p>${escaparHtmlInforme(etiquetaFocoComparativoSeleccionado)}</p></div>
-          </div>
-        </section>
-
-        ${
-          graficosInformeSeleccionados.length > 0 || rankingsInformeSeleccionados.length > 0
-            ? `<section class="pdf-section pdf-avoid">
-          <h2>Configuración de datos para gráficos</h2>
-          <div class="pdf-grid">
-            <div class="pdf-card">
-              <h3>Tendencia temporal</h3>
-              <p class="pdf-muted">Series seleccionadas para alimentar la lectura temporal del informe.</p>
-              <ul class="pdf-list">${renderLista(etiquetasSeriesTendenciaSeleccionadas)}</ul>
-            </div>
-            <div class="pdf-card">
-              <h3>Ranking principal</h3>
-              <p>${escaparHtmlInforme(etiquetaRankingPrincipalSeleccionado)}</p>
-              <p class="pdf-muted">El ranking principal se incluye aunque no esté marcado dentro de rankings secundarios.</p>
-            </div>
-            <div class="pdf-card">
-              <h3>Foco comparativo</h3>
-              <p>${escaparHtmlInforme(focoComparativoInformeGerencial.titulo)}</p>
-              <p class="pdf-muted">${escaparHtmlInforme(focoComparativoInformeGerencial.detalle)}</p>
-              <ul class="pdf-list">${renderLista(focoComparativoInformeGerencial.valores.length ? focoComparativoInformeGerencial.valores : ["Sin datos suficientes con los filtros actuales."])}</ul>
-            </div>
-          </div>
-        </section>`
-            : ""
-        }
-
-        ${
-          seccionesInformeSeleccionadas.includes("kpis")
-            ? `<section class="pdf-section pdf-avoid">
-          <h2>KPIs principales</h2>
-          <div class="pdf-kpis">
-            ${renderDato("Total", analisisInformeGerencial.total)}
-            ${renderDato("Abiertos", metricasInformeGerencial.abiertos)}
-            ${renderDato("Cerrados", analisisInformeGerencial.cerrados)}
-            ${renderDato("Criticos abiertos", metricasInformeGerencial.criticosAbiertos)}
-            ${renderDato("Vencidos abiertos", metricasInformeGerencial.vencidosAbiertos)}
-            ${renderDato("Sin fecha compromiso", metricasInformeGerencial.sinFechaCompromiso)}
-            ${renderDato("Tasa cierre", `${analisisInformeGerencial.tasaCierre}%`)}
-          </div>
-        </section>`
-            : ""
-        }
-
-        ${
-          seccionesInformeSeleccionadas.includes("resumen")
-            ? `<section class="pdf-section pdf-text-section pdf-avoid">
           <h2>Resumen ejecutivo</h2>
           <p>${escaparHtmlInforme(resumenInformeGerencial)}</p>
-        </section>`
-            : ""
-        }
-
-        ${
-          seccionesInformeSeleccionadas.includes("riesgos")
-            ? `<section class="pdf-section pdf-text-section pdf-avoid">
-          <h2>Riesgos principales</h2>
-          <ul class="pdf-list">
-            ${renderLista([
-              `Criticos abiertos: ${metricasInformeGerencial.criticosAbiertos}`,
-              `Vencidos abiertos: ${metricasInformeGerencial.vencidosAbiertos}`,
-              `Sin fecha compromiso: ${metricasInformeGerencial.sinFechaCompromiso}`,
-              `Sin responsable: ${metricasInformeGerencial.sinResponsable}`,
-            ])}
-          </ul>
-        </section>`
-            : ""
-        }
-
-        <section class="pdf-section pdf-section-flow">
-          <h2>Análisis ejecutivo por sección</h2>
-          <div class="pdf-analysis-list">
-            ${
-              analisisSeccionesInformeGerencial.length > 0
-                ? analisisSeccionesInformeGerencial
-                    .map(
-                      (item) => `
-                        <div class="pdf-card pdf-analysis-card pdf-avoid">
-                          <h3>${escaparHtmlInforme(item.titulo)}</h3>
-                          <p><strong>Observación:</strong> ${escaparHtmlInforme(item.observacion)}</p>
-                          <p><strong>Brecha o riesgo:</strong> ${escaparHtmlInforme(item.brecha)}</p>
-                          <p><strong>Acción recomendada:</strong> ${escaparHtmlInforme(item.accion)}</p>
-                          <p><strong>Base preventiva/normativa:</strong> ${escaparHtmlInforme(item.base)}</p>
-                        </div>
-                      `
-                    )
-                    .join("")
-                : `<p class="pdf-muted">Sin secciones seleccionadas para análisis.</p>`
-            }
+          <div class="pdf-kpis">
+            ${renderDato("Total", analisisInformeGerencial.total)}
+            ${renderDato("Abiertos", metricasInformeGerencial.abiertos, metricasInformeGerencial.abiertos > 0 ? "alto" : "controlado")}
+            ${renderDato("Críticos abiertos", metricasInformeGerencial.criticosAbiertos, metricasInformeGerencial.criticosAbiertos > 0 ? "critico" : "controlado")}
+            ${renderDato("Vencidos abiertos", metricasInformeGerencial.vencidosAbiertos, metricasInformeGerencial.vencidosAbiertos > 0 ? "critico" : "controlado")}
+            ${renderDato("Sin fecha", metricasInformeGerencial.sinFechaCompromiso, metricasInformeGerencial.sinFechaCompromiso > 0 ? "alto" : "controlado")}
+            ${renderDato("Tasa de cierre", `${analisisInformeGerencial.tasaCierre}%`, analisisInformeGerencial.tasaCierre < 50 ? "critico" : analisisInformeGerencial.tasaCierre < 80 ? "atencion" : "controlado")}
+            ${renderDato("Cierres validados", metricasInformeGerencial.cerradosValidados, "controlado")}
+            ${renderDato("Cierres sin respaldo", metricasInformeGerencial.cerradosSinRespaldo, metricasInformeGerencial.cerradosSinRespaldo > 0 ? "critico" : "controlado")}
           </div>
         </section>
 
-        <section class="pdf-section pdf-section-flow pdf-chart-section">
-          <h2>Graficos seleccionados</h2>
-          <div class="pdf-chart-list">
-            ${
-              graficosPdfInformeGerencial.length > 0
-                ? graficosPdfInformeGerencial
-                    .map(
-                      (grafico) => `
-                        <div class="pdf-card pdf-chart-card pdf-avoid">
-                          <h3>${escaparHtmlInforme(grafico.titulo)}</h3>
-                          <p>${escaparHtmlInforme(grafico.representa)}</p>
-                          ${
-                            grafico.titulo === "Tendencia temporal"
-                              ? renderTendenciaVisual()
-                              : `<ul class="pdf-list">${renderLista(grafico.valores.length ? grafico.valores : ["Sin datos suficientes con los filtros actuales."])}</ul>`
-                          }
-                          ${
-                            grafico.analisis
-                              ? `<p><strong>Análisis:</strong> ${escaparHtmlInforme(grafico.analisis.observacion)} ${escaparHtmlInforme(grafico.analisis.accion)}</p>`
-                              : ""
-                          }
-                        </div>
-                      `
-                    )
-                    .join("")
-                : `<p class="pdf-muted">No se seleccionaron graficos para este informe.</p>`
-            }
-          </div>
+        <section class="pdf-section pdf-avoid">
+          <h2>Alcance y criterios aplicados</h2>
+          <ul class="pdf-chip-list">${renderLista(filtrosPdf)}</ul>
+          <p class="pdf-muted" style="margin-top:8px">${escaparHtmlInforme(periodoInformeEtiqueta)}. ${informeConBacklogVisible ? "La lectura mantiene visible el backlog no cerrado de períodos anteriores." : "Se analiza el universo completo visible para el perfil actual."}</p>
         </section>
+
+        <section class="pdf-section pdf-avoid">
+          <h2>Decisiones prioritarias</h2>
+          <ul class="pdf-list">${renderLista(accionesPrioritariasInforme.length ? accionesPrioritariasInforme : ["Mantener seguimiento y validar que los cierres cuenten con evidencia suficiente."])}</ul>
+        </section>
+
+        ${graficosInformeSeleccionados.includes("tendencia") ? `
+          <section class="pdf-section pdf-chart-section">
+            <h2>Tendencia de actividad y presión de riesgo</h2>
+            ${renderTendenciaVisual()}
+          </section>
+        ` : ""}
 
         ${rankingsPdfInformeGerencial.map(renderTablaRanking).join("")}
 
-        ${
-          seccionesInformeSeleccionadas.includes("calidad-dato") ||
-          graficosInformeSeleccionados.includes("calidad-dato")
-            ? `<section class="pdf-section pdf-avoid">
-          <h2>Calidad del dato</h2>
-          <div class="pdf-kpis">
-            ${renderDato("Con GPS", `${metricasInformeGerencial.conGps} / ${analisisInformeGerencial.total || 0}`)}
-            ${renderDato("Con evidencia", `${metricasInformeGerencial.conEvidencia} / ${analisisInformeGerencial.total || 0}`)}
-            ${renderDato("Con responsable", `${metricasInformeGerencial.conResponsable} / ${analisisInformeGerencial.total || 0}`)}
-            ${renderDato("Con fecha compromiso", `${metricasInformeGerencial.conFechaCompromiso} / ${analisisInformeGerencial.total || 0}`)}
-          </div>
-        </section>`
-            : ""
-        }
+        ${graficosPdfInformeGerencial.filter((grafico) => grafico.titulo !== "Tendencia temporal").length > 0 ? `
+          <section class="pdf-section pdf-section-flow">
+            <h2>Lecturas gerenciales complementarias</h2>
+            <div class="pdf-grid">
+              ${graficosPdfInformeGerencial
+                .filter((grafico) => grafico.titulo !== "Tendencia temporal")
+                .map((grafico) => `
+                  <div class="pdf-card pdf-chart-card pdf-avoid">
+                    <h3>${escaparHtmlInforme(grafico.titulo)}</h3>
+                    <ul class="pdf-list">${renderLista(grafico.valores.length ? grafico.valores : ["Sin datos suficientes para este alcance."])}</ul>
+                    ${grafico.analisis ? `<p><strong>Decisión:</strong> ${escaparHtmlInforme(grafico.analisis.accion)}</p>` : ""}
+                  </div>
+                `).join("")}
+            </div>
+          </section>
+        ` : ""}
+
+        ${(seccionesInformeSeleccionadas.includes("calidad-dato") || graficosInformeSeleccionados.includes("calidad-dato")) ? `
+          <section class="pdf-section pdf-avoid">
+            <h2>Calidad y confiabilidad del dato</h2>
+            <div class="pdf-kpis">
+              ${renderDato("GPS registrado", `${metricasInformeGerencial.conGps} / ${analisisInformeGerencial.total || 0}`, metricasInformeGerencial.conGps < analisisInformeGerencial.total ? "atencion" : "controlado")}
+              ${renderDato("Evidencia del reporte", `${metricasInformeGerencial.conEvidencia} / ${analisisInformeGerencial.total || 0}`, metricasInformeGerencial.conEvidencia < analisisInformeGerencial.total ? "atencion" : "controlado")}
+              ${renderDato("Responsable nominal", `${metricasInformeGerencial.conResponsable} / ${analisisInformeGerencial.total || 0}`, metricasInformeGerencial.conResponsable < analisisInformeGerencial.total ? "critico" : "controlado")}
+              ${renderDato("Fecha de compromiso", `${metricasInformeGerencial.conFechaCompromiso} / ${analisisInformeGerencial.total || 0}`, metricasInformeGerencial.conFechaCompromiso < metricasInformeGerencial.abiertos ? "critico" : "controlado")}
+            </div>
+            <p class="pdf-insight pdf-insight-atencion"><strong>Advertencia:</strong> “Responsable nominal” y “empresa responsable” son campos distintos. Las empresas sin reportes solo pueden identificarse al comparar este informe con la nómina activa y la meta de reportabilidad del período.</p>
+          </section>
+        ` : ""}
 
         ${
           detallePdfActivo
             ? `
-              <section class="pdf-section pdf-table-section pdf-avoid">
+              <section class="pdf-section pdf-table-section">
                 <h2>Detalle resumido</h2>
                 <table>
                   <thead>
                     <tr>
-                      <th>Codigo</th>
+                      <th>Código</th>
                       <th>Empresa responsable</th>
                       <th>Empresa reportante</th>
-                      <th>Obra / area</th>
+                      <th>Obra / área</th>
                       <th>Criticidad</th>
                       <th>Estado</th>
                       <th>Plazo</th>
+                      <th>Respaldo cierre</th>
                       <th>Responsable cierre</th>
                     </tr>
                   </thead>
@@ -4184,9 +4144,31 @@ export default function KpiGerencialAvanzadoPage() {
                     ${
                       detallePdf.length > 0
                         ? detallePdf
-                            .map(
-                              (hallazgo) => `
-                                <tr>
+                            .map((hallazgo) => {
+                              const cierreSinRespaldo =
+                                hallazgo.estado === "CERRADO" &&
+                                !hallazgo.evidenciaCierreRecibida &&
+                                !hallazgo.cierreSinEvidenciaJustificado;
+                              const nivelFila =
+                                cierreSinRespaldo ||
+                                esHallazgoVencidoDetalle(hallazgo) ||
+                                (esHallazgoAbiertoGerencial(hallazgo) && hallazgo.criticidad === "CRITICO")
+                                  ? "critico"
+                                  : esHallazgoAbiertoGerencial(hallazgo) && !hallazgo.fechaCompromiso
+                                    ? "alto"
+                                    : hallazgo.estado === "CERRADO"
+                                      ? "controlado"
+                                      : "atencion";
+                              const respaldoCierre =
+                                hallazgo.evidenciaCierreRecibida
+                                  ? "Evidencia recibida"
+                                  : hallazgo.cierreSinEvidenciaJustificado
+                                    ? "Justificación formal"
+                                    : hallazgo.estado === "CERRADO"
+                                      ? "Sin respaldo"
+                                      : "Pendiente";
+                              return `
+                                <tr class="pdf-risk-${nivelFila}">
                                   <td>${escaparHtmlInforme(hallazgo.codigo)}</td>
                                   <td>${escaparHtmlInforme(hallazgo.empresaResponsable || "Sin empresa responsable")}</td>
                                   <td>${escaparHtmlInforme(hallazgo.empresaReportante || hallazgo.empresa)}</td>
@@ -4194,12 +4176,13 @@ export default function KpiGerencialAvanzadoPage() {
                                   <td>${escaparHtmlInforme(etiquetaCriticidad(hallazgo.criticidad))}</td>
                                   <td>${escaparHtmlInforme(hallazgo.estado.replace("_", " "))}</td>
                                   <td>${escaparHtmlInforme(`${fechaCortaDetalle(hallazgo.fechaCompromiso)} · ${estadoPlazoPdf(hallazgo)}`)}</td>
+                                  <td>${escaparHtmlInforme(respaldoCierre)}</td>
                                   <td>${escaparHtmlInforme(hallazgo.responsableCierre || "Sin responsable")}</td>
                                 </tr>
-                              `
-                            )
+                              `;
+                            })
                             .join("")
-                        : `<tr><td colspan="8">Sin hallazgos para el alcance seleccionado.</td></tr>`
+                        : `<tr><td colspan="9">Sin hallazgos para el alcance seleccionado.</td></tr>`
                     }
                   </tbody>
                 </table>
@@ -4302,7 +4285,7 @@ export default function KpiGerencialAvanzadoPage() {
       }
       const html2pdfModule = await import("html2pdf.js");
       const opcionesPdf = {
-        margin: [10, 10, 22, 10] as [number, number, number, number],
+        margin: [8, 10, 16, 10] as [number, number, number, number],
         filename: nombreArchivo,
         image: { type: "jpeg" as const, quality: 0.96 },
         enableLinks: true,
@@ -4329,13 +4312,31 @@ export default function KpiGerencialAvanzadoPage() {
             ".pdf-final-text-section",
             ".pdf-safe-bottom",
             ".pdf-scope-item",
-            ".pdf-table-section",
             "tr",
           ],
         },
       };
 
-      await html2pdfModule.default().set(opcionesPdf).from(nodoPdf).save(nombreArchivo);
+      const trabajadorPdf = html2pdfModule.default()
+        .set(opcionesPdf)
+        .from(nodoPdf)
+        .toPdf();
+      const documentoPdf = (await trabajadorPdf.get("pdf")) as DocumentoPdfNumerable;
+      const totalPaginas = documentoPdf.internal.getNumberOfPages();
+      const anchoPagina = documentoPdf.internal.pageSize.getWidth();
+      const altoPagina = documentoPdf.internal.pageSize.getHeight();
+      for (let pagina = 1; pagina <= totalPaginas; pagina += 1) {
+        documentoPdf.setPage(pagina);
+        documentoPdf.setFontSize(8);
+        documentoPdf.setTextColor(100, 116, 139);
+        documentoPdf.text(
+          `Página ${pagina} de ${totalPaginas}`,
+          anchoPagina - 11,
+          altoPagina - 7,
+          { align: "right" }
+        );
+      }
+      await trabajadorPdf.save(nombreArchivo);
       setEstadoPdfInformeGerencial("generado");
       setMensaje(`PDF generado: ${nombreArchivo}`);
       window.setTimeout(() => {
@@ -4369,7 +4370,7 @@ export default function KpiGerencialAvanzadoPage() {
           { label: t("Total reportado"), value: analisis.total, tone: "blue" },
           { label: t("Críticos abiertos"), value: metricasGerenciales.criticosAbiertos, tone: "red" },
           { label: t("Vencidos abiertos"), value: metricasGerenciales.vencidosAbiertos, tone: "amber" },
-          { label: t("Tasa cierre"), value: `${analisis.tasaCierre}%`, tone: "green" },
+          { label: t("Tasa cierre"), value: `${analisis.tasaCierre}%`, tone: tonoTasaCierre(analisis.tasaCierre) },
           { label: t("Sin fecha compromiso"), value: metricasGerenciales.sinFechaCompromiso, tone: "violet" },
         ]}
         actions={(
@@ -5050,7 +5051,7 @@ export default function KpiGerencialAvanzadoPage() {
                               <span style={{ color: textoAzul }}>{item.total} · {t("cierre")} {item.tasaCierre}%</span>
                             </div>
                             <div style={{ height: "14px", borderRadius: "999px", background: fondoInternoFuerte, overflow: "hidden" }}>
-                              <div style={{ width: `${ancho}%`, height: "100%", borderRadius: "999px", background: item.criticos > 0 ? "linear-gradient(90deg,#ef4444,#f97316)" : "linear-gradient(90deg,#2563eb,#22c55e)", boxShadow: "0 0 20px rgba(59,130,246,0.36)" }} />
+                              <div style={{ width: `${ancho}%`, height: "100%", borderRadius: "999px", background: colorRiesgoRanking(item), boxShadow: item.vencidos > 0 || item.criticos > 0 ? "0 0 20px rgba(239,68,68,0.28)" : "0 0 20px rgba(34,197,94,0.22)" }} />
                             </div>
                           </div>
                         );
@@ -5677,7 +5678,7 @@ export default function KpiGerencialAvanzadoPage() {
 
               <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "8px" }}>
                 {[
-                  ["Tasa cierre", `${analisis.tasaCierre}%`, "#22c55e"],
+                  ["Tasa cierre", `${analisis.tasaCierre}%`, colorTasaCierre(analisis.tasaCierre)],
                   ["Vencidos", pulsoLateralGerencial.vencidosAbiertos, "#f97316"],
                   ["En plazo", pulsoLateralGerencial.abiertosEnPlazo, "#60a5fa"],
                   ["Sin plazo", pulsoLateralGerencial.abiertosSinFecha, "#facc15"],
@@ -6042,10 +6043,12 @@ export default function KpiGerencialAvanzadoPage() {
                     </button>
                     <button
                       type="button"
+                      disabled={!existePeriodoMaestroInforme}
                       onClick={() => aplicarPeriodoInforme("periodo-filtrado")}
-                      style={{ ...botonStyle("periodo-filtrado-informe"), minHeight: "34px", padding: "7px 10px", fontSize: "11px" }}
+                      title={existePeriodoMaestroInforme ? "Copiar el período activo del tablero" : "No hay un período activo en los filtros maestros"}
+                      style={{ ...botonStyle("periodo-filtrado-informe"), minHeight: "34px", padding: "7px 10px", fontSize: "11px", opacity: existePeriodoMaestroInforme ? 1 : 0.48, cursor: existePeriodoMaestroInforme ? "pointer" : "not-allowed" }}
                     >
-                      Periodo filtrado actual
+                      {existePeriodoMaestroInforme ? "Aplicar período del tablero" : "Sin período activo en el tablero"}
                     </button>
                   </div>
 
@@ -6053,6 +6056,8 @@ export default function KpiGerencialAvanzadoPage() {
                     {[
                       {
                         titulo: "Riesgo",
+                        todosActivos: !filtrosInformeGerencial.criticidad && !filtrosInformeGerencial.soloCriticosAbiertos && !filtrosInformeGerencial.soloReincidencias,
+                        limpiar: () => asignarFiltroInforme({ criticidad: undefined, soloCriticosAbiertos: false, soloReincidencias: false }),
                         items: [
                           ["Criticos", filtrosInformeGerencial.criticidad === "CRITICO", () => asignarFiltroInforme({ criticidad: filtrosInformeGerencial.criticidad === "CRITICO" ? undefined : "CRITICO" })],
                           ["Altos", filtrosInformeGerencial.criticidad === "ALTO", () => asignarFiltroInforme({ criticidad: filtrosInformeGerencial.criticidad === "ALTO" ? undefined : "ALTO" })],
@@ -6064,6 +6069,8 @@ export default function KpiGerencialAvanzadoPage() {
                       },
                       {
                         titulo: "Estado y cierre",
+                        todosActivos: !filtrosInformeGerencial.estado && filtrosInformeGerencial.vencimiento === "todos" && !filtrosInformeGerencial.sinFechaCompromiso,
+                        limpiar: () => asignarFiltroInforme({ estado: undefined, estadoCierre: undefined, vencimiento: "todos", sinFechaCompromiso: false }),
                         items: [
                           ["Reportados", filtrosInformeGerencial.estado === "REPORTADO", () => asignarFiltroInforme({ estado: filtrosInformeGerencial.estado === "REPORTADO" ? undefined : "REPORTADO" })],
                           ["Abiertos", filtrosInformeGerencial.estado === "ABIERTO", () => asignarFiltroInforme({ estado: filtrosInformeGerencial.estado === "ABIERTO" ? undefined : "ABIERTO" })],
@@ -6077,6 +6084,8 @@ export default function KpiGerencialAvanzadoPage() {
                       },
                       {
                         titulo: "Evidencia y trazabilidad",
+                        todosActivos: filtrosInformeGerencial.gps === "todos" && filtrosInformeGerencial.evidencia === "todos",
+                        limpiar: () => asignarFiltroInforme({ gps: "todos", evidencia: "todos" }),
                         items: [
                           ["Con GPS", filtrosInformeGerencial.gps === "con-gps", () => asignarFiltroInforme({ gps: filtrosInformeGerencial.gps === "con-gps" ? "todos" : "con-gps" })],
                           ["Sin GPS", filtrosInformeGerencial.gps === "sin-gps", () => asignarFiltroInforme({ gps: filtrosInformeGerencial.gps === "sin-gps" ? "todos" : "sin-gps" })],
@@ -6086,6 +6095,8 @@ export default function KpiGerencialAvanzadoPage() {
                       },
                       {
                         titulo: "Periodo",
+                        todosActivos: !filtrosInformeGerencial.fechaDesde && !filtrosInformeGerencial.fechaHasta && !filtrosInformeGerencial.semana && !filtrosInformeGerencial.mes,
+                        limpiar: () => asignarFiltroInforme({ fechaDesde: undefined, fechaHasta: undefined, semana: undefined, mes: undefined }),
                         items: [
                           ["Hoy", filtrosInformeGerencial.fechaDesde === new Date().toISOString().slice(0, 10) && filtrosInformeGerencial.fechaHasta === new Date().toISOString().slice(0, 10), () => aplicarPeriodoInforme("hoy")],
                           ["Esta semana", Boolean(filtrosInformeGerencial.fechaDesde && filtrosInformeGerencial.fechaHasta && !filtrosInformeGerencial.mes), () => aplicarPeriodoInforme("semana")],
@@ -6098,6 +6109,25 @@ export default function KpiGerencialAvanzadoPage() {
                           {grupo.titulo}
                         </div>
                         <div style={{ display: "flex", gap: "7px", flexWrap: "wrap" }}>
+                          <button
+                            type="button"
+                            onClick={grupo.limpiar}
+                            style={{
+                              minHeight: "32px",
+                              borderRadius: "999px",
+                              border: grupo.todosActivos ? "1px solid rgba(34,197,94,0.52)" : bordeInterno,
+                              background: grupo.todosActivos
+                                ? "linear-gradient(135deg, rgba(22,163,74,0.88), rgba(34,197,94,0.62))"
+                                : fondoInterno,
+                              color: grupo.todosActivos ? "#ffffff" : textoMedio,
+                              padding: "7px 10px",
+                              fontSize: "11px",
+                              fontWeight: 900,
+                              cursor: "pointer",
+                            }}
+                          >
+                            Todos
+                          </button>
                           {grupo.items.map(([label, activo, accion]) => (
                             <button
                               key={`comando-informe-${grupo.titulo}-${label}`}
@@ -6141,30 +6171,49 @@ export default function KpiGerencialAvanzadoPage() {
                       items: seccionesPrincipalesInformeGerencial,
                       seleccion: seccionesInformeSeleccionadas,
                       cambiar: alternarSeccionInforme,
+                      seleccionarTodo: () => setSeccionesInformeSeleccionadas((actual) => Array.from(new Set([...actual, ...seccionesPrincipalesInformeGerencial.map((item) => item.id)]))),
+                      limpiarGrupo: () => setSeccionesInformeSeleccionadas((actual) => actual.filter((id) => !seccionesPrincipalesInformeGerencial.some((item) => item.id === id))),
                     },
                     {
                       titulo: "B. Graficos y visualizaciones",
                       items: graficosInformeGerencial,
                       seleccion: graficosInformeSeleccionados,
                       cambiar: alternarGraficoInforme,
+                      seleccionarTodo: () => setGraficosInformeSeleccionados(graficosInformeGerencial.map((item) => item.id)),
+                      limpiarGrupo: () => setGraficosInformeSeleccionados([]),
                     },
                     {
                       titulo: "C. Rankings",
                       items: rankingsInformeGerencial,
                       seleccion: rankingsInformeSeleccionados,
                       cambiar: alternarRankingInforme,
+                      seleccionarTodo: () => setRankingsInformeSeleccionados(rankingsInformeGerencial.map((item) => item.id)),
+                      limpiarGrupo: () => setRankingsInformeSeleccionados([]),
                     },
                     {
-                      titulo: "D. Hallazgos y detalle",
+                      titulo: "D. Análisis por estado (texto)",
                       items: hallazgosDetalleInformeGerencial,
                       seleccion: seccionesInformeSeleccionadas,
                       cambiar: alternarSeccionInforme,
+                      seleccionarTodo: () => setSeccionesInformeSeleccionadas((actual) => Array.from(new Set([...actual, ...hallazgosDetalleInformeGerencial.map((item) => item.id)]))),
+                      limpiarGrupo: () => setSeccionesInformeSeleccionadas((actual) => actual.filter((id) => !hallazgosDetalleInformeGerencial.some((item) => item.id === id))),
                     },
                   ].map((grupo) => (
                     <div key={grupo.titulo} style={{ display: "grid", gap: "8px", borderRadius: "16px", padding: "10px", background: fondoInternoFuerte, border: bordeInterno }}>
-                      <div style={{ color: textoSuave, fontSize: "10px", fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                        {grupo.titulo}
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                        <div style={{ color: textoSuave, fontSize: "10px", fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                          {grupo.titulo}
+                        </div>
+                        <div style={{ display: "flex", gap: "6px" }}>
+                          <button type="button" onClick={grupo.seleccionarTodo} style={{ ...botonStyle(`todo-${grupo.titulo}`), minHeight: "27px", padding: "5px 8px", fontSize: "9px" }}>Todos</button>
+                          <button type="button" onClick={grupo.limpiarGrupo} style={{ ...botonStyle(`ninguno-${grupo.titulo}`), minHeight: "27px", padding: "5px 8px", fontSize: "9px" }}>Ninguno</button>
+                        </div>
                       </div>
+                      {grupo.titulo.startsWith("D.") && (
+                        <div style={{ color: textoSuave, fontSize: "10px", lineHeight: 1.35, fontWeight: 750 }}>
+                          Estas opciones agregan interpretación escrita al informe. No controlan las series del gráfico ni las filas del anexo.
+                        </div>
+                      )}
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(165px, 1fr))", gap: "7px" }}>
                         {grupo.items.map((item) => {
                           const activa = grupo.seleccion.includes(item.id as never);
@@ -6234,12 +6283,13 @@ export default function KpiGerencialAvanzadoPage() {
                   <div style={{ display: "grid", gap: "12px", borderRadius: "18px", padding: "13px", background: temaClaro ? "rgba(239,246,255,0.72)" : "linear-gradient(145deg, rgba(8,47,73,0.44), rgba(15,23,42,0.72))", border: temaClaro ? "1px solid rgba(37,99,235,0.24)" : "1px solid rgba(125,211,252,0.22)", borderLeft: temaClaro ? "3px solid rgba(37,99,235,0.72)" : "3px solid rgba(56,189,248,0.72)", boxShadow: temaClaro ? "0 12px 24px rgba(15,23,42,0.05)" : "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
                     <div style={{ display: "grid", gap: "4px" }}>
                       <div style={{ color: textoAzul, fontSize: "11px", fontWeight: 950, textTransform: "uppercase", letterSpacing: "0.55px" }}>
-                        Configuración de datos para gráficos
+                        Configuración de visualizaciones
                       </div>
                       <div style={{ color: textoSuave, fontSize: "12px", lineHeight: 1.35, fontWeight: 750 }}>
-                        Defina qué series, rankings y focos comparativos se incluirán en el informe.
+                        Defina las series del gráfico temporal y el criterio de orden de los rankings.
                       </div>
                     </div>
+                    {graficosInformeSeleccionados.includes("tendencia") ? (
                     <div style={{ display: "grid", gap: "7px" }}>
                       <div style={{ color: textoMedio, fontSize: "11px", fontWeight: 950 }}>
                         Series para Tendencia temporal
@@ -6261,6 +6311,11 @@ export default function KpiGerencialAvanzadoPage() {
                         })}
                       </div>
                     </div>
+                    ) : (
+                      <div style={{ borderRadius: "12px", padding: "9px 10px", background: fondoInterno, border: bordeInterno, color: textoSuave, fontSize: "11px", fontWeight: 750 }}>
+                        Las series temporales aparecerán cuando seleccione “Tendencia temporal” en Gráficos y visualizaciones.
+                      </div>
+                    )}
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: "8px" }}>
                       <label style={{ display: "grid", gap: "6px" }}>
                         <span style={{ color: textoSuave, fontSize: "10px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.5px" }}>
@@ -6280,7 +6335,7 @@ export default function KpiGerencialAvanzadoPage() {
                       </label>
                       <label style={{ display: "grid", gap: "6px" }}>
                         <span style={{ color: textoSuave, fontSize: "10px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                          Foco comparativo
+                          Orden principal del comparativo
                         </span>
                         <select
                           value={focoComparativoInforme}
@@ -6296,7 +6351,7 @@ export default function KpiGerencialAvanzadoPage() {
                       </label>
                     </div>
                     <div style={{ color: textoSuave, fontSize: "11px", lineHeight: 1.35, fontWeight: 750 }}>
-                      Cada selección se refleja en la vista previa y en el PDF. Los elementos no marcados quedan fuera del informe.
+                      El foco comparativo define el orden de prioridad. El informe conserva críticos, vencidos, backlog, cierres y tasa de cierre para que la lectura sea completa.
                     </div>
                   </div>
                 </div>
@@ -6421,7 +6476,7 @@ export default function KpiGerencialAvanzadoPage() {
                       ["Criticos abiertos", metricasInformeGerencial.criticosAbiertos, "#ef4444"],
                       ["Vencidos abiertos", metricasInformeGerencial.vencidosAbiertos, "#f97316"],
                       ["Sin fecha", metricasInformeGerencial.sinFechaCompromiso, "#facc15"],
-                      ["Tasa cierre", `${analisisInformeGerencial.tasaCierre}%`, "#22c55e"],
+                      ["Tasa cierre", `${analisisInformeGerencial.tasaCierre}%`, colorTasaCierre(analisisInformeGerencial.tasaCierre)],
                     ].map(([label, valor, color]) => (
                       <div key={String(label)} style={{ borderRadius: "14px", padding: "10px", background: fondoInterno, border: bordeInterno, display: "grid", gap: "5px" }}>
                         <span style={{ color: textoSuave, fontSize: "10px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.45px" }}>{label}</span>
@@ -6573,7 +6628,7 @@ export default function KpiGerencialAvanzadoPage() {
                                   <div style={{ minWidth: 0, display: "grid", gap: "4px" }}>
                                     <span style={{ color: textoMedio, fontSize: "10px", fontWeight: 850, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.nombre}</span>
                                     <div style={{ height: "7px", borderRadius: "999px", background: temaClaro ? "rgba(148,163,184,0.22)" : "rgba(148,163,184,0.14)", overflow: "hidden" }}>
-                                      <div style={{ width: `${Math.max(7, (item.total / maximo) * 100)}%`, height: "100%", borderRadius: "inherit", background: "linear-gradient(90deg,#2563eb,#22c55e)" }} />
+                                      <div style={{ width: `${Math.max(7, (item.total / maximo) * 100)}%`, height: "100%", borderRadius: "inherit", background: colorRiesgoRanking(item) }} />
                                     </div>
                                   </div>
                                   <strong style={{ color: textoPrincipal, fontSize: "11px", textAlign: "right" }}>{item.total}</strong>
