@@ -1179,6 +1179,7 @@ export default function KpiGerencialAvanzadoPage() {
     useState<FocoComparativoInforme>("mayor-carga-critica");
   const [estadoPdfInformeGerencial, setEstadoPdfInformeGerencial] =
     useState<EstadoPdfInformeGerencial>("idle");
+  const [vistaPreviaInformeHtml, setVistaPreviaInformeHtml] = useState("");
   const [usuarioGeneradorInforme, setUsuarioGeneradorInforme] =
     useState<UsuarioGeneradorInforme>(() => leerUsuarioGeneradorInforme());
 
@@ -2992,20 +2993,7 @@ export default function KpiGerencialAvanzadoPage() {
     const esVistaPrevia = modo === "vista-previa";
     activarBoton(esVistaPrevia ? "vista-previa-informe" : "pdf-informe");
 
-    const ventanaVistaPrevia = esVistaPrevia
-      ? window.open("", "vista-previa-informe-gerencial")
-      : null;
-
-    if (esVistaPrevia && !ventanaVistaPrevia) {
-      setMensaje("El navegador bloqueo la vista previa. Habilite las ventanas emergentes e intente nuevamente.");
-      return;
-    }
-
     if (esVistaPrevia) {
-      ventanaVistaPrevia?.document.write(
-        "<!doctype html><html lang='es'><head><title>Preparando vista previa...</title></head><body style='font-family:Arial,sans-serif;padding:32px'>Preparando vista previa del informe...</body></html>"
-      );
-      ventanaVistaPrevia?.document.close();
       setMensaje("Preparando vista previa del informe gerencial.");
     } else {
       setEstadoPdfInformeGerencial("generando");
@@ -3828,9 +3816,8 @@ export default function KpiGerencialAvanzadoPage() {
       </article>
     `;
 
-    if (esVistaPrevia && ventanaVistaPrevia) {
-      ventanaVistaPrevia.document.open();
-      ventanaVistaPrevia.document.write(`
+    if (esVistaPrevia) {
+      setVistaPreviaInformeHtml(`
         <!doctype html>
         <html lang="es">
           <head>
@@ -3840,56 +3827,24 @@ export default function KpiGerencialAvanzadoPage() {
             <style>
               * { box-sizing: border-box; }
               html { background: #e2e8f0; }
-              body { margin: 0; padding: 76px 24px 36px; display: grid; justify-content: center; color: #172033; }
-              .preview-toolbar {
-                position: fixed;
-                inset: 0 0 auto;
-                min-height: 58px;
-                z-index: 10;
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                gap: 16px;
-                padding: 10px 18px;
-                background: #071a2d;
-                color: #ffffff;
-                box-shadow: 0 8px 24px rgba(15,23,42,0.24);
-                font: 700 13px Arial, Helvetica, sans-serif;
-              }
-              .preview-toolbar button {
-                min-height: 36px;
-                padding: 8px 14px;
-                border: 1px solid rgba(255,255,255,0.28);
-                border-radius: 10px;
-                background: #2563eb;
-                color: #ffffff;
-                font-weight: 800;
-                cursor: pointer;
-              }
+              body { margin: 0; padding: 24px; display: grid; justify-content: center; color: #172033; }
               .pdf-doc { box-shadow: 0 18px 48px rgba(15,23,42,0.20); }
               @media (max-width: 820px) {
-                body { padding: 72px 10px 24px; }
+                body { padding: 10px; }
                 .pdf-doc { width: 100%; }
               }
               @media print {
                 html, body { background: #ffffff; padding: 0; }
-                .preview-toolbar { display: none; }
                 .pdf-doc { box-shadow: none; }
               }
             </style>
           </head>
           <body>
-            <div class="preview-toolbar">
-              <span>Vista previa del informe · revise el contenido antes de descargarlo</span>
-              <button type="button" onclick="window.close()">Cerrar vista previa</button>
-            </div>
             ${htmlInforme}
           </body>
         </html>
       `);
-      ventanaVistaPrevia.document.close();
-      ventanaVistaPrevia.focus();
-      setMensaje("Vista previa abierta. Revise el informe y luego use Descargar PDF si esta conforme.");
+      setMensaje("Vista previa abierta dentro de la plataforma. Revise el informe y luego use Descargar PDF si esta conforme.");
       return;
     }
 
@@ -4006,6 +3961,82 @@ export default function KpiGerencialAvanzadoPage() {
           </>
         )}
       />
+      {vistaPreviaInformeHtml ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Vista previa del informe gerencial"
+          onClick={() => setVistaPreviaInformeHtml("")}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 2147483646,
+            display: "grid",
+            placeItems: "center",
+            padding: "clamp(8px, 2vw, 24px)",
+            background: "rgba(2, 6, 23, 0.84)",
+            backdropFilter: "blur(8px)",
+          }}
+        >
+          <section
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              width: "min(1180px, 98vw)",
+              height: "min(94vh, 980px)",
+              overflow: "hidden",
+              display: "grid",
+              gridTemplateRows: "auto minmax(0, 1fr)",
+              borderRadius: "20px",
+              border: "1px solid rgba(125,211,252,0.30)",
+              background: "#0f172a",
+              boxShadow: "0 28px 80px rgba(0,0,0,0.55)",
+            }}
+          >
+            <header
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "12px",
+                padding: "12px 14px",
+                color: "#ffffff",
+                background: "linear-gradient(135deg,#071a2d,#0d3556)",
+                borderBottom: "1px solid rgba(125,211,252,0.22)",
+              }}
+            >
+              <div>
+                <div style={{ fontSize: "13px", fontWeight: 950 }}>Vista previa del informe gerencial</div>
+                <div style={{ marginTop: "2px", color: "#bae6fd", fontSize: "11px", fontWeight: 750 }}>
+                  Revise el contenido antes de descargar el PDF.
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setVistaPreviaInformeHtml("")}
+                style={{
+                  minHeight: "38px",
+                  padding: "8px 14px",
+                  borderRadius: "11px",
+                  border: "1px solid rgba(255,255,255,0.28)",
+                  background: "linear-gradient(135deg,#2563eb,#7c3aed)",
+                  color: "#ffffff",
+                  fontSize: "12px",
+                  fontWeight: 900,
+                  cursor: "pointer",
+                }}
+              >
+                Cerrar vista previa
+              </button>
+            </header>
+            <iframe
+              title="Documento de vista previa del informe gerencial"
+              srcDoc={vistaPreviaInformeHtml}
+              sandbox="allow-same-origin"
+              style={{ width: "100%", height: "100%", border: 0, background: "#e2e8f0" }}
+            />
+          </section>
+        </div>
+      ) : null}
       <div className="ce-panel-shell ce-panel-kpi-shell" style={shellStyle}>
         <header
           className="ce-panel-header"
