@@ -3481,6 +3481,11 @@ export default function KpiGerencialAvanzadoPage() {
     };
     const fotoGenerador = fotoPerfilPermitidaInforme(usuarioGeneradorInforme.foto);
     const clientBranding = readClientBrandingFromPanelConfig();
+    const nombrePlataformaInforme =
+      clientBranding.poweredByText.replace(/^generado por\s+/i, "").trim() ||
+      "Criterio Estratégico";
+    const atribucionTecnologicaInforme = `Documento generado mediante la plataforma ${nombrePlataformaInforme}`;
+    const subtituloPortadaInforme = `${etiquetaNivelDetalleInforme(nivelDetalleInformeGerencial)} · Alcance: ${etiquetaAlcanceInforme}`;
     const logoClientePdf = clientBranding.logoPrincipalUrl
       ? `<img class="pdf-client-logo" src="${escaparHtmlInforme(clientBranding.logoPrincipalUrl)}" alt="${escaparHtmlInforme(clientBranding.nombrePrincipal)}" />`
       : "";
@@ -3605,17 +3610,10 @@ export default function KpiGerencialAvanzadoPage() {
             margin-bottom: 16px;
             background: linear-gradient(135deg, #f8fbff 0%, #eef6ff 100%);
           }
-          .pdf-brand {
-            color: #1d4ed8;
-            font-size: 11px;
-            font-weight: 800;
-            letter-spacing: 1.1px;
-            text-transform: uppercase;
-          }
           .pdf-cover-top {
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            justify-content: flex-start;
             gap: 14px;
           }
           .pdf-client-brand {
@@ -4144,6 +4142,15 @@ export default function KpiGerencialAvanzadoPage() {
             break-inside: avoid;
             break-inside: avoid-page;
           }
+          .pdf-footer span:first-child {
+            color: #334155;
+            font-weight: 800;
+          }
+          .pdf-footer span:last-child {
+            color: #94a3b8;
+            font-size: 8.5px;
+            text-align: right;
+          }
         </style>
 
         <header class="pdf-cover pdf-avoid">
@@ -4152,10 +4159,9 @@ export default function KpiGerencialAvanzadoPage() {
               ${logoClientePdf}
               <span>${escaparHtmlInforme(clientBranding.nombrePrincipal)}</span>
             </div>
-            <div class="pdf-brand">${escaparHtmlInforme(clientBranding.poweredByText)}</div>
           </div>
           <h1>${escaparHtmlInforme(tituloAutomaticoInformeGerencial)}</h1>
-          <p class="pdf-muted">${escaparHtmlInforme(etiquetaCategoriaInforme)} · ${escaparHtmlInforme(plantillaInformeActiva.titulo)} · ${escaparHtmlInforme(etiquetaNivelDetalleInforme(nivelDetalleInformeGerencial))} · ${escaparHtmlInforme(etiquetaAlcanceInforme)} · ${escaparHtmlInforme(periodoInformeEtiqueta)}</p>
+          <p class="pdf-muted">${escaparHtmlInforme(subtituloPortadaInforme)}</p>
           <div class="pdf-note pdf-legal-base">
             Informe generado como herramienta de apoyo a la gestión preventiva, trazabilidad documental, evidencia de hallazgos, seguimiento de cierre y análisis ejecutivo, alineado al marco preventivo chileno vigente: Ley 16.744, DS 44 y DS 594.
           </div>
@@ -4168,7 +4174,7 @@ export default function KpiGerencialAvanzadoPage() {
           <section class="pdf-generated-by pdf-avoid">
             <div class="pdf-avatar">${avatarGenerador}</div>
             <div>
-              <div class="pdf-generated-title">Informe generado por</div>
+              <div class="pdf-generated-title">Responsable de emisión</div>
               <div class="pdf-generated-name">${escaparHtmlInforme(usuarioGeneradorInforme.nombre)}</div>
               <div class="pdf-generated-detail">${escaparHtmlInforme(usuarioGeneradorInforme.cargo)}</div>
               <div class="pdf-generated-detail">${escaparHtmlInforme(usuarioGeneradorInforme.empresa)}</div>
@@ -4402,9 +4408,9 @@ export default function KpiGerencialAvanzadoPage() {
         <div class="pdf-safe-bottom"></div>
 
         <footer class="pdf-footer">
-          <span>Criterio Estratégico</span>
+          <span>${escaparHtmlInforme(clientBranding.nombrePrincipal)}</span>
           <span>${escaparHtmlInforme(fechaDocumento)}</span>
-          <span>Herramienta de apoyo a la gestión preventiva y trazabilidad de hallazgos, alineada a Ley 16.744, DS 44 y DS 594.</span>
+          <span>${escaparHtmlInforme(atribucionTecnologicaInforme)}</span>
         </footer>
       </article>
     `;
@@ -4451,13 +4457,13 @@ export default function KpiGerencialAvanzadoPage() {
       await generarInformeEjecutivoPdf({
         filename: nombreArchivo,
         titulo: tituloAutomaticoInformeGerencial,
-        subtitulo: `${plantillaInformeActiva.titulo} · ${etiquetaNivelDetalleInforme(nivelDetalleInformeGerencial)}`,
+        subtitulo: subtituloPortadaInforme,
         periodo: periodoInformeEtiqueta,
         alcance: etiquetaAlcanceInforme,
         fechaGeneracion: fechaDocumento,
         marca: {
           nombre: clientBranding.nombrePrincipal,
-          poweredBy: clientBranding.poweredByText,
+          poweredBy: atribucionTecnologicaInforme,
           logoUrl: clientBranding.logoPrincipalUrl,
         },
         fontUrl: "/fonts/CeSans-Regular.ttf",
