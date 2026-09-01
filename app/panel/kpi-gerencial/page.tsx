@@ -201,20 +201,6 @@ type AnalisisSeccionInformeGerencial = {
 
 type EstadoPdfInformeGerencial = "idle" | "generando" | "generado" | "error";
 
-type DocumentoPdfNumerable = {
-  internal: {
-    getNumberOfPages: () => number;
-    pageSize: {
-      getWidth: () => number;
-      getHeight: () => number;
-    };
-  };
-  setPage: (pagina: number) => void;
-  setFontSize: (tamano: number) => void;
-  setTextColor: (rojo: number, verde: number, azul: number) => void;
-  text: (texto: string, x: number, y: number, opciones?: { align?: "left" | "center" | "right" }) => void;
-};
-
 type UsuarioGeneradorInforme = {
   nombre: string;
   cargo: string;
@@ -572,6 +558,19 @@ function formatearMesInforme(valor: string) {
   return fecha.toLocaleDateString("es-CL", { month: "long", year: "numeric" });
 }
 
+function formatearPeriodoTendenciaInforme(valor: string) {
+  if (!/^\d{4}-\d{2}$/.test(valor)) return valor;
+  return formatearMesInforme(valor);
+}
+
+function cantidadConSustantivo(
+  cantidad: number,
+  singular: string,
+  plural = `${singular}s`
+) {
+  return `${cantidad} ${cantidad === 1 ? singular : plural}`;
+}
+
 function tituloBaseInforme(tipo: TipoInformeGerencial, nivel: NivelDetalleInformeGerencial) {
   if (tipo === "gestion-operativa") {
     return "Informe de Gestión de Hallazgos Preventivos";
@@ -691,7 +690,7 @@ async function cargarUsuarioGeneradorInforme(): Promise<UsuarioGeneradorInforme>
 }
 
 const notaNormativaInformeGerencial =
-  "Este analisis apoya la lectura de gestion preventiva bajo el marco de Ley 16.744, DS 44 y DS 594, con foco en trazabilidad, evidencia, responsables, seguimiento y mejora continua. No reemplaza auditoria legal ni validacion tecnica formal.";
+  "Este análisis apoya la lectura de gestión preventiva bajo el marco de la Ley 16.744, el DS 44 y el DS 594, con foco en trazabilidad, evidencia, responsables, seguimiento y mejora continua. No reemplaza una auditoría legal ni una validación técnica formal.";
 
 const alcanceInformeOpciones: Array<{
   id: AlcanceInformeGerencial;
@@ -2495,6 +2494,23 @@ export default function KpiGerencialAvanzadoPage() {
         !hallazgo.cierreSinEvidenciaJustificado
     );
     const total = hallazgosInformeGerencial.length;
+    const abiertosConResponsable = abiertos.filter(
+      (hallazgo) =>
+        Boolean(hallazgo.responsableCierre) &&
+        hallazgo.responsableCierre !== "Sin responsable"
+    ).length;
+    const abiertosConFechaCompromiso = abiertos.filter((hallazgo) =>
+      Boolean(hallazgo.fechaCompromiso)
+    ).length;
+    const conEmpresaResponsable = hallazgosInformeGerencial.filter((hallazgo) =>
+      Boolean(hallazgo.empresaResponsable)
+    ).length;
+    const abiertosPorCriticidad: Record<CriticidadKpiGerencial, number> = {
+      CRITICO: abiertos.filter((hallazgo) => hallazgo.criticidad === "CRITICO").length,
+      ALTO: abiertos.filter((hallazgo) => hallazgo.criticidad === "ALTO").length,
+      MEDIO: abiertos.filter((hallazgo) => hallazgo.criticidad === "MEDIO").length,
+      BAJO: abiertos.filter((hallazgo) => hallazgo.criticidad === "BAJO").length,
+    };
 
     return {
       abiertos: abiertos.length,
@@ -2514,6 +2530,10 @@ export default function KpiGerencialAvanzadoPage() {
       conFechaCompromiso: hallazgosInformeGerencial.filter((hallazgo) =>
         Boolean(hallazgo.fechaCompromiso)
       ).length,
+      abiertosConResponsable,
+      abiertosConFechaCompromiso,
+      conEmpresaResponsable,
+      abiertosPorCriticidad,
       cerradosValidados: cerradosValidados.length,
       cerradosSinRespaldo: cerradosSinRespaldo.length,
       total,
@@ -2621,7 +2641,7 @@ export default function KpiGerencialAvanzadoPage() {
           ? `con un aumento de ${variacion} reportes`
           : `con una disminución de ${Math.abs(variacion)} reportes`;
     const tasaCierre = actual.total ? Math.round((actual.cerrados / actual.total) * 100) : 0;
-    return `El periodo ${actual.periodo} registra ${actual.total} hallazgos, ${cambio} respecto del periodo anterior. La tasa de cierre alcanza ${tasaCierre}%. Permanecen abiertos ${actual.criticosAbiertos} hallazgos críticos y ${actual.vencidosAbiertos} hallazgos vencidos.`;
+    return `El periodo ${formatearPeriodoTendenciaInforme(actual.periodo)} registra ${cantidadConSustantivo(actual.total, "hallazgo")}, ${cambio} respecto del periodo anterior. La tasa de cierre alcanza ${tasaCierre}%. Permanecen abiertos ${cantidadConSustantivo(actual.criticosAbiertos, "hallazgo crítico", "hallazgos críticos")} y ${cantidadConSustantivo(actual.vencidosAbiertos, "hallazgo vencido", "hallazgos vencidos")}.`;
   }, [tendenciaVisualInforme]);
   const configuracionRankingsInformeGerencial = useMemo<
     Record<RankingInformeGerencial, { titulo: string; metrica: string; data: RankingKpiGerencial[] }>
@@ -2802,23 +2822,117 @@ export default function KpiGerencialAvanzadoPage() {
     analisisInformeGerencial.total === 0
       ? "No existen registros para el alcance seleccionado. La ausencia de reportes no acredita cumplimiento y debe validarse contra la nómina de empresas activas y su meta de reportabilidad."
       : `${metricasInformeGerencial.abiertos} de ${analisisInformeGerencial.total} hallazgos permanecen abiertos. Se mantienen ${metricasInformeGerencial.criticosAbiertos} críticos, ${metricasInformeGerencial.vencidosAbiertos} vencidos y ${metricasInformeGerencial.sinFechaCompromiso} sin fecha de compromiso. La tasa de cierre alcanza solo ${analisisInformeGerencial.tasaCierre}%.`;
-  const accionesPrioritariasInforme = [
+  const planAccionEjecutivoInforme = [
     metricasInformeGerencial.criticosAbiertos > 0
-      ? `Escalar de inmediato los ${metricasInformeGerencial.criticosAbiertos} hallazgos críticos abiertos y exigir responsable, plazo y evidencia de cierre.`
+      ? {
+          prioridad: "Inmediata" as const,
+          accion: `Controlar y escalar ${cantidadConSustantivo(metricasInformeGerencial.criticosAbiertos, "hallazgo crítico abierto", "hallazgos críticos abiertos")}.`,
+          responsable: "Gerencia preventiva y empresa responsable",
+          plazo: "24 horas",
+          evidencia: "Control inmediato, responsable, fecha y plan de cierre",
+        }
       : null,
     metricasInformeGerencial.vencidosAbiertos > 0
-      ? `Regularizar los ${metricasInformeGerencial.vencidosAbiertos} hallazgos vencidos, identificando empresa responsable y días de atraso.`
+      ? {
+          prioridad: "Inmediata" as const,
+          accion: `Regularizar ${cantidadConSustantivo(metricasInformeGerencial.vencidosAbiertos, "hallazgo vencido", "hallazgos vencidos")} y documentar la causa del atraso.`,
+          responsable: "Administrador de contrato",
+          plazo: "48 horas",
+          evidencia: "Nuevo compromiso aprobado o cierre documentado",
+        }
       : null,
     metricasInformeGerencial.sinFechaCompromiso > 0
-      ? `Asignar fecha de compromiso a los ${metricasInformeGerencial.sinFechaCompromiso} hallazgos abiertos que actualmente no tienen plazo.`
-      : null,
-    metricasInformeGerencial.cerradosSinRespaldo > 0
-      ? `Revisar ${metricasInformeGerencial.cerradosSinRespaldo} cierres sin evidencia o justificación formal antes de contabilizarlos como cumplimiento.`
+      ? {
+          prioridad: "Alta" as const,
+          accion: `Asignar fecha de compromiso a ${cantidadConSustantivo(metricasInformeGerencial.sinFechaCompromiso, "hallazgo abierto", "hallazgos abiertos")}.`,
+          responsable: "Responsables de cierre",
+          plazo: "72 horas",
+          evidencia: "Fecha, responsable y seguimiento registrados",
+        }
       : null,
     metricasInformeGerencial.sinResponsable > 0
-      ? `Asignar responsable nominal a ${metricasInformeGerencial.sinResponsable} hallazgos abiertos sin responsable de cierre.`
+      ? {
+          prioridad: "Alta" as const,
+          accion: `Asignar responsable nominal a ${cantidadConSustantivo(metricasInformeGerencial.sinResponsable, "hallazgo abierto", "hallazgos abiertos")}.`,
+          responsable: "Administrador del cliente",
+          plazo: "48 horas",
+          evidencia: "Responsable y cargo confirmados",
+        }
       : null,
-  ].filter(Boolean) as string[];
+    metricasInformeGerencial.cerradosSinRespaldo > 0
+      ? {
+          prioridad: "Alta" as const,
+          accion: `Revisar ${cantidadConSustantivo(metricasInformeGerencial.cerradosSinRespaldo, "cierre", "cierres")} sin respaldo formal.`,
+          responsable: "Prevención y revisor de cierre",
+          plazo: "48 horas",
+          evidencia: "Evidencia de cierre o justificación formal",
+        }
+      : null,
+    metricasInformeGerencial.criticosAbiertos === 0 &&
+    metricasInformeGerencial.vencidosAbiertos === 0 &&
+    metricasInformeGerencial.sinFechaCompromiso === 0 &&
+    metricasInformeGerencial.sinResponsable === 0 &&
+    metricasInformeGerencial.cerradosSinRespaldo === 0
+      ? {
+          prioridad: "Programada" as const,
+          accion: "Mantener el control de compromisos y validar los nuevos cierres.",
+          responsable: "Equipo preventivo",
+          plazo: "Revisión semanal",
+          evidencia: "Acta de seguimiento y cierres validados",
+        }
+      : null,
+  ].filter(Boolean) as Array<{
+    prioridad: "Inmediata" | "Alta" | "Programada";
+    accion: string;
+    responsable: string;
+    plazo: string;
+    evidencia: string;
+  }>;
+  const hallazgosPrioritariosInforme = useMemo(() => {
+    const pesoCriticidad: Record<CriticidadKpiGerencial, number> = {
+      CRITICO: 400,
+      ALTO: 300,
+      MEDIO: 200,
+      BAJO: 100,
+    };
+    const motivoPrioridad = (hallazgo: HallazgoKpiGerencial) => {
+      const motivos: string[] = [];
+      if (esHallazgoVencidoDetalle(hallazgo)) {
+        motivos.push(`Vencido ${cantidadConSustantivo(diasVencidoDetalle(hallazgo), "día")}`);
+      }
+      if (!hallazgo.fechaCompromiso) motivos.push("Sin fecha de compromiso");
+      if (!hallazgo.responsableCierre || hallazgo.responsableCierre === "Sin responsable") {
+        motivos.push("Sin responsable nominal");
+      }
+      if (hallazgo.criticidad === "CRITICO") motivos.push("Criticidad crítica");
+      return motivos.join("; ") || "Seguimiento preventivo pendiente";
+    };
+    return hallazgosInformeGerencial
+      .filter(esHallazgoAbiertoGerencial)
+      .map((hallazgo) => ({
+        hallazgo,
+        puntaje:
+          pesoCriticidad[hallazgo.criticidad] +
+          (esHallazgoVencidoDetalle(hallazgo) ? 1000 + diasVencidoDetalle(hallazgo) : 0) +
+          (!hallazgo.fechaCompromiso ? 180 : 0) +
+          (!hallazgo.responsableCierre || hallazgo.responsableCierre === "Sin responsable" ? 160 : 0),
+      }))
+      .sort((a, b) => b.puntaje - a.puntaje || a.hallazgo.codigo.localeCompare(b.hallazgo.codigo))
+      .slice(0, 10)
+      .map(({ hallazgo }) => ({
+        codigo: hallazgo.codigo,
+        criticidad: etiquetaCriticidad(hallazgo.criticidad),
+        empresa: hallazgo.empresaResponsable || "Sin empresa responsable",
+        obra: hallazgo.obra || "Sin obra",
+        responsable: hallazgo.responsableCierre || "Sin responsable",
+        plazo: esHallazgoVencidoDetalle(hallazgo)
+          ? `Vencido ${cantidadConSustantivo(diasVencidoDetalle(hallazgo), "día")}`
+          : hallazgo.fechaCompromiso
+            ? fechaCortaDetalle(hallazgo.fechaCompromiso)
+            : "Sin fecha",
+        motivo: motivoPrioridad(hallazgo),
+      }));
+  }, [hallazgosInformeGerencial]);
   const advertenciasInformeGerencial = useMemo(
     () =>
       [
@@ -3660,11 +3774,11 @@ export default function KpiGerencialAvanzadoPage() {
             widows: 3;
           }
           .pdf-final-text-section {
-            margin-bottom: 16mm;
-            padding-bottom: 14px;
+            margin-bottom: 4mm;
+            padding-bottom: 10px;
           }
           .pdf-safe-bottom {
-            height: 14mm;
+            height: 3mm;
             page-break-inside: avoid;
             break-inside: avoid;
             break-inside: avoid-page;
@@ -3737,6 +3851,30 @@ export default function KpiGerencialAvanzadoPage() {
             grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 9px;
           }
+          .pdf-severity-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 8px;
+          }
+          .pdf-severity-card {
+            border: 1px solid #e2e8f0;
+            border-top: 4px solid #64748b;
+            border-radius: 10px;
+            padding: 9px;
+            background: #f8fafc;
+          }
+          .pdf-severity-card.critico { border-top-color: #b91c1c; background: #fff1f2; }
+          .pdf-severity-card.alto { border-top-color: #ea580c; background: #fff7ed; }
+          .pdf-severity-card.medio { border-top-color: #ca8a04; background: #fefce8; }
+          .pdf-severity-card.bajo { border-top-color: #16a34a; background: #f0fdf4; }
+          .pdf-severity-card span { display: block; color: #64748b; font-size: 8px; font-weight: 900; text-transform: uppercase; }
+          .pdf-severity-card strong { display: block; margin: 3px 0 1px; color: #0f172a; font-size: 17px; }
+          .pdf-severity-card small { color: #475569; font-size: 8.5px; }
+          .pdf-action-table th:nth-child(1) { width: 10%; }
+          .pdf-action-table th:nth-child(2) { width: 34%; }
+          .pdf-action-table th:nth-child(3) { width: 21%; }
+          .pdf-action-table th:nth-child(4) { width: 12%; }
+          .pdf-action-table th:nth-child(5) { width: 23%; }
           .pdf-chip-list {
             display: flex;
             flex-wrap: wrap;
@@ -4072,14 +4210,47 @@ export default function KpiGerencialAvanzadoPage() {
         </section>
 
         <section class="pdf-section pdf-avoid">
+          <h2>Distribución por criticidad</h2>
+          <p class="pdf-muted">Composición del universo analizado y backlog abierto por nivel de riesgo.</p>
+          <div class="pdf-severity-grid">
+            ${([
+              ["Críticos", "CRITICO", "critico"],
+              ["Altos", "ALTO", "alto"],
+              ["Medios", "MEDIO", "medio"],
+              ["Bajos", "BAJO", "bajo"],
+            ] as Array<[string, CriticidadKpiGerencial, string]>).map(([etiqueta, criticidad, clase]) => `
+              <div class="pdf-severity-card ${clase}">
+                <span>${etiqueta}</span>
+                <strong>${analisisInformeGerencial.porCriticidad[criticidad]}</strong>
+                <small>${metricasInformeGerencial.abiertosPorCriticidad[criticidad]} abiertos</small>
+              </div>
+            `).join("")}
+          </div>
+        </section>
+
+        <section class="pdf-section pdf-avoid">
           <h2>Alcance y criterios aplicados</h2>
           <ul class="pdf-chip-list">${renderLista(filtrosPdf)}</ul>
           <p class="pdf-muted" style="margin-top:8px">${escaparHtmlInforme(periodoInformeEtiqueta)}. ${informeConBacklogVisible ? "La lectura mantiene visible el backlog no cerrado de períodos anteriores." : "Se analiza el universo completo visible para el perfil actual."}</p>
         </section>
 
-        <section class="pdf-section pdf-avoid">
-          <h2>Decisiones prioritarias</h2>
-          <ul class="pdf-list">${renderLista(accionesPrioritariasInforme.length ? accionesPrioritariasInforme : ["Mantener seguimiento y validar que los cierres cuenten con evidencia suficiente."])}</ul>
+        <section class="pdf-section pdf-table-section">
+          <h2>Plan ejecutivo de acción</h2>
+          <p class="pdf-muted">Prioridades convertidas en responsables, plazos y evidencia verificable.</p>
+          <table class="pdf-action-table">
+            <thead><tr><th>Prioridad</th><th>Acción</th><th>Responsable propuesto</th><th>Plazo</th><th>Evidencia esperada</th></tr></thead>
+            <tbody>
+              ${planAccionEjecutivoInforme.map((accion) => `
+                <tr class="pdf-risk-${accion.prioridad === "Inmediata" ? "critico" : accion.prioridad === "Alta" ? "alto" : "atencion"}">
+                  <td><strong>${escaparHtmlInforme(accion.prioridad)}</strong></td>
+                  <td>${escaparHtmlInforme(accion.accion)}</td>
+                  <td>${escaparHtmlInforme(accion.responsable)}</td>
+                  <td>${escaparHtmlInforme(accion.plazo)}</td>
+                  <td>${escaparHtmlInforme(accion.evidencia)}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
         </section>
 
         ${graficosInformeSeleccionados.includes("tendencia") ? `
@@ -4090,6 +4261,30 @@ export default function KpiGerencialAvanzadoPage() {
         ` : ""}
 
         ${rankingsPdfInformeGerencial.map(renderTablaRanking).join("")}
+
+        <section class="pdf-section pdf-table-section">
+          <h2>Hallazgos que requieren intervención</h2>
+          <p class="pdf-muted">Top ${Math.min(8, hallazgosPrioritariosInforme.length)} priorizado automáticamente por criticidad, vencimiento, ausencia de plazo y falta de responsable.</p>
+          <table>
+            <thead>
+              <tr><th>Código</th><th>Criticidad</th><th>Empresa / obra</th><th>Responsable</th><th>Plazo</th><th>Motivo de prioridad</th></tr>
+            </thead>
+            <tbody>
+              ${hallazgosPrioritariosInforme.length > 0
+                ? hallazgosPrioritariosInforme.slice(0, 8).map((hallazgo) => `
+                    <tr class="pdf-risk-${hallazgo.criticidad === "Crítico" || hallazgo.motivo.includes("Vencido") ? "critico" : "alto"}">
+                      <td><strong>${escaparHtmlInforme(hallazgo.codigo)}</strong></td>
+                      <td>${escaparHtmlInforme(hallazgo.criticidad)}</td>
+                      <td>${escaparHtmlInforme(`${hallazgo.empresa} / ${hallazgo.obra}`)}</td>
+                      <td>${escaparHtmlInforme(hallazgo.responsable)}</td>
+                      <td>${escaparHtmlInforme(hallazgo.plazo)}</td>
+                      <td>${escaparHtmlInforme(hallazgo.motivo)}</td>
+                    </tr>
+                  `).join("")
+                : `<tr><td colspan="6">No se identifican hallazgos prioritarios en el alcance seleccionado.</td></tr>`}
+            </tbody>
+          </table>
+        </section>
 
         ${graficosPdfInformeGerencial.filter((grafico) => grafico.titulo !== "Tendencia temporal").length > 0 ? `
           <section class="pdf-section pdf-section-flow">
@@ -4114,10 +4309,10 @@ export default function KpiGerencialAvanzadoPage() {
             <div class="pdf-kpis">
               ${renderDato("GPS registrado", `${metricasInformeGerencial.conGps} / ${analisisInformeGerencial.total || 0}`, metricasInformeGerencial.conGps < analisisInformeGerencial.total ? "atencion" : "controlado")}
               ${renderDato("Evidencia del reporte", `${metricasInformeGerencial.conEvidencia} / ${analisisInformeGerencial.total || 0}`, metricasInformeGerencial.conEvidencia < analisisInformeGerencial.total ? "atencion" : "controlado")}
-              ${renderDato("Responsable nominal", `${metricasInformeGerencial.conResponsable} / ${analisisInformeGerencial.total || 0}`, metricasInformeGerencial.conResponsable < analisisInformeGerencial.total ? "critico" : "controlado")}
-              ${renderDato("Fecha de compromiso", `${metricasInformeGerencial.conFechaCompromiso} / ${analisisInformeGerencial.total || 0}`, metricasInformeGerencial.conFechaCompromiso < metricasInformeGerencial.abiertos ? "critico" : "controlado")}
+              ${renderDato("Responsable en abiertos", `${metricasInformeGerencial.abiertosConResponsable} / ${metricasInformeGerencial.abiertos}`, metricasInformeGerencial.abiertosConResponsable < metricasInformeGerencial.abiertos ? "critico" : "controlado")}
+              ${renderDato("Fecha en abiertos", `${metricasInformeGerencial.abiertosConFechaCompromiso} / ${metricasInformeGerencial.abiertos}`, metricasInformeGerencial.abiertosConFechaCompromiso < metricasInformeGerencial.abiertos ? "critico" : "controlado")}
             </div>
-            <p class="pdf-insight pdf-insight-atencion"><strong>Advertencia:</strong> “Responsable nominal” y “empresa responsable” son campos distintos. Las empresas sin reportes solo pueden identificarse al comparar este informe con la nómina activa y la meta de reportabilidad del período.</p>
+            <p class="pdf-insight pdf-insight-atencion"><strong>Criterio de cálculo:</strong> GPS y evidencia se calculan sobre el total de hallazgos. Responsable y fecha de compromiso se calculan exclusivamente sobre los hallazgos abiertos, que son el universo gestionable. “Responsable nominal” y “empresa responsable” son campos distintos.</p>
           </section>
         ` : ""}
 
@@ -4192,19 +4387,12 @@ export default function KpiGerencialAvanzadoPage() {
         }
 
         ${
-          seccionesInformeSeleccionadas.includes("advertencias")
-            ? `<section class="pdf-section pdf-text-section pdf-avoid">
-          <h2>Advertencias</h2>
-          <ul class="pdf-list">${renderLista(advertenciasInformeGerencial)}</ul>
-        </section>`
-            : ""
-        }
-
-        ${
+          seccionesInformeSeleccionadas.includes("advertencias") ||
           seccionesInformeSeleccionadas.includes("nota-normativa")
-            ? `<section class="pdf-section pdf-text-section pdf-final-text-section pdf-avoid">
-          <h2>Nota normativa prudente</h2>
-          <p>${escaparHtmlInforme(notaNormativaInformeGerencial)}</p>
+            ? `<section class="pdf-section pdf-text-section pdf-final-text-section">
+          <h2>Alcance, advertencias y marco preventivo</h2>
+          ${seccionesInformeSeleccionadas.includes("advertencias") ? `<ul class="pdf-list">${renderLista(advertenciasInformeGerencial)}</ul>` : ""}
+          ${seccionesInformeSeleccionadas.includes("nota-normativa") ? `<p class="pdf-note pdf-legal-base" style="margin-top:10px">${escaparHtmlInforme(notaNormativaInformeGerencial)}</p>` : ""}
         </section>`
             : ""
         }
@@ -4253,90 +4441,83 @@ export default function KpiGerencialAvanzadoPage() {
       return;
     }
 
-    const contenedor = document.createElement("div");
-    contenedor.style.position = "fixed";
-    contenedor.style.left = "0";
-    contenedor.style.top = "0";
-    contenedor.style.width = "794px";
-    contenedor.style.minHeight = "1123px";
-    contenedor.style.background = "#ffffff";
-    contenedor.style.color = "#111827";
-    contenedor.style.fontFamily = "Arial, Helvetica, sans-serif";
-    contenedor.style.boxSizing = "border-box";
-    contenedor.style.padding = "24px";
-    contenedor.style.zIndex = "2147483647";
-    contenedor.style.pointerEvents = "none";
-    contenedor.style.overflow = "visible";
-    contenedor.innerHTML = htmlInforme;
-
     try {
-      document.body.appendChild(contenedor);
-      await new Promise<void>((resolve) =>
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
-      );
-      const nodoPdf = contenedor.querySelector(".pdf-doc") as HTMLElement | null;
-      if (
-        !nodoPdf ||
-        !nodoPdf.innerText.trim() ||
-        nodoPdf.offsetWidth <= 0 ||
-        nodoPdf.offsetHeight <= 0
-      ) {
-        throw new Error("El nodo temporal del PDF no tiene contenido o dimensiones validas.");
-      }
-      const html2pdfModule = await import("html2pdf.js");
-      const opcionesPdf = {
-        margin: [8, 10, 16, 10] as [number, number, number, number],
-        filename: nombreArchivo,
-        image: { type: "jpeg" as const, quality: 0.96 },
-        enableLinks: true,
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          backgroundColor: "#ffffff",
-          logging: false,
-        },
-        jsPDF: {
-          unit: "mm",
-          format: "a4",
-          orientation: "portrait" as const,
-        },
-        pagebreak: {
-          mode: ["css", "legacy"],
-          avoid: [
-            ".pdf-avoid",
-            ".pdf-card",
-            ".pdf-kpi",
-            ".pdf-analysis-card",
-            ".pdf-chart-card",
-            ".pdf-text-section",
-            ".pdf-final-text-section",
-            ".pdf-safe-bottom",
-            ".pdf-scope-item",
-            "tr",
-          ],
-        },
+      const { generarInformeEjecutivoPdf } = await import("./informeEjecutivoPdf");
+      const nivelCalidad = (completos: number, universo: number) => {
+        if (universo === 0 || completos >= universo) return "controlado" as const;
+        const cobertura = completos / universo;
+        return cobertura < 0.6 ? "critico" as const : cobertura < 0.85 ? "alto" as const : "atencion" as const;
       };
-
-      const trabajadorPdf = html2pdfModule.default()
-        .set(opcionesPdf)
-        .from(nodoPdf)
-        .toPdf();
-      const documentoPdf = (await trabajadorPdf.get("pdf")) as DocumentoPdfNumerable;
-      const totalPaginas = documentoPdf.internal.getNumberOfPages();
-      const anchoPagina = documentoPdf.internal.pageSize.getWidth();
-      const altoPagina = documentoPdf.internal.pageSize.getHeight();
-      for (let pagina = 1; pagina <= totalPaginas; pagina += 1) {
-        documentoPdf.setPage(pagina);
-        documentoPdf.setFontSize(8);
-        documentoPdf.setTextColor(100, 116, 139);
-        documentoPdf.text(
-          `Página ${pagina} de ${totalPaginas}`,
-          anchoPagina - 11,
-          altoPagina - 7,
-          { align: "right" }
-        );
-      }
-      await trabajadorPdf.save(nombreArchivo);
+      await generarInformeEjecutivoPdf({
+        filename: nombreArchivo,
+        titulo: tituloAutomaticoInformeGerencial,
+        subtitulo: `${plantillaInformeActiva.titulo} · ${etiquetaNivelDetalleInforme(nivelDetalleInformeGerencial)}`,
+        periodo: periodoInformeEtiqueta,
+        alcance: etiquetaAlcanceInforme,
+        fechaGeneracion: fechaDocumento,
+        marca: {
+          nombre: clientBranding.nombrePrincipal,
+          poweredBy: clientBranding.poweredByText,
+          logoUrl: clientBranding.logoPrincipalUrl,
+        },
+        fontUrl: "/fonts/CeSans-Regular.ttf",
+        fontBoldUrl: "/fonts/CeSans-Bold.ttf",
+        autor: {
+          nombre: usuarioGeneradorInforme.nombre,
+          cargo: usuarioGeneradorInforme.cargo,
+          empresa: usuarioGeneradorInforme.empresa,
+          correo: usuarioGeneradorInforme.correo,
+        },
+        alerta: {
+          etiqueta: etiquetaNivelAlertaInforme,
+          nivel: nivelAlertaInforme,
+          mensaje: alertaEjecutivaInforme,
+        },
+        resumen: resumenInformeGerencial,
+        metricas: [
+          { etiqueta: "Total", valor: analisisInformeGerencial.total },
+          { etiqueta: "Abiertos", valor: metricasInformeGerencial.abiertos, nivel: metricasInformeGerencial.abiertos > 0 ? "alto" : "controlado" },
+          { etiqueta: "Criticos abiertos", valor: metricasInformeGerencial.criticosAbiertos, nivel: metricasInformeGerencial.criticosAbiertos > 0 ? "critico" : "controlado" },
+          { etiqueta: "Vencidos abiertos", valor: metricasInformeGerencial.vencidosAbiertos, nivel: metricasInformeGerencial.vencidosAbiertos > 0 ? "critico" : "controlado" },
+          { etiqueta: "Sin fecha", valor: metricasInformeGerencial.sinFechaCompromiso, nivel: metricasInformeGerencial.sinFechaCompromiso > 0 ? "alto" : "controlado" },
+          { etiqueta: "Tasa de cierre", valor: `${analisisInformeGerencial.tasaCierre}%`, nivel: analisisInformeGerencial.tasaCierre < 50 ? "critico" : analisisInformeGerencial.tasaCierre < 80 ? "atencion" : "controlado" },
+          { etiqueta: "Cierres validados", valor: metricasInformeGerencial.cerradosValidados, nivel: "controlado" },
+          { etiqueta: "Cierres sin respaldo", valor: metricasInformeGerencial.cerradosSinRespaldo, nivel: metricasInformeGerencial.cerradosSinRespaldo > 0 ? "critico" : "controlado" },
+        ],
+        criticidad: [
+          { etiqueta: "Criticos", total: analisisInformeGerencial.porCriticidad.CRITICO, nivel: "critico" },
+          { etiqueta: "Altos", total: analisisInformeGerencial.porCriticidad.ALTO, nivel: "alto" },
+          { etiqueta: "Medios", total: analisisInformeGerencial.porCriticidad.MEDIO, nivel: "atencion" },
+          { etiqueta: "Bajos", total: analisisInformeGerencial.porCriticidad.BAJO, nivel: "controlado" },
+        ],
+        planAccion: planAccionEjecutivoInforme,
+        tendencia: tendenciaVisualInforme.map((item) => ({
+          periodo: item.periodo,
+          total: item.total,
+          cerrados: item.cerrados,
+          criticosAbiertos: item.criticosAbiertos,
+          vencidosAbiertos: item.vencidosAbiertos,
+        })),
+        lecturaTendencia: lecturaTendenciaInforme,
+        rankings: rankingsPdfInformeGerencial,
+        hallazgosPrioritarios: hallazgosPrioritariosInforme,
+        calidadDato: [
+          { etiqueta: "GPS registrado", completos: metricasInformeGerencial.conGps, universo: analisisInformeGerencial.total, nivel: nivelCalidad(metricasInformeGerencial.conGps, analisisInformeGerencial.total) },
+          { etiqueta: "Evidencia del reporte", completos: metricasInformeGerencial.conEvidencia, universo: analisisInformeGerencial.total, nivel: nivelCalidad(metricasInformeGerencial.conEvidencia, analisisInformeGerencial.total) },
+          { etiqueta: "Responsable en hallazgos abiertos", completos: metricasInformeGerencial.abiertosConResponsable, universo: metricasInformeGerencial.abiertos, nivel: nivelCalidad(metricasInformeGerencial.abiertosConResponsable, metricasInformeGerencial.abiertos) },
+          { etiqueta: "Fecha de compromiso en abiertos", completos: metricasInformeGerencial.abiertosConFechaCompromiso, universo: metricasInformeGerencial.abiertos, nivel: nivelCalidad(metricasInformeGerencial.abiertosConFechaCompromiso, metricasInformeGerencial.abiertos) },
+          { etiqueta: "Empresa responsable identificada", completos: metricasInformeGerencial.conEmpresaResponsable, universo: analisisInformeGerencial.total, nivel: nivelCalidad(metricasInformeGerencial.conEmpresaResponsable, analisisInformeGerencial.total) },
+        ],
+        lecturasComplementarias: graficosPdfInformeGerencial
+          .filter((grafico) => grafico.titulo !== "Tendencia temporal")
+          .map((grafico) => ({
+            titulo: grafico.titulo,
+            valores: grafico.valores,
+            decision: grafico.analisis?.accion,
+          })),
+        advertencias: advertenciasInformeGerencial,
+        notaNormativa: notaNormativaInformeGerencial,
+      });
       setEstadoPdfInformeGerencial("generado");
       setMensaje(`PDF generado: ${nombreArchivo}`);
       window.setTimeout(() => {
@@ -4349,8 +4530,6 @@ export default function KpiGerencialAvanzadoPage() {
       window.setTimeout(() => {
         setEstadoPdfInformeGerencial("idle");
       }, 4500);
-    } finally {
-      contenedor.remove();
     }
   }
 
