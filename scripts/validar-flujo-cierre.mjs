@@ -90,12 +90,33 @@ assert.equal(etiquetaAccionGestionPorEstado("Asignado"), "Actualizar plan");
 assert.equal(clasificarCategoriaCierreMovil({}), "por_cerrar");
 assert.equal(
   clasificarCategoriaCierreMovil({
+    estado: "ABIERTO",
+    estadoCierre: "PENDIENTE",
+    estadoSeguimiento: "PENDIENTE",
+    responsableNombre: "Empresa involucrada informada al reportar",
+  }),
+  "por_cerrar",
+  "El responsable informado en el reporte no equivale a una asignación formal de cierre."
+);
+assert.equal(
+  clasificarCategoriaCierreMovil({
     estado: "EN_SEGUIMIENTO",
     estadoCierre: "ASIGNADO",
     estadoSeguimiento: "Asignado",
     responsableNombre: "Juan Miranda",
   }),
   "en_seguimiento"
+);
+assert.equal(
+  clasificarCategoriaCierreMovil({
+    estado: "ABIERTO",
+    estadoCierre: "PENDIENTE",
+    estadoSeguimiento: "PENDIENTE",
+    responsableNombre: "Juan Miranda",
+    gestionFormalRegistrada: true,
+  }),
+  "en_seguimiento",
+  "Un plan guardado se mantiene en seguimiento aunque provenga de datos históricos."
 );
 assert.equal(
   clasificarCategoriaCierreMovil({

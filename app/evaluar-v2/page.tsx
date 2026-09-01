@@ -205,6 +205,13 @@ const CONTADORES_SUPERVISOR_CERO: ContadoresSupervisor = {
 
 function categoriaHallazgoCierreMovil(hallazgo: HallazgoCentral) {
   const seguimiento = hallazgo.seguimientoCierre;
+  const gestionFormalRegistrada = Boolean(
+    seguimiento?.actualizadoEn ||
+      seguimiento?.fechaCompromiso ||
+      seguimiento?.accionCorrectivaRequerida ||
+      seguimiento?.evidenciaRequerida?.length ||
+      seguimiento?.justificacionExtensionPlazo
+  );
 
   return clasificarCategoriaCierreMovil({
     estado: hallazgo.estado,
@@ -215,6 +222,7 @@ function categoriaHallazgoCierreMovil(hallazgo: HallazgoCentral) {
       seguimiento?.responsable?.nombre || seguimiento?.responsable?.empresa,
     validadorEstado: seguimiento?.validadorEstado,
     cantidadEvidencias: seguimiento?.evidenciaRecibida?.length || 0,
+    gestionFormalRegistrada,
   });
 }
 

@@ -42,6 +42,7 @@ export type EntradaEtapaCierre = {
   responsableNombre?: string | null;
   validadorEstado?: string | null;
   cantidadEvidencias?: number | null;
+  gestionFormalRegistrada?: boolean | null;
 };
 
 export type ResultadoAsignacionCierre = {
@@ -149,13 +150,26 @@ export function clasificarCategoriaCierreMovil(
   entrada: EntradaEtapaCierre
 ): CategoriaCierreMovil {
   const etapa = resolverEtapaCierre(entrada);
+  const estado = textoNormalizado(entrada.estado);
+  const estadoCierre = textoNormalizado(entrada.estadoCierre);
+  const seguimiento = textoNormalizado(entrada.estadoSeguimiento);
 
   if (etapa === "VERIFICADO") return "cerrados";
   if (etapa === "EN_REVISION") return "en_revision";
   if (
-    etapa === "ASIGNADO" ||
     etapa === "PENDIENTE_EVIDENCIA" ||
-    etapa === "REQUIERE_CORRECCION"
+    etapa === "REQUIERE_CORRECCION" ||
+    entrada.gestionFormalRegistrada === true ||
+    estado === "EN_SEGUIMIENTO" ||
+    contiene(estadoCierre, ["ASIGNADO", "EN_GESTION", "RECHAZADO"]) ||
+    contiene(seguimiento, [
+      "ASIGNADO",
+      "EN_SEGUIMIENTO",
+      "PENDIENTE_DE_EVIDENCIA",
+      "EVIDENCIA_SOLICITADA",
+      "REQUIERE_NUEVA_EVIDENCIA",
+      "PLAZO_EXTENDIDO",
+    ])
   ) {
     return "en_seguimiento";
   }
