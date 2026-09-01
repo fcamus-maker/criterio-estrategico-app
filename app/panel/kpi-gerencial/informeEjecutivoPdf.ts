@@ -458,9 +458,6 @@ export async function generarInformeEjecutivoPdf(input: InformeEjecutivoPdfInput
   pdf.setFont(familiaFuente, "bold");
   pdf.setFontSize(9);
   pdf.text(input.marca.nombre, margenX + (logo ? 33 : 6), y + 11);
-  setColorTexto(COLORES.azul);
-  pdf.setFontSize(7.5);
-  pdf.text(input.marca.poweredBy.toUpperCase(), anchoPagina - margenX - 6, y + 10, { align: "right" });
   setColorTexto(COLORES.texto);
   pdf.setFontSize(18);
   const titulo = lineas(input.titulo, anchoUtil - 12, 18).slice(0, 3);
@@ -665,8 +662,9 @@ export async function generarInformeEjecutivoPdf(input: InformeEjecutivoPdfInput
     pdf.line(margenX, altoPagina - 13, anchoPagina - margenX, altoPagina - 13);
     setColorTexto(COLORES.textoMedio);
     pdf.setFont(familiaFuente, "normal");
+    pdf.setFontSize(6.2);
+    pdf.text(input.marca.poweredBy, margenX, altoPagina - 8);
     pdf.setFontSize(7);
-    pdf.text("Criterio Estratégico - Informe preventivo de apoyo a la gestión", margenX, altoPagina - 8);
     pdf.text(`Página ${pagina} de ${totalPaginas}`, anchoPagina - margenX - 1, altoPagina - 8, { align: "right" });
   }
 
