@@ -27,7 +27,7 @@ import {
   filtrosHallazgosDesdeAlcanceCE,
 } from "../../services/visibleScope";
 import PreventiveLegalRibbon from "../../components/PreventiveLegalRibbon";
-import MapaGpsLibre from "./MapaGpsLibre";
+import MapaGpsGoogle from "./MapaGpsGoogle";
 
 type HallazgoPanelExtendido = HallazgoPanel & {
   area?: string;
@@ -37,7 +37,7 @@ type HallazgoPanelExtendido = HallazgoPanel & {
 
 type ModoMapa = "puntos" | "calor" | "zonas";
 type FiltroGps = "todos" | "con-gps" | "sin-gps";
-type TipoVistaMapa = "estandar" | "contraste";
+type TipoVistaMapa = "estandar" | "satelital";
 type AccionBarraMapa =
   | "general"
   | "criticos"
@@ -55,7 +55,7 @@ type AccionBarraMapa =
   | "vencidos"
   | "capas"
   | "estandar"
-  | "contraste"
+  | "satelital"
   | "zoom-mas"
   | "zoom-menos"
   | "exportar"
@@ -140,6 +140,9 @@ const surfaceStyle: CSSProperties = {
   boxShadow: "0 24px 70px rgba(0,0,0,0.34)",
   backdropFilter: "blur(14px)",
 };
+
+const GOOGLE_MAPS_API_KEY = (process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "").trim();
+const GOOGLE_MAPS_CONFIGURADO = /^AIza[0-9A-Za-z_-]{20,}$/.test(GOOGLE_MAPS_API_KEY);
 
 function vibrarCorto() {
   if (typeof navigator !== "undefined" && "vibrate" in navigator) {
@@ -297,7 +300,7 @@ const textosMapaEn: Record<string, string> = {
   "Pantalla completa preparada. En la version futura se conectara a mapa operacional dedicado.": "Full screen ready. A dedicated operational map will be connected in a future version.",
   "Pantalla completa no disponible en este navegador. La vista previa queda activa.": "Full screen is not available in this browser. The preview remains active.",
   "Vista estandar": "Standard view",
-  "Vista de alto contraste": "High-contrast view",
+  "Vista satelital": "Satellite view",
   "Mapa ejecutivo disponible": "Executive map available",
   "Visualizacion territorial preparada para mostrar concentracion, criticidad y seguimiento de hallazgos.": "Prepared territorial visualization to show concentration, severity and findings follow-up.",
   "Vista ejecutiva GPS": "GPS executive view",
@@ -717,7 +720,7 @@ export default function MapaGpsHallazgosPage() {
   const [zonaSeleccionada, setZonaSeleccionada] = useState<CeldaMapaCalorHallazgo | null>(null);
   const [puntoSeleccionado, setPuntoSeleccionado] = useState<PuntoMapaGpsHallazgo | null>(null);
   const [barraExpandida, setBarraExpandida] = useState(false);
-  const [tipoVistaMapa, setTipoVistaMapa] = useState<TipoVistaMapa>("estandar");
+  const [tipoVistaMapa, setTipoVistaMapa] = useState<TipoVistaMapa>("satelital");
   const [zoomMapa, setZoomMapa] = useState(1);
   const [pantallaCompletaActiva, setPantallaCompletaActiva] = useState(false);
   const [mapaReajustando, setMapaReajustando] = useState(false);
@@ -901,9 +904,7 @@ export default function MapaGpsHallazgosPage() {
     activarBoton(tipo);
     setTipoVistaMapa(tipo);
     setMensaje(
-      tipo === "contraste"
-        ? "Vista de alto contraste"
-        : "Vista estandar"
+      tipo === "satelital" ? "Vista satelital" : "Vista estandar"
     );
   }
 
@@ -1041,7 +1042,7 @@ export default function MapaGpsHallazgosPage() {
     { id: "vencidos", icono: "vencido", etiqueta: "Vencidos" },
     { id: "capas", icono: "capas", etiqueta: "Capas / visualizacion" },
     { id: "estandar", icono: "capas", etiqueta: "Vista estandar" },
-    { id: "contraste", icono: "satelital", etiqueta: "Vista de alto contraste" },
+    { id: "satelital", icono: "satelital", etiqueta: "Vista satelital" },
     { id: "zoom-mas", icono: "zoomMas", etiqueta: "Zoom mas" },
     { id: "zoom-menos", icono: "zoomMenos", etiqueta: "Zoom menos" },
     { id: "exportar", icono: "descarga", etiqueta: "Guardar imagen" },
@@ -1216,7 +1217,7 @@ export default function MapaGpsHallazgosPage() {
       return;
     }
 
-    if (id === "estandar" || id === "contraste") {
+    if (id === "estandar" || id === "satelital") {
       cambiarTipoVistaMapa(id);
       return;
     }
@@ -1543,7 +1544,7 @@ export default function MapaGpsHallazgosPage() {
                   accionActiva === accion.id ||
                   (accion.id === "capas" && modoMapa !== "calor") ||
                   (accion.id === "estandar" && tipoVistaMapa === "estandar") ||
-                  (accion.id === "contraste" && tipoVistaMapa === "contraste") ||
+                  (accion.id === "satelital" && tipoVistaMapa === "satelital") ||
                   (accion.id === "criticos" && filtros.criticidad === "CRITICO") ||
                   (accion.id === "altos" && filtros.criticidad === "ALTO") ||
                   (accion.id === "medios" && filtros.criticidad === "MEDIO") ||
@@ -1999,7 +2000,7 @@ export default function MapaGpsHallazgosPage() {
                 <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
                   {[
                     ["Vista estandar", "estandar"],
-                    ["Vista de alto contraste", "contraste"],
+                    ["Vista satelital", "satelital"],
                   ].map(([label, tipo]) => (
                     <button
                       key={tipo}
@@ -2067,7 +2068,7 @@ export default function MapaGpsHallazgosPage() {
                 <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
                   {[
                     ["Vista estandar", "#38bdf8", "estandar"],
-                    ["Vista de alto contraste", "#a78bfa", "contraste"],
+                    ["Vista satelital", "#a78bfa", "satelital"],
                   ].map(([label, color, tipo]) => (
                     <button
                       key={label}
@@ -2109,8 +2110,8 @@ export default function MapaGpsHallazgosPage() {
                     </button>
                   ))}
                   {[
-                    ["Clusters preparados", "#22c55e"],
-                    ["Marcadores compactos", "#f97316"],
+                    ["Pines GPS reales", "#22c55e"],
+                    ["Sector satelital", "#f97316"],
                   ].map(([label, color]) => (
                     <span
                       key={label}
@@ -2163,23 +2164,44 @@ export default function MapaGpsHallazgosPage() {
                 transition: mapaReajustando ? "none" : "min-height 140ms ease",
               }}
             >
-              <MapaGpsLibre
-                puntos={puntosMapaActivos}
-                zonas={zonasMapaActivas}
-                modo={modoMapa}
-                tipoVista={tipoVistaMapa}
-                zoomControlado={zoomMapa}
-                pantallaCompleta={pantallaCompletaActiva}
-                temaClaro={temaClaro}
-                onSeleccionarPunto={(punto) => {
-                  setPuntoSeleccionado(punto);
-                  setZonaSeleccionada(null);
-                }}
-                onSeleccionarZona={(zona) => {
-                  setZonaSeleccionada(zona);
-                  setPuntoSeleccionado(null);
-                }}
-              />
+              {GOOGLE_MAPS_CONFIGURADO ? (
+                <MapaGpsGoogle
+                  apiKey={GOOGLE_MAPS_API_KEY}
+                  puntos={puntosMapaActivos}
+                  zonas={zonasMapaActivas}
+                  modo={modoMapa}
+                  tipoVista={tipoVistaMapa}
+                  zoomControlado={zoomMapa}
+                  pantallaCompleta={pantallaCompletaActiva}
+                  temaClaro={temaClaro}
+                  onSeleccionarPunto={(punto) => {
+                    setPuntoSeleccionado(punto);
+                    setZonaSeleccionada(null);
+                  }}
+                  onSeleccionarZona={(zona) => {
+                    setZonaSeleccionada(zona);
+                    setPuntoSeleccionado(null);
+                  }}
+                />
+              ) : (
+                <div
+                  role="status"
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    display: "grid",
+                    placeItems: "center",
+                    padding: "24px",
+                    textAlign: "center",
+                    color: temaClaro ? "#1e3a8a" : "#dbeafe",
+                    background: temaClaro ? "rgba(255,255,255,0.9)" : "rgba(2,6,23,0.8)",
+                    fontSize: "13px",
+                    fontWeight: 850,
+                  }}
+                >
+                  Falta configurar la clave restringida de Google Maps para esta plataforma.
+                </div>
+              )}
 
               {mapaReajustando && (
                 <div
