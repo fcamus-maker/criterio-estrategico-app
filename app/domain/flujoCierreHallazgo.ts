@@ -58,6 +58,20 @@ export type ResultadoEnvioEvidenciaCierre = {
   validadorEstado: "Pendiente de revision";
 };
 
+export type EntradaProyeccionGestionCierrePanel = {
+  fechaCompromiso: string;
+  estadoSeguimiento: ResultadoAsignacionCierre["estadoSeguimiento"];
+  responsableNombre: string;
+  responsableCargo?: string | null;
+  responsableEmpresa: string;
+  responsableTelefono?: string | null;
+  responsableTipo: string;
+  encargadoSeguimiento?: string | null;
+  accionCorrectiva: string;
+  evidenciaRequerida: string[];
+  justificacionExtensionPlazo?: string | null;
+};
+
 const textoNormalizado = (valor?: string | null) =>
   String(valor || "")
     .trim()
@@ -198,6 +212,56 @@ export function construirEstadoEnvioEvidencia(): ResultadoEnvioEvidenciaCierre {
     estadoCierre: "EN_GESTION",
     estadoSeguimiento: "En revisión",
     validadorEstado: "Pendiente de revision",
+  };
+}
+
+export function esEstadoEnSeguimientoOperativo(estadoVisual?: string | null) {
+  return [
+    "ASIGNADO",
+    "EN_SEGUIMIENTO",
+    "PENDIENTE_DE_EVIDENCIA",
+    "EVIDENCIA_CARGADA",
+    "PLAZO_EXTENDIDO",
+  ].includes(textoNormalizado(estadoVisual));
+}
+
+export function etiquetaAccionGestionPorEstado(estadoVisual?: string | null) {
+  const estado = textoNormalizado(estadoVisual);
+  if (estado === "SIN_ASIGNAR") return "Asignar responsable";
+  if (estado === "ASIGNADO") return "Actualizar plan";
+  return "Actualizar gestión";
+}
+
+export function construirProyeccionGestionCierrePanel(
+  input: EntradaProyeccionGestionCierrePanel
+) {
+  const nombre = String(input.responsableNombre || "").trim();
+  const cargo = String(input.responsableCargo || "").trim() || "Pendiente";
+  const telefono = String(input.responsableTelefono || "").trim() || "Sin contacto";
+  const encargado =
+    String(input.encargadoSeguimiento || "").trim() || "Usuario autorizado";
+
+  return {
+    estado: "EN SEGUIMIENTO" as const,
+    fechaCompromiso: input.fechaCompromiso,
+    responsable: nombre,
+    responsableCierreNombre: nombre,
+    responsableCierreCargo: cargo,
+    responsableCierreEmpresa: input.responsableEmpresa.trim(),
+    responsableCierreTelefono: telefono,
+    responsableCierreEstadoSeguimiento: input.estadoSeguimiento,
+    responsableCierreFechaCompromiso: input.fechaCompromiso,
+    responsableCorreccionTipo: input.responsableTipo,
+    responsableCorreccionNombre: nombre,
+    responsableCorreccionCargo: cargo,
+    responsableCorreccionEmpresa: input.responsableEmpresa.trim(),
+    responsableCorreccionTelefono: telefono,
+    encargadoSeguimientoNombre: encargado,
+    accionCorrectivaRequerida: input.accionCorrectiva.trim(),
+    evidenciaRequerida: input.evidenciaRequerida.join(", "),
+    justificacionExtensionPlazo: String(
+      input.justificacionExtensionPlazo || ""
+    ).trim(),
   };
 }
 

@@ -51,8 +51,11 @@ import PreventiveLegalRibbon from "../components/PreventiveLegalRibbon";
 import PremiumWorkspaceShell from "../components/PremiumWorkspaceShell";
 import { resolveClientBranding } from "../services/clientBranding";
 import {
+  construirProyeccionGestionCierrePanel,
   construirEstadoAsignacion,
   construirEstadoRevision,
+  esEstadoEnSeguimientoOperativo,
+  etiquetaAccionGestionPorEstado,
   puedeAsignarCierre,
   puedeValidarCierre,
 } from "../domain/flujoCierreHallazgo";
@@ -69,6 +72,15 @@ type HallazgoPanelExtendido = HallazgoPanel & {
   responsableCierreCargo?: string;
   responsableCierreEmpresa?: string;
   responsableCierreTelefono?: string;
+  responsableCierreEstadoSeguimiento?: string;
+  responsableCierreFechaCompromiso?: string;
+  responsableCorreccionTipo?: string;
+  responsableCorreccionNombre?: string;
+  responsableCorreccionCargo?: string;
+  responsableCorreccionEmpresa?: string;
+  responsableCorreccionTelefono?: string;
+  encargadoSeguimientoNombre?: string;
+  accionCorrectivaRequerida?: string;
   evidenciaRequerida?: string;
   evidenciaRecibida?: string;
   justificacionExtensionPlazo?: string;
@@ -5106,10 +5118,9 @@ const accionOperacionCierre = (item: HallazgoSeguimiento) => {
     return { etiqueta: "Ver rechazo", variante: "secondary" as const };
   }
   if (puedeGestionarSeguimientoPc(item)) {
+    const estadoVisual = estadoSeguimientoVisual(item);
     return {
-      etiqueta: estadoSeguimientoVisual(item) === "Sin asignar"
-        ? "Asignar responsable"
-        : "Gestionar cierre",
+      etiqueta: etiquetaAccionGestionPorEstado(estadoVisual),
       variante: "primary" as const,
     };
   }
@@ -6144,52 +6155,13 @@ const guardarGestionCierre = async () => {
     : semaforoVencimiento(fechaCompromisoNormalizada, hallazgoSeguimientoActivo.estado).etiqueta;
   const estadoCierreCentral = estadoAsignacion.estadoCierre;
 
-  setGestionCierreLocal((actual) => {
-    const previo = actual[hallazgoSeguimientoActivo.codigo] || {};
-    return {
-      ...actual,
-      [hallazgoSeguimientoActivo.codigo]: {
-        ...previo,
-        ...gestionCierreDraft,
-        responsableCorreccionNombre:
-          gestionCierreDraft.responsableCorreccionNombre.trim() || "Sin asignar",
-        responsableCorreccionCargo:
-          gestionCierreDraft.responsableCorreccionCargo.trim() || "Pendiente",
-        responsableCorreccionTelefono:
-          gestionCierreDraft.responsableCorreccionTelefono.trim() || "Sin contacto",
-        encargadoSeguimientoNombre:
-          gestionCierreDraft.encargadoSeguimientoNombre.trim() || "Usuario autorizado",
-        validadorCierreNombre:
-          gestionCierreDraft.validadorCierreNombre.trim() || "Pendiente de validador",
-        responsableCierreFechaCompromiso:
-          gestionCierreDraft.responsableCierreFechaCompromiso || "Sin definir",
-        justificacionExtensionPlazo: requiereJustificacionExtension
-          ? gestionCierreDraft.justificacionExtensionPlazo.trim()
-          : "",
-        responsableCierreEstadoSeguimiento: estadoSeguimiento,
-        responsableCierreObservacion:
-          previo.responsableCierreObservacion ||
-          hallazgoSeguimientoActivo.responsableCierreObservacion ||
-          "Asignación y plan de cierre actualizados",
-        evidenciaRecibida:
-          previo.evidenciaRecibida ||
-          hallazgoSeguimientoActivo.evidenciaRecibida ||
-          "Pendiente de evidencia",
-        bitacoraCierre: [
-          ...(previo.bitacoraCierre || []),
-          eventoBitacora,
-        ],
-      },
-    };
-  });
-
   const hallazgoPersistente = await obtenerHallazgoCentralPorCodigo(
     hallazgoSeguimientoActivo.codigo
   );
 
   if (!hallazgoPersistente.ok && hallazgoPersistente.origen === "supabase") {
     setErrorGestionCierre(
-      "Los cambios quedaron en esta sesión, pero no se pudo confirmar la persistencia en Supabase. Intenta guardar nuevamente."
+      "No se pudo confirmar la asignación en Supabase. Los datos no fueron aplicados; intenta guardar nuevamente."
     );
     setGuardandoGestionCierre(false);
     return;
@@ -6257,12 +6229,72 @@ const guardarGestionCierre = async () => {
 
     if (!resultadoPersistencia.ok) {
       setErrorGestionCierre(
-        "Los cambios quedaron en esta sesión, pero Supabase no confirmó la persistencia. Revisa conexión/permisos e intenta nuevamente."
+        "Supabase no confirmó la asignación. Los datos no fueron aplicados; revisa conexión/permisos e intenta nuevamente."
       );
       setGuardandoGestionCierre(false);
       return;
     }
   }
+
+  setGestionCierreLocal((actual) => {
+    const previo = actual[hallazgoSeguimientoActivo.codigo] || {};
+    return {
+      ...actual,
+      [hallazgoSeguimientoActivo.codigo]: {
+        ...previo,
+        ...gestionCierreDraft,
+        responsableCorreccionNombre:
+          gestionCierreDraft.responsableCorreccionNombre.trim() || "Sin asignar",
+        responsableCorreccionCargo:
+          gestionCierreDraft.responsableCorreccionCargo.trim() || "Pendiente",
+        responsableCorreccionTelefono:
+          gestionCierreDraft.responsableCorreccionTelefono.trim() || "Sin contacto",
+        encargadoSeguimientoNombre:
+          gestionCierreDraft.encargadoSeguimientoNombre.trim() || "Usuario autorizado",
+        validadorCierreNombre:
+          gestionCierreDraft.validadorCierreNombre.trim() || "Pendiente de validador",
+        responsableCierreFechaCompromiso: fechaCompromisoNormalizada || "Sin definir",
+        justificacionExtensionPlazo: justificacionExtension,
+        responsableCierreEstadoSeguimiento: estadoSeguimiento,
+        responsableCierreObservacion:
+          previo.responsableCierreObservacion ||
+          hallazgoSeguimientoActivo.responsableCierreObservacion ||
+          "Asignación y plan de cierre actualizados",
+        evidenciaRecibida:
+          previo.evidenciaRecibida ||
+          hallazgoSeguimientoActivo.evidenciaRecibida ||
+          "Pendiente de evidencia",
+        bitacoraCierre: [...(previo.bitacoraCierre || []), eventoBitacora],
+      },
+    };
+  });
+
+  const proyeccionGestionPanel = construirProyeccionGestionCierrePanel({
+    fechaCompromiso: fechaCompromisoNormalizada,
+    estadoSeguimiento,
+    responsableNombre: gestionCierreDraft.responsableCorreccionNombre,
+    responsableCargo: gestionCierreDraft.responsableCorreccionCargo,
+    responsableEmpresa: gestionCierreDraft.responsableCorreccionEmpresa,
+    responsableTelefono: gestionCierreDraft.responsableCorreccionTelefono,
+    responsableTipo: gestionCierreDraft.responsableCorreccionTipo,
+    encargadoSeguimiento: gestionCierreDraft.encargadoSeguimientoNombre,
+    accionCorrectiva: gestionCierreDraft.accionCorrectivaRequerida,
+    evidenciaRequerida: gestionCierreDraft.evidenciaRequerida,
+    justificacionExtensionPlazo: justificacionExtension,
+  });
+  const aplicarGestionCierrePanel = (
+    item: HallazgoPanelExtendido
+  ): HallazgoPanelExtendido =>
+    item.codigo !== hallazgoSeguimientoActivo.codigo
+      ? item
+      : {
+          ...item,
+          ...proyeccionGestionPanel,
+        };
+
+  setFilasPanel((actual) => actual.map(aplicarGestionCierrePanel));
+  setHallazgoActivo((actual) => aplicarGestionCierrePanel(actual));
+  setFechaActualizacion(new Date());
 
   setCodigoSeguimientoActivo(hallazgoSeguimientoActivo.codigo);
   setErrorGestionCierre("");
@@ -6564,6 +6596,9 @@ const hallazgosSeguimientoVisibles = hallazgosSeguimiento.filter((item) =>
   codigosHallazgosVisibles.has(item.codigo)
 );
 
+const hallazgoEnSeguimientoOperativo = (item: HallazgoSeguimiento) =>
+  esEstadoEnSeguimientoOperativo(estadoSeguimientoVisual(item));
+
 const coincideFiltroOperacion = (
   item: HallazgoSeguimiento,
   filtro: FiltroOperacionActivo
@@ -6576,7 +6611,7 @@ const coincideFiltroOperacion = (
     return ["CRÍTICO", "ALTO"].includes(item.criticidad) && !hallazgoCerradoSeguimiento(item);
   }
   if (filtro === "sin-responsable") return estadoSeguimientoVisual(item) === "Sin asignar";
-  if (filtro === "en-seguimiento") return estadoSeguimientoVisual(item) === "En seguimiento";
+  if (filtro === "en-seguimiento") return hallazgoEnSeguimientoOperativo(item);
   if (filtro === "en-revision") return hallazgoEnRevisionPc(item);
   if (filtro === "vencidos") return estadoSeguimientoVisual(item) === "Vencido";
   if (filtro === "cerrados") return hallazgoCerradoSeguimiento(item);
@@ -6603,7 +6638,7 @@ const kpisSeguimiento = [
   {
     id: "en-seguimiento",
     titulo: t("En seguimiento"),
-    valor: String(hallazgosSeguimientoVisibles.filter((item) => estadoSeguimientoVisual(item) === "En seguimiento").length),
+    valor: String(hallazgosSeguimientoVisibles.filter(hallazgoEnSeguimientoOperativo).length),
     color: "#3b82f6",
   },
   {
@@ -11631,7 +11666,7 @@ style={{
 	                <div>{t("Empresa reportante")}</div>
 	                <div>{t("Tipo de hallazgo")}</div>
 	                <div>{t("Criticidad")}</div>
-	                <div>{t("Estado")}</div>
+	                <div>{t("Estado de cierre")}</div>
 	                <div>{t("Fecha / Hora")}</div>
 	                <div>{t("Acción siguiente")}</div>
               </div>
@@ -11664,9 +11699,12 @@ style={{
 ) : (
   filasOperacionVisibles.map((fila, index) => {
     const chip = chipColor(fila.criticidad);
-    const fechaCompromiso = (fila as typeof fila & { fechaCompromiso?: string }).fechaCompromiso || "";
-    const semaforoFila = semaforoVencimiento(fechaCompromiso, fila.estado);
     const seguimientoFila = hallazgosSeguimiento.find((item) => item.codigo === fila.codigo);
+    const estadoCierreFila = seguimientoFila
+      ? estadoSeguimientoVisual(seguimientoFila)
+      : fila.estado;
+    const fechaCompromiso = seguimientoFila?.responsableCierreFechaCompromiso || fila.fechaCompromiso || "";
+    const semaforoFila = semaforoVencimiento(fechaCompromiso, fila.estado);
     const accionCierreFila = seguimientoFila
       ? accionOperacionCierre(seguimientoFila)
       : { etiqueta: "Ver hallazgo", variante: "secondary" as const };
@@ -11740,7 +11778,21 @@ style={{
     gap: "6px",
   }}
 >
-  <div style={{ fontWeight: 700 }}>{fila.estado}</div>
+  <span
+    style={{
+      display: "inline-flex",
+      width: "fit-content",
+      maxWidth: "100%",
+      padding: "5px 8px",
+      borderRadius: "999px",
+      fontSize: "10px",
+      fontWeight: 900,
+      lineHeight: 1.1,
+      ...seguimientoChipStyle(estadoCierreFila),
+    }}
+  >
+    {t(estadoCierreFila)}
+  </span>
 
   <span
     style={{
@@ -11756,7 +11808,9 @@ style={{
       lineHeight: 1,
     }}
   >
-	    {t(semaforoFila.etiqueta)}
+	    {fechaCompromiso
+        ? `${formatearFechaCompromisoVisual(fechaCompromiso)} · ${t(semaforoFila.etiqueta)}`
+        : t("Sin fecha compromiso")}
   </span>
 </div>
         <div>{fila.fechaHora}</div>

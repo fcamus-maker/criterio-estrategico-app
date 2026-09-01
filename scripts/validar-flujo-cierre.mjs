@@ -3,7 +3,10 @@ import {
   accionPrincipalPorEtapa,
   construirEstadoEnvioEvidencia,
   construirEstadoAsignacion,
+  construirProyeccionGestionCierrePanel,
   construirEstadoRevision,
+  esEstadoEnSeguimientoOperativo,
+  etiquetaAccionGestionPorEstado,
   puedeAsignarCierre,
   puedeEnviarEvidenciaCierre,
   puedeValidarCierre,
@@ -78,4 +81,45 @@ assert.equal(puedeValidarCierre("responsable_cierre"), false);
 assert.equal(puedeEnviarEvidenciaCierre("responsable_cierre"), true);
 assert.equal(puedeEnviarEvidenciaCierre("visualizador_auditor"), false);
 
-console.log(`Flujo de cierre validado: ${escenarios.length} escenarios y permisos base.`);
+assert.equal(esEstadoEnSeguimientoOperativo("Asignado"), true);
+assert.equal(esEstadoEnSeguimientoOperativo("Pendiente de evidencia"), true);
+assert.equal(esEstadoEnSeguimientoOperativo("En revisión"), false);
+assert.equal(etiquetaAccionGestionPorEstado("Sin asignar"), "Asignar responsable");
+assert.equal(etiquetaAccionGestionPorEstado("Asignado"), "Actualizar plan");
+
+assert.deepEqual(
+  construirProyeccionGestionCierrePanel({
+    fechaCompromiso: "2026-09-02",
+    estadoSeguimiento: "Asignado",
+    responsableNombre: "Juan Miranda",
+    responsableCargo: "Supervisor",
+    responsableEmpresa: "Robles SpA",
+    responsableTipo: "Trabajador interno",
+    accionCorrectiva: "Corregir condición y respaldar el cierre.",
+    evidenciaRequerida: ["Registro fotográfico", "Charla de seguridad"],
+  }),
+  {
+    estado: "EN SEGUIMIENTO",
+    fechaCompromiso: "2026-09-02",
+    responsable: "Juan Miranda",
+    responsableCierreNombre: "Juan Miranda",
+    responsableCierreCargo: "Supervisor",
+    responsableCierreEmpresa: "Robles SpA",
+    responsableCierreTelefono: "Sin contacto",
+    responsableCierreEstadoSeguimiento: "Asignado",
+    responsableCierreFechaCompromiso: "2026-09-02",
+    responsableCorreccionTipo: "Trabajador interno",
+    responsableCorreccionNombre: "Juan Miranda",
+    responsableCorreccionCargo: "Supervisor",
+    responsableCorreccionEmpresa: "Robles SpA",
+    responsableCorreccionTelefono: "Sin contacto",
+    encargadoSeguimientoNombre: "Usuario autorizado",
+    accionCorrectivaRequerida: "Corregir condición y respaldar el cierre.",
+    evidenciaRequerida: "Registro fotográfico, Charla de seguridad",
+    justificacionExtensionPlazo: "",
+  }
+);
+
+console.log(
+  `Flujo de cierre validado: ${escenarios.length} escenarios, permisos, proyección visual y contadores.`
+);
