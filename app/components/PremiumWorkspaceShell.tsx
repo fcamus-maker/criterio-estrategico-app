@@ -17,6 +17,8 @@ type MetricaPremium = {
   value: string | number;
   tone?: "blue" | "cyan" | "green" | "amber" | "red" | "violet";
   helper?: string;
+  actionLabel?: string;
+  onClick?: () => void;
 };
 
 type EtapaPremium = {
@@ -36,6 +38,10 @@ type PremiumWorkspaceShellProps = {
   stages?: EtapaPremium[];
   profileName?: string;
   profileRole?: string;
+  profileImageUrl?: string | null;
+  companyLogoUrl?: string | null;
+  companyName?: string;
+  onProfileClick?: () => void;
   lastUpdate?: string;
   actions?: ReactNode;
   toolbar?: ReactNode;
@@ -112,6 +118,10 @@ export default function PremiumWorkspaceShell({
   stages = [],
   profileName = "Usuario autorizado",
   profileRole = "Gestión preventiva",
+  profileImageUrl,
+  companyLogoUrl,
+  companyName = "Criterio Estratégico",
+  onProfileClick,
   lastUpdate,
   actions,
   toolbar,
@@ -281,17 +291,60 @@ export default function PremiumWorkspaceShell({
             backdropFilter: "blur(18px)",
           }}
         >
-          <div>
-            <div style={{ color: light ? "#2563eb" : "#38bdf8", fontSize: 9, fontWeight: 950, letterSpacing: 1, textTransform: "uppercase" }}>{eyebrow}</div>
-            <h1 style={{ margin: "2px 0 0", fontSize: "clamp(19px,1.7vw,25px)", lineHeight: 1.05, fontWeight: 950, letterSpacing: "-0.5px" }}>{title}</h1>
-            <p style={{ margin: "3px 0 0", maxWidth: 900, color: muted, fontSize: 10.5, lineHeight: 1.25, fontWeight: 700 }}>{subtitle}</p>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+            {companyLogoUrl ? (
+              <div
+                title={companyName}
+                style={{
+                  width: 34,
+                  height: 34,
+                  flex: "0 0 34px",
+                  borderRadius: 10,
+                  padding: 4,
+                  display: "grid",
+                  placeItems: "center",
+                  overflow: "hidden",
+                  background: "#ffffff",
+                  border: light ? "1px solid rgba(100,116,139,0.18)" : "1px solid rgba(125,211,252,0.22)",
+                  boxShadow: "0 8px 20px rgba(2,6,23,0.16)",
+                }}
+              >
+                <img src={companyLogoUrl} alt={companyName} style={{ width: "100%", height: "100%", display: "block", objectFit: "contain" }} />
+              </div>
+            ) : null}
+            <div style={{ minWidth: 0 }}>
+              <div style={{ color: light ? "#2563eb" : "#38bdf8", fontSize: 9, fontWeight: 950, letterSpacing: 1, textTransform: "uppercase" }}>{eyebrow}</div>
+              <h1 style={{ margin: "2px 0 0", fontSize: "clamp(19px,1.7vw,25px)", lineHeight: 1.05, fontWeight: 950, letterSpacing: "-0.5px" }}>{title}</h1>
+              <p style={{ margin: "3px 0 0", maxWidth: 900, color: muted, fontSize: 10.5, lineHeight: 1.25, fontWeight: 700 }}>{subtitle}</p>
+            </div>
           </div>
           <div className="ce-premium-command-actions" style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 9, flexWrap: "wrap" }}>
             {actions}
-            <div style={{ padding: "6px 9px", borderRadius: 11, background: light ? "#f8fafc" : "rgba(255,255,255,0.045)", border: light ? "1px solid rgba(100,116,139,0.18)" : "1px solid rgba(148,163,184,0.13)" }}>
-              <div style={{ fontSize: 11, fontWeight: 950 }}>{profileName}</div>
-              <div style={{ marginTop: 2, color: muted, fontSize: 9.5, fontWeight: 800 }}>{profileRole}</div>
-            </div>
+            <button
+              type="button"
+              onClick={onProfileClick}
+              aria-label={language === "en" ? "Open profile" : "Abrir perfil"}
+              style={{
+                padding: "5px 8px 5px 5px",
+                borderRadius: 12,
+                display: "flex",
+                alignItems: "center",
+                gap: 7,
+                color: text,
+                background: light ? "#f8fafc" : "rgba(255,255,255,0.045)",
+                border: light ? "1px solid rgba(100,116,139,0.18)" : "1px solid rgba(148,163,184,0.13)",
+                cursor: onProfileClick ? "pointer" : "default",
+                textAlign: "left",
+              }}
+            >
+              <span style={{ width: 29, height: 29, flex: "0 0 29px", borderRadius: 99, overflow: "hidden", display: "grid", placeItems: "center", color: "#fff", background: "linear-gradient(135deg,#2563eb,#06b6d4)", fontSize: 12, fontWeight: 950 }}>
+                {profileImageUrl ? <img src={profileImageUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} /> : profileName.trim().charAt(0).toUpperCase()}
+              </span>
+              <span>
+                <span style={{ display: "block", fontSize: 11, fontWeight: 950 }}>{profileName}</span>
+                <span style={{ display: "block", marginTop: 2, color: muted, fontSize: 9.5, fontWeight: 800 }}>{profileRole}</span>
+              </span>
+            </button>
           </div>
         </div>
 
@@ -300,7 +353,25 @@ export default function PremiumWorkspaceShell({
             {metrics.map((metric) => {
               const tone = TONOS[metric.tone || "blue"];
               return (
-                <article key={metric.label} style={{ minHeight: 62, padding: "9px 11px", borderRadius: 15, background: light ? "rgba(255,255,255,0.88)" : "rgba(9,20,42,0.88)", border: `1px solid ${tone.border}`, boxShadow: light ? "0 10px 24px rgba(15,23,42,0.06)" : "0 12px 26px rgba(2,6,23,0.20)" }}>
+                <article
+                  key={metric.label}
+                  role={metric.onClick ? "button" : undefined}
+                  tabIndex={metric.onClick ? 0 : undefined}
+                  aria-label={metric.actionLabel}
+                  onClick={metric.onClick}
+                  onKeyDown={(event) => {
+                    if (metric.onClick && (event.key === "Enter" || event.key === " ")) {
+                      event.preventDefault();
+                      metric.onClick();
+                    }
+                  }}
+                  style={{ position: "relative", minHeight: 62, padding: "9px 11px", borderRadius: 15, background: light ? "rgba(255,255,255,0.88)" : "rgba(9,20,42,0.88)", border: `1px solid ${tone.border}`, boxShadow: light ? "0 10px 24px rgba(15,23,42,0.06)" : "0 12px 26px rgba(2,6,23,0.20)", cursor: metric.onClick ? "pointer" : "default" }}
+                >
+                  {metric.onClick ? (
+                    <span aria-hidden="true" style={{ position: "absolute", top: 8, right: 9, width: 22, height: 22, borderRadius: 8, display: "grid", placeItems: "center", color: tone.color, background: tone.soft, border: `1px solid ${tone.border}` }}>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                    </span>
+                  ) : null}
                   <div style={{ color: muted, fontSize: 9.5, fontWeight: 950, letterSpacing: 0.55, textTransform: "uppercase" }}>{metric.label}</div>
                   <div style={{ marginTop: 4, color: tone.color, fontSize: 20, lineHeight: 1, fontWeight: 950 }}>{metric.value}</div>
                   {metric.helper && <div style={{ marginTop: 6, color: muted, fontSize: 9.5, fontWeight: 750 }}>{metric.helper}</div>}

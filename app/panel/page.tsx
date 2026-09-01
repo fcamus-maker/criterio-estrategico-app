@@ -934,6 +934,12 @@ const [menuExportacionMetaAbierto, setMenuExportacionMetaAbierto] = useState(fal
     "Recibidos hoy": "Received today",
     Cumplimiento: "Completion",
     "Abrir historial de cumplimiento": "Open completion history",
+    "Configurar meta y calendario": "Configure target and calendar",
+    "Hallazgos por fecha": "Findings by date",
+    "Seleccione el periodo que desea analizar": "Select the period you want to analyze",
+    "Rango personalizado": "Custom range",
+    Desde: "From",
+    Hasta: "To",
     "Solo superadministrador puede modificar esta meta.": "Only the super administrator can change this target.",
     "Cumplimiento diario": "Daily completion",
     "Exportar cumplimiento": "Export completion",
@@ -7738,13 +7744,24 @@ const riesgoOperativoPrincipal =
         language={idiomaActivo}
         profileName={usuario.nombre || nombrePerfil || "Usuario autorizado"}
         profileRole={usuario.cargo || cargoPerfil || authPerfilPanel.rol || "Gestión preventiva"}
+        profileImageUrl={usuario.foto || fotoPerfil || null}
+        companyLogoUrl={clientBranding.logoPrincipalUrl}
+        companyName={clientBranding.nombrePrincipal}
+        onProfileClick={abrirEditorPerfil}
         lastUpdate={ultimaActualizacion ? `${t("Última actualización:")} ${ultimaActualizacion}` : undefined}
         metrics={[
           { label: t("Hallazgos visibles"), value: filasFiltradas.length, tone: "blue" },
           { label: t("Críticos abiertos"), value: criticidadResumen[0]?.total || 0, tone: "red" },
           { label: t("Vencidos"), value: totalVencidos, tone: "amber" },
           { label: t("Cerrados"), value: estadoReportesResumen.find((item) => item.label === t("Cerrados"))?.total || 0, tone: "green" },
-          { label: t("Meta diaria"), value: `${reportesHoy}/${metaDiariaSegura}`, tone: "cyan", helper: `${porcentajeMetaRedondeado}%` },
+          {
+            label: t("Meta diaria"),
+            value: `${reportesHoy}/${metaDiariaSegura}`,
+            tone: "cyan",
+            helper: `${porcentajeMetaRedondeado}% · ${t("Configurar meta y calendario")}`,
+            actionLabel: t("Configurar meta y calendario"),
+            onClick: () => setCalendarioMetaAbierto(true),
+          },
         ]}
         stages={[
           { label: t("Sin responsable asignado"), value: kpisSeguimiento.find((item) => item.id === "sin-responsable")?.valor || 0, tone: "amber" },
@@ -7768,19 +7785,20 @@ const riesgoOperativoPrincipal =
             return;
           }
 
+          if (module === "planificacion") {
+            setModuloWorkspaceActivo("planificacion");
+            setVistaPrincipal("panel");
+            setVistaDerecha("informe");
+            setCalendarioMetaAbierto(true);
+            return;
+          }
+
           setVistaPrincipal("panel");
           setVistaDerecha("informe");
-          setModuloWorkspaceActivo(
-            module === "planificacion"
-              ? "planificacion"
-              : module === "hallazgos"
-                ? "hallazgos"
-                : "inicio"
-          );
+          setModuloWorkspaceActivo(module === "hallazgos" ? "hallazgos" : "inicio");
 
           window.setTimeout(() => {
-            const id = module === "planificacion" ? "planificacion-preventiva" : "hallazgos-operativos";
-            document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+            document.getElementById("hallazgos-operativos")?.scrollIntoView({ behavior: "smooth", block: "start" });
           }, 60);
         }}
         actions={(
@@ -7792,6 +7810,51 @@ const riesgoOperativoPrincipal =
               {t("Mapa GPS")}
             </Link>
           </>
+        )}
+        toolbar={(
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}>
+              <span aria-hidden="true" style={{ width: 30, height: 30, flex: "0 0 30px", borderRadius: 10, display: "grid", placeItems: "center", color: temaClaro ? "#2563eb" : "#7dd3fc", background: temaClaro ? "rgba(37,99,235,0.10)" : "rgba(56,189,248,0.10)", border: temaClaro ? "1px solid rgba(37,99,235,0.18)" : "1px solid rgba(125,211,252,0.18)" }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>
+              </span>
+              <div>
+                <div style={{ color: tema.texto, fontSize: 11, fontWeight: 950 }}>{t("Hallazgos por fecha")}</div>
+                <div style={{ marginTop: 2, color: tema.textoSuave, fontSize: 9.5, fontWeight: 750 }}>{t("Seleccione el periodo que desea analizar")}</div>
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 7, flexWrap: "wrap" }}>
+              {[
+                { label: t("Hoy"), value: "HOY" as const },
+                { label: t("Esta semana"), value: "SEMANA" as const },
+                { label: t("Este mes"), value: "MES" as const },
+                { label: t("Personalizado"), value: "PERSONALIZADO" as const },
+              ].map((item) => {
+                const activo = filtroRapido === item.value;
+                return (
+                  <button
+                    key={item.value}
+                    type="button"
+                    onClick={() => aplicarFiltroRapido(item.value)}
+                    style={{ minHeight: 32, padding: "7px 10px", borderRadius: 10, border: activo ? "1px solid rgba(34,211,238,0.48)" : tema.borde, color: activo ? (temaClaro ? "#075985" : "#ecfeff") : tema.textoSuave, background: activo ? (temaClaro ? "rgba(6,182,212,0.12)" : "linear-gradient(135deg,rgba(8,145,178,0.30),rgba(37,99,235,0.24))") : tema.tarjetaElevada, fontSize: 10, fontWeight: 900, cursor: "pointer" }}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+              {filtroRapido === "PERSONALIZADO" ? (
+                <>
+                  <label style={{ display: "flex", alignItems: "center", gap: 5, color: tema.textoSuave, fontSize: 9.5, fontWeight: 900 }}>
+                    {t("Desde")}
+                    <input type="date" value={filtroFechaDesde} onChange={(event) => setFiltroFechaDesde(event.target.value)} style={{ minHeight: 32, padding: "5px 7px", borderRadius: 9, border: tema.borde, background: tema.tarjetaElevada, color: tema.texto, colorScheme: temaClaro ? "light" : "dark", fontSize: 10, fontWeight: 800 }} />
+                  </label>
+                  <label style={{ display: "flex", alignItems: "center", gap: 5, color: tema.textoSuave, fontSize: 9.5, fontWeight: 900 }}>
+                    {t("Hasta")}
+                    <input type="date" value={filtroFechaHasta} min={filtroFechaDesde || undefined} onChange={(event) => setFiltroFechaHasta(event.target.value)} style={{ minHeight: 32, padding: "5px 7px", borderRadius: 9, border: tema.borde, background: tema.tarjetaElevada, color: tema.texto, colorScheme: temaClaro ? "light" : "dark", fontSize: 10, fontWeight: 800 }} />
+                  </label>
+                </>
+              ) : null}
+            </div>
+          </div>
         )}
       />
       <div id="hallazgos-operativos" />
@@ -15497,6 +15560,52 @@ style={{
                   justifyContent: "flex-end",
                 }}
               >
+                <label
+                  style={{
+                    minHeight: "40px",
+                    padding: "5px 7px 5px 10px",
+                    borderRadius: "13px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    color: temaClaro ? "#334155" : "#cbd5e1",
+                    background: temaClaro ? "rgba(255,255,255,0.86)" : "rgba(15,23,42,0.78)",
+                    border: temaClaro ? "1px solid rgba(15,23,42,0.14)" : "1px solid rgba(148,163,184,0.24)",
+                    fontSize: "10px",
+                    fontWeight: 950,
+                  }}
+                >
+                  {t("Meta programada")}
+                  <input
+                    type="number"
+                    min={1}
+                    max={999}
+                    value={metaDiariaSegura}
+                    disabled={!puedeConfigurarMetaDiaria}
+                    aria-readonly={!puedeConfigurarMetaDiaria}
+                    onChange={(event) => {
+                      if (!puedeConfigurarMetaDiaria) return;
+                      const valor = Number(event.target.value);
+                      setMetaDiariaReportes(Number.isFinite(valor) ? Math.max(1, Math.min(999, Math.round(valor))) : 1);
+                    }}
+                    style={{
+                      width: "62px",
+                      minHeight: "28px",
+                      padding: "4px 6px",
+                      borderRadius: "9px",
+                      border: temaClaro ? "1px solid rgba(37,99,235,0.22)" : "1px solid rgba(125,211,252,0.26)",
+                      background: puedeConfigurarMetaDiaria
+                        ? (temaClaro ? "rgba(239,246,255,0.96)" : "rgba(30,41,59,0.94)")
+                        : (temaClaro ? "rgba(226,232,240,0.70)" : "rgba(30,41,59,0.52)"),
+                      color: temaClaro ? "#0f172a" : "#f8fafc",
+                      textAlign: "center",
+                      fontSize: "14px",
+                      fontWeight: 950,
+                      outline: "none",
+                      colorScheme: temaClaro ? "light" : "dark",
+                    }}
+                  />
+                </label>
                 <div style={{ position: "relative" }}>
                   <button
                     type="button"
