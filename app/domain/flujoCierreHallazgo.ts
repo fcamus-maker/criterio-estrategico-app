@@ -11,6 +11,12 @@ export type EtapaCierreHallazgo =
   | "REQUIERE_CORRECCION"
   | "VERIFICADO";
 
+export type CategoriaCierreMovil =
+  | "por_cerrar"
+  | "en_seguimiento"
+  | "en_revision"
+  | "cerrados";
+
 export type AccionPrincipalCierre =
   | "ASIGNAR"
   | "REGISTRAR_AVANCE"
@@ -137,6 +143,24 @@ export function resolverEtapaCierre(
   }
 
   return "PENDIENTE_ASIGNACION";
+}
+
+export function clasificarCategoriaCierreMovil(
+  entrada: EntradaEtapaCierre
+): CategoriaCierreMovil {
+  const etapa = resolverEtapaCierre(entrada);
+
+  if (etapa === "VERIFICADO") return "cerrados";
+  if (etapa === "EN_REVISION") return "en_revision";
+  if (
+    etapa === "ASIGNADO" ||
+    etapa === "PENDIENTE_EVIDENCIA" ||
+    etapa === "REQUIERE_CORRECCION"
+  ) {
+    return "en_seguimiento";
+  }
+
+  return "por_cerrar";
 }
 
 export function accionPrincipalPorEtapa(

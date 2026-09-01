@@ -3,6 +3,7 @@ import {
   accionPrincipalPorEtapa,
   construirEstadoEnvioEvidencia,
   construirEstadoAsignacion,
+  clasificarCategoriaCierreMovil,
   construirProyeccionGestionCierrePanel,
   construirEstadoRevision,
   esEstadoEnSeguimientoOperativo,
@@ -86,6 +87,40 @@ assert.equal(esEstadoEnSeguimientoOperativo("Pendiente de evidencia"), true);
 assert.equal(esEstadoEnSeguimientoOperativo("En revisión"), false);
 assert.equal(etiquetaAccionGestionPorEstado("Sin asignar"), "Asignar responsable");
 assert.equal(etiquetaAccionGestionPorEstado("Asignado"), "Actualizar plan");
+assert.equal(clasificarCategoriaCierreMovil({}), "por_cerrar");
+assert.equal(
+  clasificarCategoriaCierreMovil({
+    estado: "EN_SEGUIMIENTO",
+    estadoCierre: "ASIGNADO",
+    estadoSeguimiento: "Asignado",
+    responsableNombre: "Juan Miranda",
+  }),
+  "en_seguimiento"
+);
+assert.equal(
+  clasificarCategoriaCierreMovil({
+    estado: "EN_SEGUIMIENTO",
+    estadoCierre: "RECHAZADO",
+    estadoSeguimiento: "Requiere nueva evidencia",
+    validadorEstado: "Rechazado",
+    cantidadEvidencias: 1,
+  }),
+  "en_seguimiento"
+);
+assert.equal(
+  clasificarCategoriaCierreMovil({
+    estadoSeguimiento: "En revisión",
+    cantidadEvidencias: 1,
+  }),
+  "en_revision"
+);
+assert.equal(
+  clasificarCategoriaCierreMovil({
+    estado: "CERRADO",
+    estadoCierre: "CERRADO",
+  }),
+  "cerrados"
+);
 
 assert.deepEqual(
   construirProyeccionGestionCierrePanel({

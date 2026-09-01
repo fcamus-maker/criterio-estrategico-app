@@ -49,7 +49,11 @@ import type {
   HallazgoCentral,
   SeguimientoCierreCentral,
 } from "../types/hallazgoCentral";
-import { construirEstadoEnvioEvidencia } from "../domain/flujoCierreHallazgo";
+import {
+  clasificarCategoriaCierreMovil,
+  construirEstadoEnvioEvidencia,
+  type CategoriaCierreMovil,
+} from "../domain/flujoCierreHallazgo";
 
 const textosMobileEn: Record<string, string> = {
   "Supervisor activo": "Active supervisor",
@@ -59,6 +63,11 @@ const textosMobileEn: Record<string, string> = {
   "Historial central no disponible temporalmente.": "Central history is temporarily unavailable.",
   "Consultando historial central...": "Checking central history...",
   "Historial sincronizado desde plataforma central.": "History synced from the central platform.",
+  "Historial actualizado correctamente.": "History updated successfully.",
+  "No se pudo actualizar el historial. Intenta nuevamente.": "The history could not be updated. Please try again.",
+  "Actualizado a las": "Updated at",
+  Actualizar: "Refresh",
+  "Actualizando...": "Refreshing...",
   "Pendientes en este dispositivo": "Pending on this device",
   "Reportes locales pendientes de sincronización": "Local reports pending synchronization",
   "Hallazgos, inspecciones e ITO de terreno": "Findings, inspections and field ITO",
@@ -91,6 +100,7 @@ const textosMobileEn: Record<string, string> = {
   Abiertos: "Open",
   Cerrados: "Closed",
   "Por cerrar": "To close",
+  "En seguimiento": "In progress",
   "En revisión": "Under review",
   "No hay hallazgos en esta categoría.": "There are no findings in this category.",
   "Solo lectura en esta versión": "Read-only in this version",
@@ -105,6 +115,8 @@ const textosMobileEn: Record<string, string> = {
   "Seleccionar fecha": "Select date",
   "Corresponde a hallazgos abiertos o pendientes de gestión.":
     "Findings that are open or pending management.",
+  "Corresponde a hallazgos que ya tienen responsable, plazo o información solicitada.":
+    "Findings that already have an owner, due date, or requested information.",
   "Corresponde a hallazgos donde ya se cargó evidencia de cierre y están esperando validación.":
     "Findings with closure evidence already uploaded and awaiting validation.",
   "Corresponde a hallazgos finalizados con evidencia o justificación registrada.":
@@ -177,8 +189,6 @@ type ContadoresSupervisor = {
   cerrados: number;
 };
 
-type CategoriaCierreMovil = "por_cerrar" | "en_revision" | "cerrados";
-
 type ResumenCierreMovil = Record<CategoriaCierreMovil, HallazgoCentral[]>;
 
 type FiltroFechaCierreMovil = "hoy" | "semana" | "mes" | "fecha";
@@ -193,59 +203,19 @@ const CONTADORES_SUPERVISOR_CERO: ContadoresSupervisor = {
   cerrados: 0,
 };
 
-function normalizarTextoCierreMovil(valor: unknown) {
-  return String(valor ?? "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .toUpperCase();
-}
-
-function hallazgoCerradoMovil(hallazgo: HallazgoCentral) {
-  const estado = normalizarTextoCierreMovil(hallazgo.estado);
-  const estadoCierre = normalizarTextoCierreMovil(hallazgo.estadoCierre);
+function categoriaHallazgoCierreMovil(hallazgo: HallazgoCentral) {
   const seguimiento = hallazgo.seguimientoCierre;
-  const estadoSeguimiento = normalizarTextoCierreMovil(
-    seguimiento?.estadoSeguimiento || seguimiento?.estadoCierre
-  );
 
-  return (
-    estado === "CERRADO" ||
-    estadoCierre === "CERRADO" ||
-    estadoSeguimiento.includes("CERRADO")
-  );
-}
-
-function hallazgoEnRevisionMovil(hallazgo: HallazgoCentral) {
-  if (hallazgoCerradoMovil(hallazgo)) return false;
-
-  const seguimiento = hallazgo.seguimientoCierre;
-  const estadoCierre = normalizarTextoCierreMovil(hallazgo.estadoCierre);
-  const estadoSeguimiento = normalizarTextoCierreMovil(
-    seguimiento?.estadoSeguimiento || seguimiento?.estadoCierre
-  );
-  const validadorEstado = normalizarTextoCierreMovil(seguimiento?.validadorEstado);
-  const evidenciaRecibida = seguimiento?.evidenciaRecibida || [];
-  const requiereNuevaEvidencia =
-    estadoCierre.includes("RECHAZ") ||
-    estadoSeguimiento.includes("RECHAZ") ||
-    estadoSeguimiento.includes("NUEVA EVIDENCIA") ||
-    estadoSeguimiento.includes("EVIDENCIA RECHAZ") ||
-    validadorEstado.includes("RECHAZ") ||
-    validadorEstado.includes("NUEVA EVIDENCIA");
-
-  if (requiereNuevaEvidencia) return false;
-
-  return (
-    estadoSeguimiento.includes("REVISION") ||
-    estadoSeguimiento.includes("VALIDACION") ||
-    estadoSeguimiento.includes("EVIDENCIA CARGADA") ||
-    estadoSeguimiento.includes("CORRECCION INFORMADA") ||
-    validadorEstado.includes("REVISION") ||
-    validadorEstado.includes("PENDIENTE") ||
-    estadoCierre.includes("REVISION") ||
-    evidenciaRecibida.length > 0
-  );
+  return clasificarCategoriaCierreMovil({
+    estado: hallazgo.estado,
+    estadoCierre: hallazgo.estadoCierre,
+    estadoSeguimiento:
+      seguimiento?.estadoSeguimiento || seguimiento?.estadoCierre,
+    responsableNombre:
+      seguimiento?.responsable?.nombre || seguimiento?.responsable?.empresa,
+    validadorEstado: seguimiento?.validadorEstado,
+    cantidadEvidencias: seguimiento?.evidenciaRecibida?.length || 0,
+  });
 }
 
 function agruparHallazgosCierreMovil(
@@ -253,18 +223,13 @@ function agruparHallazgosCierreMovil(
 ): ResumenCierreMovil {
   return hallazgos.reduce<ResumenCierreMovil>(
     (acumulado, hallazgo) => {
-      if (hallazgoCerradoMovil(hallazgo)) {
-        acumulado.cerrados.push(hallazgo);
-      } else if (hallazgoEnRevisionMovil(hallazgo)) {
-        acumulado.en_revision.push(hallazgo);
-      } else {
-        acumulado.por_cerrar.push(hallazgo);
-      }
+      acumulado[categoriaHallazgoCierreMovil(hallazgo)].push(hallazgo);
 
       return acumulado;
     },
     {
       por_cerrar: [],
+      en_seguimiento: [],
       en_revision: [],
       cerrados: [],
     }
@@ -354,7 +319,7 @@ function fechaAplicableCierreMovil(
   hallazgo: HallazgoCentral,
   categoria: CategoriaCierreMovil | null
 ) {
-  if (categoria === "por_cerrar") {
+  if (categoria === "por_cerrar" || categoria === "en_seguimiento") {
     return hallazgo.seguimientoCierre?.fechaCompromiso || fechaBaseHallazgoCierreMovil(hallazgo);
   }
 
@@ -530,6 +495,8 @@ export default function EvaluarV2HomePage() {
   const [cargandoHistorialCentral, setCargandoHistorialCentral] =
     useState(false);
   const [mensajeHistorialCentral, setMensajeHistorialCentral] = useState("");
+  const [ultimaSincronizacionHistorial, setUltimaSincronizacionHistorial] =
+    useState("");
   const [hallazgosCierreMovil, setHallazgosCierreMovil] = useState<
     HallazgoCentral[]
   >([]);
@@ -595,6 +562,7 @@ export default function EvaluarV2HomePage() {
   const intentoCamaraEvidenciaCierreRef = useRef(0);
   const temporizadorCamaraEvidenciaCierreRef =
     useRef<ReturnType<typeof setTimeout> | null>(null);
+  const solicitudHistorialEnCursoRef = useRef(false);
 
   const scopeDesdeSupervisor = (item: SupervisorV2) =>
     crearScopeLocalReporteV2({
@@ -618,7 +586,7 @@ export default function EvaluarV2HomePage() {
       setMensajeHallazgosCierre("");
       setCargandoHistorialCentral(false);
       setCargandoHallazgosCierre(false);
-      return;
+      return false;
     }
 
     if (typeof navigator !== "undefined" && navigator.onLine === false) {
@@ -634,8 +602,11 @@ export default function EvaluarV2HomePage() {
       setMensajeHallazgosCierre("Consulta central no disponible temporalmente.");
       setCargandoHistorialCentral(false);
       setCargandoHallazgosCierre(false);
-      return;
+      return false;
     }
+
+    if (solicitudHistorialEnCursoRef.current) return false;
+    solicitudHistorialEnCursoRef.current = true;
 
     setCargandoHistorialCentral(true);
     setCargandoHallazgosCierre(true);
@@ -664,6 +635,8 @@ export default function EvaluarV2HomePage() {
         if (listado.ok) {
           setHallazgosCierreMovil(listado.data);
           setMensajeHallazgosCierre("");
+          setUltimaSincronizacionHistorial(new Date().toISOString());
+          return true;
         } else {
           setHallazgosCierreMovil([]);
           setMensajeHallazgosCierre("Consulta central no disponible temporalmente.");
@@ -694,7 +667,10 @@ export default function EvaluarV2HomePage() {
     } finally {
       setCargandoHistorialCentral(false);
       setCargandoHallazgosCierre(false);
+      solicitudHistorialEnCursoRef.current = false;
     }
+
+    return false;
   };
 
   useEffect(() => {
@@ -804,19 +780,24 @@ export default function EvaluarV2HomePage() {
       void actualizarHistorialCentral(supervisor);
     };
 
+    const actualizarAlVolver = () => {
+      if (document.visibilityState !== "visible") return;
+      actualizarConexion();
+    };
+
     actualizarConexion();
     window.addEventListener("online", actualizarConexion);
     window.addEventListener("offline", actualizarConexion);
     window.addEventListener("focus", actualizarConexion);
     window.addEventListener("pageshow", actualizarConexion);
-    document.addEventListener("visibilitychange", actualizarConexion);
+    document.addEventListener("visibilitychange", actualizarAlVolver);
 
     return () => {
       window.removeEventListener("online", actualizarConexion);
       window.removeEventListener("offline", actualizarConexion);
       window.removeEventListener("focus", actualizarConexion);
       window.removeEventListener("pageshow", actualizarConexion);
-      document.removeEventListener("visibilitychange", actualizarConexion);
+      document.removeEventListener("visibilitychange", actualizarAlVolver);
     };
   }, [scopeLocalReporte, supervisor]);
 
@@ -896,6 +877,18 @@ export default function EvaluarV2HomePage() {
       boxShadow: "0 16px 30px rgba(220,38,38,0.34)",
     },
     {
+      id: "en_seguimiento",
+      label: t("En seguimiento"),
+      ayuda: t(
+        "Corresponde a hallazgos que ya tienen responsable, plazo o información solicitada."
+      ),
+      valor: resumenCierreMovil.en_seguimiento.length,
+      background:
+        "linear-gradient(180deg, rgba(245,158,11,0.98), rgba(180,83,9,0.92))",
+      border: "1px solid rgba(253,230,138,0.68)",
+      boxShadow: "0 16px 30px rgba(217,119,6,0.32)",
+    },
+    {
       id: "en_revision",
       label: t("En revisión"),
       ayuda: t(
@@ -923,6 +916,12 @@ export default function EvaluarV2HomePage() {
   const tituloCategoriaActiva =
     cuadrosCierreMovil.find((cuadro) => cuadro.id === categoriaCierreActiva)
       ?.label || "";
+  const horaUltimaSincronizacion = ultimaSincronizacionHistorial
+    ? new Date(ultimaSincronizacionHistorial).toLocaleTimeString(
+        idiomaActivo === "en" ? "en-US" : "es-CL",
+        { hour: "2-digit", minute: "2-digit" }
+      )
+    : "";
   const inicialSupervisor =
     supervisor.nombre
       .trim()
@@ -1633,6 +1632,26 @@ export default function EvaluarV2HomePage() {
     } finally {
       setSincronizandoPendientes(false);
     }
+  };
+
+  const refrescarHistorialSupervisor = async () => {
+    if (cargandoHistorialCentral || cargandoHallazgosCierre) return;
+
+    if (!online) {
+      setMensaje(t("Historial central no disponible temporalmente."));
+      return;
+    }
+
+    setMensaje("");
+    recargarEstadoLocal(scopeLocalReporte);
+    const actualizado = await actualizarHistorialCentral(supervisor);
+
+    setMensaje(
+      actualizado
+        ? t("Historial actualizado correctamente.")
+        : t("No se pudo actualizar el historial. Intenta nuevamente.")
+    );
+    if (actualizado) vibrarOk();
   };
 
   const feedbackBoton = (id: string) => ({
@@ -2372,20 +2391,90 @@ export default function EvaluarV2HomePage() {
         <section style={cardStyle}>
           <div
             style={{
-              fontSize: "12px",
-              fontWeight: 900,
-              letterSpacing: "0",
-              opacity: 0.7,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "10px",
               marginBottom: "10px",
             }}
           >
-            {t("Historial del supervisor")}
+            <div>
+              <div
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 900,
+                  letterSpacing: "0",
+                  opacity: 0.7,
+                }}
+              >
+                {t("Historial del supervisor")}
+              </div>
+              {horaUltimaSincronizacion && (
+                <div
+                  style={{
+                    marginTop: "3px",
+                    fontSize: "10px",
+                    fontWeight: 800,
+                    opacity: 0.58,
+                  }}
+                >
+                  {t("Actualizado a las")} {horaUltimaSincronizacion}
+                </div>
+              )}
+            </div>
+            <button
+              type="button"
+              aria-label={t("Actualizar")}
+              onClick={refrescarHistorialSupervisor}
+              disabled={cargandoHistorialCentral || cargandoHallazgosCierre}
+              {...feedbackBoton("actualizar-historial-supervisor")}
+              style={{
+                borderRadius: "999px",
+                padding: "8px 11px",
+                border: temaClaro
+                  ? "1px solid rgba(37,99,235,0.18)"
+                  : "1px solid rgba(125,211,252,0.24)",
+                background: temaClaro
+                  ? "rgba(239,246,255,0.94)"
+                  : "rgba(14,116,144,0.20)",
+                color: temaClaro ? "#1d4ed8" : "#bae6fd",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                fontSize: "11px",
+                fontWeight: 950,
+                cursor: "pointer",
+                touchAction: "manipulation",
+                opacity:
+                  cargandoHistorialCentral || cargandoHallazgosCierre ? 0.68 : 1,
+                transition: "transform 120ms ease, filter 120ms ease",
+                ...estiloFeedback("actualizar-historial-supervisor"),
+              }}
+            >
+              <span
+                aria-hidden="true"
+                style={{
+                  display: "inline-block",
+                  fontSize: "16px",
+                  lineHeight: 1,
+                  transform:
+                    cargandoHistorialCentral || cargandoHallazgosCierre
+                      ? "rotate(45deg)"
+                      : "none",
+                }}
+              >
+                ↻
+              </span>
+              {cargandoHistorialCentral || cargandoHallazgosCierre
+                ? t("Actualizando...")
+                : t("Actualizar")}
+            </button>
           </div>
 
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "1fr 1fr 1fr",
+              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
               gap: "8px",
             }}
           >
@@ -2979,7 +3068,8 @@ export default function EvaluarV2HomePage() {
                                 ))}
                               </div>
                             )}
-                            {categoriaCierreActiva === "por_cerrar" && (
+                            {(categoriaCierreActiva === "por_cerrar" ||
+                              categoriaCierreActiva === "en_seguimiento") && (
                               <div
                                 style={{
                                   display: "grid",
