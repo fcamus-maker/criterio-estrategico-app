@@ -1106,7 +1106,14 @@ const [menuExportacionMetaAbierto, setMenuExportacionMetaAbierto] = useState(fal
     "Ver cierre": "View closure",
     "Ver rechazo": "View rejection",
     "Ruta de cierre": "Closure route",
+    "Filtro operativo": "Operational filter",
     "Mostrar todos": "Show all",
+    "Alertas prioritarias": "Priority alerts",
+    "Ver todos los hallazgos visibles": "View all visible findings",
+    "Ver hallazgos críticos abiertos": "View open critical findings",
+    "Ver hallazgos cerrados": "View closed findings",
+    "Ver prioridades preventivas": "View preventive priorities",
+    "Filtrar hallazgos de la empresa": "Filter company findings",
     "Ver hallazgos sin responsable asignado": "View findings without an assigned responsible person",
     "Ver hallazgos en seguimiento": "View findings in progress",
     "Ver hallazgos en revisión": "View findings under review",
@@ -1165,6 +1172,7 @@ const [menuExportacionMetaAbierto, setMenuExportacionMetaAbierto] = useState(fal
     "Sin datos de gestión para el filtro activo.": "No management data for the active filter.",
     Código: "Code",
     Acción: "Action",
+    "Acción siguiente": "Next action",
     "No hay hallazgos para el filtro seleccionado.": "No findings for the selected filter.",
     "Sin reportes registrados para esta empresa.": "No reports registered for this company.",
     "Ver informe": "View report",
@@ -1760,18 +1768,10 @@ const [menuExportacionMetaAbierto, setMenuExportacionMetaAbierto] = useState(fal
     return `${dia}-${mes}-${anio} · ${hora}:${minutos}`;
   };
   const filas = filasPanel;
-const totalHistoricoHallazgos = filas.length;
 const codigosInformesAnulados = hallazgosAnuladosResumen
   .map((hallazgo) => String(hallazgo.codigo || identidadHallazgoPanel(hallazgo)).trim())
   .filter(Boolean);
 const totalInformesAnulados = codigosInformesAnulados.length;
-const totalVencidos = filas.filter(
-  (fila) => {
-    const fechaCompromiso = (fila as { fechaCompromiso?: string }).fechaCompromiso || "";
-    return semaforoVencimiento(fechaCompromiso, fila.estado).etiqueta === "Vencido";
-  }
-).length;
-const [contadorHistoricoAnimado, setContadorHistoricoAnimado] = useState(0);
 const [notificaciones, setNotificaciones] = useState<NotificacionPanel[]>([]);
 const totalNotificacionesNoLeidas = notificaciones.filter((item) => !item.leida).length;
 const mensajeSinNotificaciones = alcancePanel?.isGlobal
@@ -3718,36 +3718,21 @@ const generarInformeEmpresaObra = (opciones: { imprimir?: boolean } = {}) => {
     ventana.focus();
   }
 };
-useEffect(() => {
-  let frame = 0;
-  const duracion = 1200;
-  const pasos = 36;
-  const incremento = totalHistoricoHallazgos / pasos;
-
-  setContadorHistoricoAnimado(0);
-
-  const intervalo = window.setInterval(() => {
-    frame += 1;
-    const valor = Math.round(incremento * frame);
-
-    if (frame >= pasos) {
-      setContadorHistoricoAnimado(totalHistoricoHallazgos);
-      window.clearInterval(intervalo);
-      return;
-    }
-
-    setContadorHistoricoAnimado(
-      valor > totalHistoricoHallazgos ? totalHistoricoHallazgos : valor
-    );
-  }, duracion / pasos);
-
-  return () => window.clearInterval(intervalo);
-}, [totalHistoricoHallazgos]);
 const [hallazgoActivo, setHallazgoActivo] = useState<HallazgoPanelExtendido>(hallazgosMock[0]);
 const [hallazgoSeleccionadoInformeId, setHallazgoSeleccionadoInformeId] = useState("");
 const [filtroRapido, setFiltroRapido] = useState<"HOY" | "SEMANA" | "MES" | "PERSONALIZADO">("HOY");
+type FiltroOperacionActivo =
+  | "TODOS"
+  | "criticos-abiertos"
+  | "alertas-prioritarias"
+  | "sin-responsable"
+  | "en-seguimiento"
+  | "en-revision"
+  | "vencidos"
+  | "cerrados"
+  | "cerrados-evidencia";
 const [filtroRutaCierreActivo, setFiltroRutaCierreActivo] = useState<
-  "TODOS" | "sin-responsable" | "en-seguimiento" | "en-revision" | "vencidos" | "cerrados-evidencia"
+  FiltroOperacionActivo
 >("TODOS");
 const [filtroEmpresa, setFiltroEmpresa] = useState("TODAS");
 const [filtroObra, setFiltroObra] = useState("TODAS");
@@ -6579,21 +6564,28 @@ const hallazgosSeguimientoVisibles = hallazgosSeguimiento.filter((item) =>
   codigosHallazgosVisibles.has(item.codigo)
 );
 
-const coincideRutaCierre = (
+const coincideFiltroOperacion = (
   item: HallazgoSeguimiento,
-  filtro: typeof filtroRutaCierreActivo
+  filtro: FiltroOperacionActivo
 ) => {
   if (filtro === "TODOS") return true;
+  if (filtro === "criticos-abiertos") {
+    return item.criticidad === "CRÍTICO" && !hallazgoCerradoSeguimiento(item);
+  }
+  if (filtro === "alertas-prioritarias") {
+    return ["CRÍTICO", "ALTO"].includes(item.criticidad) && !hallazgoCerradoSeguimiento(item);
+  }
   if (filtro === "sin-responsable") return estadoSeguimientoVisual(item) === "Sin asignar";
   if (filtro === "en-seguimiento") return estadoSeguimientoVisual(item) === "En seguimiento";
   if (filtro === "en-revision") return hallazgoEnRevisionPc(item);
   if (filtro === "vencidos") return estadoSeguimientoVisual(item) === "Vencido";
+  if (filtro === "cerrados") return hallazgoCerradoSeguimiento(item);
   return estadoSeguimientoVisual(item) === "Cerrado con evidencia" && tieneEvidenciaCierre(item);
 };
 
 const codigosRutaCierreActiva = new Set(
   hallazgosSeguimientoVisibles
-    .filter((item) => coincideRutaCierre(item, filtroRutaCierreActivo))
+    .filter((item) => coincideFiltroOperacion(item, filtroRutaCierreActivo))
     .map((item) => item.codigo)
 );
 
@@ -6640,8 +6632,18 @@ const kpisSeguimiento = [
   },
 ];
 
-const alternarFiltroRutaCierre = (filtro: Exclude<typeof filtroRutaCierreActivo, "TODOS">) => {
-  setFiltroRutaCierreActivo((actual) => actual === filtro ? "TODOS" : filtro);
+const resumenOperacion = {
+  visibles: hallazgosSeguimientoVisibles.length,
+  criticosAbiertos: hallazgosSeguimientoVisibles.filter(
+    (item) => item.criticidad === "CRÍTICO" && !hallazgoCerradoSeguimiento(item)
+  ).length,
+  vencidos: hallazgosSeguimientoVisibles.filter(
+    (item) => estadoSeguimientoVisual(item) === "Vencido"
+  ).length,
+  cerrados: hallazgosSeguimientoVisibles.filter(hallazgoCerradoSeguimiento).length,
+};
+
+const irATablaOperacion = () => {
   window.setTimeout(() => {
     document.getElementById("tabla-operacion-hallazgos")?.scrollIntoView({
       behavior: "smooth",
@@ -6650,8 +6652,34 @@ const alternarFiltroRutaCierre = (filtro: Exclude<typeof filtroRutaCierreActivo,
   }, 60);
 };
 
-const etiquetaFiltroRutaCierre =
-  kpisSeguimiento.find((item) => item.id === filtroRutaCierreActivo)?.titulo || "";
+const alternarFiltroOperacion = (filtro: Exclude<FiltroOperacionActivo, "TODOS">) => {
+  setFiltroRutaCierreActivo((actual) => actual === filtro ? "TODOS" : filtro);
+  irATablaOperacion();
+};
+
+const mostrarTodosLosHallazgosOperacion = () => {
+  setFiltroRutaCierreActivo("TODOS");
+  irATablaOperacion();
+};
+
+const abrirEmpresaDesdeAlarma = (empresa: string) => {
+  setFiltroEmpresa(empresa);
+  setFiltroRutaCierreActivo("TODOS");
+  irATablaOperacion();
+};
+
+const etiquetasFiltroOperacion: Record<FiltroOperacionActivo, string> = {
+  TODOS: t("Hallazgos visibles"),
+  "criticos-abiertos": t("Críticos abiertos"),
+  "alertas-prioritarias": t("Alertas prioritarias"),
+  "sin-responsable": t("Sin responsable asignado"),
+  "en-seguimiento": t("En seguimiento"),
+  "en-revision": t("En revisión"),
+  vencidos: t("Vencidos"),
+  cerrados: t("Cerrados"),
+  "cerrados-evidencia": t("Cerrados con evidencia"),
+};
+const etiquetaFiltroRutaCierre = etiquetasFiltroOperacion[filtroRutaCierreActivo];
 const ultimaActualizacion = formatearUltimaActualizacion(fechaActualizacion);
     const filtrosActivos = [
   filtroEmpresa !== "TODAS" ? `Empresa reportante: ${filtroEmpresa}` : null,
@@ -6844,63 +6872,6 @@ useEffect(() => {
   vistaPrincipal,
 ]);
 
-const kpis = [
-  {
-    id: "total-reportes",
-    titulo: t("Total reportes"),
-    valor: String(filasFiltradas.length),
-    color: "#3b82f6",
-  },
-  {
-    id: "abiertos",
-    titulo: t("Abiertos"),
-    valor: String(
-      filasFiltradas.filter((item) => item.estado === "ABIERTO").length
-    ),
-    color: "#f59e0b",
-  },
-  {
-    id: "cerrados",
-    titulo: t("Cerrados"),
-    valor: String(
-      filasFiltradas.filter((item) => item.estado === "CERRADO").length
-    ),
-    color: "#22c55e",
-  },
-  {
-    id: "criticos",
-    titulo: t("Críticos"),
-    valor: String(
-      filasFiltradas.filter((item) => item.criticidad === "CRÍTICO").length
-    ),
-    color: "#ef4444",
-  },
-  {
-    id: "vencidos",
-    titulo: t("Vencidos"),
-    valor: String(
-      filasFiltradas.filter(
-    (item) => {
-      const fechaCompromiso = (item as typeof item & { fechaCompromiso?: string }).fechaCompromiso || "";
-      return semaforoVencimiento(fechaCompromiso, item.estado).etiqueta === "Vencido";
-    }
-  ).length
-),
-    color: "#b91c1c",
-  },
-  {
-    id: "empresas-activas",
-    titulo: t("Empresas activas"),
-    valor: String(new Set(filasFiltradas.map((item) => item.empresa)).size),
-    color: "#8b5cf6",
-  },
-  {
-  id: "historico-total",
-  titulo: t("Histórico total"),
-  valor: String(totalHistoricoHallazgos),
-  color: "#ef4444",
-},
-];
 const normalizarCriticidadRadar = (valor: string): CriticidadHallazgoCentral => {
   const normalizado = String(valor || "")
     .normalize("NFD")
@@ -7857,10 +7828,42 @@ const riesgoOperativoPrincipal =
         onProfileClick={abrirEditorPerfil}
         lastUpdate={ultimaActualizacion ? `${t("Última actualización:")} ${ultimaActualizacion}` : undefined}
         metrics={[
-          { label: t("Hallazgos visibles"), value: filasOperacionVisibles.length, tone: "blue" },
-          { label: t("Críticos abiertos"), value: criticidadResumen[0]?.total || 0, tone: "red" },
-          { label: t("Vencidos"), value: totalVencidos, tone: "amber" },
-          { label: t("Cerrados"), value: estadoReportesResumen.find((item) => item.label === t("Cerrados"))?.total || 0, tone: "green" },
+          {
+            label: t("Hallazgos visibles"),
+            value: resumenOperacion.visibles,
+            tone: "blue",
+            active: filtroRutaCierreActivo === "TODOS",
+            helper: t("Ver hallazgos"),
+            actionLabel: t("Ver todos los hallazgos visibles"),
+            onClick: mostrarTodosLosHallazgosOperacion,
+          },
+          {
+            label: t("Críticos abiertos"),
+            value: resumenOperacion.criticosAbiertos,
+            tone: "red",
+            active: filtroRutaCierreActivo === "criticos-abiertos",
+            helper: t("Ver hallazgos"),
+            actionLabel: t("Ver hallazgos críticos abiertos"),
+            onClick: () => alternarFiltroOperacion("criticos-abiertos"),
+          },
+          {
+            label: t("Vencidos"),
+            value: resumenOperacion.vencidos,
+            tone: "amber",
+            active: filtroRutaCierreActivo === "vencidos",
+            helper: t("Ver hallazgos"),
+            actionLabel: t("Ver hallazgos vencidos"),
+            onClick: () => alternarFiltroOperacion("vencidos"),
+          },
+          {
+            label: t("Cerrados"),
+            value: resumenOperacion.cerrados,
+            tone: "green",
+            active: filtroRutaCierreActivo === "cerrados",
+            helper: t("Ver hallazgos"),
+            actionLabel: t("Ver hallazgos cerrados"),
+            onClick: () => alternarFiltroOperacion("cerrados"),
+          },
           {
             label: t("Meta diaria"),
             value: `${reportesHoy}/${metaDiariaSegura}`,
@@ -7871,12 +7874,17 @@ const riesgoOperativoPrincipal =
           },
         ]}
         stages={[
-          { label: t("Sin responsable asignado"), value: kpisSeguimiento.find((item) => item.id === "sin-responsable")?.valor || 0, tone: "amber", active: filtroRutaCierreActivo === "sin-responsable", actionLabel: t("Ver hallazgos sin responsable asignado"), onClick: () => alternarFiltroRutaCierre("sin-responsable") },
-          { label: t("En seguimiento"), value: kpisSeguimiento.find((item) => item.id === "en-seguimiento")?.valor || 0, tone: "blue", active: filtroRutaCierreActivo === "en-seguimiento", actionLabel: t("Ver hallazgos en seguimiento"), onClick: () => alternarFiltroRutaCierre("en-seguimiento") },
-          { label: t("En revisión"), value: kpisSeguimiento.find((item) => item.id === "en-revision")?.valor || 0, tone: "violet", active: filtroRutaCierreActivo === "en-revision", actionLabel: t("Ver hallazgos en revisión"), onClick: () => alternarFiltroRutaCierre("en-revision") },
-          { label: t("Vencidos"), value: kpisSeguimiento.find((item) => item.id === "vencidos")?.valor || 0, tone: "red", active: filtroRutaCierreActivo === "vencidos", actionLabel: t("Ver hallazgos vencidos"), onClick: () => alternarFiltroRutaCierre("vencidos") },
-          { label: t("Cerrados con evidencia"), value: kpisSeguimiento.find((item) => item.id === "cerrados-evidencia")?.valor || 0, tone: "green", active: filtroRutaCierreActivo === "cerrados-evidencia", actionLabel: t("Ver hallazgos cerrados con evidencia"), onClick: () => alternarFiltroRutaCierre("cerrados-evidencia") },
+          { label: t("Sin responsable asignado"), value: kpisSeguimiento.find((item) => item.id === "sin-responsable")?.valor || 0, tone: "amber", active: filtroRutaCierreActivo === "sin-responsable", actionLabel: t("Ver hallazgos sin responsable asignado"), onClick: () => alternarFiltroOperacion("sin-responsable") },
+          { label: t("En seguimiento"), value: kpisSeguimiento.find((item) => item.id === "en-seguimiento")?.valor || 0, tone: "blue", active: filtroRutaCierreActivo === "en-seguimiento", actionLabel: t("Ver hallazgos en seguimiento"), onClick: () => alternarFiltroOperacion("en-seguimiento") },
+          { label: t("En revisión"), value: kpisSeguimiento.find((item) => item.id === "en-revision")?.valor || 0, tone: "violet", active: filtroRutaCierreActivo === "en-revision", actionLabel: t("Ver hallazgos en revisión"), onClick: () => alternarFiltroOperacion("en-revision") },
+          { label: t("Vencidos"), value: kpisSeguimiento.find((item) => item.id === "vencidos")?.valor || 0, tone: "red", active: filtroRutaCierreActivo === "vencidos", actionLabel: t("Ver hallazgos vencidos"), onClick: () => alternarFiltroOperacion("vencidos") },
+          { label: t("Cerrados con evidencia"), value: kpisSeguimiento.find((item) => item.id === "cerrados-evidencia")?.valor || 0, tone: "green", active: filtroRutaCierreActivo === "cerrados-evidencia", actionLabel: t("Ver hallazgos cerrados con evidencia"), onClick: () => alternarFiltroOperacion("cerrados-evidencia") },
         ]}
+        onOpenClosures={() => {
+          setModuloWorkspaceActivo("cierres");
+          setVistaPrincipal("seguimiento");
+          setVistaDerecha("seguimiento");
+        }}
         onModuleSelect={(module) => {
           if (module === "configuracion") {
             setModuloWorkspaceActivo("configuracion");
@@ -10571,67 +10579,10 @@ style={{
             style={{
               minHeight: "760px",
               display: vistaPrincipal === "panel" ? "grid" : "none",
-              gridTemplateRows: "auto auto auto 1fr",
+              gridTemplateRows: "auto auto 1fr",
               gap: "18px",
             }}
           >
-            <div
-              className="ce-panel-kpi-grid"
-              style={{
-                display: "grid",
-               gridTemplateColumns: "repeat(auto-fit, minmax(132px, 1fr))",
-                gap: "12px",
-              }}
-            >
-              {kpis.map((kpi) => (
-	                <div
-	                  key={kpi.id}
-	                  style={{
-  borderRadius: "22px",
-  background: tema.tarjeta,
-  borderTop: tema.bordeSutil,
-  borderRight: tema.bordeSutil,
-  borderBottom: tema.bordeSutil,
-  borderLeft:
-    kpi.id === "historico-total" ? "4px solid #ef4444" : tema.bordeSutil,
-  boxShadow: tema.sombra,
-  backdropFilter: "blur(6px)",
-	  padding: "14px 14px 16px 14px",
-	  minHeight: "94px",
-	  display: "flex",
-	  flexDirection: "column",
-	  justifyContent: "space-between",
-}}
-                >
-                  <div
-                    style={{
-                      fontSize: "11px",
-                      opacity: 0.74,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.8px",
-                      fontWeight: 800,
-                      lineHeight: 1.2,
-                    }}
-                  >
-                    {kpi.titulo}
-                  </div>
-
-                  <div
-                    style={{
-                      fontSize: "38px",
-                      fontWeight: 900,
-                      lineHeight: 1,
-                      color: kpi.color,
-                    }}
-                  >
-	                   {kpi.id === "historico-total"
-	  ? contadorHistoricoAnimado.toLocaleString("es-CL")
-	  : kpi.valor}
-                  </div>
-                </div>
-              ))}
-            </div>
-
             <section
               className="ce-panel-radar"
               style={{
@@ -10792,8 +10743,11 @@ style={{
                 >
                   {senalesAlarmaVisibles.length > 0 ? (
                     senalesAlarmaVisibles.map((senal) => (
-                      <span
+                      <button
+                        type="button"
                         key={`${senal.tipo}-${senal.mensaje}`}
+                        onClick={() => alternarFiltroOperacion("alertas-prioritarias")}
+                        aria-label={t("Ver prioridades preventivas")}
                         style={{
                           borderRadius: "999px",
                           padding: "6px 9px",
@@ -10805,10 +10759,12 @@ style={{
                           fontSize: "11px",
                           fontWeight: 850,
                           lineHeight: 1.25,
+                          cursor: "pointer",
+                          textAlign: "left",
                         }}
                       >
                         {senal.mensaje}
-                      </span>
+                      </button>
                     ))
                   ) : (
                     <span
@@ -10840,30 +10796,40 @@ style={{
                       label: t("Críticos abiertos"),
                       value: alarmaPreventivaEnCarga ? "--" : alarmaCritica.criticosAbiertos,
                       color: alarmaPreventivaEnCarga ? alarmaVisual.color : "#ef4444",
+                      onClick: () => alternarFiltroOperacion("criticos-abiertos"),
                     },
                     {
                       label: "Críticos vencidos",
                       value: alarmaPreventivaEnCarga ? "--" : alarmaCritica.criticosVencidos,
                       color: alarmaPreventivaEnCarga ? alarmaVisual.color : "#b91c1c",
+                      onClick: () => alternarFiltroOperacion("vencidos"),
                     },
                     {
                       label: t("Altos abiertos"),
                       value: alarmaPreventivaEnCarga ? "--" : alarmaCritica.altosAbiertos,
                       color: alarmaPreventivaEnCarga ? alarmaVisual.color : "#f59e0b",
+                      onClick: () => alternarFiltroOperacion("alertas-prioritarias"),
                     },
                     {
                       label: t("Alertas"),
                       value: alarmaPreventivaEnCarga ? "--" : alarmaCritica.senalesDetectadas.length,
                       color: alarmaVisual.color,
+                      onClick: () => alternarFiltroOperacion("alertas-prioritarias"),
                     },
-                  ].map(({ label, value, color }) => (
-                    <div
+                  ].map(({ label, value, color, onClick }) => (
+                    <button
+                      type="button"
                       key={label}
+                      onClick={alarmaPreventivaEnCarga ? undefined : onClick}
+                      aria-label={`${t("Ver prioridades preventivas")}: ${label}`}
                       style={{
                         borderRadius: "12px",
                         background: temaClaro ? "rgba(255,255,255,0.72)" : "rgba(0,0,0,0.16)",
                         border: tema.bordeSutil,
                         padding: "9px 10px",
+                        color: tema.texto,
+                        cursor: alarmaPreventivaEnCarga ? "default" : "pointer",
+                        textAlign: "left",
                       }}
                     >
                       <div
@@ -10879,7 +10845,10 @@ style={{
                       <div style={{ fontSize: "22px", fontWeight: 950, color }}>
                         {value}
                       </div>
-                    </div>
+                      <div style={{ marginTop: "4px", fontSize: "9px", fontWeight: 850, color: tema.textoSuave }}>
+                        {t("Ver hallazgos")}
+                      </div>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -10930,6 +10899,16 @@ style={{
                       {rankingEmpresasAlarmaVisibles.map((empresa, index) => (
                         <div
                           key={empresa.empresa}
+                          role="button"
+                          tabIndex={0}
+                          aria-label={`${t("Filtrar hallazgos de la empresa")}: ${empresa.empresa}`}
+                          onClick={() => abrirEmpresaDesdeAlarma(empresa.empresa)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              abrirEmpresaDesdeAlarma(empresa.empresa);
+                            }
+                          }}
                           style={{
                             display: "grid",
                             gridTemplateColumns: "18px minmax(0, 1fr) auto",
@@ -10939,6 +10918,7 @@ style={{
                             padding: "7px 8px",
                             background: temaClaro ? "rgba(255,255,255,0.62)" : "rgba(0,0,0,0.14)",
                             border: tema.bordeSutil,
+                            cursor: "pointer",
                           }}
                         >
                           <span
@@ -11015,11 +10995,20 @@ style={{
                     <div style={{ fontSize: "10px", opacity: 0.68, fontWeight: 850 }}>
                       Empresa más comprometida
                     </div>
-                    <div style={{ fontSize: "13px", fontWeight: 950, marginTop: "3px", lineHeight: 1.25 }}>
-                      {alarmaCritica.empresaPrincipal
-                        ? `${alarmaCritica.empresaPrincipal.nombre} (${alarmaCritica.empresaPrincipal.total})`
-                        : "Sin concentración crítica"}
-                    </div>
+                    {alarmaCritica.empresaPrincipal ? (
+                      <button
+                        type="button"
+                        onClick={() => abrirEmpresaDesdeAlarma(alarmaCritica.empresaPrincipal!.nombre)}
+                        aria-label={`${t("Filtrar hallazgos de la empresa")}: ${alarmaCritica.empresaPrincipal.nombre}`}
+                        style={{ marginTop: "3px", padding: 0, border: 0, background: "transparent", color: tema.texto, cursor: "pointer", textAlign: "left", fontSize: "13px", fontWeight: 950, lineHeight: 1.25 }}
+                      >
+                        {`${alarmaCritica.empresaPrincipal.nombre} (${alarmaCritica.empresaPrincipal.total})`}
+                      </button>
+                    ) : (
+                      <div style={{ fontSize: "13px", fontWeight: 950, marginTop: "3px", lineHeight: 1.25 }}>
+                        Sin concentración crítica
+                      </div>
+                    )}
                   </div>
                 )}
                 <div>
@@ -11589,7 +11578,7 @@ style={{
                 }}
               >
                 <span>
-                  {t("Ruta de cierre")}: {etiquetaFiltroRutaCierre} · {filasOperacionVisibles.length} {t("hallazgos")}
+                  {t("Filtro operativo")}: {etiquetaFiltroRutaCierre} · {filasOperacionVisibles.length} {t("hallazgos")}
                 </span>
                 <button
                   type="button"
@@ -11644,7 +11633,7 @@ style={{
 	                <div>{t("Criticidad")}</div>
 	                <div>{t("Estado")}</div>
 	                <div>{t("Fecha / Hora")}</div>
-	                <div>{t("Acción")}</div>
+	                <div>{t("Acción siguiente")}</div>
               </div>
 
               <div
@@ -11782,32 +11771,37 @@ style={{
             alignItems: "center",
           }}
         >
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              abrirAccionCierreDesdeOperacion(fila);
-            }}
-            style={{
-              width: "100%",
-              padding: "10px 10px",
-              borderRadius: "12px",
-              border: accionCierreFila.variante === "primary"
-                ? "1px solid rgba(96,165,250,0.36)"
-                : tema.bordeSutil,
-              cursor: "pointer",
-              fontWeight: 800,
-              fontSize: "12px",
-              background: accionCierreFila.variante === "primary"
-                ? "linear-gradient(135deg,#2563eb,#0891b2)"
-                : tema.tarjetaSuave,
-              color: accionCierreFila.variante === "primary"
-                ? "#ffffff"
-                : tema.texto,
-            }}
-          >
-	            {t(accionCierreFila.etiqueta)}
-          </button>
+          <div style={{ display: "grid", gap: "4px", minWidth: 0 }}>
+            <span style={{ color: tema.textoSuave, fontSize: "9px", fontWeight: 900, letterSpacing: "0.5px", textTransform: "uppercase" }}>
+              {t("Acción siguiente")}
+            </span>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                abrirAccionCierreDesdeOperacion(fila);
+              }}
+              style={{
+                width: "100%",
+                padding: "10px 10px",
+                borderRadius: "12px",
+                border: accionCierreFila.variante === "primary"
+                  ? "1px solid rgba(96,165,250,0.36)"
+                  : tema.bordeSutil,
+                cursor: "pointer",
+                fontWeight: 800,
+                fontSize: "12px",
+                background: accionCierreFila.variante === "primary"
+                  ? "linear-gradient(135deg,#2563eb,#0891b2)"
+                  : tema.tarjetaSuave,
+                color: accionCierreFila.variante === "primary"
+                  ? "#ffffff"
+                  : tema.texto,
+              }}
+            >
+	              {t(accionCierreFila.etiqueta)}
+            </button>
+          </div>
           {puedeBorrarHallazgos && !vistaBorradosActiva ? (
             <>
               <button

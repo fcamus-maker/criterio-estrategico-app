@@ -17,6 +17,7 @@ type MetricaPremium = {
   value: string | number;
   tone?: "blue" | "cyan" | "green" | "amber" | "red" | "violet";
   helper?: string;
+  active?: boolean;
   actionLabel?: string;
   onClick?: () => void;
 };
@@ -49,6 +50,7 @@ type PremiumWorkspaceShellProps = {
   actions?: ReactNode;
   toolbar?: ReactNode;
   onModuleSelect?: (module: ModuloPremium) => void;
+  onOpenClosures?: () => void;
 };
 
 const MODULOS: Array<{
@@ -110,6 +112,26 @@ function IconoModulo({ name }: { name: (typeof MODULOS)[number]["icon"] }) {
   return <svg {...common}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21H9.6v-.1A1.7 1.7 0 0 0 8 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 3.6 15a1.7 1.7 0 0 0-1.5-1H2v-4h.1A1.7 1.7 0 0 0 3.6 9a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 8 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.1A1.7 1.7 0 0 0 15 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9a1.7 1.7 0 0 0 1.5 1h.1v4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>;
 }
 
+function IconoEtapa({ index }: { index: number }) {
+  const common = {
+    width: 14,
+    height: 14,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 2,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    "aria-hidden": true,
+  };
+
+  if (index === 0) return <svg {...common}><circle cx="9" cy="8" r="3"/><path d="M3 21v-2a6 6 0 0 1 12 0v2M19 8v6M16 11h6"/></svg>;
+  if (index === 1) return <svg {...common}><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>;
+  if (index === 2) return <svg {...common}><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></svg>;
+  if (index === 3) return <svg {...common}><path d="M12 3 2.5 20h19Z"/><path d="M12 9v4M12 17h.01"/></svg>;
+  return <svg {...common}><circle cx="12" cy="12" r="9"/><path d="m8 12 2.6 2.6L16.5 9"/></svg>;
+}
+
 export default function PremiumWorkspaceShell({
   active,
   title,
@@ -129,6 +151,7 @@ export default function PremiumWorkspaceShell({
   actions,
   toolbar,
   onModuleSelect,
+  onOpenClosures,
 }: PremiumWorkspaceShellProps) {
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const light = theme === "light";
@@ -368,7 +391,21 @@ export default function PremiumWorkspaceShell({
                       metric.onClick();
                     }
                   }}
-                  style={{ position: "relative", minHeight: 62, padding: "9px 11px", borderRadius: 15, background: light ? "rgba(255,255,255,0.88)" : "rgba(9,20,42,0.88)", border: `1px solid ${tone.border}`, boxShadow: light ? "0 10px 24px rgba(15,23,42,0.06)" : "0 12px 26px rgba(2,6,23,0.20)", cursor: metric.onClick ? "pointer" : "default" }}
+                  aria-pressed={metric.onClick ? Boolean(metric.active) : undefined}
+                  style={{
+                    position: "relative",
+                    minHeight: 62,
+                    padding: "9px 11px",
+                    borderRadius: 15,
+                    background: metric.active
+                      ? `linear-gradient(135deg,${tone.soft},${light ? "rgba(255,255,255,0.94)" : "rgba(9,20,42,0.94)"})`
+                      : light ? "rgba(255,255,255,0.88)" : "rgba(9,20,42,0.88)",
+                    border: metric.active ? `2px solid ${tone.color}` : `1px solid ${tone.border}`,
+                    boxShadow: metric.active
+                      ? `0 0 0 3px ${tone.soft}, 0 12px 26px rgba(2,6,23,0.18)`
+                      : light ? "0 10px 24px rgba(15,23,42,0.06)" : "0 12px 26px rgba(2,6,23,0.20)",
+                    cursor: metric.onClick ? "pointer" : "default",
+                  }}
                 >
                   {metric.onClick ? (
                     <span aria-hidden="true" style={{ position: "absolute", top: 8, right: 9, width: 22, height: 22, borderRadius: 8, display: "grid", placeItems: "center", color: tone.color, background: tone.soft, border: `1px solid ${tone.border}` }}>
@@ -397,7 +434,13 @@ export default function PremiumWorkspaceShell({
                 <div style={{ fontSize: 10, fontWeight: 950, color: light ? "#1d4ed8" : "#7dd3fc", letterSpacing: 0.8, textTransform: "uppercase" }}>{language === "en" ? "Single closure route" : "Ruta única de cierre"}</div>
                 <div style={{ marginTop: 3, color: muted, fontSize: 11, fontWeight: 750 }}>{language === "en" ? "One status, one next action, complete traceability." : "Un estado, una acción siguiente y trazabilidad completa."}</div>
               </div>
-              <Link href="/panel#seguimiento-cierre" style={{ padding: "8px 11px", borderRadius: 11, color: "#fff", background: "linear-gradient(135deg,#2563eb,#7c3aed)", textDecoration: "none", fontSize: 10.5, fontWeight: 950 }}>{language === "en" ? "Open closures" : "Abrir cierres"}</Link>
+              <button
+                type="button"
+                onClick={onOpenClosures}
+                style={{ padding: "8px 11px", borderRadius: 11, color: "#fff", background: "linear-gradient(135deg,#2563eb,#7c3aed)", border: "1px solid rgba(167,139,250,0.42)", cursor: onOpenClosures ? "pointer" : "default", fontSize: 10.5, fontWeight: 950 }}
+              >
+                {language === "en" ? "Open closures" : "Abrir cierres"}
+              </button>
             </div>
             <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))", gap: 8 }}>
               {stages.map((stage, index) => {
@@ -430,8 +473,10 @@ export default function PremiumWorkspaceShell({
                     }}
                   >
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                      <span style={{ width: 21, height: 21, borderRadius: 99, display: "grid", placeItems: "center", color: "#fff", background: tone.color, fontSize: 9.5, fontWeight: 950 }}>{index + 1}</span>
-                      <strong style={{ color: tone.color, fontSize: 16 }}>{stage.value}</strong>
+                      <span style={{ width: 25, height: 25, borderRadius: 9, display: "grid", placeItems: "center", color: tone.color, background: tone.soft, border: `1px solid ${tone.border}` }}><IconoEtapa index={index} /></span>
+                      <strong style={{ padding: "5px 7px", borderRadius: 999, color: tone.color, background: tone.soft, border: `1px solid ${tone.border}`, fontSize: 10.5, lineHeight: 1 }}>
+                        {stage.value} {language === "en" ? (Number(stage.value) === 1 ? "finding" : "findings") : (Number(stage.value) === 1 ? "hallazgo" : "hallazgos")}
+                      </strong>
                     </div>
                     <div style={{ marginTop: 7, color: text, fontSize: 10.5, lineHeight: 1.25, fontWeight: 900 }}>{stage.label}</div>
                     {stage.onClick ? (
