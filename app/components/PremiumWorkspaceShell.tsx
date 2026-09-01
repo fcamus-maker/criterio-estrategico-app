@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 type ModuloPremium =
   | "inicio"
@@ -9,7 +9,8 @@ type ModuloPremium =
   | "cierres"
   | "kpi"
   | "mapa"
-  | "planificacion";
+  | "planificacion"
+  | "configuracion";
 
 type MetricaPremium = {
   label: string;
@@ -46,7 +47,7 @@ const MODULOS: Array<{
   label: string;
   labelEn: string;
   href: string;
-  icon: "home" | "finding" | "closure" | "chart" | "map" | "calendar";
+  icon: "home" | "finding" | "closure" | "chart" | "map" | "calendar" | "settings";
 }> = [
   { id: "inicio", label: "Inicio ejecutivo", labelEn: "Executive home", href: "/panel", icon: "home" },
   { id: "hallazgos", label: "Hallazgos", labelEn: "Findings", href: "/panel#hallazgos-operativos", icon: "finding" },
@@ -54,6 +55,7 @@ const MODULOS: Array<{
   { id: "kpi", label: "KPI gerencial", labelEn: "Management KPI", href: "/panel/kpi-gerencial", icon: "chart" },
   { id: "mapa", label: "Mapa GPS", labelEn: "GPS map", href: "/panel/mapa-gps", icon: "map" },
   { id: "planificacion", label: "Planificación", labelEn: "Planning", href: "/panel#planificacion-preventiva", icon: "calendar" },
+  { id: "configuracion", label: "Configuración", labelEn: "Settings", href: "/panel#configuracion-sistema", icon: "settings" },
 ];
 
 const TONOS = {
@@ -93,7 +95,10 @@ function IconoModulo({ name }: { name: (typeof MODULOS)[number]["icon"] }) {
   if (name === "map") {
     return <svg {...common}><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3Z"/><path d="M9 3v15M15 6v15"/></svg>;
   }
-  return <svg {...common}><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>;
+  if (name === "calendar") {
+    return <svg {...common}><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>;
+  }
+  return <svg {...common}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21H9.6v-.1A1.7 1.7 0 0 0 8 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 3.6 15a1.7 1.7 0 0 0-1.5-1H2v-4h.1A1.7 1.7 0 0 0 3.6 9a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 8 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.1A1.7 1.7 0 0 0 15 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9a1.7 1.7 0 0 0 1.5 1h.1v4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>;
 }
 
 export default function PremiumWorkspaceShell({
@@ -112,6 +117,7 @@ export default function PremiumWorkspaceShell({
   toolbar,
   onModuleSelect,
 }: PremiumWorkspaceShellProps) {
+  const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const light = theme === "light";
   const text = light ? "#0f172a" : "#f8fafc";
   const muted = light ? "#64748b" : "#94a3b8";
@@ -121,15 +127,15 @@ export default function PremiumWorkspaceShell({
       <style>{`
         .ce-premium-workspace-sidebar {
           position: fixed;
-          left: 14px;
-          top: 14px;
-          bottom: 14px;
-          width: 254px;
+          left: 10px;
+          top: 10px;
+          bottom: 10px;
           z-index: 90;
+          transition: width 180ms ease, box-shadow 180ms ease;
         }
-        .ce-premium-workspace-top {
+        .ce-premium-workspace-commandbar {
           position: sticky;
-          top: 12px;
+          top: 8px;
           z-index: 70;
         }
         .ce-premium-shell-host > .ce-panel-shell > .ce-panel-main-header,
@@ -139,23 +145,29 @@ export default function PremiumWorkspaceShell({
         .ce-premium-shell-host .ce-map-legacy-master-filters {
           display: none !important;
         }
+        .ce-premium-shell-host .ce-panel-left-rail {
+          display: none !important;
+        }
+        .ce-premium-shell-host .ce-panel-dashboard-grid {
+          grid-template-columns: minmax(0, 1fr) clamp(270px, 20vw, 340px) !important;
+        }
         @media (min-width: 1100px) {
           main.ce-premium-shell-host {
-            padding-left: 286px !important;
+            padding-left: 104px !important;
           }
         }
         @media (max-width: 1099px) {
           .ce-premium-workspace-sidebar {
             position: relative;
             inset: auto;
-            width: auto;
+            width: auto !important;
             margin-bottom: 14px;
           }
           .ce-premium-workspace-nav {
             display: grid !important;
             grid-template-columns: repeat(3, minmax(0, 1fr));
           }
-          .ce-premium-workspace-top {
+          .ce-premium-workspace-commandbar {
             top: 6px;
           }
         }
@@ -174,12 +186,15 @@ export default function PremiumWorkspaceShell({
 
       <aside
         className="ce-premium-workspace-sidebar"
+        onMouseEnter={() => setSidebarExpanded(true)}
+        onMouseLeave={() => setSidebarExpanded(false)}
         style={{
+          width: sidebarExpanded ? 224 : 76,
           borderRadius: 24,
-          padding: 16,
+          padding: sidebarExpanded ? 14 : 10,
           display: "flex",
           flexDirection: "column",
-          gap: 16,
+          gap: 12,
           color: "#f8fafc",
           background: "linear-gradient(180deg, rgba(5,13,28,0.99), rgba(8,20,43,0.98))",
           border: "1px solid rgba(96,165,250,0.20)",
@@ -187,9 +202,9 @@ export default function PremiumWorkspaceShell({
           overflow: "auto",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "4px 4px 12px" }}>
-          <div style={{ width: 44, height: 44, borderRadius: 14, display: "grid", placeItems: "center", fontWeight: 950, letterSpacing: "-1px", background: "linear-gradient(135deg,#2563eb,#06b6d4)", boxShadow: "0 12px 28px rgba(37,99,235,0.35)" }}>CE</div>
-          <div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: sidebarExpanded ? "flex-start" : "center", gap: 10, padding: "3px 2px 8px" }}>
+          <div style={{ flex: "0 0 auto", width: 40, height: 40, borderRadius: 13, display: "grid", placeItems: "center", fontWeight: 950, letterSpacing: "-1px", background: "linear-gradient(135deg,#2563eb,#06b6d4)", boxShadow: "0 12px 28px rgba(37,99,235,0.35)" }}>CE</div>
+          <div style={{ display: sidebarExpanded ? "block" : "none", minWidth: 0 }}>
             <div style={{ fontSize: 10, color: "#7dd3fc", fontWeight: 900, letterSpacing: 1.2, textTransform: "uppercase" }}>Criterio Estratégico</div>
             <div style={{ marginTop: 3, fontSize: 14, fontWeight: 950 }}>Control Preventivo</div>
           </div>
@@ -209,13 +224,15 @@ export default function PremiumWorkspaceShell({
                   }
                 }}
                 aria-current={selected ? "page" : undefined}
+                title={language === "en" ? modulo.labelEn : modulo.label}
                 style={{
-                  minHeight: 48,
-                  padding: "11px 12px",
+                  minHeight: 44,
+                  padding: sidebarExpanded ? "9px 11px" : "9px",
                   borderRadius: 14,
                   display: "flex",
                   alignItems: "center",
-                  gap: 11,
+                  justifyContent: sidebarExpanded ? "flex-start" : "center",
+                  gap: sidebarExpanded ? 10 : 0,
                   color: selected ? "#ffffff" : "#a9bdd6",
                   background: selected ? "linear-gradient(135deg,rgba(37,99,235,0.96),rgba(14,165,233,0.82))" : "rgba(255,255,255,0.035)",
                   border: selected ? "1px solid rgba(125,211,252,0.42)" : "1px solid rgba(148,163,184,0.10)",
@@ -226,37 +243,37 @@ export default function PremiumWorkspaceShell({
                 }}
               >
                 <IconoModulo name={modulo.icon} />
-                <span>{language === "en" ? modulo.labelEn : modulo.label}</span>
+                <span style={{ display: sidebarExpanded ? "inline" : "none", whiteSpace: "nowrap" }}>{language === "en" ? modulo.labelEn : modulo.label}</span>
               </Link>
             );
           })}
         </nav>
 
         <div style={{ marginTop: "auto", display: "grid", gap: 10 }}>
-          <div style={{ padding: 12, borderRadius: 15, background: "rgba(34,197,94,0.08)", border: "1px solid rgba(74,222,128,0.18)" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, fontWeight: 900, color: "#bbf7d0" }}>
+          <div style={{ padding: sidebarExpanded ? 10 : 8, borderRadius: 15, background: "rgba(34,197,94,0.08)", border: "1px solid rgba(74,222,128,0.18)" }} title={language === "en" ? "System operational" : "Sistema operativo"}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: sidebarExpanded ? "flex-start" : "center", gap: 8, fontSize: 11, fontWeight: 900, color: "#bbf7d0" }}>
               <span style={{ width: 8, height: 8, borderRadius: 99, background: "#4ade80", boxShadow: "0 0 14px rgba(74,222,128,0.75)" }} />
-              {language === "en" ? "System operational" : "Sistema operativo"}
+              {sidebarExpanded ? (language === "en" ? "System operational" : "Sistema operativo") : null}
             </div>
-            <div style={{ marginTop: 7, color: "#86a2bf", fontSize: 10.5, lineHeight: 1.35 }}>{lastUpdate || (language === "en" ? "Traceability active" : "Trazabilidad activa")}</div>
+            {sidebarExpanded ? <div style={{ marginTop: 7, color: "#86a2bf", fontSize: 10.5, lineHeight: 1.35 }}>{lastUpdate || (language === "en" ? "Traceability active" : "Trazabilidad activa")}</div> : null}
           </div>
-          <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+          <div style={{ display: sidebarExpanded ? "flex" : "none", gap: 7, flexWrap: "wrap" }}>
             <span style={{ padding: "6px 8px", borderRadius: 99, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(148,163,184,0.14)", color: "#b9c9dc", fontSize: 10, fontWeight: 900 }}>{language.toUpperCase()}</span>
             <span style={{ padding: "6px 8px", borderRadius: 99, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(148,163,184,0.14)", color: "#b9c9dc", fontSize: 10, fontWeight: 900 }}>{light ? (language === "en" ? "LIGHT" : "CLARO") : (language === "en" ? "DARK" : "OSCURO")}</span>
           </div>
         </div>
       </aside>
 
-      <section className="ce-premium-workspace-top" style={{ marginBottom: 18 }}>
+      <section className="ce-premium-workspace-top" style={{ marginBottom: 14 }}>
         <div
-          className="ce-premium-command-head"
+          className="ce-premium-command-head ce-premium-workspace-commandbar"
           style={{
             display: "grid",
             gridTemplateColumns: "minmax(0,1fr) auto",
-            gap: 18,
+            gap: 12,
             alignItems: "center",
-            padding: "17px 20px",
-            borderRadius: 22,
+            padding: "10px 14px",
+            borderRadius: 17,
             color: text,
             background: light ? "rgba(255,255,255,0.92)" : "rgba(7,17,36,0.93)",
             border: light ? "1px solid rgba(100,116,139,0.20)" : "1px solid rgba(96,165,250,0.19)",
@@ -265,13 +282,13 @@ export default function PremiumWorkspaceShell({
           }}
         >
           <div>
-            <div style={{ color: light ? "#2563eb" : "#38bdf8", fontSize: 10.5, fontWeight: 950, letterSpacing: 1.1, textTransform: "uppercase" }}>{eyebrow}</div>
-            <h1 style={{ margin: "5px 0 4px", fontSize: "clamp(23px,2.1vw,34px)", lineHeight: 1.05, fontWeight: 950, letterSpacing: "-0.7px" }}>{title}</h1>
-            <p style={{ margin: 0, maxWidth: 940, color: muted, fontSize: 12.5, lineHeight: 1.45, fontWeight: 700 }}>{subtitle}</p>
+            <div style={{ color: light ? "#2563eb" : "#38bdf8", fontSize: 9, fontWeight: 950, letterSpacing: 1, textTransform: "uppercase" }}>{eyebrow}</div>
+            <h1 style={{ margin: "2px 0 0", fontSize: "clamp(19px,1.7vw,25px)", lineHeight: 1.05, fontWeight: 950, letterSpacing: "-0.5px" }}>{title}</h1>
+            <p style={{ margin: "3px 0 0", maxWidth: 900, color: muted, fontSize: 10.5, lineHeight: 1.25, fontWeight: 700 }}>{subtitle}</p>
           </div>
           <div className="ce-premium-command-actions" style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 9, flexWrap: "wrap" }}>
             {actions}
-            <div style={{ padding: "9px 11px", borderRadius: 13, background: light ? "#f8fafc" : "rgba(255,255,255,0.045)", border: light ? "1px solid rgba(100,116,139,0.18)" : "1px solid rgba(148,163,184,0.13)" }}>
+            <div style={{ padding: "6px 9px", borderRadius: 11, background: light ? "#f8fafc" : "rgba(255,255,255,0.045)", border: light ? "1px solid rgba(100,116,139,0.18)" : "1px solid rgba(148,163,184,0.13)" }}>
               <div style={{ fontSize: 11, fontWeight: 950 }}>{profileName}</div>
               <div style={{ marginTop: 2, color: muted, fontSize: 9.5, fontWeight: 800 }}>{profileRole}</div>
             </div>
@@ -283,9 +300,9 @@ export default function PremiumWorkspaceShell({
             {metrics.map((metric) => {
               const tone = TONOS[metric.tone || "blue"];
               return (
-                <article key={metric.label} style={{ minHeight: 86, padding: "12px 14px", borderRadius: 17, background: light ? "rgba(255,255,255,0.88)" : "rgba(9,20,42,0.88)", border: `1px solid ${tone.border}`, boxShadow: light ? "0 10px 24px rgba(15,23,42,0.06)" : "0 12px 26px rgba(2,6,23,0.20)" }}>
+                <article key={metric.label} style={{ minHeight: 62, padding: "9px 11px", borderRadius: 15, background: light ? "rgba(255,255,255,0.88)" : "rgba(9,20,42,0.88)", border: `1px solid ${tone.border}`, boxShadow: light ? "0 10px 24px rgba(15,23,42,0.06)" : "0 12px 26px rgba(2,6,23,0.20)" }}>
                   <div style={{ color: muted, fontSize: 9.5, fontWeight: 950, letterSpacing: 0.55, textTransform: "uppercase" }}>{metric.label}</div>
-                  <div style={{ marginTop: 7, color: tone.color, fontSize: 25, lineHeight: 1, fontWeight: 950 }}>{metric.value}</div>
+                  <div style={{ marginTop: 4, color: tone.color, fontSize: 20, lineHeight: 1, fontWeight: 950 }}>{metric.value}</div>
                   {metric.helper && <div style={{ marginTop: 6, color: muted, fontSize: 9.5, fontWeight: 750 }}>{metric.helper}</div>}
                 </article>
               );

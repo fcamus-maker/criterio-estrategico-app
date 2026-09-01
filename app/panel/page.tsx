@@ -765,7 +765,7 @@ export default function PanelEjecutivoPage() {
   const [vistaDerecha, setVistaDerecha] = useState<"informe" | "configuracion" | "seguimiento">("informe");
   const [vistaPrincipal, setVistaPrincipal] = useState<"panel" | "configuracion" | "seguimiento">("panel");
   const [moduloWorkspaceActivo, setModuloWorkspaceActivo] = useState<
-    "inicio" | "hallazgos" | "cierres" | "planificacion"
+    "inicio" | "hallazgos" | "cierres" | "planificacion" | "configuracion"
   >("inicio");
   const [modoSistema, setModoSistema] = useState<"claro" | "oscuro" | "automatico">(
     () => readPlatformPreferences().theme
@@ -861,6 +861,18 @@ const [guardadoConfig, setGuardadoConfig] = useState(false);
     router.prefetch("/panel/kpi-gerencial");
     router.prefetch("/panel/mapa-gps");
   }, [router]);
+  useEffect(() => {
+    const abrirModuloDesdeHash = () => {
+      if (window.location.hash !== "#configuracion-sistema") return;
+      setModuloWorkspaceActivo("configuracion");
+      setVistaPrincipal("configuracion");
+      setVistaDerecha("configuracion");
+    };
+
+    abrirModuloDesdeHash();
+    window.addEventListener("hashchange", abrirModuloDesdeHash);
+    return () => window.removeEventListener("hashchange", abrirModuloDesdeHash);
+  }, []);
 const [fechaActualizacion, setFechaActualizacion] = useState<Date | null>(null);
 const [filasPanel, setFilasPanel] = useState<HallazgoPanelExtendido[]>([]);
 const [cargandoHallazgosPanel, setCargandoHallazgosPanel] = useState(true);
@@ -7742,6 +7754,13 @@ const riesgoOperativoPrincipal =
           { label: t("Cerrados con evidencia"), value: kpisSeguimiento.find((item) => item.id === "cerrados-evidencia")?.valor || 0, tone: "green" },
         ]}
         onModuleSelect={(module) => {
+          if (module === "configuracion") {
+            setModuloWorkspaceActivo("configuracion");
+            setVistaPrincipal("configuracion");
+            setVistaDerecha("configuracion");
+            return;
+          }
+
           if (module === "cierres") {
             setModuloWorkspaceActivo("cierres");
             setVistaPrincipal("seguimiento");
@@ -9345,8 +9364,8 @@ const riesgoOperativoPrincipal =
           className="ce-panel-dashboard-grid"
           style={{
             display: "grid",
-            gridTemplateColumns:
-              "clamp(240px, 14vw, 310px) minmax(0, 1fr) clamp(300px, 17vw, 390px)",
+              gridTemplateColumns:
+              "minmax(0, 1fr) clamp(270px, 20vw, 340px)",
             gap: "clamp(16px, 1vw, 24px)",
             alignItems: "stretch",
           }}
@@ -11673,7 +11692,7 @@ style={{
               minHeight: "760px",
               display: "flex",
               flexDirection: "column",
-              gridColumn: vistaPrincipal === "panel" ? "auto" : "2 / 4",
+              gridColumn: vistaPrincipal === "panel" ? "auto" : "1 / -1",
             }}
             >
 {vistaDerecha !== "informe" ? null : (
@@ -13041,6 +13060,7 @@ style={{
           onClick={() => {
             setVistaPrincipal("panel");
             setVistaDerecha("informe");
+            setModuloWorkspaceActivo("inicio");
           }}
          style={{
   ...premiumSecondaryButtonStyle,
