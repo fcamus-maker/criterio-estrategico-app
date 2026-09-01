@@ -15,6 +15,7 @@ const RUTAS_EVALUAR_V2 = [
   "/evaluar-v2/informe-final",
   "/manifest.webmanifest",
   "/logo.png",
+  "/assets/clientes/conecta-logo-oficial.png",
   "/icon.png",
   "/favicon.ico",
 ];

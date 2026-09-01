@@ -14,6 +14,7 @@ const CORE_ASSETS = [
   "/evaluar-v2/informe-final",
   "/manifest.webmanifest",
   "/logo.png",
+  "/assets/clientes/conecta-logo-oficial.png",
   "/icon.png",
   "/favicon.ico",
 ];
@@ -46,6 +47,7 @@ function esAssetPropio(url) {
     url.pathname.startsWith("/_next/static/") ||
     url.pathname === "/manifest.webmanifest" ||
     url.pathname === "/logo.png" ||
+    url.pathname === "/assets/clientes/conecta-logo-oficial.png" ||
     url.pathname === "/icon.png" ||
     url.pathname === "/favicon.ico" ||
     url.pathname === "/offline.html"

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import Image from "next/image";
+import { useState, type CSSProperties, type ReactNode } from "react";
 
 type ModuloPremium =
   | "inicio"
@@ -45,6 +46,7 @@ type PremiumWorkspaceShellProps = {
   profileImageUrl?: string | null;
   companyLogoUrl?: string | null;
   companyName?: string;
+  companyLogoImageStyle?: CSSProperties;
   onProfileClick?: () => void;
   lastUpdate?: string;
   actions?: ReactNode;
@@ -146,6 +148,7 @@ export default function PremiumWorkspaceShell({
   profileImageUrl,
   companyLogoUrl,
   companyName = "Criterio Estratégico",
+  companyLogoImageStyle,
   onProfileClick,
   lastUpdate,
   actions,
@@ -216,6 +219,12 @@ export default function PremiumWorkspaceShell({
           }
           .ce-premium-command-actions {
             justify-content: flex-start !important;
+          }
+          .ce-premium-client-brand-name {
+            display: none !important;
+          }
+          .ce-premium-client-logo-slot {
+            width: 112px !important;
           }
         }
       `}</style>
@@ -322,20 +331,60 @@ export default function PremiumWorkspaceShell({
               <div
                 title={companyName}
                 style={{
-                  width: 34,
-                  height: 34,
-                  flex: "0 0 34px",
-                  borderRadius: 10,
-                  padding: 4,
-                  display: "grid",
-                  placeItems: "center",
-                  overflow: "hidden",
-                  background: "#ffffff",
-                  border: light ? "1px solid rgba(100,116,139,0.18)" : "1px solid rgba(125,211,252,0.22)",
-                  boxShadow: "0 8px 20px rgba(2,6,23,0.16)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 9,
+                  minWidth: 0,
+                  flex: "0 1 auto",
                 }}
               >
-                <img src={companyLogoUrl} alt={companyName} style={{ width: "100%", height: "100%", display: "block", objectFit: "contain" }} />
+                <div
+                  className="ce-premium-client-logo-slot"
+                  style={{
+                    width: "clamp(126px, 11vw, 168px)",
+                    height: 36,
+                    flex: "0 0 auto",
+                    borderRadius: 10,
+                    padding: "6px 9px",
+                    display: "grid",
+                    placeItems: "center",
+                    position: "relative",
+                    overflow: "hidden",
+                    background: "linear-gradient(135deg,#071a2d,#0d3556)",
+                    border: "1px solid rgba(125,211,252,0.22)",
+                    boxShadow: "0 8px 20px rgba(2,6,23,0.18)",
+                  }}
+                >
+                  <Image
+                    src={companyLogoUrl}
+                    alt={`Logo de ${companyName}`}
+                    fill
+                    unoptimized
+                    sizes="(max-width: 720px) 112px, 168px"
+                    style={{
+                      display: "block",
+                      objectFit: "contain",
+                      objectPosition: "left center",
+                      ...companyLogoImageStyle,
+                    }}
+                  />
+                </div>
+                <div
+                  className="ce-premium-client-brand-name"
+                  style={{
+                    maxWidth: 170,
+                    color: muted,
+                    fontSize: 9.5,
+                    lineHeight: 1.18,
+                    fontWeight: 900,
+                    letterSpacing: 0.25,
+                  }}
+                >
+                  <span style={{ display: "block", marginBottom: 2, color: light ? "#2563eb" : "#7dd3fc", fontSize: 8, textTransform: "uppercase", letterSpacing: 0.8 }}>
+                    {language === "en" ? "Client company" : "Empresa cliente"}
+                  </span>
+                  {companyName}
+                </div>
               </div>
             ) : null}
             <div style={{ minWidth: 0 }}>

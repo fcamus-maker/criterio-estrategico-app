@@ -28,6 +28,14 @@ const PANEL_CONFIG_STORAGE_KEY = "ce_panel_config";
 const CE_NAME = "Criterio Estratégico";
 const CE_LOGO_URL = "/logo.png";
 
+export const CONECTA_BRAND_PRESET = {
+  id: "conecta",
+  nombreCliente: "Conecta Construcción y Montaje Ltda.",
+  logoUrl: "/assets/clientes/conecta-logo-oficial.png",
+  colorPrimario: "#0b2f4b",
+  colorSecundario: "#e30613",
+} as const;
+
 function clean(value?: string | null) {
   return String(value || "").trim();
 }

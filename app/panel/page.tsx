@@ -49,7 +49,10 @@ import {
 } from "../services/profilePhotoService";
 import PreventiveLegalRibbon from "../components/PreventiveLegalRibbon";
 import PremiumWorkspaceShell from "../components/PremiumWorkspaceShell";
-import { resolveClientBranding } from "../services/clientBranding";
+import {
+  CONECTA_BRAND_PRESET,
+  resolveClientBranding,
+} from "../services/clientBranding";
 import {
   construirProyeccionGestionCierrePanel,
   construirEstadoAsignacion,
@@ -1499,6 +1502,31 @@ const [menuExportacionMetaAbierto, setMenuExportacionMetaAbierto] = useState(fal
     }
   };
 
+  const aplicarMarcaConecta = () => {
+    const ajusteInicial: LogoAjusteConfig = {
+      ...LOGO_AJUSTE_DEFECTO,
+      logoPosition: "left center",
+    };
+
+    setNombreEmpresaConfig(CONECTA_BRAND_PRESET.nombreCliente);
+    setLogoEmpresaConfig(CONECTA_BRAND_PRESET.logoUrl);
+    setLogoScale(ajusteInicial.logoScale);
+    setLogoOffsetX(ajusteInicial.logoOffsetX);
+    setLogoOffsetY(ajusteInicial.logoOffsetY);
+    setLogoFit(ajusteInicial.logoFit);
+    setLogoPosition(ajusteInicial.logoPosition);
+    setBrandingPC(true);
+    setBrandingPDF(true);
+    guardarConfiguracionPanelPersistida({
+      nombreEmpresaConfig: CONECTA_BRAND_PRESET.nombreCliente,
+      logoEmpresaConfig: CONECTA_BRAND_PRESET.logoUrl,
+      brandingPC: true,
+      brandingPDF: true,
+      ...ajusteInicial,
+    });
+    setGuardadoConfig(true);
+  };
+
   const quitarLogoEmpresa = () => {
     const ajusteInicial = LOGO_AJUSTE_DEFECTO;
     setLogoEmpresaConfig("");
@@ -1588,6 +1616,35 @@ const [menuExportacionMetaAbierto, setMenuExportacionMetaAbierto] = useState(fal
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+
+    const presetMarca = new URLSearchParams(window.location.search).get("marca");
+    if (presetMarca?.toLowerCase() === CONECTA_BRAND_PRESET.id) {
+      const ajusteInicial: LogoAjusteConfig = {
+        ...LOGO_AJUSTE_DEFECTO,
+        logoPosition: "left center",
+      };
+      setNombreEmpresaConfig(CONECTA_BRAND_PRESET.nombreCliente);
+      setLogoEmpresaConfig(CONECTA_BRAND_PRESET.logoUrl);
+      setLogoScale(ajusteInicial.logoScale);
+      setLogoOffsetX(ajusteInicial.logoOffsetX);
+      setLogoOffsetY(ajusteInicial.logoOffsetY);
+      setLogoFit(ajusteInicial.logoFit);
+      setLogoPosition(ajusteInicial.logoPosition);
+      setBrandingPC(true);
+      setBrandingPDF(true);
+      guardarConfiguracionPanelPersistida({
+        nombreEmpresaConfig: CONECTA_BRAND_PRESET.nombreCliente,
+        logoEmpresaConfig: CONECTA_BRAND_PRESET.logoUrl,
+        brandingPC: true,
+        brandingPDF: true,
+        ...ajusteInicial,
+      });
+      window.history.replaceState(
+        window.history.state,
+        "",
+        `${window.location.pathname}${window.location.hash}`
+      );
+    }
 
     const preferenciasGlobales = readPlatformPreferences();
     setModoSistema(preferenciasGlobales.theme);
@@ -3016,22 +3073,22 @@ const generarInformeEmpresaObra = (opciones: { imprimir?: boolean } = {}) => {
 
           .report-brand {
             display: grid;
-            grid-template-columns: 84px minmax(0, 1fr);
-            gap: 16px;
+            grid-template-columns: 178px minmax(0, 1fr);
+            gap: 14px;
             align-items: center;
             min-width: 0;
           }
 
           .report-logo-slot {
-            width: 84px;
-            height: 72px;
-            border: 1px solid #cbd5e1;
-            border-radius: 14px;
-            background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+            width: 178px;
+            height: 52px;
+            border: 1px solid #1e4f72;
+            border-radius: 11px;
+            background: linear-gradient(135deg, #071a2d 0%, #0d3556 100%);
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 8px;
+            padding: 8px 12px;
             overflow: hidden;
           }
 
@@ -3041,7 +3098,7 @@ const generarInformeEmpresaObra = (opciones: { imprimir?: boolean } = {}) => {
             object-fit: ${logoFitInforme};
             object-position: ${escapeHtml(logoPositionInforme)};
             transform: translate(${logoOffsetXInforme}px, ${logoOffsetYInforme}px) scale(${logoScaleInforme});
-            transform-origin: center;
+            transform-origin: left center;
             display: block;
           }
 
@@ -4577,12 +4634,17 @@ const generarHtmlCalendarioMeta = () => {
     body { margin: 0; padding: 18mm 0; font-family: Arial, Helvetica, sans-serif; color: #0f172a; background: #e5e7eb; }
     .page { width: 210mm; min-height: 297mm; margin: 0 auto; background: #fff; box-shadow: 0 18px 50px rgba(15,23,42,.18); padding: 14mm; }
     .header { display: flex; align-items: center; justify-content: space-between; gap: 12mm; border-bottom: 1px solid #e2e8f0; padding-bottom: 7mm; break-inside: avoid; }
-    .user { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .report-brand-calendar { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .calendar-logo-slot { width: 44mm; height: 12mm; padding: 2mm 3mm; border-radius: 3mm; background: linear-gradient(135deg,#071a2d,#0d3556); border: 1px solid #1e4f72; flex: 0 0 auto; }
+    .calendar-logo-slot img { width: 100%; height: 100%; object-fit: contain; object-position: left center; display: block; }
+    .calendar-brand-name { color: #163a70; font-size: 9px; line-height: 1.25; font-weight: 900; text-transform: uppercase; margin-bottom: 3px; }
+    .user { display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; margin-top: 5px; }
     .avatar { width: 16mm; height: 16mm; border-radius: 999px; overflow: hidden; display: grid; place-items: center; background: #0f172a; color: #fff; font-size: 16px; font-weight: 900; flex: 0 0 auto; }
     .avatar img { width: 100%; height: 100%; object-fit: cover; }
     h1 { margin: 0; font-size: 20px; line-height: 1.1; }
     .muted { color: #64748b; font-size: 10px; font-weight: 700; margin-top: 3px; }
-    .month { text-align: right; font-size: 18px; font-weight: 900; text-transform: capitalize; white-space: nowrap; }
+    .header-side { text-align: right; min-width: 42mm; }
+    .month { font-size: 18px; font-weight: 900; text-transform: capitalize; white-space: nowrap; }
     .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 7mm 0; break-inside: avoid; }
     .stat { border: 1px solid #e2e8f0; border-radius: 10px; padding: 8px; background: #f8fafc; }
     .stat span { display: block; color: #64748b; font-size: 9px; line-height: 1.2; font-weight: 800; }
@@ -4616,15 +4678,24 @@ const generarHtmlCalendarioMeta = () => {
 <body>
   <main class="page">
     <section class="header">
-      <div class="user">
-        <div class="avatar">${avatarUsuario}</div>
+      <div class="report-brand-calendar">
+        <div class="calendar-logo-slot"><img src="${escapeHtmlMeta(informeBranding.logoPrincipalUrl)}" alt="${escapeHtmlMeta(informeBranding.nombrePrincipal)}" /></div>
         <div>
+          <div class="calendar-brand-name">${escapeHtmlMeta(informeBranding.nombrePrincipal)}</div>
           <h1>${escapeHtmlMeta(t("Informe mensual de cumplimiento diario"))}</h1>
-          <div class="muted">${escapeHtmlMeta(usuario.nombre)} · ${escapeHtmlMeta(usuario.cargo)}</div>
-          <div class="muted">${escapeHtmlMeta(usuario.empresa)} · ${escapeHtmlMeta(fechaHoraExportacionMetaTexto)}</div>
+          <div class="muted">${escapeHtmlMeta(informeBranding.poweredByText)} · ${escapeHtmlMeta(fechaHoraExportacionMetaTexto)}</div>
         </div>
       </div>
-      <div class="month">${escapeHtmlMeta(nombreMesTituloMeta)} ${escapeHtmlMeta(anioCalendarioMeta)}</div>
+      <div class="header-side">
+        <div class="month">${escapeHtmlMeta(nombreMesTituloMeta)} ${escapeHtmlMeta(anioCalendarioMeta)}</div>
+        <div class="user">
+          <div>
+            <div class="muted">${escapeHtmlMeta(usuario.nombre)} · ${escapeHtmlMeta(usuario.cargo)}</div>
+            <div class="muted">${escapeHtmlMeta(usuario.empresa)}</div>
+          </div>
+          <div class="avatar">${avatarUsuario}</div>
+        </div>
+      </div>
     </section>
     <section class="stats">
       <div class="stat"><span>${escapeHtmlMeta(t("Meta diaria programada"))}</span><strong>${escapeHtmlMeta(metaDiariaSegura)}</strong></div>
@@ -5458,9 +5529,19 @@ const imprimirInformeSeguimiento = () => {
             font-size: 12px;
             font-weight: 900;
             color: #1f2937;
-            text-transform: uppercase;
+            max-width: 270px;
           }
-          .brand img { width: 34px; height: 34px; object-fit: contain; }
+          .brand-logo-slot {
+            width: 150px;
+            height: 40px;
+            padding: 7px 10px;
+            border-radius: 9px;
+            background: linear-gradient(135deg, #071a2d, #0d3556);
+            border: 1px solid #1e4f72;
+            flex: 0 0 auto;
+          }
+          .brand img { width: 100%; height: 100%; object-fit: contain; object-position: left center; display: block; }
+          .brand-name { font-size: 10px; line-height: 1.25; text-transform: uppercase; }
           h1 { font-size: 22px; margin: 0 0 8px; line-height: 1.12; }
           .sub { color: #4b5563; font-size: 12px; line-height: 1.45; font-weight: 700; }
           .badge {
@@ -5519,7 +5600,10 @@ const imprimirInformeSeguimiento = () => {
               <div class="sub">${escapeHtml(item.codigo)} · ${escapeHtml(t(item.criticidad))} · ${escapeHtml(t(plazo))}</div>
             </div>
             <div>
-              <div class="brand"><img src="/logo.png" alt="Criterio Estratégico" /> Criterio Estratégico</div>
+              <div class="brand">
+                <div class="brand-logo-slot"><img src="${escapeHtml(informeBranding.logoPrincipalUrl)}" alt="${escapeHtml(informeBranding.nombrePrincipal)}" /></div>
+                <div class="brand-name">${escapeHtml(informeBranding.nombrePrincipal)}</div>
+              </div>
               <div style="margin-top:10px; text-align:right;"><span class="badge">${escapeHtml(t(estadoSeguimientoVisual(item)))}</span></div>
             </div>
           </header>
@@ -7860,6 +7944,7 @@ const riesgoOperativoPrincipal =
         profileImageUrl={usuario.foto || fotoPerfil || null}
         companyLogoUrl={clientBranding.logoPrincipalUrl}
         companyName={clientBranding.nombrePrincipal}
+        companyLogoImageStyle={panelLogoImageStyle}
         onProfileClick={abrirEditorPerfil}
         lastUpdate={ultimaActualizacion ? `${t("Última actualización:")} ${ultimaActualizacion}` : undefined}
         metrics={[
@@ -13386,7 +13471,7 @@ style={{
   <div
     style={{
       display: "grid",
-      gridTemplateColumns: "190px 1fr",
+      gridTemplateColumns: "minmax(280px, 0.85fr) minmax(0, 1.15fr)",
       gap: "18px",
       alignItems: "stretch",
     }}
@@ -13412,15 +13497,13 @@ style={{
     >
       <div
         style={{
-          width: "132px",
-          height: "96px",
-          borderRadius: "18px",
+          width: "min(100%, 260px)",
+          height: "72px",
+          borderRadius: "14px",
           border: temaClaro
             ? "1px solid rgba(15,23,42,0.16)"
             : "1px solid rgba(148,163,184,0.24)",
-          background: temaClaro
-            ? "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)"
-            : "linear-gradient(180deg, rgba(248,250,252,0.96), rgba(226,232,240,0.90))",
+          background: "linear-gradient(135deg, #071a2d 0%, #0d3556 100%)",
           boxShadow: temaClaro
             ? "0 10px 24px rgba(15,23,42,0.10)"
             : "0 12px 26px rgba(0,0,0,0.28)",
@@ -13428,7 +13511,7 @@ style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          padding: "8px",
+          padding: "10px 14px",
         }}
       >
         <img
@@ -13439,6 +13522,18 @@ style={{
       </div>
 
       <div>{logoEmpresaConfig ? t("Logo empresa") : t("Fallback CE")}</div>
+
+      <div
+        style={{
+          maxWidth: "260px",
+          color: tema.texto,
+          fontSize: "12px",
+          fontWeight: 900,
+          lineHeight: 1.35,
+        }}
+      >
+        {nombreEmpresaVisible}
+      </div>
 
       <div
         style={{
@@ -13514,6 +13609,23 @@ style={{
         >
           {t("Seleccionar logo")}
         </label>
+        <button
+          type="button"
+          onClick={aplicarMarcaConecta}
+          style={{
+            padding: "11px 14px",
+            borderRadius: "14px",
+            border: "1px solid rgba(248,113,113,0.52)",
+            background: "linear-gradient(135deg,#991b1b,#dc2626)",
+            color: "#ffffff",
+            fontSize: "12px",
+            fontWeight: 900,
+            cursor: "pointer",
+            boxShadow: "0 10px 24px rgba(220,38,38,0.22)",
+          }}
+        >
+          {t("Aplicar marca Conecta")}
+        </button>
         <button
           type="button"
           onClick={quitarLogoEmpresa}
