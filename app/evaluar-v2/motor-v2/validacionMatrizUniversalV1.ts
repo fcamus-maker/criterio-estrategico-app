@@ -203,25 +203,6 @@ export function detectarContradiccionesMatrizUniversalV1(
     });
   }
 
-  if (
-    vector.consecuencia === "CON_GRAVE" &&
-    vector.probabilidad === "PROB_ALTA" &&
-    ["CTRL_AUSENTE", "CTRL_FALLIDO"].includes(vector.estadoControl) &&
-    vector.estadoOperativo === "EST_CONTINUA_SIN_CONTROL"
-  ) {
-    contradicciones.push({
-      id: "critico_activo_sin_control",
-      mensaje:
-        "El escenario grave, probable y sin control requiere revisar la acción inmediata antes de continuar.",
-      preguntaIds: [
-        "universal_consecuencia",
-        "universal_probabilidad",
-        "universal_control",
-        "universal_estado_operativo",
-      ],
-    });
-  }
-
   return contradicciones;
 }
 

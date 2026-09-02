@@ -131,7 +131,7 @@ function familiaPreventiva(vector: VectorUniversalHallazgoV1): CategoriaHallazgo
   if (vector.naturaleza === "NAT_EXPOSICION_SALUD") return "salud_ocupacional_ruido_polvo_quimicos";
   if (vector.fuente === "FUENTE_EQUIPO") return "maquinaria_equipos";
   if (vector.fuente === "FUENTE_DOCUMENTO") return "legal_documental";
-  if (vector.ambitos.includes("AMB_CALIDAD")) return "aspectos_ambientales";
+  if (vector.ambitos.includes("AMB_CALIDAD")) return "calidad_ejecucion";
   return "condiciones_subestandar";
 }
 

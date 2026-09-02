@@ -5,7 +5,6 @@ import type {
   ConfianzaClasificacionV2,
   Criticidad,
   EvaluacionInputV2,
-  EvaluacionResultadoV2,
   ModuloPreguntasV2,
   NormativaAplicable,
   PreguntaSugeridaMotorV2,
@@ -27,6 +26,17 @@ export type ReporteEvaluableMotorV2 = {
     prioridad?: string;
     recomendacion?: string;
     accionInmediata?: string;
+    flujo_preventivo?: {
+      modo?: "preventivo" | "fallback_actual";
+      familiaPrincipal?: string;
+      confianzaRiesgo?: "alta" | "media" | "baja";
+      riesgoDetectadoId?: string;
+      riesgoDetectadoTitulo?: string;
+      criticidadOrientativaRiesgo?: string;
+      consecuenciaProbableRiesgo?: string;
+      controlCriticoEsperado?: string;
+      accionInmediataSugerida?: string;
+    };
   };
 };
 
@@ -110,6 +120,20 @@ function algunaRespuesta(
   return ids.some((id) => condicion(valorRespuesta(respuestas, id)));
 }
 
+function respuestasInteligentes(respuestas: Record<string, string> | undefined) {
+  return Object.entries(respuestas || {}).filter(([id]) => id.startsWith("inteligente_"));
+}
+
+function incluyeValorInteligente(
+  respuestas: Record<string, string> | undefined,
+  valores: string[],
+  filtroId?: (id: string) => boolean,
+) {
+  return respuestasInteligentes(respuestas).some(
+    ([id, valor]) => (!filtroId || filtroId(id)) && valores.includes(normalizar(valor)),
+  );
+}
+
 export function criticidadMotorAVisual(criticidad: Criticidad) {
   return criticidad === "CRITICO" ? "CRÍTICO" : criticidad;
 }
@@ -143,7 +167,20 @@ function ambitoDesdeTexto(reporte: ReporteEvaluableMotorV2): AmbitoEvaluacion | 
   return undefined;
 }
 
+function ambitoDesdeFlujo(reporte: ReporteEvaluableMotorV2): AmbitoEvaluacion | undefined {
+  const familia = normalizar(reporte.evaluacion?.flujo_preventivo?.familiaPrincipal);
+  if (!familia) return undefined;
+  if (incluye(familia, ["ambiental", "derrame", "residuo", "sustancia"])) return "medio_ambiente";
+  if (incluye(familia, ["salud", "higiene", "ruido", "polvo"])) return "salud_ocupacional";
+  if (incluye(familia, ["documental", "cumplimiento", "procedimiento", "permiso"])) return "legal_documental";
+  if (incluye(familia, ["emergencia", "incendio", "evacuacion"])) return "emergencia";
+  return "seguridad_laboral";
+}
+
 function exposicionDesdeRespuestas(respuestas: Record<string, string> | undefined): EvaluacionInputV2["exposicionPersonas"] {
+  if (incluyeValorInteligente(respuestas, ["exposicion_confirmada"])) return "directa";
+  if (incluyeValorInteligente(respuestas, ["posible_exposicion"])) return "potencial";
+  if (incluyeValorInteligente(respuestas, ["sin_exposicion"])) return "sin_exposicion";
   const idsExposicionDirecta = [
     "orden-003",
     "transito-001",
@@ -197,7 +234,32 @@ function consecuenciaDesdeRespuestas(respuestas: Record<string, string> | undefi
   return undefined;
 }
 
+function consecuenciaDesdeFlujo(reporte: ReporteEvaluableMotorV2): EvaluacionInputV2["consecuencia"] {
+  const criticidad = normalizar(reporte.evaluacion?.flujo_preventivo?.criticidadOrientativaRiesgo);
+  if (criticidad.includes("critic") || criticidad.includes("alto")) return "grave";
+  if (criticidad.includes("medio")) return "moderada";
+  if (criticidad.includes("bajo")) return "leve";
+  return undefined;
+}
+
 function probabilidadDesdeRespuestas(respuestas: Record<string, string> | undefined): EvaluacionInputV2["probabilidad"] {
+  if (
+    incluyeValorInteligente(respuestas, [
+      "continua_sin_control",
+      "no_deficiente_ausente",
+      "documento_no_disponible",
+    ])
+  ) return "alta";
+  if (
+    incluyeValorInteligente(respuestas, [
+      "posible_exposicion",
+      "condicion_posible",
+      "parcial_incompleto",
+      "documento_incompleto",
+      "control_temporal",
+      "accion_pendiente",
+    ])
+  ) return "media";
   if (
     algunaRespuesta(
       respuestas,
@@ -223,6 +285,28 @@ function probabilidadDesdeRespuestas(respuestas: Record<string, string> | undefi
 }
 
 function controlesDesdeRespuestas(respuestas: Record<string, string> | undefined): EvaluacionInputV2["controlesExistentes"] {
+  if (
+    incluyeValorInteligente(
+      respuestas,
+      ["no_deficiente_ausente", "documento_no_disponible", "continua_sin_control", "accion_pendiente"],
+      (id) => !id.endsWith("_cierre"),
+    )
+  ) return "inexistentes";
+  if (
+    incluyeValorInteligente(
+      respuestas,
+      ["parcial_incompleto", "documento_incompleto", "control_temporal", "no_verificable"],
+      (id) => !id.endsWith("_cierre"),
+    )
+  ) return "parciales";
+  if (
+    respuestasInteligentes(respuestas).length > 0 &&
+    incluyeValorInteligente(
+      respuestas,
+      ["si_verificado", "documento_vigente", "accion_especifica_aplicada", "detener_aislar", "corregir_antes_continuar", "mantener_control_efectivo"],
+      (id) => !id.endsWith("_cierre"),
+    )
+  ) return "suficientes";
   const idsControl = [
     "orden-005",
     "transito-003",
@@ -264,6 +348,11 @@ function datosAmbientalesDesdeReporte(reporte: ReporteEvaluableMotorV2): Evaluac
   const respuestaMedioReceptor = respuestaSi(valorRespuesta(respuestas, "derrame-004"));
   const respuestaContencion = respuestaSi(valorRespuesta(respuestas, "derrame-006"));
   const respuestaResiduo = respuestaSi(valorRespuesta(respuestas, "derrame-007"));
+  const respuestaInteligenteSinControl = incluyeValorInteligente(respuestas, [
+    "no_deficiente_ausente",
+    "continua_sin_control",
+    "accion_pendiente",
+  ]);
   const sustanciaDerrame = texto(respuestas?.["derrame-001"]);
   const derrame = incluye(base, ["derrame", "fuga"]) || Boolean(sustanciaDerrame);
   const residuo =
@@ -276,11 +365,18 @@ function datosAmbientalesDesdeReporte(reporte: ReporteEvaluableMotorV2): Evaluac
   const agua = incluye(base, ["agua", "alcantarillado", "drenaje"]) || respuestaMedioReceptor;
   const aire = incluye(base, ["polvo", "emision", "humo", "gases"]);
   const comunidad = incluye(base, ["comunidad", "vecino", "tercero"]);
+  const derrameSinContencionTextual = incluye(base, [
+    "sin contencion",
+    "no contenido",
+    "sin control de derrame",
+  ]);
   const contenido = derrame
     ? respuestaDerrameContenido ||
       (incluye(base, ["contenido", "bandeja", "controlado"]) &&
         !incluye(base, ["no contenido", "sin contencion"])) ||
-      (respuestaDerrameNoContenido ? false : undefined)
+      (respuestaDerrameNoContenido || derrameSinContencionTextual || respuestaInteligenteSinControl
+        ? false
+        : undefined)
     : undefined;
 
   if (!derrame && !residuo && !sustancia && !suelo && !agua && !aire && !comunidad) {
@@ -308,6 +404,8 @@ function datosLegalesDesdeReporte(reporte: ReporteEvaluableMotorV2): EvaluacionI
   const respuestas = reporte.evaluacion?.respuestas;
   const base = normalizar(`${reporte.area || ""} ${reporte.descripcion || ""}`);
   const documentoProcedimiento = texto(respuestas?.["procedimiento-001"] || respuestas?.["legal-001"] || respuestas?.["documento-001"]);
+  const documentoInteligenteFaltante = incluyeValorInteligente(respuestas, ["documento_no_disponible"]);
+  const documentoInteligenteIncompleto = incluyeValorInteligente(respuestas, ["documento_incompleto"]);
   const actividadCriticaEnEjecucion =
     respuestaSi(valorRespuesta(respuestas, "procedimiento-002")) ||
     respuestaSi(valorRespuesta(respuestas, "legal-002")) ||
@@ -343,8 +441,10 @@ function datosLegalesDesdeReporte(reporte: ReporteEvaluableMotorV2): EvaluacionI
     respuestas?.p18 === "no" ||
     respuestas?.p19 === "no";
   const documentoFaltante =
-    (haySenalLegalTextual || Boolean(documentoProcedimiento)) &&
+    (haySenalLegalTextual || Boolean(documentoProcedimiento) || documentoInteligenteFaltante || documentoInteligenteIncompleto) &&
     (respuestaDocumentalNegativa ||
+      documentoInteligenteFaltante ||
+      documentoInteligenteIncompleto ||
       incluye(textoLegal, [
         "documento faltante",
         "registro faltante",
@@ -398,7 +498,7 @@ function entradaMotorV2DesdeReporte(reporte: ReporteEvaluableMotorV2): Evaluacio
     area: texto(reporte.area),
     actividad: texto(reporte.area || reporte.descripcion),
     respuestas,
-    ambitoDeclarado: ambitoDesdeTexto(reporte),
+    ambitoDeclarado: ambitoDesdeFlujo(reporte) || ambitoDesdeTexto(reporte),
     exposicionPersonas: exposicionDesdeRespuestas(respuestas),
     exposicionAmbiental: datosAmbientales
       ? datosAmbientales.existeImpactoAmbiental || datosAmbientales.afectaSuelo || datosAmbientales.afectaAgua
@@ -408,10 +508,11 @@ function entradaMotorV2DesdeReporte(reporte: ReporteEvaluableMotorV2): Evaluacio
     consecuencia:
       incluye(textoBase, ["fatal", "muerte", "grave"]) && exposicionDesdeRespuestas(respuestas) === "directa"
         ? "fatal"
-        : consecuenciaDesdeRespuestas(respuestas),
+        : consecuenciaDesdeRespuestas(respuestas) || consecuenciaDesdeFlujo(reporte),
     probabilidad: probabilidadDesdeRespuestas(respuestas),
     controlesExistentes: controlesDesdeRespuestas(respuestas),
     requiereSuspensionDeclarada:
+      incluyeValorInteligente(respuestas, ["continua_sin_control", "accion_pendiente"]) ||
       (respuestas?.p9 === "no" &&
         (respuestas?.p10 === "si" || respuestas?.p2 === "si" || respuestas?.p3 === "alta")) ||
       algunaRespuesta(
@@ -483,6 +584,10 @@ export function evaluarReporteConMotorV2Seguro(
   try {
     const input = entradaMotorV2DesdeReporte(reporteActual);
     const resultado = evaluarHallazgoV2(input);
+    const flujo = reporteActual.evaluacion?.flujo_preventivo;
+    const riesgoDetectado = texto(flujo?.riesgoDetectadoTitulo);
+    const prefijoRiesgo = riesgoDetectado ? `Riesgo específico identificado: ${riesgoDetectado}. ` : "";
+    const medidaEspecifica = texto(flujo?.accionInmediataSugerida);
 
     return {
       criticidadFinal: resultado.criticidadFinal,
@@ -490,9 +595,9 @@ export function evaluarReporteConMotorV2Seguro(
       ambitosSecundarios: resultado.ambitosSecundarios,
       tipoEvento: resultado.tipoEvento,
       criticidadBase: resultado.criticidadBase,
-      justificacionTecnica: resultado.justificacionTecnica,
-      resumenEjecutivo: resultado.resumenEjecutivo,
-      medidaInmediata: resultado.medidaInmediata,
+      justificacionTecnica: `${prefijoRiesgo}${resultado.justificacionTecnica}`.trim(),
+      resumenEjecutivo: `${prefijoRiesgo}${resultado.resumenEjecutivo}`.trim(),
+      medidaInmediata: medidaEspecifica || resultado.medidaInmediata,
       plazoSugerido: resultado.plazoSugerido,
       requiereSuspension: resultado.requiereSuspension,
       requiereContencionAmbiental: resultado.requiereContencionAmbiental,

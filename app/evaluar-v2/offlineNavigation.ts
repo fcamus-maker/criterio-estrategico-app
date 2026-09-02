@@ -12,10 +12,10 @@ export function flujoLegacySolicitadoEnUrlV2() {
 }
 
 export function matrizUniversalSolicitadaEnUrlV2() {
-  if (typeof window === "undefined") return true;
+  if (typeof window === "undefined") return false;
   const parametros = new URLSearchParams(window.location.search);
   if (parametros.get(FLAG_FLUJO_LEGACY) === "1") return false;
-  return true;
+  return parametros.get(FLAG_MATRIZ_UNIVERSAL) === "1";
 }
 
 export function preservarBanderaSelectorPreventivoV2(

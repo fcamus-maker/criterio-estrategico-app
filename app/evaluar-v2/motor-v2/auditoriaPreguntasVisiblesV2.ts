@@ -186,6 +186,39 @@ const textosOpciones = (opciones?: OpcionVisibleAuditoriaV2[]) =>
 const contiene = (texto: string, terminos: string[]) =>
   terminos.some((termino) => texto.includes(normalizar(termino)));
 
+const contieneReferenciaDocumental = (texto: string) => {
+  const normalizado = normalizar(texto);
+  const acronimos = ["ast", "art", "pts", "hds", "sds"];
+  const tieneAcronimo = acronimos.some((termino) =>
+    new RegExp(`\\b${termino}\\b`).test(normalizado),
+  );
+  return (
+    tieneAcronimo ||
+    contiene(normalizado, [
+      "procedimiento",
+      "permiso",
+      "autorizacion",
+      "matriz",
+      "certificacion",
+      "mantencion",
+      "inspeccion",
+      "registro",
+      "documento",
+      "documental",
+      "regularizacion",
+      "respaldo",
+      "plano",
+      "trazado",
+      "charla",
+      "difusion",
+      "instruccion",
+      "analisis previo",
+      "quien debe revisar",
+      "responsable tecnico",
+    ])
+  );
+};
+
 const registrarPatron = (patrones: Record<string, number>, patron: string) => {
   patrones[patron] = (patrones[patron] || 0) + 1;
 };
@@ -213,6 +246,35 @@ export const detectarIntencionPregunta = (textoPreguntaVisible: string): Intenci
   }
   if (
     contiene(texto, [
+      "estan implementados y verificados estos controles",
+      "están implementados y verificados estos controles",
+      "proteccion contra caidas esta instalada",
+      "protección contra caídas está instalada",
+      "fue bloqueada, purgada o descargada",
+      "ruta queda libre",
+      "ruta de paso queda libre",
+      "ruta esta segregada",
+      "ruta está segregada",
+      "ruta evita transito",
+      "ruta evita tránsito",
+      "elementos de izaje estan verificados",
+      "elementos de izaje están verificados",
+      "aparejos y anclajes temporales estan verificados",
+      "aparejos y anclajes temporales están verificados",
+      "se controlo ventilacion",
+      "se controló ventilación",
+      "se usa extraccion",
+      "se usa extracción",
+      "existe proteccion auditiva",
+      "existe protección auditiva",
+      "tiene ventilacion suficiente",
+      "tiene ventilación suficiente",
+      "herramienta esta inspeccionada",
+      "herramienta está inspeccionada",
+      "red, valvula o circuito esta identificado",
+      "red, válvula o circuito está identificado",
+      "existe entibacion",
+      "existe entibación",
       "control aplicado",
       "control observado",
       "control suficiente",
@@ -233,6 +295,7 @@ export const detectarIntencionPregunta = (textoPreguntaVisible: string): Intenci
   if (
     contiene(texto, [
       "accion inmediata",
+      "medida inmediata",
       "que accion",
       "se requiere retiro",
       "retiro, reparacion",
@@ -258,8 +321,40 @@ export const detectarIntencionPregunta = (textoPreguntaVisible: string): Intenci
   if (contiene(texto, ["se confirma la brecha", "se confirma el incumplimiento"])) {
     return "existencia_verificacion";
   }
-  if (contiene(texto, ["procedimiento", "ast", "art", "pts", "permiso", "autorizacion", "matriz", "hds", "sds", "certificacion", "mantencion", "inspeccion", "registro", "documento", "documental", "regularizacion", "regularización", "respaldo", "charla", "difusion", "instruccion", "analisis previo", "quien debe revisar", "quién debe revisar", "responsable"])) {
+  if (contieneReferenciaDocumental(texto)) {
     return "documental";
+  }
+  if (
+    contiene(texto, [
+      "presenta dano visible",
+      "presenta daño visible",
+      "presenta rebaba",
+      "afecta transito",
+      "afecta tránsito",
+      "se requiere cortar",
+      "corresponde a trabajo critico",
+      "corresponde a trabajo crítico",
+      "accesorio corresponde",
+      "se usan adhesivos",
+      "hubo cambio",
+      "fuente supera",
+      "carga puede trasladarse",
+      "postura o peso supera",
+      "herramienta genera",
+      "se usan sellos",
+      "elemento es critico",
+      "elemento es crítico",
+      "desorden afecta ruta",
+      "se puede corregir por retiro",
+      "correccion requiere retiro",
+      "corrección requiere retiro",
+      "retorno o presion residual posible",
+      "retorno o presión residual posible",
+      "senalizacion informa",
+      "señalización informa",
+    ])
+  ) {
+    return "existencia_verificacion";
   }
   if (contiene(texto, ["afectacion actual", "afectación actual", "lesion", "lesión", "dano", "daño", "impacto"])) return "consecuencia";
   if (
@@ -327,7 +422,8 @@ export const detectarTipoOpciones = (opciones?: OpcionVisibleAuditoriaV2[]): Tip
     return "decision_operacional";
   }
   if (contiene(texto, ["control efectivo y completo", "control parcial o incompleto", "sin control"])) return "estado_control";
-  if (contiene(texto, ["exposicion confirmada", "posible exposicion", "no hay exposicion"])) return "existencia_verificacion";
+  if (contiene(texto, ["si, verificado en terreno", "sí, verificado en terreno", "condicion deficiente o ausente", "condición deficiente o ausente"])) return "estado_control";
+  if (contiene(texto, ["exposicion confirmada", "posible exposicion", "no hay exposicion", "condicion confirmada", "condicion posible", "no se observa la condicion"])) return "existencia_verificacion";
   if (contiene(texto, ["disponible y vigente", "disponible, pero incompleto o vencido", "no disponible", "regularizar antes de iniciar", "completar firmas", "actualizar documento", "supervisor del area", "supervisor del área", "prevencion de riesgos", "prevención de riesgos", "mantencion o servicio tecnico", "mantención o servicio técnico", "responsable del contrato", "requiere definicion conjunta", "requiere definición conjunta"])) return "documental";
   if (contiene(texto, ["retirar", "reparar", "reparacion", "reparación", "reposicion", "reposición", "segregar", "senalizar", "señalizar", "bloquear", "contener", "notificar", "gestion ambiental", "gestión ambiental", "corregir antes de continuar"])) return "accion_inmediata";
   if (contiene(texto, ["fotografia de la correccion", "fotografía de la corrección", "verificacion en terreno", "verificación en terreno", "registro y responsable de cierre", "mas de una evidencia", "más de una evidencia"])) return "evidencia";

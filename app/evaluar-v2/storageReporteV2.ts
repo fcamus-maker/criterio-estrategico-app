@@ -156,7 +156,7 @@ export type EstadoFlujoPreventivoStorage =
   | "FALLBACK_COMPLETO";
 
 export type FlujoPreventivoV2Storage = {
-  version: "preventivo_rondas_v1";
+  version: "preventivo_inteligente_v2";
   modo: "preventivo" | "fallback_actual";
   estado: EstadoFlujoPreventivoStorage;
   contextoFingerprint: string;
@@ -175,6 +175,15 @@ export type FlujoPreventivoV2Storage = {
   ronda2Completa: boolean;
   requiereHallazgoSeparado?: boolean;
   idsPlantilla?: string[];
+  actividadDetectadaId?: string;
+  actividadDetectadaNombre?: string;
+  riesgoDetectadoId?: string;
+  riesgoDetectadoTitulo?: string;
+  confianzaRiesgo?: "alta" | "media" | "baja";
+  criticidadOrientativaRiesgo?: string;
+  consecuenciaProbableRiesgo?: string;
+  controlCriticoEsperado?: string;
+  accionInmediataSugerida?: string;
 };
 
 export type ReporteV2Storage = {

@@ -173,8 +173,17 @@ export default function EvaluacionPaso1V2Page() {
   useEffect(() => {
     const frameId = window.requestAnimationFrame(() => {
       const reporteActual = leerReporteActualV2() as ReporteV2 | null;
+      const respuestasGuardadas = reporteActual?.evaluacion?.respuestas || {};
+      const riesgoInicial =
+        respuestasGuardadas[ID_RIESGO_ESPECIFICO] ||
+        reporteActual?.evaluacion?.riesgo_especifico_detectado ||
+        reporteActual?.descripcion ||
+        "";
       setReporte(reporteActual);
-      setRespuestas(reporteActual?.evaluacion?.respuestas || {});
+      setRespuestas({
+        ...respuestasGuardadas,
+        ...(riesgoInicial ? { [ID_RIESGO_ESPECIFICO]: riesgoInicial } : {}),
+      });
       setRespuestasMatrizUniversal(
         reporteActual?.evaluacion?.matriz_universal?.respuestas || {}
       );
@@ -458,7 +467,7 @@ export default function EvaluacionPaso1V2Page() {
       <div style={{ fontSize: "12px", opacity: 0.62, marginBottom: "6px" }}>
         {selectorPreventivoActivo
           ? pregunta.paso === 1
-            ? "Ronda 1 · Contexto preventivo"
+            ? "Análisis inteligente · Comprensión del hallazgo"
             : "Ronda 2 · Evaluación preventiva"
           : pregunta.id === ID_RIESGO_ESPECIFICO
             ? "Riesgo específico"
@@ -1166,7 +1175,7 @@ export default function EvaluacionPaso1V2Page() {
       <div style={containerStyle}>
         <HeaderReportePremium
           subtitulo="Evaluación preventiva"
-          detalle="Preguntas ajustadas según descripción y contexto del hallazgo."
+          detalle="Primero comprenderemos el contexto; luego preguntaremos solo lo específico."
         />
         <EtapasPremium actual={2} />
         <header style={{ marginBottom: "14px" }}>
@@ -1223,7 +1232,7 @@ export default function EvaluacionPaso1V2Page() {
                 actual={preguntaActual}
                 total={totalPreguntas || preguntas.length}
                 respondidas={respondidasTotal}
-                detalle="Ronda inicial"
+                detalle="Comprensión del hallazgo"
               />
               <div style={{ fontSize: "12px", opacity: 0.65 }}>Reporte</div>
               <div style={{ fontSize: "18px", fontWeight: 900 }}>
