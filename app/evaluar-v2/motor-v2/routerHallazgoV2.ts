@@ -62,9 +62,21 @@ function pesoPalabraClave(palabra: string) {
   return normalizarTextoMotorV2(palabra).includes(" ") ? 5 : 3;
 }
 
+function escaparRegExp(valor: string) {
+  return valor.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function contieneClaveCompleta(texto: string, clave: string) {
+  if (!clave) return false;
+  const sufijo = clave.includes(" ") ? "" : "[a-z0-9]*";
+  return new RegExp(
+    `(^|[^a-z0-9])${escaparRegExp(clave)}${sufijo}(?=$|[^a-z0-9])`,
+  ).test(texto);
+}
+
 function textoContienePalabraClave(texto: string, palabra: string) {
   const clave = normalizarTextoMotorV2(palabra);
-  if (!texto.includes(clave)) return false;
+  if (!contieneClaveCompleta(texto, clave)) return false;
 
   const negaciones = [
     `sin ${clave}`,
@@ -79,7 +91,9 @@ function textoContienePalabraClave(texto: string, palabra: string) {
 }
 
 function textoTieneExclusion(texto: string, exclusiones: string[] | undefined) {
-  return (exclusiones || []).some((exclusion) => texto.includes(normalizarTextoMotorV2(exclusion)));
+  return (exclusiones || []).some((exclusion) =>
+    contieneClaveCompleta(texto, normalizarTextoMotorV2(exclusion)),
+  );
 }
 
 function calcularPuntajes(texto: string): PuntajeCategoria[] {

@@ -35,6 +35,7 @@ import {
   tituloRiesgoPreventivoVisible,
   type SeleccionRiesgoInteligenteV3,
 } from "./selectorRiesgoInteligenteV3";
+import { auditarCoherenciaContextualPreguntasV3 } from "./coherenciaContextualPreguntasV3";
 
 export type ContextoActivacionSelectorPreventivoV2 = {
   hostname?: string;
@@ -68,7 +69,7 @@ export type EstadoFlujoPreventivo =
   | "FALLBACK_COMPLETO";
 
 export type FlujoPreventivoV2 = {
-  version: "preventivo_inteligente_v2";
+  version: "preventivo_inteligente_v3";
   modo: "preventivo" | "fallback_actual";
   estado: EstadoFlujoPreventivo;
   contextoFingerprint: string;
@@ -144,7 +145,7 @@ const ID_AMBITO_PRINCIPAL = "contexto_ambito_principal";
 const ID_ACTIVIDAD_TAREA = "contexto_actividad_tarea";
 const ID_CONDICION_ACCION_INSEGURA = "contexto_condicion_accion";
 const ID_AFECTACION_ACTUAL = "contexto_afectacion_actual";
-export const VERSION_FLUJO_PREVENTIVO = "preventivo_inteligente_v2" as const;
+export const VERSION_FLUJO_PREVENTIVO = "preventivo_inteligente_v3" as const;
 
 const TEXTOS_PROHIBIDOS_VISIBLES = [
   "motor",
@@ -368,6 +369,30 @@ const esCasoExcavacionElectrica = (texto: string) =>
 const esCasoExcavacion = (texto: string) =>
   ["excavacion", "zanja", "talud", "entibacion"].some((termino) => texto.includes(termino));
 
+const esCasoCirculacionObstruida = (texto: string) =>
+  !["extintor", "red humeda", "equipo de emergencia"].some((termino) =>
+    texto.includes(termino),
+  ) &&
+  ["paso", "transito", "circulacion", "acceso", "pasillo", "ruta peatonal"].some(
+    (termino) => texto.includes(termino),
+  ) &&
+  [
+    "obstruido",
+    "obstruida",
+    "obstaculizado",
+    "obstaculizada",
+    "obstaculiza",
+    "obstaculizan",
+    "obstaculo",
+    "obstaculos",
+    "obstruccion",
+    "obstrucciones",
+    "bloqueado",
+    "bloqueada",
+    "ocupado",
+    "ocupada",
+  ].some((termino) => texto.includes(termino));
+
 const esCasoDocumentalPuro = (texto: string) =>
   texto.includes("permiso") &&
   texto.includes("firma") &&
@@ -400,6 +425,7 @@ const seleccionarFamiliaPrincipal = (
   if (esCasoDocumentalPuro(texto)) return "documental_legal";
   if (esCasoAltura(texto)) return "trabajos_criticos";
   if (esCasoVidrio(texto)) return "dano_material";
+  if (esCasoCirculacionObstruida(texto)) return "orden_aseo_housekeeping";
   if (texto.includes("derrame") || texto.includes("combustible")) return "medio_ambiente";
   if (esCasoExcavacion(texto)) return "excavaciones_suelos";
   if (familiaTienePlantilla(familiaRouter)) return familiaRouter;
@@ -501,27 +527,44 @@ export const construirRondaProductivaPreventiva = (
   const preguntasInteligentes = clasificacion.seleccionRiesgoInteligente
     ? construirPreguntasRiesgoInteligenteV3(clasificacion.seleccionRiesgoInteligente)
     : [];
+  const textoFuente = textoAnalisisDesdeEntrada(reporte, respuestas || {});
 
-  if (preguntasInteligentes.length === 5) return preguntasInteligentes;
+  if (
+    preguntasInteligentes.length === 5 &&
+    auditarCoherenciaContextualPreguntasV3(textoFuente, preguntasInteligentes).coherente
+  ) {
+    return preguntasInteligentes;
+  }
 
   const plantillaItem =
     obtenerPlantillaRondaProductiva(clasificacion.familiaPrincipal) ||
     obtenerPlantillaRondaProductiva("general_preventivo");
 
+  const construirPreguntasPlantilla = (
+    plantilla: PlantillaFamiliaProductiva,
+  ): PreguntaFormularioAdaptativaV2[] =>
+    obtenerPreguntasPlantillaOrdenadas(plantilla).map((preguntaItem) => {
+      const esquema = ESQUEMAS_RESPUESTA_PREVENTIVA_V2[preguntaItem.esquemaRespuestaId];
+      return {
+        id: preguntaItem.id,
+        modulo: "otro_indeterminado",
+        texto: preguntaItem.texto,
+        objetivo: preguntaItem.ayuda || "Responda según la condición observada y la verificación en terreno.",
+        paso: 2,
+        tipoRespuesta: "opciones",
+        opciones: esquema.opciones,
+      };
+    });
+
   if (!plantillaItem) return [];
 
-  return obtenerPreguntasPlantillaOrdenadas(plantillaItem).map((preguntaItem) => {
-    const esquema = ESQUEMAS_RESPUESTA_PREVENTIVA_V2[preguntaItem.esquemaRespuestaId];
-    return {
-      id: preguntaItem.id,
-      modulo: "otro_indeterminado",
-      texto: preguntaItem.texto,
-      objetivo: preguntaItem.ayuda || "Responda según la condición observada y la verificación en terreno.",
-      paso: 2,
-      tipoRespuesta: "opciones",
-      opciones: esquema.opciones,
-    };
-  });
+  const preguntasFamilia = construirPreguntasPlantilla(plantillaItem);
+  if (auditarCoherenciaContextualPreguntasV3(textoFuente, preguntasFamilia).coherente) {
+    return preguntasFamilia;
+  }
+
+  const plantillaGeneral = obtenerPlantillaRondaProductiva("general_preventivo");
+  return plantillaGeneral ? construirPreguntasPlantilla(plantillaGeneral) : [];
 };
 
 export const obtenerPreguntasPaso2Preventivo = (
@@ -596,14 +639,18 @@ export const construirFlujoPreventivoTrasRonda1 = (
     obtenerPlantillaRondaProductiva(clasificacion.familiaPrincipal) ||
     obtenerPlantillaRondaProductiva("general_preventivo");
   const preguntasPaso2 = obtenerPreguntasPaso2Preventivo(reporte, respuestas);
-  const usaPreguntasRiesgoInteligente = Boolean(clasificacion.seleccionRiesgoInteligente?.riesgo);
+  const usaPreguntasRiesgoInteligente =
+    preguntasPaso2.length === 5 &&
+    preguntasPaso2.every((pregunta) => pregunta.id.startsWith("inteligente_"));
   const validacion = validarContratoRonda2(
     preguntasPaso2,
     usaPreguntasRiesgoInteligente ? undefined : plantillaItem,
   );
   const estado: EstadoFlujoPreventivo = validacion.valido ? "RONDA_2_LISTA" : "FALLBACK_COMPLETO";
   const actividadDetectada = clasificacion.seleccionRiesgoInteligente?.actividad;
-  const riesgoDetectado = clasificacion.seleccionRiesgoInteligente?.riesgo;
+  const riesgoDetectado = usaPreguntasRiesgoInteligente
+    ? clasificacion.seleccionRiesgoInteligente?.riesgo
+    : undefined;
 
   return {
     flujo: {

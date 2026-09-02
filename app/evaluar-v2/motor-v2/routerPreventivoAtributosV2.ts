@@ -154,6 +154,7 @@ const SENALES_ATRIBUTO: DefinicionSenal[] = [
   senal("objeto", "tablero o energia", ["tablero electrico", "energia", "equipo energizado", "enchufe", "cable"], ["energia_loto_electrico"], ["control_critico_ausente_no_verificado"], 10),
   senal("objeto", "excavacion o suelo", ["excavacion", "zanja", "desnivel", "suelo", "talud"], ["excavaciones_suelos"], ["condicion_insegura"], 10),
   senal("objeto", "superficie de transito", ["piso", "goma", "acceso", "casino", "camino de circulacion", "zona de transito"], ["dano_material", "orden_aseo_housekeeping"], ["condicion_insegura"], 8),
+  senal("objeto", "pasillo o ruta de circulación", ["pasillo", "pasillos", "ruta peatonal", "ruta de paso"], ["orden_aseo_housekeeping", "seguridad_trabajadores"], ["condicion_insegura"], 11),
   senal("objeto", "vaso o vidrio", ["vaso", "vidrio"], ["dano_material"], ["condicion_insegura"], 7),
   senal("objeto", "barrera o senalizacion", ["barrera", "senalizacion", "senaletica", "delimitacion", "segregacion", "zona delimitada", "zona restringida"], ["senalizacion_segregacion"], ["evasion_barreras_senalizacion_segregacion"], 9),
   senal("objeto", "tapa o alcantarillado", ["tapa de alcantarillado", "alcantarillado", "tapa retirada", "tapa"], ["dano_material", "orden_aseo_housekeeping"], ["condicion_insegura"], 9),
@@ -162,7 +163,29 @@ const SENALES_ATRIBUTO: DefinicionSenal[] = [
   senal("objeto", "agente de higiene ocupacional", ["ruido", "polvo", "silice", "material particulado"], ["higiene_ocupacional"], ["control_critico_ausente_no_verificado"], 12),
   senal("objeto", "ergonomia o manejo manual", ["levantamiento manual", "postura forzada", "sobreesfuerzo", "manejo manual"], ["ergonomia_manejo_manual"], ["acto_inseguro"], 12),
   senal("condicion", "vencido o no vigente", ["vencido", "no vigente", "sin mantencion", "mantencion vencida"], ["mantencion_certificacion"], ["condicion_insegura"], 12),
-  senal("condicion", "obstruido", ["obstruido", "bloqueado", "sin acceso"], ["equipos_emergencia", "orden_aseo_housekeeping", "senalizacion_segregacion"], ["condicion_insegura"], 9),
+  senal(
+    "condicion",
+    "obstruido",
+    [
+      "obstruido",
+      "obstruida",
+      "obstaculizado",
+      "obstaculizada",
+      "obstaculiza",
+      "obstaculizan",
+      "obstaculo",
+      "obstaculos",
+      "obstruccion",
+      "obstrucciones",
+      "bloqueado",
+      "bloqueada",
+      "sin acceso",
+      "paso impedido",
+    ],
+    ["equipos_emergencia", "orden_aseo_housekeeping", "senalizacion_segregacion"],
+    ["condicion_insegura"],
+    9,
+  ),
   senal("condicion", "danado o mal estado", ["danado", "dañado", "deteriorado", "mal estado", "desgastado", "gastado", "trizado", "reparado con cinta", "cinta aisladora"], ["mantencion_certificacion", "dano_material"], ["condicion_insegura"], 10),
   senal("condicion", "sin respaldo documental", ["sin firma", "sin registro", "sin difusion", "no disponible", "no actualizado", "sin hds", "sin respaldo"], ["documental_legal", "capacitacion_evidencias"], ["omision_documental"], 9),
   senal("condicion", "documento preventivo vencido", ["documentos vencidos", "documentos preventivos vencidos", "matriz sin actualizar", "matriz de riesgo sin actualizar"], ["documental_legal"], ["omision_documental"], 12),
@@ -269,8 +292,24 @@ function textoContexto(valor: unknown): string {
   return String(valor);
 }
 
+function normalizarTextoBusqueda(valores: unknown[]): string {
+  const textoBase = valores
+    .map(textoContexto)
+    .filter(Boolean)
+    .join(" ");
+  const normalizado = normalizarTextoPreventivo(textoBase);
+  const equivalencias = EQUIVALENCIAS_TEXTO.flatMap((equivalencia) => {
+    const coincide = equivalencia.terminos.some((termino) =>
+      contieneTermino(normalizado, normalizarTextoPreventivo(termino)),
+    );
+    return coincide ? [equivalencia.canonico] : [];
+  });
+
+  return normalizarTextoPreventivo([normalizado, ...equivalencias].join(" "));
+}
+
 function construirTextoBusqueda(input: EntradaRouterPreventivo): string {
-  const textoBase = [
+  return normalizarTextoBusqueda([
     input.descripcion,
     input.area,
     input.actividad,
@@ -282,19 +321,43 @@ function construirTextoBusqueda(input: EntradaRouterPreventivo): string {
     input.controlDeclarado,
     textoContexto(input.respuestasPrevias),
     textoContexto(input.contexto),
-  ]
-    .filter(Boolean)
-    .join(" ");
+  ]);
+}
 
-  const normalizado = normalizarTextoPreventivo(textoBase);
-  const equivalencias = EQUIVALENCIAS_TEXTO.flatMap((equivalencia) => {
-    const coincide = equivalencia.terminos.some((termino) =>
-      contieneTermino(normalizado, normalizarTextoPreventivo(termino)),
-    );
-    return coincide ? [equivalencia.canonico] : [];
-  });
+function construirTextoBusquedaPorTipo(
+  input: EntradaRouterPreventivo,
+): Record<TipoSenal, string> {
+  const baseHallazgo = [input.descripcion, input.riesgoEspecificoDeclarado];
 
-  return normalizarTextoPreventivo([normalizado, ...equivalencias].join(" "));
+  return {
+    objeto: normalizarTextoBusqueda([
+      ...baseHallazgo,
+      input.area,
+      input.actividad,
+      input.controlDeclarado,
+      input.contexto,
+    ]),
+    condicion: normalizarTextoBusqueda([
+      ...baseHallazgo,
+      input.controlDeclarado,
+      input.contexto,
+    ]),
+    exposicion: normalizarTextoBusqueda([
+      ...baseHallazgo,
+      input.exposicionDeclarada,
+      input.contexto,
+    ]),
+    consecuencia: normalizarTextoBusqueda([
+      ...baseHallazgo,
+      input.consecuenciaDeclarada,
+      input.contexto,
+    ]),
+    control: normalizarTextoBusqueda([
+      ...baseHallazgo,
+      input.controlDeclarado,
+      input.contexto,
+    ]),
+  };
 }
 
 function contieneTermino(texto: string, termino: string): boolean {
@@ -311,8 +374,11 @@ function escaparRegExp(valor: string): string {
   return valor.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function detectarSenales(texto: string): RazonClasificacionPreventiva[] {
+function detectarSenales(
+  textosPorTipo: Record<TipoSenal, string>,
+): RazonClasificacionPreventiva[] {
   return SENALES_ATRIBUTO.flatMap((senalItem) => {
+    const texto = textosPorTipo[senalItem.tipo];
     const coincidencias = senalItem.terminos
       .map(normalizarTextoPreventivo)
       .filter((termino) => contieneTermino(texto, termino));
@@ -497,7 +563,7 @@ function aplicarReglasDiferenciacion(
       "La charla sin firma afecta trazabilidad de capacitacion o difusion.",
       ["capacitacion_evidencias", "documental_legal"],
       ["omision_documental", "falta_conocimiento_capacitacion_difusion"],
-      18,
+      36,
     );
   }
 
@@ -755,13 +821,34 @@ function aplicarReglasDiferenciacion(
     );
   }
 
-  if (tiene(["material"]) && tiene(["no retirado", "paso", "transito", "circulacion", "obstruyendo"])) {
+  if (
+    !tiene(["extintor", "equipo de emergencia", "gabinete de emergencia"]) &&
+    tiene(["paso", "transito", "circulacion", "acceso", "pasillo", "ruta peatonal"]) &&
+    tiene([
+      "no retirado",
+      "obstruido",
+      "obstruida",
+      "obstaculizado",
+      "obstaculizada",
+      "obstaculiza",
+      "obstaculizan",
+      "obstaculo",
+      "obstaculos",
+      "obstruccion",
+      "obstrucciones",
+      "obstruyendo",
+      "bloqueado",
+      "bloqueada",
+      "ocupado",
+      "ocupada",
+    ])
+  ) {
     agregarRegla(
-      "material obstruye circulacion",
-      "Material no retirado en paso o circulacion corresponde a orden y aseo con exposicion de trabajadores.",
+      "circulacion obstruida",
+      "Pasillo, paso o circulación obstruida corresponde a orden y aseo con exposición de trabajadores.",
       ["orden_aseo_housekeeping", "seguridad_trabajadores", "senalizacion_segregacion"],
       ["condicion_insegura"],
-      24,
+      30,
     );
     sumarFamilia(puntajesFamilia, "dano_material", -18, "Material no retirado no debe desplazar el orden y aseo como primaria.");
   }
@@ -1000,6 +1087,11 @@ function ajustarSuficienciaPorTexto(
   if (tiene(["excavacion"]) && tiene(["sin proteccion", "sin entibacion", "sin delimitacion"])) return "parcial";
   if (tiene(["terreno", "resbaladizo", "inestable", "clima adverso", "condiciones climaticas adversas"])) return "parcial";
   if (tiene(["ruido", "proteccion auditiva", "polvo", "silice"])) return "parcial";
+  if (
+    tiene(["pasillo", "ruta"]) &&
+    tiene(["evacuacion", "salida de emergencia"]) &&
+    tiene(["obstruido", "obstaculizado", "bloqueado"])
+  ) return "parcial";
   if (tiene(["matriz", "procedimiento no disponible", "documentos preventivos", "certificaciones vencidas"])) return "parcial";
 
   return suficienciaBase;
@@ -1062,7 +1154,7 @@ export function clasificarPreventivamentePorAtributos(
   input: EntradaRouterPreventivo,
 ): ResultadoRouterPreventivo {
   const texto = construirTextoBusqueda(input);
-  const razones = detectarSenales(texto);
+  const razones = detectarSenales(construirTextoBusquedaPorTipo(input));
   const puntajesFamilia = crearPuntajesFamilia();
   const puntajesDesviacion = crearPuntajesDesviacion();
 
@@ -1078,6 +1170,18 @@ export function clasificarPreventivamentePorAtributos(
     .filter((familiaItem) => familiaItem.puntaje >= Math.max(5, (familiasOrdenadas[0]?.puntaje || 0) * 0.25))
     .map((familiaItem) => familiaItem.id)
     .slice(0, 5);
+  if (
+    familiaPrimariaId === "orden_aseo_housekeeping" &&
+    ["evacuacion", "salida de emergencia", "ruta de emergencia"].some((termino) =>
+      texto.includes(termino),
+    ) &&
+    ["obstruido", "obstaculizado", "bloqueado", "obstaculo"].some((termino) =>
+      texto.includes(termino),
+    ) &&
+    !familiasSecundariasIds.includes("equipos_emergencia")
+  ) {
+    familiasSecundariasIds.push("equipos_emergencia");
+  }
   const desviacionesIds = desviacionesOrdenadas.map((desviacionItem) => desviacionItem.id).slice(0, 5);
 
   const objetoDetectado = valoresPorTipo(razones, "objeto");
