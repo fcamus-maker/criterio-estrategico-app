@@ -382,7 +382,11 @@ export default function EvaluacionPaso2V2Page() {
   const renderPregunta = (pregunta: PreguntaFormularioAdaptativaV2) => (
     <section key={pregunta.id} style={cardStyle}>
       <div style={{ fontSize: "12px", opacity: 0.62, marginBottom: "6px" }}>
-        {selectorPreventivoActivo ? "Ronda 2 · Evaluación preventiva" : etiquetaCategoria(pregunta.modulo)}
+        {selectorPreventivoActivo
+          ? pregunta.id.startsWith("inteligente_")
+            ? "Pregunta específica · Análisis inteligente"
+            : "Ronda 2 · Evaluación preventiva"
+          : etiquetaCategoria(pregunta.modulo)}
       </div>
       <div
         style={{
@@ -518,7 +522,7 @@ export default function EvaluacionPaso2V2Page() {
       <div style={containerStyle}>
         <HeaderReportePremium
           subtitulo="Evaluación preventiva"
-          detalle={selectorPreventivoSolicitado ? "Ronda 2 · Evaluación preventiva" : "Ronda enfocada según señales y respuestas registradas."}
+          detalle={selectorPreventivoSolicitado ? "Preguntas específicas según el riesgo detectado" : "Ronda enfocada según señales y respuestas registradas."}
         />
         <EtapasPremium actual={2} />
         <header style={{ marginBottom: "14px" }}>
@@ -605,6 +609,60 @@ export default function EvaluacionPaso2V2Page() {
                 </div>
               )}
             </section>
+
+            {selectorPreventivoActivo && flujoPreventivoVigente?.riesgoDetectadoTitulo && (
+              <section
+                style={{
+                  ...cardStyle,
+                  background:
+                    "linear-gradient(145deg, rgba(17,94,89,0.82), rgba(5,46,67,0.92))",
+                  border: "1px solid rgba(94,234,212,0.42)",
+                  boxShadow:
+                    "0 18px 38px rgba(0,0,0,0.30), inset 0 1px 0 rgba(255,255,255,0.12)",
+                }}
+              >
+                <div
+                  style={{
+                    color: "#99F6E4",
+                    fontSize: "11px",
+                    fontWeight: 900,
+                    letterSpacing: "0.12em",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  Análisis inteligente aplicado
+                </div>
+                <div style={{ marginTop: "10px", fontSize: "12px", opacity: 0.68 }}>
+                  Actividad identificada
+                </div>
+                <div style={{ marginTop: "3px", fontSize: "15px", fontWeight: 900 }}>
+                  {flujoPreventivoVigente.actividadDetectadaNombre || "Actividad preventiva"}
+                </div>
+                <div style={{ marginTop: "10px", fontSize: "12px", opacity: 0.68 }}>
+                  Riesgo específico identificado
+                </div>
+                <div style={{ marginTop: "3px", fontSize: "16px", fontWeight: 900, lineHeight: 1.35 }}>
+                  {flujoPreventivoVigente.riesgoDetectadoTitulo}
+                </div>
+                <div
+                  style={{
+                    marginTop: "12px",
+                    display: "inline-flex",
+                    padding: "6px 10px",
+                    borderRadius: "999px",
+                    background: "rgba(153,246,228,0.14)",
+                    border: "1px solid rgba(153,246,228,0.28)",
+                    color: "#CCFBF1",
+                    fontSize: "12px",
+                    fontWeight: 900,
+                  }}
+                >
+                  Confianza {etiquetaCategoria(
+                    flujoPreventivoVigente.confianzaRiesgo || flujoPreventivoVigente.confianzaFamilia,
+                  )}
+                </div>
+              </section>
+            )}
 
             {selectorPreventivoSolicitado && !selectorPreventivoActivo && (
               <section

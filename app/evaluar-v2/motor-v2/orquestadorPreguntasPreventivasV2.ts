@@ -28,6 +28,13 @@ import {
   type PlantillaFamiliaProductiva,
 } from "./plantillasRondaProductivaV2";
 import type { FamiliaTaxonomiaPreventivaId } from "./taxonomiaPreventivaV2";
+import {
+  construirPreguntasRiesgoInteligenteV3,
+  seleccionarRiesgoInteligenteV3,
+  textoPreventivoVisible,
+  tituloRiesgoPreventivoVisible,
+  type SeleccionRiesgoInteligenteV3,
+} from "./selectorRiesgoInteligenteV3";
 
 export type ContextoActivacionSelectorPreventivoV2 = {
   hostname?: string;
@@ -61,7 +68,7 @@ export type EstadoFlujoPreventivo =
   | "FALLBACK_COMPLETO";
 
 export type FlujoPreventivoV2 = {
-  version: "preventivo_rondas_v1";
+  version: "preventivo_inteligente_v2";
   modo: "preventivo" | "fallback_actual";
   estado: EstadoFlujoPreventivo;
   contextoFingerprint: string;
@@ -73,6 +80,15 @@ export type FlujoPreventivoV2 = {
   ronda2Completa: boolean;
   requiereHallazgoSeparado?: boolean;
   idsPlantilla?: string[];
+  actividadDetectadaId?: string;
+  actividadDetectadaNombre?: string;
+  riesgoDetectadoId?: string;
+  riesgoDetectadoTitulo?: string;
+  confianzaRiesgo?: "alta" | "media" | "baja";
+  criticidadOrientativaRiesgo?: string;
+  consecuenciaProbableRiesgo?: string;
+  controlCriticoEsperado?: string;
+  accionInmediataSugerida?: string;
 };
 
 export type ClasificacionContextoPreventivo = {
@@ -82,6 +98,7 @@ export type ClasificacionContextoPreventivo = {
   confianza: "alta" | "media" | "baja";
   evidenciasClasificacion: string[];
   requiereHallazgoSeparado: boolean;
+  seleccionRiesgoInteligente?: SeleccionRiesgoInteligenteV3;
 };
 
 export type EntradaOrquestadorPreguntasPreventivasV2 = {
@@ -127,7 +144,7 @@ const ID_AMBITO_PRINCIPAL = "contexto_ambito_principal";
 const ID_ACTIVIDAD_TAREA = "contexto_actividad_tarea";
 const ID_CONDICION_ACCION_INSEGURA = "contexto_condicion_accion";
 const ID_AFECTACION_ACTUAL = "contexto_afectacion_actual";
-export const VERSION_FLUJO_PREVENTIVO = "preventivo_rondas_v1" as const;
+export const VERSION_FLUJO_PREVENTIVO = "preventivo_inteligente_v2" as const;
 
 const TEXTOS_PROHIBIDOS_VISIBLES = [
   "motor",
@@ -414,7 +431,20 @@ export const clasificarContextoPreventivo = (
     exposicionDeclarada: respuestas[ID_AFECTACION_ACTUAL],
     respuestasPrevias: respuestas,
   });
-  const familiaPorRegla = seleccionarFamiliaPrincipal(resultadoRouter.familiaPrimariaId, texto);
+  const seleccionRiesgoInteligente = seleccionarRiesgoInteligenteV3({
+    descripcion: reporte.descripcion,
+    riesgoEspecifico: respuestaContexto(reporte, respuestas, ID_RIESGO_ESPECIFICO),
+    actividad: respuestas[ID_ACTIVIDAD_TAREA] || reporte.actividad,
+    condicion: respuestas[ID_CONDICION_ACCION_INSEGURA],
+    familiaSugerida: resultadoRouter.familiaPrimariaId,
+  });
+  const familiaDesdeRiesgo = seleccionRiesgoInteligente.riesgo?.familiasPreventivas.find(
+    familiaTienePlantilla,
+  );
+  const familiaPorRegla = seleccionarFamiliaPrincipal(
+    familiaDesdeRiesgo || resultadoRouter.familiaPrimariaId,
+    texto,
+  );
   const tieneSenalCriticaDeterministica = [
     "trabajos_criticos",
     "medio_ambiente",
@@ -423,7 +453,11 @@ export const clasificarContextoPreventivo = (
     "documental_legal",
   ].includes(familiaPorRegla);
   const confianza =
-    resultadoRouter.confianzaClasificacion === "baja" && tieneSenalCriticaDeterministica
+    seleccionRiesgoInteligente.confianza === "alta"
+      ? "alta"
+      : seleccionRiesgoInteligente.confianza === "media"
+        ? "media"
+        : resultadoRouter.confianzaClasificacion === "baja" && tieneSenalCriticaDeterministica
       ? "media"
       : resultadoRouter.confianzaClasificacion;
   const familiaPrincipal =
@@ -450,8 +484,12 @@ export const clasificarContextoPreventivo = (
     familiaSecundariaCritica,
     claseCaso,
     confianza,
-    evidenciasClasificacion: resultadoRouter.razonesClasificacion.map((razon) => razon.detalle).slice(0, 6),
+    evidenciasClasificacion: [
+      ...seleccionRiesgoInteligente.razones,
+      ...resultadoRouter.razonesClasificacion.map((razon) => razon.detalle),
+    ].slice(0, 8),
     requiereHallazgoSeparado,
+    seleccionRiesgoInteligente,
   };
 };
 
@@ -460,6 +498,12 @@ export const construirRondaProductivaPreventiva = (
   respuestas?: Record<string, string>,
 ): PreguntaFormularioAdaptativaV2[] => {
   const clasificacion = clasificarContextoPreventivo(reporte, respuestas || {});
+  const preguntasInteligentes = clasificacion.seleccionRiesgoInteligente
+    ? construirPreguntasRiesgoInteligenteV3(clasificacion.seleccionRiesgoInteligente)
+    : [];
+
+  if (preguntasInteligentes.length === 5) return preguntasInteligentes;
+
   const plantillaItem =
     obtenerPlantillaRondaProductiva(clasificacion.familiaPrincipal) ||
     obtenerPlantillaRondaProductiva("general_preventivo");
@@ -552,8 +596,14 @@ export const construirFlujoPreventivoTrasRonda1 = (
     obtenerPlantillaRondaProductiva(clasificacion.familiaPrincipal) ||
     obtenerPlantillaRondaProductiva("general_preventivo");
   const preguntasPaso2 = obtenerPreguntasPaso2Preventivo(reporte, respuestas);
-  const validacion = validarContratoRonda2(preguntasPaso2, plantillaItem);
+  const usaPreguntasRiesgoInteligente = Boolean(clasificacion.seleccionRiesgoInteligente?.riesgo);
+  const validacion = validarContratoRonda2(
+    preguntasPaso2,
+    usaPreguntasRiesgoInteligente ? undefined : plantillaItem,
+  );
   const estado: EstadoFlujoPreventivo = validacion.valido ? "RONDA_2_LISTA" : "FALLBACK_COMPLETO";
+  const actividadDetectada = clasificacion.seleccionRiesgoInteligente?.actividad;
+  const riesgoDetectado = clasificacion.seleccionRiesgoInteligente?.riesgo;
 
   return {
     flujo: {
@@ -569,10 +619,29 @@ export const construirFlujoPreventivoTrasRonda1 = (
       ronda2Completa: false,
       requiereHallazgoSeparado: clasificacion.requiereHallazgoSeparado,
       idsPlantilla: preguntasPaso2.map((pregunta) => pregunta.id),
+      actividadDetectadaId: actividadDetectada?.id,
+      actividadDetectadaNombre: actividadDetectada
+        ? textoPreventivoVisible(actividadDetectada.nombreVisible)
+        : undefined,
+      riesgoDetectadoId: riesgoDetectado?.id,
+      riesgoDetectadoTitulo: riesgoDetectado
+        ? tituloRiesgoPreventivoVisible(riesgoDetectado)
+        : undefined,
+      confianzaRiesgo: clasificacion.seleccionRiesgoInteligente?.confianza,
+      criticidadOrientativaRiesgo: riesgoDetectado?.criticidadOrientativa,
+      consecuenciaProbableRiesgo: riesgoDetectado
+        ? textoPreventivoVisible(riesgoDetectado.consecuenciaProbable)
+        : undefined,
+      controlCriticoEsperado: riesgoDetectado
+        ? textoPreventivoVisible(riesgoDetectado.controlFaltanteOFallido)
+        : undefined,
+      accionInmediataSugerida: riesgoDetectado
+        ? textoPreventivoVisible(riesgoDetectado.accionInmediataSugerida)
+        : undefined,
     },
     clasificacion,
     preguntasPaso2,
-    plantilla: plantillaItem,
+    plantilla: usaPreguntasRiesgoInteligente ? undefined : plantillaItem,
   };
 };
 
@@ -664,7 +733,7 @@ export const selectorPreventivoEstaHabilitado = (
 ): boolean => {
   if (contexto.deshabilitado) return false;
   if (contexto.forzarActivacion) return true;
-  return false;
+  return true;
 };
 
 export const dividirFormularioPreventivoPaso1Paso2 = (

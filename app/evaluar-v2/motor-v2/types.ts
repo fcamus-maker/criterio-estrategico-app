@@ -51,6 +51,7 @@ export type CategoriaHallazgoV2 =
   | "comunidad_terceros"
   | "rca_permisos_ambientales"
   | "condiciones_sanitarias_ambientales"
+  | "calidad_ejecucion"
   | "conductas_inseguras"
   | "condiciones_subestandar"
   | "casi_accidentes"

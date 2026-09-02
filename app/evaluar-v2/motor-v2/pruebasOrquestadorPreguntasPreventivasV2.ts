@@ -300,7 +300,7 @@ export const evaluarBancoOrquestadorPreguntasPreventivas = (): ResultadoBancoOrq
     }
 
     const tieneAnclaje = preventivo.preguntasPaso1.some((pregunta) => pregunta.id === ID_RIESGO_ESPECIFICO);
-    if ((caso.riesgoEspecificoDetectado && !tieneAnclaje) || (!caso.riesgoEspecificoDetectado && tieneAnclaje)) {
+    if (tieneAnclaje) {
       anclajeCorrecto += 1;
     } else {
       errores.push("Anclaje preventivo no coincide con el estado del riesgo específico.");
