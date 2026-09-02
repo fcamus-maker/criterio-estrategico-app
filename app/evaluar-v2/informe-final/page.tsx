@@ -14,6 +14,11 @@ import {
   VERSION_FLUJO_PREVENTIVO,
 } from "../motor-v2/orquestadorPreguntasPreventivasV2";
 import {
+  flujoProgresivoCompletoV4,
+  obtenerRiesgoProgresivoV4,
+  reconstruirVerificacionesProgresivasV4,
+} from "../motor-v2/flujoPreguntasProgresivasV4";
+import {
   aplicarResultadoMatrizUniversalACompatibilidadV2,
   clasificarMatrizUniversalV1,
 } from "../motor-v2/clasificadorMatrizUniversalV1";
@@ -262,6 +267,13 @@ function textoSeguro(valor?: string) {
 }
 
 function construirDesarrolloPreventivo(reporte: ReporteV2) {
+  const riesgoProgresivo = obtenerRiesgoProgresivoV4(
+    reporte.evaluacion?.flujo_progresivo_v4,
+  );
+  if (riesgoProgresivo) {
+    return `El análisis progresivo confirmó ${riesgoProgresivo.titulo.toLowerCase()} mediante una ruta técnica seleccionada expresamente por el reportante. El control crítico esperado es: ${riesgoProgresivo.controlEsperado} La acción preventiva definida es: ${riesgoProgresivo.accionInmediata} El cierre debe acreditarse mediante ${riesgoProgresivo.evidenciaCierre.toLowerCase()}`;
+  }
+
   const texto = `${reporte.descripcion || ""} ${reporte.evaluacion?.categoria_detectada || ""}`.toLowerCase();
   if (
     texto.includes("excavación") ||
@@ -291,6 +303,18 @@ function construirDesarrolloPreventivo(reporte: ReporteV2) {
 }
 
 function marcoPreventivoProbable(reporte: ReporteV2) {
+  const riesgoProgresivo = obtenerRiesgoProgresivoV4(
+    reporte.evaluacion?.flujo_progresivo_v4,
+  );
+  if (riesgoProgresivo) {
+    const normasMotor = reporte.evaluacion?.normativa_probable || [];
+    return [
+      ...normasMotor.map((item) => item.norma),
+      `Control esperado: ${riesgoProgresivo.controlEsperado}`,
+      `Evidencia de cierre: ${riesgoProgresivo.evidenciaCierre}`,
+    ].filter((item, index, items) => item && items.indexOf(item) === index);
+  }
+
   const texto = `${reporte.descripcion || ""} ${reporte.evaluacion?.categoria_detectada || ""}`.toLowerCase();
   const base = ["Ley 16.744", "DS 44", "DS 594"];
   if (
@@ -326,6 +350,18 @@ type VerificacionInformeV2 = {
 };
 
 function construirVerificacionesInforme(reporte: ReporteV2): VerificacionInformeV2[] {
+  const verificacionesProgresivas = reconstruirVerificacionesProgresivasV4(
+    reporte.evaluacion?.flujo_progresivo_v4,
+  );
+  if (verificacionesProgresivas.length > 0) {
+    return verificacionesProgresivas
+      .map((item) => ({
+        pregunta: textoSeguro(item.pregunta),
+        respuesta: textoSeguro(item.respuesta),
+      }))
+      .slice(0, 5);
+  }
+
   const respuestas = reporte.evaluacion?.respuestas || {};
   return obtenerPreguntasPaso2Preventivo(reporte, respuestas)
     .map((pregunta) => {
@@ -341,7 +377,11 @@ function construirVerificacionesInforme(reporte: ReporteV2): VerificacionInforme
 }
 
 function riesgoVisibleInforme(reporte: ReporteV2) {
+  const riesgoProgresivo = obtenerRiesgoProgresivoV4(
+    reporte.evaluacion?.flujo_progresivo_v4,
+  );
   return (
+    textoSeguro(riesgoProgresivo?.titulo) ||
     textoSeguro(reporte.evaluacion?.flujo_preventivo?.riesgoDetectadoTitulo) ||
     textoSeguro(reporte.evaluacion?.riesgo_especifico_detectado) ||
     etiquetaCategoria(reporte.evaluacion?.categoria_detectada)
@@ -361,6 +401,7 @@ function valorRespuestaPreventiva(
 }
 
 function flujoPreventivoListoParaInforme(reporte: ReporteV2) {
+  if (flujoProgresivoCompletoV4(reporte.evaluacion?.flujo_progresivo_v4)) return true;
   const flujo = reporte.evaluacion?.flujo_preventivo;
   if (flujo?.modo !== "preventivo") return true;
   if (flujo.version !== VERSION_FLUJO_PREVENTIVO) return false;
@@ -475,7 +516,12 @@ export default function InformeFinalV2Page() {
       }
 
       if (reporteHidratado && !flujoPreventivoListoParaInforme(reporteHidratado)) {
-        navegarEvaluarV2(router, "/evaluar-v2/evaluacion/paso2?ce_selector_preventivo=1");
+        navegarEvaluarV2(
+          router,
+          reporteHidratado.evaluacion?.flujo_progresivo_v4
+            ? "/evaluar-v2/evaluacion/paso1"
+            : "/evaluar-v2/evaluacion/paso2?ce_selector_preventivo=1",
+        );
         return;
       }
 
@@ -1408,20 +1454,22 @@ export default function InformeFinalV2Page() {
                     )}
                 </div>
               )}
-              <a
-                href="/evaluar-v2"
-                onClick={vibrarOk}
-                {...feedbackBoton("inicio")}
-                style={{
-                  ...buttonStyle,
-                  color: "white",
-                  background:
-                    "linear-gradient(180deg, rgba(22,72,124,0.72), rgba(4,26,60,0.84))",
-                  ...estiloFeedback("inicio"),
-                }}
-              >
-                Volver al inicio
-              </a>
+              {guardado && (
+                <a
+                  href="/evaluar-v2"
+                  onClick={vibrarOk}
+                  {...feedbackBoton("inicio")}
+                  style={{
+                    ...buttonStyle,
+                    color: "white",
+                    background:
+                      "linear-gradient(180deg, rgba(22,72,124,0.72), rgba(4,26,60,0.84))",
+                    ...estiloFeedback("inicio"),
+                  }}
+                >
+                  Volver al inicio
+                </a>
+              )}
             </div>
           </>
         )}

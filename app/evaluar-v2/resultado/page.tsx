@@ -17,6 +17,7 @@ import {
   ronda2PreventivaCompleta,
   VERSION_FLUJO_PREVENTIVO,
 } from "../motor-v2/orquestadorPreguntasPreventivasV2";
+import { flujoProgresivoCompletoV4 } from "../motor-v2/flujoPreguntasProgresivasV4";
 import {
   aplicarResultadoMatrizUniversalACompatibilidadV2,
   clasificarMatrizUniversalV1,
@@ -340,6 +341,7 @@ function valorRespuestaPreventiva(
 }
 
 function flujoPreventivoListoParaResultado(reporte: ReporteV2) {
+  if (flujoProgresivoCompletoV4(reporte.evaluacion?.flujo_progresivo_v4)) return true;
   const flujo = reporte.evaluacion?.flujo_preventivo;
   if (flujo?.modo !== "preventivo") return true;
   if (flujo.version !== VERSION_FLUJO_PREVENTIVO) return false;
@@ -464,7 +466,12 @@ export default function ResultadoV2Page() {
       }
 
       if (reporteHidratado && !flujoPreventivoListoParaResultado(reporteHidratado)) {
-        navegarEvaluarV2(router, "/evaluar-v2/evaluacion/paso2?ce_selector_preventivo=1");
+        navegarEvaluarV2(
+          router,
+          reporteHidratado.evaluacion?.flujo_progresivo_v4
+            ? "/evaluar-v2/evaluacion/paso1"
+            : "/evaluar-v2/evaluacion/paso2?ce_selector_preventivo=1",
+        );
         return;
       }
 
@@ -854,7 +861,9 @@ export default function ResultadoV2Page() {
                 href={
                   matrizUniversalVisualActiva
                     ? "/evaluar-v2/evaluacion/paso1?ce_matriz_universal=1"
-                    : "/evaluar-v2/evaluacion/paso2"
+                    : reporte.evaluacion?.flujo_progresivo_v4
+                      ? "/evaluar-v2/evaluacion/paso1"
+                      : "/evaluar-v2/evaluacion/paso2"
                 }
                 onClick={vibrarOk}
                 {...feedbackBoton("volver-evaluacion")}

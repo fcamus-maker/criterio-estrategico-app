@@ -1,4 +1,8 @@
 import { evaluarHallazgoV2 } from "./evaluacionMotorV2";
+import {
+  evaluarFlujoProgresivoV4,
+  type FlujoPreguntasProgresivasV4,
+} from "./flujoPreguntasProgresivasV4";
 import type {
   AmbitoEvaluacion,
   CategoriaHallazgoV2,
@@ -38,6 +42,7 @@ export type ReporteEvaluableMotorV2 = {
       accionInmediataSugerida?: string;
       idsPlantilla?: string[];
     };
+    flujo_progresivo_v4?: FlujoPreguntasProgresivasV4;
   };
 };
 
@@ -650,6 +655,11 @@ export function evaluarReporteConMotorV2Seguro(
   if (!reporteActual) {
     return resultadoFallback({});
   }
+
+  const resultadoProgresivo = evaluarFlujoProgresivoV4(
+    reporteActual.evaluacion?.flujo_progresivo_v4,
+  );
+  if (resultadoProgresivo) return resultadoProgresivo;
 
   try {
     const input = entradaMotorV2DesdeReporte(reporteActual);
