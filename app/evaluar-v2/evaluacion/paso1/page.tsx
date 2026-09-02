@@ -10,8 +10,10 @@ import {
   evaluarFlujoProgresivoV4,
   flujoProgresivoCompletoV4,
   reconstruirVerificacionesProgresivasV4,
+  reabrirControlInconsistenteV4,
   responderPreguntaProgresivaV4,
   retrocederFlujoProgresivoV4,
+  validarCoherenciaFlujoProgresivoV4,
   type FlujoPreguntasProgresivasV4,
   type IdPreguntaProgresivaV4,
 } from "../../motor-v2/flujoPreguntasProgresivasV4";
@@ -126,6 +128,17 @@ export default function EvaluacionProgresivaV4Page() {
     }
 
     const siguiente = avanzarFlujoProgresivoV4(flujo);
+    if (siguiente.estado === "COMPLETO") {
+      const validacion = validarCoherenciaFlujoProgresivoV4(siguiente);
+      if (!validacion.ok) {
+        persistir(reabrirControlInconsistenteV4(siguiente));
+        setError(
+          `${validacion.inconsistencias[0]} Revisa nuevamente el estado actual del control.`,
+        );
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
+    }
     persistir(siguiente);
     setAnalizando(true);
     setError("");
