@@ -130,6 +130,12 @@ export type ResultadoProgresivoV4 = {
   fuenteEvaluacion: "motor_v2";
 };
 
+export type ValidacionCoherenciaProgresivaV4 = {
+  ok: boolean;
+  inconsistencias: string[];
+  volverAPaso?: number;
+};
+
 const DOMINIOS: DominioDefinicionV4[] = [
   {
     id: "seguridad_operacional",
@@ -676,12 +682,83 @@ const opcionesControl = (riesgo: RiesgoDefinicionV4): OpcionProgresivaV4[] => [
   opcion("control_no_verificable", "Control no verificable", "No existe evidencia suficiente para confirmar su eficacia."),
 ];
 
-const opcionesAccion = (riesgo: RiesgoDefinicionV4): OpcionProgresivaV4[] => [
-  opcion("accion_especifica_aplicada", `Aplicada: ${riesgo.accionInmediata}`, "La medida fue ejecutada y puede verificarse en terreno."),
-  opcion("control_temporal", "Se aplicó un control temporal y se solicitó corrección", "La condición queda contenida, pero el cierre definitivo sigue pendiente."),
-  opcion("accion_pendiente", "La medida requerida todavía no se aplica", "Se debe gestionar de inmediato la acción preventiva indicada."),
-  opcion("accion_no_verificable", "No es posible verificar la medida aplicada", "El informe debe quedar sujeto a revisión antes del cierre."),
-];
+const opcionesAccion = (
+  riesgo: RiesgoDefinicionV4,
+  control?: string,
+): OpcionProgresivaV4[] => {
+  if (control === "control_efectivo") {
+    return [
+      opcion(
+        "accion_especifica_aplicada",
+        "Control definitivo aplicado y verificado",
+        riesgo.accionInmediata,
+      ),
+      opcion(
+        "accion_cierre_pendiente",
+        "El control es efectivo; falta registrar la evidencia de cierre",
+        `La condición está controlada y debe respaldarse mediante: ${riesgo.evidenciaCierre}`,
+      ),
+    ];
+  }
+
+  if (control === "control_parcial") {
+    return [
+      opcion(
+        "control_temporal",
+        "Se mantiene un control temporal y se solicitó la corrección definitiva",
+        "La condición está contenida parcialmente, pero el cierre definitivo sigue pendiente.",
+      ),
+      opcion(
+        "accion_pendiente",
+        "La corrección definitiva todavía no se ejecuta",
+        `Debe gestionarse la medida pendiente: ${riesgo.accionInmediata}`,
+      ),
+      opcion(
+        "accion_no_verificable",
+        "No es posible verificar la medida aplicada",
+        "El informe debe quedar sujeto a revisión antes del cierre.",
+      ),
+    ];
+  }
+
+  if (control === "sin_control") {
+    return [
+      opcion(
+        "actividad_detenida",
+        "Se detuvo o aisló la actividad mientras se implementa el control",
+        `No reanudar hasta ejecutar y verificar: ${riesgo.accionInmediata}`,
+      ),
+      opcion(
+        "accion_pendiente",
+        "La medida requerida todavía no se aplica",
+        `Debe gestionarse de inmediato: ${riesgo.accionInmediata}`,
+      ),
+      opcion(
+        "accion_no_verificable",
+        "No es posible verificar una medida aplicada",
+        "Se requiere revisión en terreno antes de continuar.",
+      ),
+    ];
+  }
+
+  return [
+    opcion(
+      "verificacion_solicitada",
+      "Se solicitó verificar el control antes de continuar",
+      `La comprobación debe considerar: ${riesgo.controlEsperado}`,
+    ),
+    opcion(
+      "accion_pendiente",
+      "La medida requerida todavía no se confirma",
+      `Debe verificarse la aplicación de: ${riesgo.accionInmediata}`,
+    ),
+    opcion(
+      "accion_no_verificable",
+      "No es posible verificar la medida aplicada",
+      "El informe debe quedar sujeto a revisión antes del cierre.",
+    ),
+  ];
+};
 
 export function construirPreguntaProgresivaV4(
   reporte: ReporteContextoProgresivoV4,
@@ -737,8 +814,8 @@ export function construirPreguntaProgresivaV4(
       numero,
       total: TOTAL_PREGUNTAS_PROGRESIVAS_V4,
       etapa: `Análisis de ${riesgo.titulo.toLowerCase()}`,
-      texto: `Respecto de “${riesgo.titulo}”, ¿qué exposición o consecuencia se confirma?`,
-      apoyo: "Puedes marcar hasta dos alternativas cuando ambas condiciones están presentes.",
+      texto: `Al detectar “${riesgo.titulo}”, ¿qué exposición o consecuencia existía?`,
+      apoyo: "Responde según la condición observada inicialmente. Puedes marcar hasta dos alternativas.",
       estadoAnalisis: "Relacionando exposición y consecuencia",
       multiple: true,
       maxSelecciones: 2,
@@ -752,7 +829,7 @@ export function construirPreguntaProgresivaV4(
       numero,
       total: TOTAL_PREGUNTAS_PROGRESIVAS_V4,
       etapa: "Verificación del control",
-      texto: `¿Cuál es el estado real del control para “${riesgo.titulo}”?`,
+      texto: `Después de detectar el hallazgo, ¿cuál es el estado actual del control para “${riesgo.titulo}”?`,
       apoyo: `Control esperado: ${riesgo.controlEsperado}`,
       estadoAnalisis: "Contrastando el control crítico esperado",
       multiple: false,
@@ -766,12 +843,12 @@ export function construirPreguntaProgresivaV4(
     numero,
     total: TOTAL_PREGUNTAS_PROGRESIVAS_V4,
     etapa: "Decisión y cierre",
-    texto: `¿Qué medida se aplicó específicamente frente a “${riesgo.titulo}”?`,
+    texto: `Según el estado actual del control, ¿qué medida quedó aplicada para “${riesgo.titulo}”?`,
     apoyo: `El cierre deberá acreditarse mediante: ${riesgo.evidenciaCierre}`,
     estadoAnalisis: "Construyendo la decisión preventiva final",
     multiple: false,
     maxSelecciones: 1,
-    opciones: opcionesAccion(riesgo),
+    opciones: opcionesAccion(riesgo, respuestaIds(flujo, "v4_control")[0]),
   };
 }
 
@@ -860,11 +937,70 @@ export function retrocederFlujoProgresivoV4(
   };
 }
 
-export const flujoProgresivoCompletoV4 = (flujo?: FlujoPreguntasProgresivasV4) =>
+const ACCIONES_COMPATIBLES_POR_CONTROL: Record<string, Set<string>> = {
+  control_efectivo: new Set(["accion_especifica_aplicada", "accion_cierre_pendiente"]),
+  control_parcial: new Set(["control_temporal", "accion_pendiente", "accion_no_verificable"]),
+  sin_control: new Set(["actividad_detenida", "accion_pendiente", "accion_no_verificable"]),
+  control_no_verificable: new Set([
+    "verificacion_solicitada",
+    "accion_pendiente",
+    "accion_no_verificable",
+  ]),
+};
+
+export function validarCoherenciaFlujoProgresivoV4(
+  flujo?: FlujoPreguntasProgresivasV4,
+): ValidacionCoherenciaProgresivaV4 {
+  if (!flujo) {
+    return {
+      ok: false,
+      inconsistencias: ["No existe una evaluación progresiva para validar."],
+      volverAPaso: 1,
+    };
+  }
+
+  const control = respuestaIds(flujo, "v4_control")[0];
+  const accion = respuestaIds(flujo, "v4_accion")[0];
+  if (!control || !accion) return { ok: true, inconsistencias: [] };
+
+  const accionesCompatibles = ACCIONES_COMPATIBLES_POR_CONTROL[control];
+  if (!accionesCompatibles?.has(accion)) {
+    return {
+      ok: false,
+      inconsistencias: [
+        "El estado del control y la medida final seleccionada no son compatibles.",
+      ],
+      volverAPaso: 4,
+    };
+  }
+
+  return { ok: true, inconsistencias: [] };
+}
+
+const flujoProgresivoEstructuralmenteCompletoV4 = (flujo?: FlujoPreguntasProgresivasV4) =>
   flujo?.version === VERSION_FLUJO_PROGRESIVO_V4 &&
   flujo.estado === "COMPLETO" &&
   ORDEN_PREGUNTAS.every((id) => (flujo.respuestas[id]?.opcionIds.length || 0) > 0) &&
   Boolean(flujo.dominioId && flujo.riesgoId);
+
+export const flujoProgresivoCompletoV4 = (flujo?: FlujoPreguntasProgresivasV4) =>
+  flujoProgresivoEstructuralmenteCompletoV4(flujo) &&
+  validarCoherenciaFlujoProgresivoV4(flujo).ok;
+
+export function reabrirControlInconsistenteV4(
+  flujo: FlujoPreguntasProgresivasV4,
+): FlujoPreguntasProgresivasV4 {
+  const respuestas = { ...flujo.respuestas };
+  delete respuestas.v4_control;
+  delete respuestas.v4_accion;
+  return {
+    ...flujo,
+    estado: "EN_PROGRESO",
+    pasoActual: 4,
+    respuestas,
+    completadoEn: undefined,
+  };
+}
 
 const NIVEL: Record<Criticidad, number> = { BAJO: 0, MEDIO: 1, ALTO: 2, CRITICO: 3 };
 const CRITICIDAD_POR_NIVEL: Criticidad[] = ["BAJO", "MEDIO", "ALTO", "CRITICO"];
@@ -920,6 +1056,9 @@ export function evaluarFlujoProgresivoV4(
   if (accion === "accion_pendiente") {
     factoresElevadores.push("La medida preventiva requerida permanece pendiente.");
   }
+  if (accion === "actividad_detenida") {
+    factoresLimitantes.push("La actividad fue detenida o aislada mientras se implementa el control.");
+  }
 
   nivel = Math.max(0, Math.min(3, nivel));
   if (riesgo.topeCriticidad) nivel = Math.min(nivel, NIVEL[riesgo.topeCriticidad]);
@@ -927,7 +1066,8 @@ export function evaluarFlujoProgresivoV4(
   const noVerificable =
     exposiciones.includes("no_verificable") ||
     control === "control_no_verificable" ||
-    accion === "accion_no_verificable";
+    accion === "accion_no_verificable" ||
+    accion === "verificacion_solicitada";
   const controlDeficiente = control === "sin_control" || control === "control_parcial";
   const requiereSuspension = Boolean(
     riesgo.suspensionConControlDeficiente && controlDeficiente && (exposicionAlta || criticidadFinal === "CRITICO"),
@@ -943,9 +1083,15 @@ export function evaluarFlujoProgresivoV4(
   const medidaInmediata =
     accion === "accion_especifica_aplicada"
       ? `Mantener y verificar la eficacia de la medida aplicada: ${riesgo.accionInmediata}`
+      : accion === "accion_cierre_pendiente"
+        ? `Mantener el control efectivo y registrar la evidencia de cierre: ${riesgo.evidenciaCierre}`
       : accion === "control_temporal"
         ? `Mantener el control temporal y ejecutar la medida definitiva: ${riesgo.accionInmediata}`
-        : riesgo.accionInmediata;
+        : accion === "actividad_detenida"
+          ? `Mantener la actividad detenida o aislada hasta ejecutar y verificar: ${riesgo.accionInmediata}`
+          : accion === "verificacion_solicitada"
+            ? `Verificar el control antes de continuar: ${riesgo.controlEsperado}`
+            : riesgo.accionInmediata;
   const prioridad = criticidadFinal === "CRITICO" ? "inmediata" : criticidadFinal === "ALTO" ? "dentro de 24 horas" : criticidadFinal === "MEDIO" ? "dentro de 3 días" : "dentro de 7 días";
   const preguntas = reconstruirVerificacionesProgresivasV4(flujo).map((item, indice) => ({
     id: ORDEN_PREGUNTAS[indice],

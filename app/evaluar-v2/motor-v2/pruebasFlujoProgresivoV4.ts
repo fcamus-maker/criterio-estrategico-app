@@ -5,6 +5,7 @@ import {
   evaluarFlujoProgresivoV4,
   flujoProgresivoCompletoV4,
   responderPreguntaProgresivaV4,
+  validarCoherenciaFlujoProgresivoV4,
   type FlujoPreguntasProgresivasV4,
 } from "./flujoPreguntasProgresivasV4";
 
@@ -63,6 +64,17 @@ const CASOS: CasoFlujoProgresivoV4[] = [
     criticidad: "CRITICO",
     suspension: true,
   },
+  {
+    id: "herramienta-control-efectivo",
+    respuestas: [
+      ["equipos_instalaciones"],
+      ["herramienta_defectuosa"],
+      ["exposicion_directa_personas"],
+      ["control_efectivo"],
+      ["accion_cierre_pendiente"],
+    ],
+    criticidad: "MEDIO",
+  },
 ];
 
 const ejecutarRespuestas = (respuestas: string[][]) => {
@@ -103,6 +115,49 @@ export function ejecutarPruebasFlujoProgresivoV4() {
       errores.push(`${caso.id}: decisión de suspensión incoherente.`);
     }
   });
+
+  let flujoEfectivo = crearFlujoPreguntasProgresivasV4();
+  [
+    "equipos_instalaciones",
+    "herramienta_defectuosa",
+    "exposicion_directa_personas",
+    "control_efectivo",
+  ].forEach((seleccion) => {
+    const pregunta = construirPreguntaProgresivaV4({}, flujoEfectivo);
+    flujoEfectivo = responderPreguntaProgresivaV4(flujoEfectivo, pregunta, seleccion);
+    flujoEfectivo = avanzarFlujoProgresivoV4(flujoEfectivo);
+  });
+  const preguntaFinalEfectiva = construirPreguntaProgresivaV4({}, flujoEfectivo);
+  if (preguntaFinalEfectiva.opciones.some((opcion) => opcion.id === "control_temporal")) {
+    errores.push("control-efectivo: ofreció una medida temporal incompatible.");
+  }
+  if (preguntaFinalEfectiva.opciones.some((opcion) => opcion.id === "accion_pendiente")) {
+    errores.push("control-efectivo: ofreció una medida pendiente incompatible.");
+  }
+
+  const flujoCoherente = ejecutarRespuestas([
+    ["equipos_instalaciones"],
+    ["herramienta_defectuosa"],
+    ["exposicion_directa_personas"],
+    ["control_efectivo"],
+    ["accion_cierre_pendiente"],
+  ]);
+  const flujoAdulterado: FlujoPreguntasProgresivasV4 = {
+    ...flujoCoherente,
+    respuestas: {
+      ...flujoCoherente.respuestas,
+      v4_accion: {
+        opcionIds: ["control_temporal"],
+        respondidaEn: new Date().toISOString(),
+      },
+    },
+  };
+  if (validarCoherenciaFlujoProgresivoV4(flujoAdulterado).ok) {
+    errores.push("barrera-final: aceptó control efectivo junto con control temporal.");
+  }
+  if (flujoProgresivoCompletoV4(flujoAdulterado)) {
+    errores.push("barrera-final: permitió emitir un informe contradictorio.");
+  }
 
   return {
     ok: errores.length === 0,
