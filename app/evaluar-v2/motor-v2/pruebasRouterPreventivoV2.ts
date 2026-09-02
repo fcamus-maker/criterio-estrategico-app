@@ -60,7 +60,7 @@ export const BANCO_CASOS_REALES_ROUTER_PREVENTIVO: CasoRealRouterPreventivo[] = 
   caso("real-009", "Madera con clavos expuestos en zona de transito de trabajadores.", "orden_aseo_housekeeping", ["seguridad_trabajadores", "senalizacion_segregacion"], ["condicion_insegura"], "parcial", ["No debe tratarse como dano material simple."], ["dano_material"]),
   caso("real-010", "Material no retirado en paso de trabajadores, obstruyendo circulacion.", "orden_aseo_housekeeping", ["seguridad_trabajadores", "senalizacion_segregacion"], ["condicion_insegura"], "parcial", ["No debe omitir exposicion de trabajadores."]),
   caso("real-011", "Tapa de alcantarillado retirada y no repuesta en ruta peatonal.", "orden_aseo_housekeeping", ["dano_material", "seguridad_trabajadores", "senalizacion_segregacion"], ["condicion_insegura"], "suficiente", ["Debe tratarse como condicion insegura y no solo como dano material."]),
-  caso("real-012", "Pasillo obstruido por materiales en zona de evacuacion.", "orden_aseo_housekeeping", ["senalizacion_segregacion", "equipos_emergencia", "seguridad_trabajadores"], ["condicion_insegura"], "parcial", ["No debe clasificarse como emergencia real sin evento activo."], ["emergencias_reales"]),
+  caso("real-012", "Pasillo obstruido por materiales en zona de evacuacion.", "orden_aseo_housekeeping", ["senalizacion_segregacion", "equipos_emergencia", "seguridad_trabajadores"], ["condicion_insegura"], "suficiente", ["No debe clasificarse como emergencia real sin evento activo."], ["emergencias_reales"]),
   caso("real-013", "Gomas del piso despegadas en acceso a casino.", "dano_material", ["orden_aseo_housekeeping", "seguridad_trabajadores"], ["condicion_insegura"], "parcial", ["Goma despegada no debe sobredocumentarse."], ["documental_legal", "trabajos_criticos"]),
   caso("real-014", "Vaso trizado disponible para uso en comedor.", "dano_material", ["seguridad_trabajadores"], ["condicion_insegura"], "suficiente", ["Vaso trizado no debe gatillar PTS/AST/procedimiento como respaldo principal."], ["documental_legal", "trabajos_criticos"]),
   caso("real-015", "Enchufe de taladro danado y reparado con huincha aisladora.", "energia_loto_electrico", ["herramientas_equipos", "mantencion_certificacion"], ["herramienta_equipo_mal_estado_usado_terreno"], "parcial", ["No debe clasificarse solo como herramienta generica."]),
@@ -99,6 +99,26 @@ export const BANCO_CASOS_REALES_ROUTER_PREVENTIVO: CasoRealRouterPreventivo[] = 
   caso("real-048", "Charla realizada pero sin firmas de respaldo.", "capacitacion_evidencias", ["documental_legal"], ["omision_documental"], "suficiente", ["No debe asumir falta total de capacitacion si solo falta respaldo."]),
   caso("real-049", "Procedimiento no disponible en terreno para tarea en ejecucion.", "documental_legal", ["capacitacion_evidencias", "seguridad_trabajadores"], ["omision_documental"], "parcial", ["Debe reconocer disponibilidad documental en terreno."]),
   caso("real-050", "Trabajador ingresa a zona restringida sin autorizacion.", "senalizacion_segregacion", ["seguridad_trabajadores"], ["ingreso_zona_restringida", "acto_inseguro"], "suficiente", ["Debe reconocer ingreso no autorizado a zona restringida."]),
+  caso(
+    "real-051",
+    "Materiales obstaculizan el acceso de peatones.",
+    "orden_aseo_housekeeping",
+    ["seguridad_trabajadores", "senalizacion_segregacion"],
+    ["condicion_insegura"],
+    "suficiente",
+    ["No debe interpretar el obstáculo peatonal como vidrio o daño material."],
+    ["dano_material"],
+  ),
+  caso(
+    "real-052",
+    "Pasillos con obstáculos. Pasillos obstruidos durante reposición de mercaderías.",
+    "orden_aseo_housekeeping",
+    ["senalizacion_segregacion", "seguridad_trabajadores"],
+    ["condicion_insegura"],
+    "suficiente",
+    ["No debe activar ruido ambiental por la subcadena presente en obstruidos."],
+    ["higiene_ocupacional", "medio_ambiente", "equipos_emergencia"],
+  ),
 ];
 
 function caso(

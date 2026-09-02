@@ -156,7 +156,7 @@ export type EstadoFlujoPreventivoStorage =
   | "FALLBACK_COMPLETO";
 
 export type FlujoPreventivoV2Storage = {
-  version: "preventivo_inteligente_v2";
+  version: "preventivo_inteligente_v3";
   modo: "preventivo" | "fallback_actual";
   estado: EstadoFlujoPreventivoStorage;
   contextoFingerprint: string;

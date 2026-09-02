@@ -36,6 +36,7 @@ export type ReporteEvaluableMotorV2 = {
       consecuenciaProbableRiesgo?: string;
       controlCriticoEsperado?: string;
       accionInmediataSugerida?: string;
+      idsPlantilla?: string[];
     };
   };
 };
@@ -81,8 +82,21 @@ function normalizar(valor: unknown) {
     .toLowerCase();
 }
 
+function escaparRegExp(valor: string) {
+  return valor.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function contieneTermino(textoBase: string, termino: string) {
+  const normalizado = normalizar(termino);
+  if (!normalizado) return false;
+  const sufijo = normalizado.includes(" ") ? "" : "[a-z0-9]*";
+  return new RegExp(
+    `(^|[^a-z0-9])${escaparRegExp(normalizado)}${sufijo}(?=$|[^a-z0-9])`,
+  ).test(textoBase);
+}
+
 function incluye(textoBase: string, palabras: string[]) {
-  return palabras.some((palabra) => textoBase.includes(normalizar(palabra)));
+  return palabras.some((palabra) => contieneTermino(textoBase, palabra));
 }
 
 function criticidadMotor(valor: unknown): Criticidad {
@@ -132,6 +146,57 @@ function incluyeValorInteligente(
   return respuestasInteligentes(respuestas).some(
     ([id, valor]) => (!filtroId || filtroId(id)) && valores.includes(normalizar(valor)),
   );
+}
+
+const ACCIONES_DESDE_RESPUESTA: Record<string, string> = {
+  detener_aislar_inmediatamente: "Detener o aislar inmediatamente la condición observada.",
+  detener_aislar: "Detener o aislar inmediatamente la condición observada.",
+  corregir_antes_continuar: "Corregir la condición antes de continuar la actividad.",
+  mantener_solo_control_efectivo: "Mantener la actividad únicamente con controles efectivos y verificados.",
+  mantener_control_efectivo: "Mantener la actividad únicamente con controles efectivos y verificados.",
+  continua_sin_control: "Detener la actividad hasta implementar y verificar el control requerido.",
+  retirar_segregar_inmediato: "Retirar o segregar de inmediato la condición observada.",
+  senalizar_restringir_acceso: "Señalizar y restringir el acceso hasta eliminar la condición.",
+  reparar_reponer_antes_habilitar: "Reparar o reponer el elemento antes de volver a habilitarlo.",
+  contener_retirar_inmediatamente: "Contener y retirar inmediatamente la sustancia o residuo involucrado.",
+  segregar_gestionar_residuo: "Segregar y gestionar el material como residuo según corresponda.",
+  notificar_evaluar_impacto: "Notificar el evento y evaluar inmediatamente su impacto.",
+  mas_de_una_gestion: "Aplicar las medidas ambientales definidas y verificar su eficacia.",
+  regularizar_antes_continuar: "Regularizar la documentación antes de iniciar o continuar la actividad.",
+  completar_firmas_antecedentes: "Completar las firmas o antecedentes pendientes.",
+  actualizar_documento_registro: "Actualizar el documento o registro aplicable.",
+  aislar_verificar_antes_continuar: "Aislar la condición y verificarla antes de continuar.",
+  corregir_condicion_observada: "Corregir la condición observada y verificar su eficacia.",
+  control_temporal_revision: "Mantener un control temporal y solicitar revisión preventiva.",
+};
+
+function medidaSeleccionadaDesdeRespuestas(
+  respuestas: Record<string, string> | undefined,
+  accionSugerida?: string,
+  idsPlantilla: string[] = [],
+) {
+  const idsVigentes = new Set(idsPlantilla);
+  const respuestasAccion = Object.entries(respuestas || {}).filter(
+    ([id, valor]) => id.endsWith("_accion") && Boolean(normalizar(valor)),
+  );
+  const respuestaAccion =
+    respuestasAccion.find(([id]) => idsVigentes.has(id)) || respuestasAccion.at(-1);
+  const valor = normalizar(respuestaAccion?.[1]);
+  if (!valor || valor === "no_aplica" || valor === "no_verificable") return "";
+  if (valor === "accion_especifica_aplicada") {
+    return accionSugerida
+      ? `Mantener y verificar la eficacia de la medida aplicada: ${accionSugerida}`
+      : "Mantener y verificar la eficacia de la medida aplicada.";
+  }
+  if (valor === "control_temporal") {
+    return accionSugerida
+      ? `Mantener el control temporal y ejecutar la medida definitiva: ${accionSugerida}`
+      : "Mantener el control temporal y ejecutar la corrección definitiva.";
+  }
+  if (valor === "accion_pendiente") {
+    return accionSugerida || "Ejecutar de inmediato la medida preventiva pendiente.";
+  }
+  return ACCIONES_DESDE_RESPUESTA[valor] || "";
 }
 
 export function criticidadMotorAVisual(criticidad: Criticidad) {
@@ -593,6 +658,11 @@ export function evaluarReporteConMotorV2Seguro(
     const riesgoDetectado = texto(flujo?.riesgoDetectadoTitulo);
     const prefijoRiesgo = riesgoDetectado ? `Riesgo específico identificado: ${riesgoDetectado}. ` : "";
     const medidaEspecifica = texto(flujo?.accionInmediataSugerida);
+    const medidaSeleccionada = medidaSeleccionadaDesdeRespuestas(
+      reporteActual.evaluacion?.respuestas,
+      medidaEspecifica,
+      flujo?.idsPlantilla,
+    );
 
     return {
       criticidadFinal: resultado.criticidadFinal,
@@ -602,7 +672,7 @@ export function evaluarReporteConMotorV2Seguro(
       criticidadBase: resultado.criticidadBase,
       justificacionTecnica: `${prefijoRiesgo}${resultado.justificacionTecnica}`.trim(),
       resumenEjecutivo: `${prefijoRiesgo}${resultado.resumenEjecutivo}`.trim(),
-      medidaInmediata: medidaEspecifica || resultado.medidaInmediata,
+      medidaInmediata: medidaSeleccionada || medidaEspecifica || resultado.medidaInmediata,
       plazoSugerido: resultado.plazoSugerido,
       requiereSuspension: resultado.requiereSuspension,
       requiereContencionAmbiental: resultado.requiereContencionAmbiental,

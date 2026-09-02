@@ -60,6 +60,19 @@ function normalizarInput(input: EvaluacionInputV2): EvaluacionNormalizadaV2 {
   };
 }
 
+function escaparRegExp(valor: string): string {
+  return valor.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function contieneTermino(texto: string, termino: string): boolean {
+  const normalizado = normalizarTextoMotorV2(termino);
+  if (!normalizado) return false;
+  const sufijo = normalizado.includes(" ") ? "" : "[a-z0-9]*";
+  return new RegExp(
+    `(^|[^a-z0-9])${escaparRegExp(normalizado)}${sufijo}(?=$|[^a-z0-9])`,
+  ).test(texto);
+}
+
 function respuestaIncluye(input: EvaluacionNormalizadaV2, palabras: string[]): boolean {
   const respuestas = Object.entries(input.respuestas);
   return respuestas.some(([clave, valor]) => {
@@ -69,13 +82,13 @@ function respuestaIncluye(input: EvaluacionNormalizadaV2, palabras: string[]): b
     );
     return palabras.some((palabra) => {
       const normalizada = normalizarTextoMotorV2(palabra);
-      return textoClave.includes(normalizada) || textoValor.includes(normalizada);
+      return contieneTermino(textoClave, normalizada) || contieneTermino(textoValor, normalizada);
     });
   });
 }
 
 function textoIncluye(texto: string, palabras: string[]): boolean {
-  return palabras.some((palabra) => texto.includes(normalizarTextoMotorV2(palabra)));
+  return palabras.some((palabra) => contieneTermino(texto, palabra));
 }
 
 function hayDatoAmbiental(datos?: DatosAmbientales): boolean {

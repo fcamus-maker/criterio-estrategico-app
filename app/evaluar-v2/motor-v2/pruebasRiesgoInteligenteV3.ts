@@ -6,11 +6,16 @@ import {
   tituloRiesgoPreventivoVisible,
   type SeleccionRiesgoInteligenteV3,
 } from "./selectorRiesgoInteligenteV3";
+import {
+  construirFlujoPreventivoTrasRonda1,
+  construirRondaProductivaPreventiva,
+} from "./orquestadorPreguntasPreventivasV2";
 
 type CasoSelectorInteligenteV3 = {
   id: string;
   descripcion: string;
   riesgoEspecifico: string;
+  actividad?: string;
   terminosEsperados: string[];
 };
 
@@ -50,6 +55,20 @@ const CASOS_ESPECIFICOS: CasoSelectorInteligenteV3[] = [
     descripcion: "Trabajador permanece dentro de zanja profunda sin entibación ni talud seguro.",
     riesgoEspecifico: "zanja sin entibación",
     terminosEsperados: ["entibación", "evidencia"],
+  },
+  {
+    id: "circulacion-obstruida",
+    descripcion: "Materiales obstaculizan el acceso de peatones.",
+    riesgoEspecifico: "Materiales obstaculizan el acceso de peatones",
+    actividad: "Reposición en bodega",
+    terminosEsperados: ["ruta de paso", "retiro inmediato"],
+  },
+  {
+    id: "pasillos-obstruidos-ce-0007",
+    descripcion: "Pasillos con obstáculos",
+    riesgoEspecifico: "Pasillos con obstáculos",
+    actividad: "Reposición de mercaderías",
+    terminosEsperados: ["ruta de paso", "retiro inmediato"],
   },
 ];
 
@@ -154,6 +173,109 @@ export const evaluarBancoRiesgoInteligenteV3 = () => {
   if (resultadoDerrame.ambitoPrincipal !== "medio_ambiente") errores.push("El derrame no conserva el ámbito ambiental.");
   if (!resultadoDerrame.requiereContencionAmbiental) errores.push("El derrame al suelo no exige contención ambiental.");
 
+  const reporteCirculacion = {
+    descripcion: "Materiales obstaculizan el acceso de peatones",
+    actividad: "Reposición en bodega",
+  };
+  const respuestasCirculacion = {
+    transversal_anclaje_riesgo_especifico: "Materiales obstaculizan el acceso de peatones",
+    contexto_ambito_principal: "seguridad_laboral",
+    contexto_actividad_tarea: "Reposición en bodega",
+    contexto_condicion_accion: "Pasillos obstaculizados",
+    contexto_afectacion_actual: "solo_condicion_riesgo",
+  };
+  const flujoCirculacion = construirFlujoPreventivoTrasRonda1(
+    reporteCirculacion,
+    respuestasCirculacion,
+  );
+  const preguntasCirculacion = construirRondaProductivaPreventiva(
+    reporteCirculacion,
+    respuestasCirculacion,
+  );
+  const textoCirculacion = normalizar(
+    preguntasCirculacion.map((pregunta) => pregunta.texto).join(" "),
+  );
+  if (flujoCirculacion.flujo.familiaPrincipal !== "orden_aseo_housekeeping") {
+    errores.push(
+      `Circulación obstruida quedó en familia ${flujoCirculacion.flujo.familiaPrincipal}.`,
+    );
+  }
+  if (!flujoCirculacion.flujo.riesgoDetectadoId?.includes("ruta_circulacion_obstruida")) {
+    errores.push("Circulación obstruida no seleccionó el riesgo específico de ruta.");
+  }
+  if (/vidrio|cristal|fragment/.test(textoCirculacion)) {
+    errores.push("Circulación obstruida generó preguntas incompatibles sobre vidrio.");
+  }
+
+  const reportePasillosCe0007 = {
+    area: "Bodega",
+    descripcion: "Pasillos con obstáculos",
+    actividad: "Reposición de mercaderías",
+  };
+  const respuestasPasillosCe0007 = {
+    transversal_anclaje_riesgo_especifico: "Pasillos con obstáculos",
+    contexto_ambito_principal: "seguridad_laboral",
+    contexto_actividad_tarea: "Reposición de mercaderías",
+    contexto_condicion_accion: "Pasillos obstruidos",
+    contexto_afectacion_actual: "solo_condicion_riesgo",
+  };
+  const flujoPasillosCe0007 = construirFlujoPreventivoTrasRonda1(
+    reportePasillosCe0007,
+    respuestasPasillosCe0007,
+  );
+  const preguntasPasillosCe0007 = construirRondaProductivaPreventiva(
+    reportePasillosCe0007,
+    respuestasPasillosCe0007,
+  );
+  const textoPasillosCe0007 = normalizar(
+    preguntasPasillosCe0007
+      .map((pregunta) => [pregunta.texto, pregunta.objetivo].join(" "))
+      .join(" "),
+  );
+  if (flujoPasillosCe0007.flujo.familiaPrincipal !== "orden_aseo_housekeeping") {
+    errores.push(
+      `CE-0007 quedó en familia ${flujoPasillosCe0007.flujo.familiaPrincipal}.`,
+    );
+  }
+  if (!flujoPasillosCe0007.flujo.riesgoDetectadoId?.includes("ruta_circulacion_obstruida")) {
+    errores.push("CE-0007 no seleccionó el riesgo específico de ruta obstruida.");
+  }
+  if (/ruido|vibracion|auditiva|ambiental|salud ocupacional/.test(textoPasillosCe0007)) {
+    errores.push("CE-0007 generó preguntas incompatibles de ruido o higiene ocupacional.");
+  }
+  if (!/pasillo|ruta|obstru|obstacul|circulacion/.test(textoPasillosCe0007)) {
+    errores.push("CE-0007 no generó preguntas sobre el pasillo obstruido.");
+  }
+  const resultadoPasillosCe0007 = evaluarReporteConMotorV2Seguro({
+    ...reportePasillosCe0007,
+    evaluacion: { respuestas: respuestasPasillosCe0007 },
+  });
+  const textoResultadoPasillos = normalizar(
+    [
+      resultadoPasillosCe0007.ambitoPrincipal,
+      resultadoPasillosCe0007.medidaInmediata,
+      resultadoPasillosCe0007.resumenEjecutivo,
+    ].join(" "),
+  );
+  if (resultadoPasillosCe0007.ambitoPrincipal !== "seguridad_laboral") {
+    errores.push(`CE-0007 terminó en ámbito ${resultadoPasillosCe0007.ambitoPrincipal}.`);
+  }
+  if (/ruido|vibracion|auditiva|medio ambiente|salud ocupacional/.test(textoResultadoPasillos)) {
+    errores.push("CE-0007 contaminó el resultado final con conceptos de ruido o ambiente.");
+  }
+
+  const resultadoAccionSeleccionada = evaluarReporteConMotorV2Seguro({
+    descripcion: reporteCirculacion.descripcion,
+    evaluacion: {
+      respuestas: {
+        orden_aseo_housekeeping_accion: "senalizar_restringir_acceso",
+      },
+    },
+  });
+  if (!normalizar(resultadoAccionSeleccionada.medidaInmediata).includes("senalizar y restringir")) {
+    errores.push("El informe final no conserva la acción seleccionada por el usuario.");
+  }
+
   return {
     totalCasosEspecificos: CASOS_ESPECIFICOS.length,
     preguntasEspecificasDistintas: textosPreguntas.size,
@@ -162,6 +284,12 @@ export const evaluarBancoRiesgoInteligenteV3 = () => {
     suspensionAltura: resultadoAltura.requiereSuspension,
     ambitoDerrame: resultadoDerrame.ambitoPrincipal,
     contencionDerrame: resultadoDerrame.requiereContencionAmbiental,
+    familiaCirculacion: flujoCirculacion.flujo.familiaPrincipal,
+    riesgoCirculacion: flujoCirculacion.flujo.riesgoDetectadoId,
+    familiaPasillosCe0007: flujoPasillosCe0007.flujo.familiaPrincipal,
+    riesgoPasillosCe0007: flujoPasillosCe0007.flujo.riesgoDetectadoId,
+    ambitoPasillosCe0007: resultadoPasillosCe0007.ambitoPrincipal,
+    medidaAccionSeleccionada: resultadoAccionSeleccionada.medidaInmediata,
     correcto: errores.length === 0,
     errores,
   };

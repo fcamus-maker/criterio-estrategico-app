@@ -192,13 +192,13 @@ const plantillaAltura = plantilla(
   ["ley_16744", "ds_44", "ds_594", "jerarquia_controles"],
 );
 
-const plantillaVidrio = plantilla(
+const plantillaDanoMaterial = plantilla(
   "dano_material",
-  "Vidrio quebrado",
+  "Daño material",
   "simple",
   {
-    confirmacion: pregunta("dano_material", "confirmacion", "¿Se confirma exposición a corte, contacto o caída de fragmentos?", "confirmacion_exposicion"),
-    control: pregunta("dano_material", "control", "¿Cuál es el estado del control aplicado sobre el vidrio quebrado?", "estado_control"),
+    confirmacion: pregunta("dano_material", "confirmacion", "¿Se confirma exposición asociada al elemento o infraestructura dañada?", "confirmacion_exposicion"),
+    control: pregunta("dano_material", "control", "¿Cuál es el estado del control aplicado sobre el elemento observado?", "estado_control"),
     accion: pregunta("dano_material", "accion", "¿Qué acción inmediata corresponde frente a la condición?", "accion_correctiva_simple"),
     gestion: pregunta("dano_material", "gestion", "¿Se requiere reparación o reposición del elemento dañado?", "reparacion_reposicion"),
     cierre: pregunta("dano_material", "cierre", "¿Qué evidencia debe respaldar el cierre del hallazgo?", "evidencia_cierre"),
@@ -206,10 +206,49 @@ const plantillaVidrio = plantilla(
   ["ley_16744", "ds_44", "jerarquia_controles"],
 );
 
+const plantillaOrdenAseo = plantilla(
+  "orden_aseo_housekeeping",
+  "Orden y aseo",
+  "simple",
+  {
+    confirmacion: pregunta(
+      "orden_aseo_housekeeping",
+      "confirmacion",
+      "¿Se confirma que la condición afecta el orden, la limpieza o una ruta de circulación?",
+      "confirmacion_exposicion",
+    ),
+    control: pregunta(
+      "orden_aseo_housekeeping",
+      "control",
+      "¿Cuál es el estado del control aplicado en el sector observado?",
+      "estado_control",
+    ),
+    accion: pregunta(
+      "orden_aseo_housekeeping",
+      "accion",
+      "¿Qué acción inmediata corresponde frente a la condición?",
+      "accion_correctiva_simple",
+    ),
+    gestion: pregunta(
+      "orden_aseo_housekeeping",
+      "gestion",
+      "¿Quién debe revisar y verificar la liberación y condición segura del sector?",
+      "responsable_cierre",
+    ),
+    cierre: pregunta(
+      "orden_aseo_housekeeping",
+      "cierre",
+      "¿Qué evidencia debe respaldar el cierre del hallazgo?",
+      "evidencia_cierre",
+    ),
+  },
+  ["ley_16744", "ds_44", "ds_594", "jerarquia_controles"],
+);
+
 export const PLANTILLAS_RONDA_PRODUCTIVA_V2: Record<FamiliaPreventivaProductivaId, PlantillaFamiliaProductiva> = {
   seguridad_trabajadores: plantillaCritica("seguridad_trabajadores", "Seguridad laboral", "personas expuestas"),
   documental_legal: plantillaDocumental("documental_legal", "Documental / cumplimiento"),
-  orden_aseo_housekeeping: plantillaSimple("orden_aseo_housekeeping", "Orden y aseo", "orden, tránsito o limpieza"),
+  orden_aseo_housekeeping: plantillaOrdenAseo,
   herramientas_equipos: plantillaCritica("herramientas_equipos", "Herramientas y equipos", "uso de herramienta o equipo"),
   maquinaria_instalaciones: plantillaCritica("maquinaria_instalaciones", "Maquinaria e instalaciones", "maquinaria o instalación"),
   vehiculos_transporte: plantillaCritica("vehiculos_transporte", "Vehículos y transporte", "tránsito o transporte"),
@@ -221,7 +260,7 @@ export const PLANTILLAS_RONDA_PRODUCTIVA_V2: Record<FamiliaPreventivaProductivaI
   equipos_emergencia: plantillaSimple("equipos_emergencia", "Equipos de emergencia", "equipo de emergencia"),
   senalizacion_segregacion: plantillaSimple("senalizacion_segregacion", "Señalización y segregación", "señalización o segregación"),
   clima_entorno: plantillaGeneral("clima_entorno", "Clima y entorno"),
-  dano_material: plantillaVidrio,
+  dano_material: plantillaDanoMaterial,
   capacitacion_evidencias: plantillaDocumental("capacitacion_evidencias", "Capacitación y evidencias"),
   mantencion_certificacion: plantillaDocumental("mantencion_certificacion", "Mantención y certificación"),
   emergencias_reales: plantillaCritica("emergencias_reales", "Emergencia real", "emergencia real"),
@@ -282,4 +321,3 @@ export const familiasPreventivasCanonicas = (): FamiliaTaxonomiaPreventivaId[] =
 
 export const familiasSinPlantillaProductiva = (): FamiliaTaxonomiaPreventivaId[] =>
   familiasPreventivasCanonicas().filter((familiaId) => !PLANTILLAS_RONDA_PRODUCTIVA_V2[familiaId]);
-
