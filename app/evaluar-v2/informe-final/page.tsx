@@ -26,7 +26,13 @@ import {
   esErrorChunkStale,
   MENSAJE_CHUNK_STALE,
 } from "../chunkLoadRecovery";
-import type { NormativaAplicable } from "../motor-v2/types";
+import {
+  formatearCoordenadaInformeV2,
+  formatearFechaGpsInformeV2,
+  formatearPrecisionInformeV2,
+  resolverDecisionSuspensionInformeV2,
+  resolverNivelValidacionInformeV2,
+} from "../modeloInformeFinalV2";
 import {
   guardarReporteActualV2,
   guardarHistorialLivianoV2,
@@ -223,21 +229,6 @@ function etiquetaCategoria(valor?: string) {
     : "No determinada";
 }
 
-function etiquetaTipoEvento(valor?: string) {
-  const etiquetas: Record<string, string> = {
-    condicion_subestandar: "Condición subestándar",
-    acto_inseguro: "Conducta observada",
-    cuasi_accidente: "Incidente sin lesión",
-    accidente: "Accidente",
-    ambiental: "Evento ambiental",
-    aspecto_ambiental: "Aspecto ambiental",
-    documental: "Brecha documental",
-    otro: "No determinado",
-  };
-
-  return valor ? etiquetas[valor] || etiquetaCategoria(valor) : "No determinado";
-}
-
 function limpiarTextoVisible(valor?: string) {
   if (!valor) return "";
   return valor
@@ -270,15 +261,18 @@ function textoSeguro(valor?: string) {
     .join("\n");
 }
 
-function etiquetaSuficiencia(valor?: string) {
-  if (valor === "alta") return "Alta";
-  if (valor === "media") return "Media";
-  if (valor === "baja") return "Requiere más antecedentes";
-  return "No determinada";
-}
-
 function construirDesarrolloPreventivo(reporte: ReporteV2) {
   const texto = `${reporte.descripcion || ""} ${reporte.evaluacion?.categoria_detectada || ""}`.toLowerCase();
+  if (
+    texto.includes("excavación") ||
+    texto.includes("excavacion") ||
+    texto.includes("zanja") ||
+    texto.includes("talud") ||
+    texto.includes("entibación") ||
+    texto.includes("entibacion")
+  ) {
+    return "La condición debe verificarse considerando profundidad, estabilidad del terreno, entibación o talud seguro, protección perimetral, acceso y salida, ubicación del material excavado, interferencias y presencia de personas dentro o junto al borde. La actividad solo puede reanudarse cuando estos controles estén implementados y comprobados en terreno.";
+  }
   if (
     texto.includes("arnes") ||
     texto.includes("arnés") ||
@@ -299,6 +293,21 @@ function construirDesarrolloPreventivo(reporte: ReporteV2) {
 function marcoPreventivoProbable(reporte: ReporteV2) {
   const texto = `${reporte.descripcion || ""} ${reporte.evaluacion?.categoria_detectada || ""}`.toLowerCase();
   const base = ["Ley 16.744", "DS 44", "DS 594"];
+  if (
+    texto.includes("excavación") ||
+    texto.includes("excavacion") ||
+    texto.includes("zanja") ||
+    texto.includes("talud") ||
+    texto.includes("entibación") ||
+    texto.includes("entibacion")
+  ) {
+    return [
+      ...base,
+      "Matriz/IPER",
+      "Procedimiento de excavación y entibación",
+      "Verificación de interferencias, accesos y protección perimetral",
+    ];
+  }
   if (texto.includes("arnes") || texto.includes("arnés") || texto.includes("altura")) {
     return [...base, "Matriz/IPER", "Procedimiento/PTS/AST/ART aplicable", "Sistema de protección contra caídas, EPP, supervisión y autorización"];
   }
@@ -311,37 +320,32 @@ function marcoPreventivoProbable(reporte: ReporteV2) {
   return [...base, "Matriz/IPER si corresponde", "Evidencia o registro de cierre preventivo"];
 }
 
-function etiquetaSiNo(valor?: boolean) {
-  return valor ? "Sí" : "No";
+type VerificacionInformeV2 = {
+  pregunta: string;
+  respuesta: string;
+};
+
+function construirVerificacionesInforme(reporte: ReporteV2): VerificacionInformeV2[] {
+  const respuestas = reporte.evaluacion?.respuestas || {};
+  return obtenerPreguntasPaso2Preventivo(reporte, respuestas)
+    .map((pregunta) => {
+      const valor = respuestas[pregunta.id];
+      const opcion = pregunta.opciones.find((item) => item.value === valor);
+      return {
+        pregunta: textoSeguro(pregunta.texto),
+        respuesta: textoSeguro(opcion?.label || valor),
+      };
+    })
+    .filter((item) => item.pregunta && item.respuesta)
+    .slice(0, 5);
 }
 
-function resumenPreguntasSugeridas(
-  preguntas?: NonNullable<ReporteV2["evaluacion"]>["preguntas_sugeridas"]
-) {
-  if (!Array.isArray(preguntas) || preguntas.length === 0) return "Sin preguntas sugeridas";
-  return preguntas
-    .slice(0, 3)
-    .map((pregunta) => limpiarTextoVisible(pregunta.texto))
-    .filter(Boolean)
-    .join(" · ");
-}
-
-function normativaResumen(normativa?: NormativaAplicable[]) {
-  if (!Array.isArray(normativa) || normativa.length === 0) {
-    return "Marco legal/preventivo probable asociado. Requiere validación legal específica antes de citar artículo definitivo.";
-  }
-
-  return normativa
-    .slice(0, 4)
-    .map((item) => item.norma)
-    .filter(Boolean)
-    .join(" · ") ||
-    "Marco legal/preventivo probable asociado. Requiere validación legal específica antes de citar artículo definitivo.";
-}
-
-function listaResumen(items?: string[]) {
-  if (!Array.isArray(items) || items.length === 0) return "Sin señales declaradas.";
-  return items.slice(0, 4).map((item) => limpiarTextoVisible(item)).join(" · ");
+function riesgoVisibleInforme(reporte: ReporteV2) {
+  return (
+    textoSeguro(reporte.evaluacion?.flujo_preventivo?.riesgoDetectadoTitulo) ||
+    textoSeguro(reporte.evaluacion?.riesgo_especifico_detectado) ||
+    etiquetaCategoria(reporte.evaluacion?.categoria_detectada)
+  );
 }
 
 function valorRespuestaPreventiva(
@@ -422,7 +426,7 @@ function mensajeUsuarioGuardado(detalle: DetalleGuardadoV2) {
       return `Reporte enviado correctamente. ${detalle.evidenciasPendientes} evidencia(s) quedaron pendientes de carga.`;
     }
 
-    return "Reporte enviado correctamente. El hallazgo fue guardado y sincronizado. Evidencias recibidas.";
+    return "Reporte enviado correctamente.";
   }
 
   const error = detalle.errorCentral || detalle.errorEvidencias;
@@ -650,6 +654,25 @@ export default function InformeFinalV2Page() {
   const fotosSinRespaldoStorage = fotos.filter((foto) => !foto.storagePath && !foto.url).length;
   const criticidad = reporte?.evaluacion?.criticidad || "BAJO";
   const estiloCriticidad = obtenerEstiloCriticidad(criticidad);
+  const verificaciones = reporte ? construirVerificacionesInforme(reporte) : [];
+  const evidenciaCierreSeleccionada = verificaciones.find((item) =>
+    item.pregunta.toLowerCase().includes("evidencia"),
+  )?.respuesta;
+  const riesgoVisible = reporte ? riesgoVisibleInforme(reporte) : "No determinado";
+  const decisionSuspension = resolverDecisionSuspensionInformeV2({
+    criticidad,
+    requiereSuspension: reporte?.evaluacion?.requiere_suspension,
+    respuestas: reporte?.evaluacion?.respuestas,
+  });
+  const nivelValidacion = resolverNivelValidacionInformeV2({
+    confianza: reporte?.evaluacion?.confianza_clasificacion,
+    requiereRevisionManual: reporte?.evaluacion?.requiere_revision_manual,
+    inconsistencias: reporte?.evaluacion?.inconsistencias,
+  });
+  const accionInmediata =
+    textoSeguro(reporte?.evaluacion?.medida_inmediata_v2) ||
+    textoSeguro(reporte?.evaluacion?.accionInmediata) ||
+    "Aplicar control preventivo y verificar su eficacia en terreno.";
 
   return (
     <>
@@ -771,295 +794,232 @@ export default function InformeFinalV2Page() {
               <div style={{ marginTop: "8px", fontSize: "15px", fontWeight: 900 }}>
                 Prioridad: {reporte.evaluacion?.prioridad || "Normal"}
               </div>
-              <div style={{ marginTop: "10px", fontSize: "13px", lineHeight: 1.45 }}>
-                {reporte.evaluacion?.recomendacion ||
-                  "Mantener control y seguimiento del hallazgo."}
+              <div style={{ marginTop: "12px", fontSize: "15px", lineHeight: 1.42, fontWeight: 800 }}>
+                {riesgoVisible}
               </div>
             </section>
 
-            {matrizUniversalVisualActiva ? (
-              <>
-                <section style={cardStyle}>
-                  <div style={{ fontSize: "18px", fontWeight: 900, marginBottom: "12px" }}>
-                    Resumen del reporte
+            <section style={cardStyle}>
+              <div style={{ fontSize: "20px", fontWeight: 900, marginBottom: "10px" }}>
+                Decisión preventiva
+              </div>
+              <p style={{ margin: "0 0 12px", fontSize: "14px", lineHeight: 1.5, color: "rgba(235,246,255,0.90)" }}>
+                Se identificó <strong>{riesgoVisible}</strong>, clasificado como <strong>{criticidad}</strong>. {decisionSuspension.detalle}
+              </p>
+              <div style={{ display: "grid", gap: "9px" }}>
+                <div
+                  style={{
+                    ...datoStyle,
+                    border: decisionSuspension.requerida
+                      ? "1px solid rgba(255,111,111,0.46)"
+                      : "1px solid rgba(57,255,20,0.34)",
+                    background: decisionSuspension.requerida
+                      ? "rgba(151,27,45,0.25)"
+                      : "rgba(57,255,20,0.08)",
+                  }}
+                >
+                  <div style={{ fontSize: "11px", opacity: 0.68 }}>Estado de la actividad</div>
+                  <div style={{ fontSize: "16px", fontWeight: 900, lineHeight: 1.35 }}>
+                    {decisionSuspension.etiqueta}
                   </div>
-                  <div style={{ display: "grid", gap: "9px", fontSize: "14px", lineHeight: 1.5 }}>
-                    <p style={{ margin: 0 }}>
-                      <strong>Código:</strong> {reporte.codigo || "Sin código"} ·{" "}
-                      <strong>Fecha:</strong> {reporte.fecha || "No informado"} ·{" "}
-                      <strong>Hora:</strong> {reporte.hora || "No informado"}
-                    </p>
-                    <p style={{ margin: 0 }}>
-                      <strong>Supervisor:</strong> {reporte.supervisor || "Sin supervisor"} ·{" "}
-                      <strong>Cargo:</strong> {reporte.cargo || "Sin cargo"}
-                    </p>
-                    <p style={{ margin: 0 }}>
-                      <strong>Empresa / obra:</strong> {reporte.empresa || "No informado"} / {reporte.obra || "No informado"} ·{" "}
-                      <strong>Área:</strong> {reporte.area || "Sin área"}
-                    </p>
-                    <p style={{ margin: 0 }}>
-                      <strong>Descripción:</strong> {reporte.descripcion || "Sin descripción"}
-                    </p>
-                    <p style={{ margin: 0 }}>
-                      <strong>Empresa involucrada / responsable:</strong>{" "}
-                      {reporte.empresaInvolucradaResponsable || "Sin informar"} ·{" "}
-                      <strong>Responsable:</strong> {reporte.responsableEmpresa || "Sin informar"} ·{" "}
-                      <strong>Cargo:</strong> {reporte.cargoResponsableEmpresa || "Sin informar"}
-                    </p>
-                  </div>
-                </section>
-
-                <section style={cardStyle}>
-                  <div style={{ fontSize: "18px", fontWeight: 900, marginBottom: "12px" }}>
-                    Análisis preventivo
-                  </div>
-                  <div style={{ display: "grid", gap: "10px", fontSize: "14px", lineHeight: 1.5 }}>
-                    <p style={{ margin: 0 }}>
-                      La clasificación preventiva corresponde a{" "}
-                      <strong>{etiquetaCategoria(reporte.evaluacion?.modulo_preguntas_sugerido)}</strong>, con ámbito principal{" "}
-                      <strong>{etiquetaAmbito(reporte.evaluacion?.ambito_principal)}</strong> y tipo de hallazgo{" "}
-                      <strong>{etiquetaTipoEvento(reporte.evaluacion?.tipo_evento)}</strong>.
-                    </p>
-                    <p style={{ margin: 0 }}>
-                      El nivel de suficiencia registrado es{" "}
-                      <strong>{etiquetaSuficiencia(reporte.evaluacion?.confianza_clasificacion)}</strong>. Las señales relevantes son{" "}
-                      <strong>{listaResumen(reporte.evaluacion?.senales_criticas)}</strong>; los factores elevadores son{" "}
-                      <strong>{listaResumen(reporte.evaluacion?.factores_elevadores)}</strong> y los factores limitantes son{" "}
-                      <strong>{listaResumen(reporte.evaluacion?.factores_limitantes)}</strong>.
-                    </p>
-                    <p style={{ margin: 0 }}>
-                      {construirDesarrolloPreventivo(reporte)}
-                    </p>
-                    <p style={{ margin: 0, opacity: 0.78 }}>
-                      Marco preventivo probable: {marcoPreventivoProbable(reporte).join(" · ")}.
-                    </p>
-                  </div>
-                </section>
-
-                <section style={cardStyle}>
-                  <div style={{ fontSize: "18px", fontWeight: 900, marginBottom: "12px" }}>
-                    Acción recomendada y cierre
-                  </div>
-                  <div style={{ display: "grid", gap: "10px", fontSize: "14px", lineHeight: 1.5 }}>
-                    <p style={{ margin: 0 }}>
-                      <strong>Acción inmediata:</strong>{" "}
-                      {textoSeguro(reporte.evaluacion?.medida_inmediata_v2) ||
-                        reporte.evaluacion?.accionInmediata ||
-                        "Sin acción definida"}.
-                    </p>
-                    <p style={{ margin: 0 }}>
-                      <strong>Control requerido:</strong>{" "}
-                      {reporte.evaluacion?.recomendacion || "Sin recomendación definida"}.
-                    </p>
-                    <p style={{ margin: 0 }}>
-                      <strong>Evidencia recomendada:</strong>{" "}
-                      {fotos.length > 0
-                        ? `${fotos.length} fotografía(s) adjunta(s) para respaldo del hallazgo.`
-                        : "Registrar evidencia de corrección o cierre cuando corresponda."}
-                    </p>
-                    <p style={{ margin: 0 }}>
-                      <strong>Seguimiento sugerido:</strong>{" "}
-                      {reporte.estadoCierre || reporte.estado || "No informado"} ·{" "}
-                      <strong>Plazo:</strong> {reporte.evaluacion?.plazo_sugerido_v2 || "Sin plazo definido"} ·{" "}
-                      <strong>Suspensión:</strong> {etiquetaSiNo(reporte.evaluacion?.requiere_suspension)}.
-                    </p>
-                    <p style={{ margin: 0, opacity: 0.78 }}>
-                      Observación final: referencia preventiva orientativa. Requiere validación legal específica antes de citar artículos o emitir conclusión jurídica definitiva.
-                    </p>
-                  </div>
-                </section>
-              </>
-            ) : (
-              <>
-                <section style={cardStyle}>
-                  <div
-                    style={{
-                      fontSize: "18px",
-                      fontWeight: 900,
-                      marginBottom: "10px",
-                    }}
-                  >
-                    Resultado técnico preventivo
-                  </div>
-                  <div style={{ display: "grid", gap: "10px" }}>
-                    {[
-                      [
-                        "Ámbito principal",
-                        etiquetaAmbito(reporte.evaluacion?.ambito_principal),
-                      ],
-                      [
-                        "Tipo de hallazgo",
-                        etiquetaTipoEvento(reporte.evaluacion?.tipo_evento),
-                      ],
-                      [
-                        "Categoría preventiva",
-                        etiquetaCategoria(reporte.evaluacion?.categoria_detectada),
-                      ],
-                      [
-                        "Clasificación preventiva",
-                        etiquetaCategoria(reporte.evaluacion?.modulo_preguntas_sugerido),
-                      ],
-                      [
-                        "Nivel de suficiencia",
-                        etiquetaSuficiencia(reporte.evaluacion?.confianza_clasificacion),
-                      ],
-                      [
-                        "Preguntas sugeridas",
-                        resumenPreguntasSugeridas(reporte.evaluacion?.preguntas_sugeridas),
-                      ],
-                      [
-                        "Medida inmediata",
-                        textoSeguro(reporte.evaluacion?.medida_inmediata_v2) ||
-                          reporte.evaluacion?.accionInmediata ||
-                          "Sin medida definida",
-                      ],
-                      [
-                        "Plazo sugerido",
-                        reporte.evaluacion?.plazo_sugerido_v2 || "Sin plazo definido",
-                      ],
-                      [
-                        "Requiere suspensión",
-                        etiquetaSiNo(reporte.evaluacion?.requiere_suspension),
-                      ],
-                      [
-                        "Requiere contención ambiental",
-                        etiquetaSiNo(
-                          reporte.evaluacion?.requiere_contencion_ambiental
-                        ),
-                      ],
-                      [
-                        "Revisión manual requerida",
-                        etiquetaSiNo(reporte.evaluacion?.requiere_revision_manual),
-                      ],
-                      [
-                        "Señales críticas reales",
-                        listaResumen(reporte.evaluacion?.senales_criticas),
-                      ],
-                      [
-                        "Factores elevadores",
-                        listaResumen(reporte.evaluacion?.factores_elevadores),
-                      ],
-                      [
-                        "Factores limitantes",
-                        listaResumen(reporte.evaluacion?.factores_limitantes),
-                      ],
-                      [
-                        "Normativa probable",
-                        normativaResumen(reporte.evaluacion?.normativa_probable),
-                      ],
-                    ].map(([label, valor]) => (
-                      <div key={label} style={datoStyle}>
-                        <div style={{ fontSize: "11px", opacity: 0.62 }}>
-                          {label}
-                        </div>
-                        <div style={{ fontSize: "15px", fontWeight: 800, lineHeight: 1.35 }}>
-                          {valor}
-                        </div>
-                      </div>
-                    ))}
-                    <div style={{ fontSize: "12px", lineHeight: 1.45, opacity: 0.78 }}>
-                      {textoSeguro(reporte.evaluacion?.justificacion_tecnica) ||
-                        "Marco legal/preventivo probable asociado. Requiere validación legal específica antes de citar artículo definitivo."}
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "9px" }}>
+                  <div style={datoStyle}>
+                    <div style={{ fontSize: "11px", opacity: 0.68 }}>Plazo de actuación</div>
+                    <div style={{ fontSize: "15px", fontWeight: 900 }}>
+                      {reporte.evaluacion?.plazo_sugerido_v2 || "Sin plazo definido"}
                     </div>
                   </div>
-                </section>
-
-                <section style={cardStyle}>
-                  <div
-                    style={{
-                      fontSize: "18px",
-                      fontWeight: 900,
-                      marginBottom: "10px",
-                    }}
-                  >
-                    Desarrollo técnico preventivo
-                  </div>
-                  <div style={{ display: "grid", gap: "10px" }}>
-                    <div style={datoStyle}>
-                      <div style={{ fontSize: "11px", opacity: 0.62 }}>
-                        Fundamento técnico
-                      </div>
-                      <div style={{ fontSize: "14px", fontWeight: 800, lineHeight: 1.45 }}>
-                        {construirDesarrolloPreventivo(reporte)}
-                      </div>
-                    </div>
-                    <div style={datoStyle}>
-                      <div style={{ fontSize: "11px", opacity: 0.62 }}>
-                        Marco legal/preventivo probable asociado
-                      </div>
-                      <div style={{ fontSize: "14px", fontWeight: 800, lineHeight: 1.45 }}>
-                        {marcoPreventivoProbable(reporte).join(" · ")}
-                      </div>
-                    </div>
-                    <div style={{ fontSize: "12px", lineHeight: 1.45, opacity: 0.78 }}>
-                      Referencia preventiva orientativa. Requiere validación legal específica antes de citar artículos o emitir conclusión jurídica definitiva.
+                  <div style={datoStyle}>
+                    <div style={{ fontSize: "11px", opacity: 0.68 }}>Ámbito</div>
+                    <div style={{ fontSize: "15px", fontWeight: 900 }}>
+                      {etiquetaAmbito(reporte.evaluacion?.ambito_principal)}
                     </div>
                   </div>
-                </section>
+                </div>
+                <div
+                  style={{
+                    borderRadius: "14px",
+                    padding: "11px 12px",
+                    border: nivelValidacion.requiereRevision
+                      ? "1px solid rgba(251,191,36,0.42)"
+                      : "1px solid rgba(57,255,20,0.30)",
+                    background: nivelValidacion.requiereRevision
+                      ? "rgba(245,158,11,0.12)"
+                      : "rgba(57,255,20,0.07)",
+                  }}
+                >
+                  <div style={{ fontSize: "13px", fontWeight: 900 }}>{nivelValidacion.etiqueta}</div>
+                  <div style={{ marginTop: "4px", fontSize: "12px", lineHeight: 1.4, opacity: 0.82 }}>
+                    {nivelValidacion.detalle}
+                  </div>
+                </div>
+              </div>
+            </section>
 
-                <section style={cardStyle}>
-                  {reporte.supervisorFoto && (
+            {verificaciones.length > 0 && (
+              <section style={cardStyle}>
+                <div style={{ fontSize: "20px", fontWeight: 900, marginBottom: "4px" }}>
+                  Verificaciones realizadas
+                </div>
+                <div style={{ fontSize: "12px", lineHeight: 1.4, opacity: 0.70, marginBottom: "12px" }}>
+                  Respuestas utilizadas para construir la decisión preventiva.
+                </div>
+                <div style={{ display: "grid", gap: "9px" }}>
+                  {verificaciones.map((item, index) => (
                     <div
+                      key={`${item.pregunta}-${index}`}
                       style={{
-                        width: "76px",
-                        height: "76px",
-                        borderRadius: "18px",
-                        marginBottom: "12px",
-                        background: `url(${reporte.supervisorFoto}) center / cover no-repeat`,
-                        border: "1px solid rgba(255,255,255,0.20)",
-                        boxShadow: "0 12px 24px rgba(0,0,0,0.25)",
+                        display: "grid",
+                        gridTemplateColumns: "24px 1fr",
+                        gap: "10px",
+                        alignItems: "start",
+                        borderRadius: "14px",
+                        background: "rgba(255,255,255,0.07)",
+                        padding: "11px",
                       }}
-                    />
-                  )}
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr",
-                      gap: "10px",
-                    }}
-                  >
-                    {[
-                      ["Código", reporte.codigo || "Sin código"],
-                      ["Supervisor", reporte.supervisor || "Sin supervisor"],
-                      ["Cargo", reporte.cargo || "Sin cargo"],
-                      ["Empresa / Obra", `${reporte.empresa || "—"} / ${reporte.obra || "—"}`],
-                      ["Área", reporte.area || "Sin área"],
-                      ["Descripción", reporte.descripcion || "Sin descripción"],
-                      [
-                        "Empresa involucrada / responsable",
-                        reporte.empresaInvolucradaResponsable || "Sin informar",
-                      ],
-                      [
-                        "Responsable de la empresa",
-                        reporte.responsableEmpresa || "Sin informar",
-                      ],
-                      [
-                        "Cargo del responsable",
-                        reporte.cargoResponsableEmpresa || "Sin informar",
-                      ],
-                      [
-                        "Acción inmediata",
-                        reporte.evaluacion?.accionInmediata || "Sin acción definida",
-                      ],
-                      [
-                        "Recomendación",
-                        reporte.evaluacion?.recomendacion || "Sin recomendación",
-                      ],
-                      ["Fecha / Hora", `${reporte.fecha || "—"} / ${reporte.hora || "—"}`],
-                    ].map(([label, valor]) => (
-                      <div key={label} style={datoStyle}>
-                        <div style={{ fontSize: "11px", opacity: 0.62 }}>
-                          {label}
+                    >
+                      <span
+                        aria-hidden="true"
+                        style={{
+                          width: "22px",
+                          height: "22px",
+                          borderRadius: "8px",
+                          display: "grid",
+                          placeItems: "center",
+                          background: "#39FF14",
+                          color: "#061936",
+                          fontSize: "14px",
+                          fontWeight: 900,
+                          boxShadow: "0 0 0 1px rgba(57,255,20,0.30)",
+                        }}
+                      >
+                        ✓
+                      </span>
+                      <div>
+                        <div style={{ fontSize: "12px", lineHeight: 1.35, opacity: 0.72 }}>
+                          {item.pregunta}
                         </div>
-                        <div style={{ fontSize: "15px", fontWeight: 800 }}>
-                          {valor}
+                        <div style={{ marginTop: "4px", fontSize: "14px", lineHeight: 1.4, fontWeight: 900, color: "#DFFFD7" }}>
+                          {item.respuesta}
                         </div>
                       </div>
-                    ))}
-                  </div>
-                </section>
-              </>
+                    </div>
+                  ))}
+                </div>
+              </section>
             )}
+
+            <section style={cardStyle}>
+              <div style={{ fontSize: "20px", fontWeight: 900, marginBottom: "12px" }}>
+                Acción y cierre
+              </div>
+              <div style={{ display: "grid", gap: "9px" }}>
+                <div style={datoStyle}>
+                  <div style={{ fontSize: "11px", opacity: 0.68 }}>Acción inmediata</div>
+                  <div style={{ fontSize: "15px", fontWeight: 900, lineHeight: 1.45 }}>
+                    {accionInmediata}
+                  </div>
+                </div>
+                <div style={datoStyle}>
+                  <div style={{ fontSize: "11px", opacity: 0.68 }}>Responsable del cierre</div>
+                  <div style={{ fontSize: "15px", fontWeight: 900, lineHeight: 1.4 }}>
+                    {reporte.responsableEmpresa || "Sin informar"}
+                  </div>
+                  <div style={{ marginTop: "3px", fontSize: "12px", opacity: 0.74 }}>
+                    {reporte.cargoResponsableEmpresa || "Cargo no informado"} · {reporte.empresaInvolucradaResponsable || "Empresa no informada"}
+                  </div>
+                </div>
+                <div style={datoStyle}>
+                  <div style={{ fontSize: "11px", opacity: 0.68 }}>Criterio de cierre</div>
+                  <div style={{ fontSize: "14px", fontWeight: 800, lineHeight: 1.45 }}>
+                    {evidenciaCierreSeleccionada
+                      ? `${evidenciaCierreSeleccionada}. Debe permitir verificar que el control es efectivo antes de cerrar el hallazgo.`
+                      : "Registrar evidencia de la corrección y verificar en terreno que el control es efectivo antes de cerrar el hallazgo."}
+                  </div>
+                </div>
+                {reporte.evaluacion?.requiere_contencion_ambiental && (
+                  <div style={{ ...datoStyle, border: "1px solid rgba(52,211,153,0.40)" }}>
+                    <div style={{ fontSize: "11px", opacity: 0.68 }}>Control ambiental</div>
+                    <div style={{ fontSize: "14px", fontWeight: 900 }}>Contención ambiental requerida.</div>
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <section style={cardStyle}>
+              <div style={{ fontSize: "20px", fontWeight: 900, marginBottom: "12px" }}>
+                Datos del hallazgo
+              </div>
+              {reporte.supervisorFoto && (
+                <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px" }}>
+                  <div
+                    role="img"
+                    aria-label={`Supervisor ${reporte.supervisor || "reportante"}`}
+                    style={{
+                      width: "58px",
+                      height: "58px",
+                      borderRadius: "16px",
+                      background: `url(${reporte.supervisorFoto}) center / cover no-repeat`,
+                      border: "1px solid rgba(255,255,255,0.20)",
+                      flexShrink: 0,
+                    }}
+                  />
+                  <div>
+                    <div style={{ fontSize: "15px", fontWeight: 900 }}>{reporte.supervisor || "Sin supervisor"}</div>
+                    <div style={{ fontSize: "12px", opacity: 0.72 }}>{reporte.cargo || "Sin cargo"}</div>
+                  </div>
+                </div>
+              )}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "9px" }}>
+                {[
+                  ["Código", reporte.codigo || "Sin código"],
+                  ["Fecha y hora", `${reporte.fecha || "—"} · ${reporte.hora || "—"}`],
+                  ["Empresa / obra", `${reporte.empresa || "—"} / ${reporte.obra || "—"}`],
+                  ["Área", reporte.area || "Sin área"],
+                ].map(([label, valor]) => (
+                  <div key={label} style={datoStyle}>
+                    <div style={{ fontSize: "11px", opacity: 0.62 }}>{label}</div>
+                    <div style={{ fontSize: "13px", fontWeight: 900, lineHeight: 1.35 }}>{valor}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ ...datoStyle, marginTop: "9px" }}>
+                <div style={{ fontSize: "11px", opacity: 0.62 }}>Condición reportada</div>
+                <div style={{ fontSize: "15px", fontWeight: 900, lineHeight: 1.4 }}>
+                  {reporte.descripcion || "Sin descripción"}
+                </div>
+              </div>
+            </section>
+
+            <details style={cardStyle}>
+              <summary style={{ cursor: "pointer", fontSize: "17px", fontWeight: 900 }}>
+                Ver criterio técnico y marco preventivo
+              </summary>
+              <div style={{ marginTop: "12px", display: "grid", gap: "10px", fontSize: "13px", lineHeight: 1.5 }}>
+                <p style={{ margin: 0 }}>{construirDesarrolloPreventivo(reporte)}</p>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "7px" }}>
+                  {marcoPreventivoProbable(reporte).map((item) => (
+                    <span
+                      key={item}
+                      style={{
+                        borderRadius: "999px",
+                        background: "rgba(109,177,255,0.12)",
+                        border: "1px solid rgba(151,197,255,0.24)",
+                        padding: "6px 9px",
+                        fontSize: "11px",
+                        fontWeight: 800,
+                      }}
+                    >
+                      {item}
+                    </span>
+                  ))}
+                </div>
+                <p style={{ margin: 0, opacity: 0.68 }}>
+                  Referencia preventiva orientativa. La aplicación específica debe confirmarse según la actividad, empresa y condiciones reales del terreno.
+                </p>
+              </div>
+            </details>
 
             <section style={cardStyle}>
               <div
@@ -1069,7 +1029,7 @@ export default function InformeFinalV2Page() {
                   marginBottom: "10px",
                 }}
               >
-                Fotografías
+                Evidencia del reporte
               </div>
               {fotos.length === 0 ? (
                 <div style={{ fontSize: "14px", opacity: 0.76 }}>
@@ -1117,10 +1077,14 @@ export default function InformeFinalV2Page() {
                   intentará sincronizar nuevamente.
                 </div>
               )}
+              {fotosVisibles.length > 0 && (
+                <div style={{ marginTop: "10px", fontSize: "12px", opacity: 0.74, lineHeight: 1.4 }}>
+                  La evidencia adjunta respalda el registro inicial, pero no acredita por sí sola la corrección. El cierre debe incorporar la evidencia definida en la evaluación.
+                </div>
+              )}
               {!guardado && fotosSinRespaldoStorage > 0 && (
                 <div style={{ marginTop: "8px", fontSize: "12px", opacity: 0.76, lineHeight: 1.4 }}>
-                  {fotosSinRespaldoStorage} evidencia(s) se respaldarán en Storage al guardar.
-                  Si la subida falla, quedarán marcadas como pendientes y no como evidencia disponible.
+                  {fotosSinRespaldoStorage} evidencia(s) se respaldarán al enviar. Si la carga falla, quedarán pendientes de sincronización.
                 </div>
               )}
             </section>
@@ -1141,22 +1105,18 @@ export default function InformeFinalV2Page() {
                     typeof reporte.gps.longitud === "number" && (
                       <>
                         <div>
-                          <strong>Latitud:</strong> {reporte.gps.latitud}
+                          <strong>Latitud:</strong> {formatearCoordenadaInformeV2(reporte.gps.latitud)}
                         </div>
                         <div>
-                          <strong>Longitud:</strong> {reporte.gps.longitud}
+                          <strong>Longitud:</strong> {formatearCoordenadaInformeV2(reporte.gps.longitud)}
                         </div>
                         <div>
-                          <strong>Precisión:</strong>{" "}
-                          {typeof reporte.gps.precisionGps === "number"
-                            ? `${reporte.gps.precisionGps} m`
-                            : "No informada"}
+                          <strong>Precisión:</strong> {formatearPrecisionInformeV2(reporte.gps.precisionGps)}
                         </div>
                       </>
                     )}
                   <div>
-                    <strong>Estado:</strong>{" "}
-                    {reporte.gps.estadoGeolocalizacion}
+                    <strong>Estado:</strong> Ubicación registrada
                   </div>
                   {reporte.gps.motivoGeolocalizacion && (
                     <div>
@@ -1165,9 +1125,24 @@ export default function InformeFinalV2Page() {
                     </div>
                   )}
                   <div>
-                    <strong>Fecha/hora:</strong>{" "}
-                    {reporte.gps.fechaHoraGeolocalizacion}
+                    <strong>Fecha/hora:</strong> {formatearFechaGpsInformeV2(reporte.gps.fechaHoraGeolocalizacion)}
                   </div>
+                  {typeof reporte.gps.latitud === "number" && typeof reporte.gps.longitud === "number" && (
+                    <a
+                      href={`https://www.google.com/maps?q=${reporte.gps.latitud},${reporte.gps.longitud}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{
+                        marginTop: "2px",
+                        color: "#9CCBFF",
+                        fontSize: "13px",
+                        fontWeight: 900,
+                        textDecoration: "none",
+                      }}
+                    >
+                      Ver ubicación en el mapa
+                    </a>
+                  )}
                 </div>
               ) : (
                 <div>Sin ubicación GPS.</div>
@@ -1191,7 +1166,7 @@ export default function InformeFinalV2Page() {
                 }}
               >
                 {online
-                  ? "Online. Se intentará sincronizar Supabase y Storage."
+                  ? "Conexión disponible. El reporte se enviará y respaldará automáticamente."
                   : "Modo offline activo. El reporte quedará pendiente de sincronización."}
               </div>
               <button
@@ -1374,7 +1349,8 @@ export default function InformeFinalV2Page() {
                   {mensajeGuardado}
                 </div>
               )}
-              {detalleGuardado && (
+              {detalleGuardado &&
+                (!detalleGuardado.centralOk || (detalleGuardado.evidenciasPendientes || 0) > 0) && (
                 <div
                   style={{
                     borderRadius: "14px",
@@ -1386,11 +1362,9 @@ export default function InformeFinalV2Page() {
                     lineHeight: 1.45,
                   }}
                 >
-                  <div>
-                    {detalleGuardado.centralOk
-                      ? "El hallazgo fue guardado y sincronizado."
-                      : "El reporte quedó guardado y pendiente de sincronización."}
-                  </div>
+                  {!detalleGuardado.centralOk && (
+                    <div>El reporte quedó guardado y pendiente de sincronización.</div>
+                  )}
                   {(detalleGuardado.evidenciasIntentadas || 0) > 0 && (
                     <div>
                       {(detalleGuardado.evidenciasPendientes || 0) > 0

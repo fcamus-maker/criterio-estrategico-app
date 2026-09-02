@@ -19,7 +19,6 @@ import type {
   DatosLegales,
   EvaluacionInputV2,
   EvaluacionResultadoV2,
-  RespuestaEvaluacionV2,
   TipoEvento,
 } from "./types";
 
@@ -59,21 +58,6 @@ function normalizarInput(input: EvaluacionInputV2): EvaluacionNormalizadaV2 {
     respuestas: input.respuestas ?? {},
     textoBusqueda: obtenerTextoBusquedaMotorV2(input),
   };
-}
-
-function respuestaEsAfirmativa(valor: RespuestaEvaluacionV2): boolean {
-  if (typeof valor === "boolean") return valor;
-  if (typeof valor === "number") return valor > 0;
-  if (Array.isArray(valor)) {
-    return valor.some((item) => respuestaEsAfirmativa(item));
-  }
-  if (typeof valor === "string") {
-    const normalizada = normalizarTextoMotorV2(valor);
-    return ["si", "true", "alto", "alta", "directa", "inexistentes", "no controlado"].some((texto) =>
-      normalizada.includes(normalizarTextoMotorV2(texto))
-    );
-  }
-  return false;
 }
 
 function respuestaIncluye(input: EvaluacionNormalizadaV2, palabras: string[]): boolean {
@@ -519,10 +503,16 @@ export function evaluarHallazgoV2(input: EvaluacionInputV2): EvaluacionResultado
   const requiereContencionAmbiental =
     Boolean(normalizado.datosAmbientales?.requiereContencion) ||
     senalesCriticas.some((senal) => senal.toLowerCase().includes("derrame") || senal.toLowerCase().includes("ambiental"));
+  const riesgoCriticoActivo =
+    criticidadFinal === "CRITICO" &&
+    (tieneExposicionDirecta(normalizado) ||
+      normalizado.controlesExistentes === "inexistentes" ||
+      normalizado.controlesExistentes === "parciales");
   const requiereSuspension =
     Boolean(normalizado.requiereSuspensionDeclarada && obtenerPesoCriticidad(criticidadFinal) >= obtenerPesoCriticidad("ALTO")) ||
+    riesgoCriticoActivo ||
     senalesCriticas.some((senal) =>
-      ["altura", "energia", "lesion", "maquinaria", "carga suspendida", "evacuacion"].some((palabra) =>
+      ["altura", "energia", "lesion", "maquinaria", "carga suspendida", "evacuacion", "derrumbe", "excavacion"].some((palabra) =>
         normalizarTextoMotorV2(senal).includes(palabra)
       )
     );

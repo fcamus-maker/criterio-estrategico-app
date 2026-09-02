@@ -512,7 +512,12 @@ function entradaMotorV2DesdeReporte(reporte: ReporteEvaluableMotorV2): Evaluacio
     probabilidad: probabilidadDesdeRespuestas(respuestas),
     controlesExistentes: controlesDesdeRespuestas(respuestas),
     requiereSuspensionDeclarada:
-      incluyeValorInteligente(respuestas, ["continua_sin_control", "accion_pendiente"]) ||
+      incluyeValorInteligente(respuestas, [
+        "detener_aislar",
+        "corregir_antes_continuar",
+        "continua_sin_control",
+        "accion_pendiente",
+      ]) ||
       (respuestas?.p9 === "no" &&
         (respuestas?.p10 === "si" || respuestas?.p2 === "si" || respuestas?.p3 === "alta")) ||
       algunaRespuesta(

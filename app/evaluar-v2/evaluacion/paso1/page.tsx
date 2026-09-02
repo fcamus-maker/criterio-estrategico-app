@@ -521,13 +521,13 @@ export default function EvaluacionPaso1V2Page() {
                   ...buttonStyle,
                   color: "white",
                   background: activa
-                    ? "linear-gradient(180deg, #2593ff 0%, #145ee9 48%, #07339b 100%)"
+                    ? "linear-gradient(180deg, rgba(57,255,20,0.24), rgba(31,212,12,0.14))"
                     : "rgba(3,20,48,0.24)",
                   border: activa
-                    ? "1px solid rgba(169,215,255,0.72)"
+                    ? "1.5px solid rgba(57,255,20,0.86)"
                     : "1px solid rgba(151,197,255,0.20)",
                   boxShadow: activa
-                    ? "0 14px 26px rgba(15,94,255,0.30), inset 0 1px 0 rgba(255,255,255,0.25)"
+                    ? "0 0 0 1px rgba(57,255,20,0.26), 0 12px 24px rgba(31,212,12,0.14), inset 0 1px 0 rgba(255,255,255,0.18)"
                     : "none",
                   textAlign: "left",
                   ...estiloFeedback(`${pregunta.id}-${opcion.value}`),
