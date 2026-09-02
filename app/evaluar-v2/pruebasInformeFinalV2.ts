@@ -22,6 +22,16 @@ if (!detenido.aplicada || detenido.etiqueta !== "Actividad detenida o aislada") 
   errores.push("La detención aplicada no queda diferenciada de una acción pendiente.");
 }
 
+const derrame = resolverDecisionSuspensionInformeV2({
+  criticidad: "CRÍTICO",
+  requiereContencionAmbiental: true,
+  ambito: "medio_ambiente",
+  respuestas: {},
+});
+if (derrame.etiqueta !== "Detener la fuente y aislar el área afectada") {
+  errores.push("Un derrame no debe ordenar genéricamente la suspensión de toda la operación.");
+}
+
 const validacion = resolverNivelValidacionInformeV2({
   confianza: "alta",
   requiereRevisionManual: true,
@@ -49,6 +59,7 @@ if (errores.length > 0) {
         controles: [
           "CRÍTICO exige suspensión",
           "detención aplicada se informa correctamente",
+          "derrame limita la detención al área afectada",
           "revisión manual invalida suficiencia alta",
           "GPS legible",
         ],

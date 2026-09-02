@@ -708,6 +708,8 @@ export default function InformeFinalV2Page() {
   const decisionSuspension = resolverDecisionSuspensionInformeV2({
     criticidad,
     requiereSuspension: reporte?.evaluacion?.requiere_suspension,
+    requiereContencionAmbiental: reporte?.evaluacion?.requiere_contencion_ambiental,
+    ambito: reporte?.evaluacion?.ambito_principal,
     respuestas: reporte?.evaluacion?.respuestas,
   });
   const nivelValidacion = resolverNivelValidacionInformeV2({

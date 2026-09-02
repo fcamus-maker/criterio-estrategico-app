@@ -53,6 +53,8 @@ export function resolverNivelValidacionInformeV2(input: {
 export function resolverDecisionSuspensionInformeV2(input: {
   criticidad?: string;
   requiereSuspension?: boolean;
+  requiereContencionAmbiental?: boolean;
+  ambito?: string;
   respuestas?: Record<string, string>;
 }): DecisionSuspensionInformeV2 {
   const valores = Object.values(input.respuestas || {}).map(normalizar);
@@ -78,6 +80,19 @@ export function resolverDecisionSuspensionInformeV2(input: {
       aplicada: true,
       etiqueta: "Actividad detenida o aislada",
       detalle: "Mantener la suspensión hasta verificar controles efectivos y autorizar la reanudación.",
+    };
+  }
+
+  if (
+    input.requiereContencionAmbiental ||
+    (normalizar(input.ambito) === "medio_ambiente" && requerida)
+  ) {
+    return {
+      requerida: true,
+      aplicada: false,
+      etiqueta: "Detener la fuente y aislar el área afectada",
+      detalle:
+        "Contener el derrame, proteger drenajes y restringir únicamente el sector comprometido hasta verificar el control.",
     };
   }
 

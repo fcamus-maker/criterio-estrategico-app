@@ -23,11 +23,23 @@ const CASOS: CasoFlujoProgresivoV4[] = [
     respuestas: [
       ["medio_ambiente"],
       ["derrame_hidrocarburo"],
-      ["afecta_suelo_agua_drenaje", "afecta_personas_transito"],
+      ["afectacion_real_suelo_agua_drenaje", "afecta_personas_transito"],
       ["sin_control"],
       ["accion_pendiente"],
     ],
     criticidad: "CRITICO",
+    contencion: true,
+  },
+  {
+    id: "derrame-potencial-contenido-parcialmente",
+    respuestas: [
+      ["medio_ambiente"],
+      ["derrame_hidrocarburo"],
+      ["riesgo_potencial_suelo_agua_drenaje"],
+      ["control_parcial"],
+      ["accion_pendiente"],
+    ],
+    criticidad: "ALTO",
     contencion: true,
   },
   {
