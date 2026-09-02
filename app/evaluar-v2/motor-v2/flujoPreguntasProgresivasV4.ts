@@ -631,7 +631,16 @@ export const crearFlujoPreguntasProgresivasV4 = (): FlujoPreguntasProgresivasV4 
 const opcionesExposicion = (riesgo: RiesgoDefinicionV4): OpcionProgresivaV4[] => {
   if (riesgo.claseExposicion === "ambiental") {
     return [
-      opcion("afecta_suelo_agua_drenaje", "Alcanza o puede alcanzar suelo, agua o drenaje", "Existe propagación real o una vía directa de contaminación."),
+      opcion(
+        "afectacion_real_suelo_agua_drenaje",
+        "Ya alcanzó suelo, agua o drenaje",
+        "Se observa propagación o contaminación efectiva fuera del punto inicial.",
+      ),
+      opcion(
+        "riesgo_potencial_suelo_agua_drenaje",
+        "Podría alcanzar suelo, agua o drenaje, pero aún está contenido",
+        "Existe una vía potencial de propagación, sin afectación efectiva confirmada.",
+      ),
       opcion("afecta_personas_transito", "Expone personas, tránsito o áreas de trabajo", "La condición genera contacto, caída, incendio o interferencia operacional."),
       opcion("contenido_area_limitada", "Permanece contenido en un área limitada", "No se observa salida del punto afectado, pero requiere control."),
       opcion("sin_exposicion_visible", "No se observa exposición o propagación", "La desviación existe, aunque no muestra afectación actual."),
@@ -870,10 +879,23 @@ export function responderPreguntaProgresivaV4(
 
   if (pregunta.multiple) {
     const exclusivas = new Set(["no_verificable", "sin_personas_expuestas", "sin_exposicion_visible"]);
+    const estadosPropagacionAmbiental = new Set([
+      "afectacion_real_suelo_agua_drenaje",
+      "riesgo_potencial_suelo_agua_drenaje",
+      "contenido_area_limitada",
+      "sin_exposicion_visible",
+    ]);
     if (actuales.includes(opcionId)) {
       seleccionadas = actuales.filter((id) => id !== opcionId);
     } else if (exclusivas.has(opcionId)) {
       seleccionadas = [opcionId];
+    } else if (estadosPropagacionAmbiental.has(opcionId)) {
+      seleccionadas = [
+        ...actuales.filter(
+          (id) => !estadosPropagacionAmbiental.has(id) && !exclusivas.has(id),
+        ),
+        opcionId,
+      ].slice(-pregunta.maxSelecciones);
     } else {
       seleccionadas = [...actuales.filter((id) => !exclusivas.has(id)), opcionId].slice(
         -pregunta.maxSelecciones,
@@ -1035,6 +1057,7 @@ export function evaluarFlujoProgresivoV4(
     [
       "exposicion_directa_personas",
       "consecuencia_grave_posible",
+      "afectacion_real_suelo_agua_drenaje",
       "afecta_suelo_agua_drenaje",
       "evento_activo_personas",
       "habilita_tarea_riesgosa",
